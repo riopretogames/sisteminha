@@ -299,10 +299,6 @@ export default function PDV() {
       {/* Products Section */}
       <div className="flex-1 flex flex-col">
         <div className="flex items-center gap-4 mb-4">
-          <Button variant="ghost" onClick={() => navigate('/dashboard')}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Voltar
-          </Button>
           <h1 className="text-2xl font-bold">PDV</h1>
         </div>
 
