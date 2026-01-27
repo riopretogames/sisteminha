@@ -147,17 +147,11 @@ export default function NovaOS() {
 
   return (
     <div className="space-y-6 animate-fade-in max-w-3xl">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => navigate('/os')}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Voltar
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Nova Ordem de Serviço</h1>
-          <p className="text-muted-foreground">
-            Cadastre uma nova OS de reparo
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold">Nova Ordem de Serviço</h1>
+        <p className="text-muted-foreground">
+          Cadastre uma nova OS de reparo
+        </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">

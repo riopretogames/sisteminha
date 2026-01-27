@@ -24,10 +24,10 @@ import {
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'atendente', 'tecnico', 'vendedor'] },
-  { path: '/clientes', label: 'Clientes', icon: Users, roles: ['admin', 'atendente', 'vendedor'] },
-  { path: '/estoque', label: 'Estoque', icon: Package, roles: ['admin'] },
   { path: '/os', label: 'Ordens de Serviço', icon: ClipboardList, roles: ['admin', 'atendente', 'tecnico'] },
-  { path: '/pdv', label: 'PDV', icon: ShoppingCart, roles: ['admin', 'vendedor'] },
+  { path: '/pdv', label: 'Vendas (PDV)', icon: ShoppingCart, roles: ['admin', 'vendedor'] },
+  { path: '/estoque', label: 'Estoque', icon: Package, roles: ['admin'] },
+  { path: '/clientes', label: 'Clientes', icon: Users, roles: ['admin', 'atendente', 'vendedor'] },
   { path: '/relatorios', label: 'Relatórios', icon: BarChart3, roles: ['admin'] },
   { path: '/configuracoes', label: 'Configurações', icon: Settings, roles: ['admin'] },
 ];
