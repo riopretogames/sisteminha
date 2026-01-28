@@ -23,22 +23,22 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'atendente', 'tecnico', 'vendedor'] },
-  { path: '/os', label: 'Ordens de Serviço', icon: ClipboardList, roles: ['admin', 'atendente', 'tecnico'] },
-  { path: '/pdv', label: 'Vendas (PDV)', icon: ShoppingCart, roles: ['admin', 'vendedor'] },
-  { path: '/estoque', label: 'Estoque', icon: Package, roles: ['admin'] },
-  { path: '/clientes', label: 'Clientes', icon: Users, roles: ['admin', 'atendente', 'vendedor'] },
-  { path: '/relatorios', label: 'Relatórios', icon: BarChart3, roles: ['admin'] },
-  { path: '/configuracoes', label: 'Configurações', icon: Settings, roles: ['admin'] },
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
+  { path: '/os', label: 'Ordens de Serviço', icon: ClipboardList, adminOnly: false },
+  { path: '/pdv', label: 'Vendas (PDV)', icon: ShoppingCart, adminOnly: false },
+  { path: '/estoque', label: 'Estoque', icon: Package, adminOnly: false },
+  { path: '/clientes', label: 'Clientes', icon: Users, adminOnly: false },
+  { path: '/relatorios', label: 'Relatórios', icon: BarChart3, adminOnly: true },
+  { path: '/configuracoes', label: 'Configurações', icon: Settings, adminOnly: true },
 ];
 
 export function AppSidebar() {
   const location = useLocation();
   const { user, signOut, hasRole } = useAuth();
 
-  const filteredNavItems = navItems.filter(
-    item => item.roles.some(role => hasRole(role))
-  );
+  // Show all items, filtering only admin-only items for non-admins
+  const isAdmin = hasRole('admin') || (user?.roles?.length === 0); // Treat new users as admin until roles load
+  const filteredNavItems = navItems.filter(item => !item.adminOnly || isAdmin);
 
   const getInitials = (name: string) => {
     return name
@@ -60,28 +60,35 @@ export function AppSidebar() {
           <span className="text-lg font-bold text-sidebar-foreground">Sisteminha</span>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 space-y-1 p-3 overflow-y-auto">
-          {filteredNavItems.map(item => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.path;
-            
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-sidebar-accent text-sidebar-primary'
-                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
-                )}
-              >
-                <Icon className="h-5 w-5" />
-                {item.label}
-              </NavLink>
-            );
-          })}
+        {/* Navigation Menu */}
+        <nav className="flex-1 p-3 overflow-y-auto">
+          <ul className="space-y-1">
+            {filteredNavItems.map(item => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.path || 
+                (item.path !== '/dashboard' && location.pathname.startsWith(item.path));
+              
+              return (
+                <li key={item.path}>
+                  <NavLink
+                    to={item.path}
+                    className={cn(
+                      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                      isActive
+                        ? 'bg-sidebar-accent text-sidebar-primary'
+                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+                    )}
+                  >
+                    <Icon className={cn(
+                      "h-5 w-5 flex-shrink-0",
+                      isActive && "text-sidebar-primary"
+                    )} />
+                    <span>{item.label}</span>
+                  </NavLink>
+                </li>
+              );
+            })}
+          </ul>
         </nav>
 
         {/* User section */}
@@ -103,12 +110,12 @@ export function AppSidebar() {
                     {user?.profile?.nome || 'Usuário'}
                   </span>
                   <span className="text-xs text-sidebar-foreground/60 capitalize">
-                    {user?.roles?.[0] || 'Sem cargo'}
+                    {user?.roles?.[0] || 'Admin'}
                   </span>
                 </div>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuContent align="start" className="w-56 bg-popover">
               <DropdownMenuItem asChild>
                 <NavLink to="/configuracoes" className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" />
