@@ -81,3 +81,17 @@ export const SHORTCUTS = {
   newOS: 'Ctrl+O',
   newClient: 'Ctrl+C',
 } as const;
+
+// Card fields configuration for Kanban view
+export const CARD_FIELDS = {
+  numero_os: { label: 'Número da OS', icon: 'hash' },
+  cliente_nome: { label: 'Nome do Cliente', icon: 'user' },
+  modelo: { label: 'Modelo do Aparelho', icon: 'smartphone' },
+  imei: { label: 'IMEI', icon: 'fingerprint' },
+  defeito: { label: 'Defeito', icon: 'alert-circle' },
+  status: { label: 'Status', icon: 'circle' },
+  valor_orcamento: { label: 'Valor do Orçamento', icon: 'dollar-sign' },
+  data_entrada: { label: 'Data de Entrada', icon: 'calendar' },
+  tecnico: { label: 'Técnico Responsável', icon: 'wrench' },
+  prioridade: { label: 'Prioridade', icon: 'flag' },
+} as const;

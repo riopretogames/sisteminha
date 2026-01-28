@@ -1,0 +1,121 @@
+import { User, Smartphone, Calendar, DollarSign, Wrench, AlertCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { OS_PRIORITY } from '@/lib/constants';
+import type { CardConfig } from '@/hooks/useCardConfig';
+import type { ServiceOrder, StatusConfig } from '@/types/os';
+
+interface OSKanbanCardProps {
+  order: ServiceOrder;
+  config: CardConfig;
+  statusConfig?: StatusConfig;
+  onClick: () => void;
+}
+
+export function OSKanbanCard({ order, config, statusConfig, onClick }: OSKanbanCardProps) {
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value);
+  };
+
+  const formatDate = (date: string) => {
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+    }).format(new Date(date));
+  };
+
+  const prioridadeConfig = OS_PRIORITY[order.prioridade];
+
+  return (
+    <Card
+      onClick={onClick}
+      className="cursor-pointer hover:shadow-md transition-all hover:border-primary/50 bg-card"
+    >
+      <CardContent className="p-3 space-y-2">
+        {/* Header: Número OS + Prioridade */}
+        <div className="flex items-center justify-between">
+          {config.numero_os && (
+            <span className="font-mono text-sm font-semibold text-primary">
+              {order.numero_os}
+            </span>
+          )}
+          {config.prioridade && order.prioridade !== 'normal' && prioridadeConfig && (
+            <Badge variant="outline" className={prioridadeConfig.color}>
+              {prioridadeConfig.label}
+            </Badge>
+          )}
+        </div>
+
+        {/* Cliente */}
+        {config.cliente_nome && (
+          <div className="flex items-center gap-2 text-sm">
+            <User className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+            <span className="truncate font-medium">{order.cliente_nome}</span>
+          </div>
+        )}
+
+        {/* Modelo */}
+        {config.modelo && (order.marca || order.modelo) && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Smartphone className="h-3.5 w-3.5 flex-shrink-0" />
+            <span className="truncate">
+              {[order.marca, order.modelo].filter(Boolean).join(' ')}
+            </span>
+          </div>
+        )}
+
+        {/* IMEI */}
+        {config.imei && order.imei && (
+          <div className="text-xs text-muted-foreground font-mono">
+            IMEI: {order.imei}
+          </div>
+        )}
+
+        {/* Defeito */}
+        {config.defeito && (
+          <div className="flex items-start gap-2 text-sm">
+            <AlertCircle className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 mt-0.5" />
+            <span className="line-clamp-2 text-muted-foreground">
+              {order.defeito_cliente}
+            </span>
+          </div>
+        )}
+
+        {/* Técnico */}
+        {config.tecnico && order.tecnico_nome && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Wrench className="h-3.5 w-3.5 flex-shrink-0" />
+            <span className="truncate">{order.tecnico_nome}</span>
+          </div>
+        )}
+
+        {/* Footer: Valor + Data */}
+        <div className="flex items-center justify-between pt-1 border-t">
+          {config.valor_orcamento && (
+            <div className="flex items-center gap-1 text-sm font-medium text-primary">
+              <DollarSign className="h-3.5 w-3.5" />
+              {formatCurrency(order.total_orcamento)}
+            </div>
+          )}
+          {config.data_entrada && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Calendar className="h-3 w-3" />
+              {formatDate(order.created_at)}
+            </div>
+          )}
+        </div>
+
+        {/* Status badge (if not grouped by status) */}
+        {config.status && statusConfig && (
+          <Badge className={statusConfig.color}>
+            {statusConfig.label}
+          </Badge>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

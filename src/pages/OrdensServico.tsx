@@ -1,33 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus,
   Search,
-  MoreHorizontal,
-  ClipboardList,
-  Eye,
-  Clock,
-  User,
-  Smartphone,
+  LayoutGrid,
+  Columns3,
+  Settings2,
+  Palette,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Select,
   SelectContent,
@@ -37,34 +21,48 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { OS_STATUS, OS_PRIORITY } from '@/lib/constants';
-
-type OsStatus = keyof typeof OS_STATUS;
-
-interface ServiceOrder {
-  id: string;
-  numero_os: string;
-  cliente_nome: string;
-  marca: string | null;
-  modelo: string | null;
-  defeito_cliente: string;
-  status: OsStatus;
-  prioridade: string;
-  total_orcamento: number;
-  created_at: string;
-}
+import { useAuth } from '@/hooks/useAuth';
+import { useViewMode } from '@/hooks/useViewMode';
+import { OS_PRIORITY } from '@/lib/constants';
+import { OSTableView } from '@/components/os/OSTableView';
+import { OSKanbanView } from '@/components/os/OSKanbanView';
+import { CardConfigDialog } from '@/components/os/CardConfigDialog';
+import { StatusManagerDialog } from '@/components/os/StatusManagerDialog';
+import type { ServiceOrder, StatusConfig, OsPrioridade } from '@/types/os';
 
 export default function OrdensServico() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { hasRole } = useAuth();
+  const { viewMode, setViewMode } = useViewMode();
+
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
+  const [statuses, setStatuses] = useState<StatusConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
+  const [cardConfigOpen, setCardConfigOpen] = useState(false);
+  const [statusManagerOpen, setStatusManagerOpen] = useState(false);
+
   useEffect(() => {
+    fetchStatuses();
     fetchOrders();
   }, []);
+
+  const fetchStatuses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('os_status_config')
+        .select('*')
+        .order('ordem');
+
+      if (error) throw error;
+      setStatuses((data as StatusConfig[]) || []);
+    } catch (error) {
+      console.error('Error fetching statuses:', error);
+    }
+  };
 
   const fetchOrders = async () => {
     try {
@@ -73,12 +71,15 @@ export default function OrdensServico() {
         .select(`
           id,
           numero_os,
+          cliente_id,
           marca,
           modelo,
+          imei,
           defeito_cliente,
           status,
           prioridade,
           total_orcamento,
+          tecnico_id,
           created_at,
           clientes!inner(nome)
         `)
@@ -87,16 +88,19 @@ export default function OrdensServico() {
       if (error) throw error;
 
       setOrders(
-        data?.map(order => ({
+        data?.map((order) => ({
           id: order.id,
           numero_os: order.numero_os,
+          cliente_id: order.cliente_id,
           cliente_nome: (order.clientes as any)?.nome || 'Cliente',
           marca: order.marca,
           modelo: order.modelo,
+          imei: order.imei,
           defeito_cliente: order.defeito_cliente,
-          status: order.status as OsStatus,
-          prioridade: order.prioridade,
+          status: order.status || 'recebido',
+          prioridade: (order.prioridade || 'normal') as OsPrioridade,
           total_orcamento: order.total_orcamento || 0,
+          tecnico_id: order.tecnico_id,
           created_at: order.created_at,
         })) || []
       );
@@ -112,7 +116,7 @@ export default function OrdensServico() {
     }
   };
 
-  const handleStatusChange = async (orderId: string, newStatus: OsStatus) => {
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
     try {
       const { error } = await supabase
         .from('service_orders')
@@ -121,85 +125,131 @@ export default function OrdensServico() {
 
       if (error) throw error;
 
+      // Optimistic update
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+      );
+
+      const statusLabel = statuses.find((s) => s.key === newStatus)?.label || newStatus;
       toast({
         title: 'Status atualizado',
-        description: `OS alterada para ${OS_STATUS[newStatus].label}`,
+        description: `OS alterada para ${statusLabel}`,
       });
-
-      fetchOrders();
     } catch (error: any) {
       toast({
         title: 'Erro ao atualizar',
         description: error.message,
         variant: 'destructive',
       });
+      // Revert on error
+      fetchOrders();
     }
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(value);
-  };
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      const searchLower = search.toLowerCase();
+      const matchesSearch =
+        order.numero_os.toLowerCase().includes(searchLower) ||
+        order.cliente_nome.toLowerCase().includes(searchLower) ||
+        order.modelo?.toLowerCase().includes(searchLower) ||
+        order.defeito_cliente.toLowerCase().includes(searchLower);
 
-  const formatDate = (date: string) => {
-    return new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(date));
-  };
+      const matchesStatus =
+        statusFilter === 'all' || order.status === statusFilter;
 
-  const filteredOrders = orders.filter(order => {
-    const searchLower = search.toLowerCase();
-    const matchesSearch =
-      order.numero_os.toLowerCase().includes(searchLower) ||
-      order.cliente_nome.toLowerCase().includes(searchLower) ||
-      order.modelo?.toLowerCase().includes(searchLower) ||
-      order.defeito_cliente.toLowerCase().includes(searchLower);
+      return matchesSearch && matchesStatus;
+    });
+  }, [orders, search, statusFilter]);
 
-    const matchesStatus =
-      statusFilter === 'all' || order.status === statusFilter;
+  const statusCounts = useMemo(() => {
+    return orders.reduce((acc, order) => {
+      acc[order.status] = (acc[order.status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [orders]);
 
-    return matchesSearch && matchesStatus;
-  });
-
-  const statusCounts = orders.reduce((acc, order) => {
-    acc[order.status] = (acc[order.status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  // Get the 4 main statuses for the summary cards
+  const mainStatuses = ['recebido', 'em_reparo', 'pronto', 'entregue'];
+  const getStatusConfig = (key: string) =>
+    statuses.find((s) => s.key === key) || { key, label: key, color: 'bg-gray-500/10 text-gray-600' };
 
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold">Ordens de Serviço</h1>
           <p className="text-muted-foreground">
             Gerencie os reparos da sua loja
           </p>
         </div>
-        <Button onClick={() => navigate('/os/nova')}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nova OS
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* View Mode Toggle */}
+          <div className="flex bg-muted rounded-lg p-1">
+            <Button
+              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('grid')}
+              title="Modo Grade"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'kanban' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('kanban')}
+              title="Modo Kanban"
+            >
+              <Columns3 className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Card Config - only in Kanban mode */}
+          {viewMode === 'kanban' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCardConfigOpen(true)}
+            >
+              <Settings2 className="mr-2 h-4 w-4" />
+              Configurar Cartão
+            </Button>
+          )}
+
+          {/* Status Manager - admin only */}
+          {hasRole('admin') && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setStatusManagerOpen(true)}
+            >
+              <Palette className="mr-2 h-4 w-4" />
+              Gerenciar Status
+            </Button>
+          )}
+
+          <Button onClick={() => navigate('/os/nova')}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nova OS
+          </Button>
+        </div>
       </div>
 
-      {/* Status Cards */}
-      <div className="grid grid-cols-4 gap-4">
-        {['recebido', 'em_reparo', 'pronto', 'entregue'].map(status => {
-          const config = OS_STATUS[status as OsStatus];
-          const count = statusCounts[status] || 0;
+      {/* Status Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {mainStatuses.map((statusKey) => {
+          const config = getStatusConfig(statusKey);
+          const count = statusCounts[statusKey] || 0;
           return (
             <Card
-              key={status}
+              key={statusKey}
               className={`cursor-pointer transition-all hover:shadow-md ${
-                statusFilter === status ? 'ring-2 ring-primary' : ''
+                statusFilter === statusKey ? 'ring-2 ring-primary' : ''
               }`}
-              onClick={() => setStatusFilter(statusFilter === status ? 'all' : status)}
+              onClick={() =>
+                setStatusFilter(statusFilter === statusKey ? 'all' : statusKey)
+              }
             >
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -213,13 +263,13 @@ export default function OrdensServico() {
       </div>
 
       {/* Search and Filters */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Buscar por número, cliente, modelo..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
           />
         </div>
@@ -229,134 +279,44 @@ export default function OrdensServico() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os status</SelectItem>
-            {Object.entries(OS_STATUS).map(([key, config]) => (
-              <SelectItem key={key} value={key}>
-                {config.label}
-              </SelectItem>
-            ))}
+            {statuses
+              .filter((s) => s.ativo)
+              .map((config) => (
+                <SelectItem key={config.key} value={config.key}>
+                  {config.label}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
       </div>
 
-      {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            </div>
-          ) : filteredOrders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="rounded-full bg-muted p-4">
-                <ClipboardList className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <p className="mt-4 text-lg font-medium">Nenhuma OS encontrada</p>
-              <p className="text-muted-foreground">
-                {search ? 'Tente outra busca' : 'Cadastre sua primeira ordem de serviço'}
-              </p>
-              {!search && (
-                <Button className="mt-4" onClick={() => navigate('/os/nova')}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Criar OS
-                </Button>
-              )}
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Número</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Aparelho</TableHead>
-                  <TableHead>Defeito</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Orçamento</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredOrders.map(order => {
-                  const statusConfig = OS_STATUS[order.status];
-                  const prioridadeConfig = OS_PRIORITY[order.prioridade as keyof typeof OS_PRIORITY];
-                  return (
-                    <TableRow key={order.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-medium">{order.numero_os}</span>
-                          {prioridadeConfig && order.prioridade !== 'normal' && (
-                            <Badge variant="outline" className={prioridadeConfig.color}>
-                              {prioridadeConfig.label}
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          {order.cliente_nome}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Smartphone className="h-4 w-4 text-muted-foreground" />
-                          {[order.marca, order.modelo].filter(Boolean).join(' ') || '-'}
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate">
-                        {order.defeito_cliente}
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={order.status}
-                          onValueChange={(value) => handleStatusChange(order.id, value as OsStatus)}
-                        >
-                          <SelectTrigger className="w-40 h-8">
-                            <Badge className={statusConfig.color}>
-                              {statusConfig.label}
-                            </Badge>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Object.entries(OS_STATUS).map(([key, config]) => (
-                              <SelectItem key={key} value={key}>
-                                <Badge className={config.color}>{config.label}</Badge>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(order.total_orcamento)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          {formatDate(order.created_at)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => navigate(`/os/${order.id}`)}>
-                              <Eye className="mr-2 h-4 w-4" />
-                              Ver detalhes
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      {/* View */}
+      {viewMode === 'grid' ? (
+        <OSTableView
+          orders={filteredOrders}
+          statuses={statuses}
+          loading={loading}
+          onStatusChange={handleStatusChange}
+        />
+      ) : (
+        <OSKanbanView
+          orders={filteredOrders}
+          statuses={statuses}
+          onStatusChange={handleStatusChange}
+        />
+      )}
+
+      {/* Dialogs */}
+      <CardConfigDialog
+        open={cardConfigOpen}
+        onOpenChange={setCardConfigOpen}
+      />
+      <StatusManagerDialog
+        open={statusManagerOpen}
+        onOpenChange={setStatusManagerOpen}
+        statuses={statuses}
+        onStatusesChange={fetchStatuses}
+      />
     </div>
   );
 }

@@ -187,6 +187,53 @@ export type Database = {
           },
         ]
       }
+      os_status_config: {
+        Row: {
+          ativo: boolean | null
+          color: string
+          created_at: string | null
+          icon: string | null
+          id: string
+          key: string
+          label: string
+          ordem: number
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          color?: string
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          key: string
+          label: string
+          ordem?: number
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          color?: string
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          key?: string
+          label?: string
+          ordem?: number
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "os_status_config_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pagamentos_venda: {
         Row: {
           created_at: string | null
@@ -467,7 +514,7 @@ export type Database = {
           prazo_previsto: string | null
           prioridade: Database["public"]["Enums"]["os_prioridade"] | null
           senha_aparelho: string | null
-          status: Database["public"]["Enums"]["os_status"] | null
+          status: string | null
           tecnico_id: string | null
           tenant_id: string
           tipo: Database["public"]["Enums"]["os_tipo"] | null
@@ -495,7 +542,7 @@ export type Database = {
           prazo_previsto?: string | null
           prioridade?: Database["public"]["Enums"]["os_prioridade"] | null
           senha_aparelho?: string | null
-          status?: Database["public"]["Enums"]["os_status"] | null
+          status?: string | null
           tecnico_id?: string | null
           tenant_id: string
           tipo?: Database["public"]["Enums"]["os_tipo"] | null
@@ -523,7 +570,7 @@ export type Database = {
           prazo_previsto?: string | null
           prioridade?: Database["public"]["Enums"]["os_prioridade"] | null
           senha_aparelho?: string | null
-          status?: Database["public"]["Enums"]["os_status"] | null
+          status?: string | null
           tecnico_id?: string | null
           tenant_id?: string
           tipo?: Database["public"]["Enums"]["os_tipo"] | null
