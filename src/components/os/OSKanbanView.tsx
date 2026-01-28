@@ -45,7 +45,7 @@ export function OSKanbanView({ orders, statuses, onStatusChange }: OSKanbanViewP
   }
 
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100vh-360px)] min-h-[400px]">
+    <div className="flex gap-4 overflow-x-auto pb-4 h-full min-h-0">
       {activeStatuses.map((status) => (
         <OSKanbanColumn
           key={status.key}
