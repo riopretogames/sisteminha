@@ -175,9 +175,10 @@ export default function OrdensServico() {
     statuses.find((s) => s.key === key) || { key, label: key, color: 'bg-gray-500/10 text-gray-600' };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
+    <div className="flex flex-col h-full animate-fade-in overflow-hidden">
+      {/* Header - Fixed section */}
+      <div className="flex-shrink-0 space-y-6 pb-4">
+        <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold">Ordens de Serviço</h1>
           <p className="text-muted-foreground">
@@ -236,8 +237,8 @@ export default function OrdensServico() {
         </div>
       </div>
 
-      {/* Status Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Status Summary Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {mainStatuses.map((statusKey) => {
           const config = getStatusConfig(statusKey);
           const count = statusCounts[statusKey] || 0;
@@ -262,8 +263,8 @@ export default function OrdensServico() {
         })}
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex items-center gap-4 flex-wrap">
+        {/* Search and Filters */}
+        <div className="flex items-center gap-4 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -288,23 +289,26 @@ export default function OrdensServico() {
               ))}
           </SelectContent>
         </Select>
+        </div>
       </div>
 
-      {/* View */}
-      {viewMode === 'grid' ? (
-        <OSTableView
-          orders={filteredOrders}
-          statuses={statuses}
-          loading={loading}
-          onStatusChange={handleStatusChange}
-        />
-      ) : (
-        <OSKanbanView
-          orders={filteredOrders}
-          statuses={statuses}
-          onStatusChange={handleStatusChange}
-        />
-      )}
+      {/* View - Scrollable section */}
+      <div className="flex-1 min-h-0">
+        {viewMode === 'grid' ? (
+          <OSTableView
+            orders={filteredOrders}
+            statuses={statuses}
+            loading={loading}
+            onStatusChange={handleStatusChange}
+          />
+        ) : (
+          <OSKanbanView
+            orders={filteredOrders}
+            statuses={statuses}
+            onStatusChange={handleStatusChange}
+          />
+        )}
+      </div>
 
       {/* Dialogs */}
       <CardConfigDialog
