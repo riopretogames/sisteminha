@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronDown, LogOut, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
-import { sidebarMenu, type MenuItem } from '@/lib/sidebar-menu';
+import { sidebarMenu, type MenuItem, type MenuChild } from '@/lib/sidebar-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -12,6 +12,87 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+
+/* -------------------------------------------------- */
+/*  Render children with optional group headers       */
+/* -------------------------------------------------- */
+
+function renderGroupedChildren(children: MenuChild[], pathname: string) {
+  const hasGroups = children.some((c) => c.group);
+
+  if (!hasGroups) {
+    return (
+      <ul className="space-y-0.5">
+        {children.map((child) => {
+          const isActive =
+            pathname === child.path || pathname.startsWith(child.path + '/');
+          return (
+            <li key={child.path}>
+              <NavLink
+                to={child.path}
+                className={cn(
+                  'block rounded-md px-3 py-2 text-[13px] transition-colors duration-150',
+                  isActive
+                    ? 'bg-sidebar-accent text-sidebar-primary font-medium'
+                    : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'
+                )}
+              >
+                {child.label}
+              </NavLink>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
+  // Group children by their group label, preserving order
+  const groups: { group: string; items: MenuChild[] }[] = [];
+  children.forEach((child) => {
+    const groupName = child.group || '';
+    const existing = groups.find((g) => g.group === groupName);
+    if (existing) {
+      existing.items.push(child);
+    } else {
+      groups.push({ group: groupName, items: [child] });
+    }
+  });
+
+  return (
+    <div className="space-y-3">
+      {groups.map((g) => (
+        <div key={g.group}>
+          {g.group && (
+            <span className="block px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+              {g.group}
+            </span>
+          )}
+          <ul className="space-y-0.5">
+            {g.items.map((child) => {
+              const isActive =
+                pathname === child.path || pathname.startsWith(child.path + '/');
+              return (
+                <li key={child.path}>
+                  <NavLink
+                    to={child.path}
+                    className={cn(
+                      'block rounded-md px-3 py-2 text-[13px] transition-colors duration-150',
+                      isActive
+                        ? 'bg-sidebar-accent text-sidebar-primary font-medium'
+                        : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'
+                    )}
+                  >
+                    {child.label}
+                  </NavLink>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /* -------------------------------------------------- */
 /*  Single menu item (with or without submenu)        */
@@ -101,32 +182,12 @@ function SidebarItem({
       <div
         className={cn(
           'overflow-hidden transition-all duration-200',
-          isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+          isOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
-        <ul className="ml-[22px] mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
-          {item.children!.map((child) => {
-            const isActive =
-              location.pathname === child.path ||
-              location.pathname.startsWith(child.path + '/');
-
-            return (
-              <li key={child.path}>
-                <NavLink
-                  to={child.path}
-                  className={cn(
-                    'block rounded-md px-3 py-2 text-[13px] transition-colors duration-150',
-                    isActive
-                      ? 'bg-sidebar-accent text-sidebar-primary font-medium'
-                      : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'
-                  )}
-                >
-                  {child.label}
-                </NavLink>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="ml-[22px] mt-1 border-l border-sidebar-border pl-3">
+          {renderGroupedChildren(item.children!, location.pathname)}
+        </div>
       </div>
     </div>
   );

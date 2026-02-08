@@ -15,16 +15,17 @@ import {
 export interface MenuChild {
   label: string;
   path: string;
-  roles?: string[]; // if undefined, visible to all
+  roles?: string[];
+  group?: string; // visual grouping label
 }
 
 export interface MenuItem {
   id: string;
   label: string;
   icon: LucideIcon;
-  path?: string;           // direct link (no submenu)
-  children?: MenuChild[];  // submenu items
-  roles?: string[];        // if undefined, visible to all
+  path?: string;
+  children?: MenuChild[];
+  roles?: string[];
 }
 
 export const sidebarMenu: MenuItem[] = [
@@ -38,7 +39,14 @@ export const sidebarMenu: MenuItem[] = [
     id: 'dashboards',
     label: 'Dashboards',
     icon: LayoutDashboard,
-    path: '/dashboards',
+    children: [
+      { label: 'Venda', path: '/dashboards/venda', group: 'Dashboards Operacionais' },
+      { label: 'Estoque', path: '/dashboards/estoque', group: 'Dashboards Operacionais' },
+      { label: 'Metas', path: '/dashboards/metas', group: 'Dashboards Operacionais' },
+      { label: 'IE - Estoque', path: '/dashboards/ie-estoque', group: 'Inteligência Empresarial' },
+      { label: 'IE - Comercial', path: '/dashboards/ie-comercial', group: 'Inteligência Empresarial' },
+      { label: 'IE - Serviço', path: '/dashboards/ie-servico', group: 'Inteligência Empresarial' },
+    ],
   },
   {
     id: 'relatorios',
