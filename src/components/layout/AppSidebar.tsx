@@ -1,135 +1,233 @@
+import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import {
-  LayoutDashboard,
-  Users,
-  Package,
-  ClipboardList,
-  ShoppingCart,
-  BarChart3,
-  Settings,
-  LogOut,
-  Smartphone,
-} from 'lucide-react';
+import { ChevronDown, LogOut, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
-import { Button } from '@/components/ui/button';
+import { sidebarMenu, type MenuItem } from '@/lib/sidebar-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
-  { path: '/os', label: 'Ordens de Serviço', icon: ClipboardList, adminOnly: false },
-  { path: '/pdv', label: 'Vendas (PDV)', icon: ShoppingCart, adminOnly: false },
-  { path: '/estoque', label: 'Estoque', icon: Package, adminOnly: false },
-  { path: '/clientes', label: 'Clientes', icon: Users, adminOnly: false },
-  { path: '/relatorios', label: 'Relatórios', icon: BarChart3, adminOnly: true },
-  { path: '/configuracoes', label: 'Configurações', icon: Settings, adminOnly: true },
-];
+/* -------------------------------------------------- */
+/*  Single menu item (with or without submenu)        */
+/* -------------------------------------------------- */
+
+function SidebarItem({
+  item,
+  openId,
+  onToggle,
+}: {
+  item: MenuItem;
+  openId: string | null;
+  onToggle: (id: string) => void;
+}) {
+  const location = useLocation();
+  const hasChildren = !!item.children?.length;
+  const isOpen = openId === item.id;
+
+  // Check if this item or any child is active
+  const isChildActive = item.children?.some(
+    (c) =>
+      location.pathname === c.path ||
+      location.pathname.startsWith(c.path + '/')
+  );
+  const isSelfActive =
+    !hasChildren &&
+    item.path &&
+    (location.pathname === item.path ||
+      location.pathname.startsWith(item.path + '/'));
+
+  const Icon = item.icon;
+
+  /* ---------- direct link ---------- */
+  if (!hasChildren && item.path) {
+    return (
+      <NavLink
+        to={item.path}
+        className={cn(
+          'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-200',
+          isSelfActive
+            ? 'bg-sidebar-accent text-sidebar-primary'
+            : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+        )}
+      >
+        {isSelfActive && (
+          <span className="absolute left-0 h-6 w-[3px] rounded-r-full bg-sidebar-primary" />
+        )}
+        <Icon
+          className={cn(
+            'h-[18px] w-[18px] flex-shrink-0',
+            isSelfActive ? 'text-sidebar-primary' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80'
+          )}
+        />
+        <span className="truncate">{item.label}</span>
+      </NavLink>
+    );
+  }
+
+  /* ---------- collapsible group ---------- */
+  return (
+    <div>
+      <button
+        onClick={() => onToggle(item.id)}
+        className={cn(
+          'group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-200',
+          isChildActive || isOpen
+            ? 'text-sidebar-foreground'
+            : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+        )}
+      >
+        <Icon
+          className={cn(
+            'h-[18px] w-[18px] flex-shrink-0',
+            isChildActive ? 'text-sidebar-primary' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80'
+          )}
+        />
+        <span className="flex-1 truncate text-left">{item.label}</span>
+        <ChevronDown
+          className={cn(
+            'h-4 w-4 flex-shrink-0 text-sidebar-foreground/40 transition-transform duration-200',
+            isOpen && 'rotate-180'
+          )}
+        />
+      </button>
+
+      {/* submenu */}
+      <div
+        className={cn(
+          'overflow-hidden transition-all duration-200',
+          isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+        )}
+      >
+        <ul className="ml-[22px] mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
+          {item.children!.map((child) => {
+            const isActive =
+              location.pathname === child.path ||
+              location.pathname.startsWith(child.path + '/');
+
+            return (
+              <li key={child.path}>
+                <NavLink
+                  to={child.path}
+                  className={cn(
+                    'block rounded-md px-3 py-2 text-[13px] transition-colors duration-150',
+                    isActive
+                      ? 'bg-sidebar-accent text-sidebar-primary font-medium'
+                      : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'
+                  )}
+                >
+                  {child.label}
+                </NavLink>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------- */
+/*  Sidebar                                           */
+/* -------------------------------------------------- */
 
 export function AppSidebar() {
-  const location = useLocation();
   const { user, signOut, hasRole } = useAuth();
+  const [openId, setOpenId] = useState<string | null>(null);
 
-  // Show all items, filtering only admin-only items for non-admins
-  const isAdmin = hasRole('admin') || (user?.roles?.length === 0); // Treat new users as admin until roles load
-  const filteredNavItems = navItems.filter(item => !item.adminOnly || isAdmin);
+  // Only one submenu open at a time
+  const handleToggle = (id: string) => {
+    setOpenId((prev) => (prev === id ? null : id));
+  };
 
-  const getInitials = (name: string) => {
-    return name
+  // RBAC filter
+  const isAdmin = hasRole('admin') || (user?.roles?.length === 0);
+  const canSee = (roles?: string[]) => {
+    if (!roles) return true;
+    if (isAdmin) return true;
+    return roles.some((r) => hasRole(r));
+  };
+
+  const visibleMenu = sidebarMenu
+    .filter((item) => canSee(item.roles))
+    .map((item) => {
+      if (!item.children) return item;
+      const visibleChildren = item.children.filter((c) => canSee(c.roles));
+      if (visibleChildren.length === 0) return null;
+      return { ...item, children: visibleChildren };
+    })
+    .filter(Boolean) as typeof sidebarMenu;
+
+  const getInitials = (name: string) =>
+    name
       .split(' ')
-      .map(n => n[0])
+      .map((n) => n[0])
       .join('')
       .toUpperCase()
       .slice(0, 2);
-  };
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-60 bg-sidebar border-r border-sidebar-border">
-      <div className="flex h-full flex-col">
-        {/* Logo */}
-        <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary">
-            <Smartphone className="h-5 w-5 text-sidebar-primary-foreground" />
-          </div>
-          <span className="text-lg font-bold text-sidebar-foreground">Sisteminha</span>
+    <aside className="fixed left-0 top-0 z-40 flex h-screen w-60 flex-col bg-sidebar border-r border-sidebar-border">
+      {/* ---- Logo ---- */}
+      <div className="flex h-16 items-center gap-2.5 border-b border-sidebar-border px-5">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
+          <Smartphone className="h-4 w-4 text-sidebar-primary-foreground" />
         </div>
+        <span className="text-base font-bold tracking-tight text-sidebar-foreground">
+          Sisteminha
+        </span>
+      </div>
 
-        {/* Navigation Menu */}
-        <nav className="flex-1 p-3 overflow-y-auto">
-          <ul className="space-y-1">
-            {filteredNavItems.map(item => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.path || 
-                (item.path !== '/dashboard' && location.pathname.startsWith(item.path));
-              
-              return (
-                <li key={item.path}>
-                  <NavLink
-                    to={item.path}
-                    className={cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
-                      isActive
-                        ? 'bg-sidebar-accent text-sidebar-primary'
-                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
-                    )}
-                  >
-                    <Icon className={cn(
-                      "h-5 w-5 flex-shrink-0",
-                      isActive && "text-sidebar-primary"
-                    )} />
-                    <span>{item.label}</span>
-                  </NavLink>
-                </li>
-              );
-            })}
-          </ul>
+      {/* ---- Navigation ---- */}
+      <ScrollArea className="flex-1 px-3 py-4">
+        <nav className="relative space-y-1">
+          {visibleMenu.map((item) => (
+            <SidebarItem
+              key={item.id}
+              item={item}
+              openId={openId}
+              onToggle={handleToggle}
+            />
+          ))}
         </nav>
+      </ScrollArea>
 
-        {/* User section */}
-        <div className="border-t border-sidebar-border p-3">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="w-full justify-start gap-3 px-3 py-6 text-sidebar-foreground hover:bg-sidebar-accent"
-              >
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={user?.profile?.avatar_url || undefined} />
-                  <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">
-                    {getInitials(user?.profile?.nome || 'U')}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex flex-col items-start text-left">
-                  <span className="text-sm font-medium truncate max-w-[140px]">
-                    {user?.profile?.nome || 'Usuário'}
-                  </span>
-                  <span className="text-xs text-sidebar-foreground/60 capitalize">
-                    {user?.roles?.[0] || 'Admin'}
-                  </span>
-                </div>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56 bg-popover">
-              <DropdownMenuItem asChild>
-                <NavLink to="/configuracoes" className="cursor-pointer">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Configurações
-                </NavLink>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={signOut} className="text-destructive cursor-pointer">
-                <LogOut className="mr-2 h-4 w-4" />
-                Sair
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+      {/* ---- User ---- */}
+      <div className="border-t border-sidebar-border p-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-sidebar-accent/50">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={user?.profile?.avatar_url || undefined} />
+                <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">
+                  {getInitials(user?.profile?.nome || 'U')}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-medium truncate text-sidebar-foreground">
+                  {user?.profile?.nome || 'Usuário'}
+                </span>
+                <span className="text-[11px] text-sidebar-foreground/50 capitalize">
+                  {user?.roles?.[0] || 'Admin'}
+                </span>
+              </div>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-52 bg-popover">
+            <DropdownMenuItem
+              onClick={signOut}
+              className="text-destructive cursor-pointer"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Sair
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </aside>
   );
