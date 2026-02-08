@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronDown, LogOut, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
-import { sidebarMenu, type MenuItem, type MenuChild } from '@/config/menu';
+import { sidebarMenu, dashboardMenu, type MenuItem, type MenuChild } from '@/config/menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -14,79 +14,60 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 /* -------------------------------------------------- */
-/*  Render children with optional group headers       */
+/*  Submenu link item                                 */
 /* -------------------------------------------------- */
 
-function renderGroupedChildren(children: MenuChild[], pathname: string) {
-  const hasGroups = children.some((c) => c.group);
+function SubmenuLink({ to, label, pathname }: { to: string; label: string; pathname: string }) {
+  const isActive = pathname === to || pathname.startsWith(to + '/');
+  return (
+    <NavLink
+      to={to}
+      className={cn(
+        'block rounded-md px-3 py-2 text-[13px] transition-colors duration-150',
+        isActive
+          ? 'bg-sidebar-accent text-sidebar-primary font-medium'
+          : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'
+      )}
+    >
+      {label}
+    </NavLink>
+  );
+}
 
-  if (!hasGroups) {
-    return (
-      <ul className="space-y-0.5">
-        {children.map((child) => {
-          const isActive =
-            pathname === child.path || pathname.startsWith(child.path + '/');
-          return (
-            <li key={child.path}>
-              <NavLink
-                to={child.path}
-                className={cn(
-                  'block rounded-md px-3 py-2 text-[13px] transition-colors duration-150',
-                  isActive
-                    ? 'bg-sidebar-accent text-sidebar-primary font-medium'
-                    : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'
-                )}
-              >
-                {child.label}
-              </NavLink>
-            </li>
-          );
-        })}
-      </ul>
-    );
-  }
+/* -------------------------------------------------- */
+/*  Render flat children (no groups)                  */
+/* -------------------------------------------------- */
 
-  // Group children by their group label, preserving order
-  const groups: { group: string; items: MenuChild[] }[] = [];
-  children.forEach((child) => {
-    const groupName = child.group || '';
-    const existing = groups.find((g) => g.group === groupName);
-    if (existing) {
-      existing.items.push(child);
-    } else {
-      groups.push({ group: groupName, items: [child] });
-    }
-  });
+function renderFlatChildren(children: MenuChild[], pathname: string) {
+  return (
+    <ul className="space-y-0.5">
+      {children.map((child) => (
+        <li key={child.path}>
+          <SubmenuLink to={child.path} label={child.label} pathname={pathname} />
+        </li>
+      ))}
+    </ul>
+  );
+}
 
+/* -------------------------------------------------- */
+/*  Render dashboard groups from dashboardMenu        */
+/* -------------------------------------------------- */
+
+function renderDashboardGroups(pathname: string) {
   return (
     <div className="space-y-3">
-      {groups.map((g) => (
-        <div key={g.group}>
-          {g.group && (
-            <span className="block px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-              {g.group}
-            </span>
-          )}
+      {dashboardMenu.children.map((group, i) => (
+        <div key={i}>
+          <span className="block px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+            {group.label}
+          </span>
           <ul className="space-y-0.5">
-            {g.items.map((child) => {
-              const isActive =
-                pathname === child.path || pathname.startsWith(child.path + '/');
-              return (
-                <li key={child.path}>
-                  <NavLink
-                    to={child.path}
-                    className={cn(
-                      'block rounded-md px-3 py-2 text-[13px] transition-colors duration-150',
-                      isActive
-                        ? 'bg-sidebar-accent text-sidebar-primary font-medium'
-                        : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'
-                    )}
-                  >
-                    {child.label}
-                  </NavLink>
-                </li>
-              );
-            })}
+            {group.children.map((item) => (
+              <li key={item.key}>
+                <SubmenuLink to={item.route} label={item.label} pathname={pathname} />
+              </li>
+            ))}
           </ul>
         </div>
       ))}
@@ -109,24 +90,30 @@ function SidebarItem({
 }) {
   const location = useLocation();
   const hasChildren = !!item.children?.length;
+  const isDashboards = item.id === 'dashboards';
   const isOpen = openId === item.id;
 
   // Check if this item or any child is active
-  const isChildActive = item.children?.some(
-    (c) =>
-      location.pathname === c.path ||
-      location.pathname.startsWith(c.path + '/')
-  );
+  const isChildActive = isDashboards
+    ? dashboardMenu.children.some((g) =>
+        g.children.some(
+          (c) => location.pathname === c.route || location.pathname.startsWith(c.route + '/')
+        )
+      )
+    : item.children?.some(
+        (c) => location.pathname === c.path || location.pathname.startsWith(c.path + '/')
+      );
+
   const isSelfActive =
     !hasChildren &&
+    !isDashboards &&
     item.path &&
-    (location.pathname === item.path ||
-      location.pathname.startsWith(item.path + '/'));
+    (location.pathname === item.path || location.pathname.startsWith(item.path + '/'));
 
   const Icon = item.icon;
 
   /* ---------- direct link ---------- */
-  if (!hasChildren && item.path) {
+  if (!hasChildren && !isDashboards && item.path) {
     return (
       <NavLink
         to={item.path}
@@ -143,7 +130,9 @@ function SidebarItem({
         <Icon
           className={cn(
             'h-[18px] w-[18px] flex-shrink-0',
-            isSelfActive ? 'text-sidebar-primary' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80'
+            isSelfActive
+              ? 'text-sidebar-primary'
+              : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80'
           )}
         />
         <span className="truncate">{item.label}</span>
@@ -166,7 +155,9 @@ function SidebarItem({
         <Icon
           className={cn(
             'h-[18px] w-[18px] flex-shrink-0',
-            isChildActive ? 'text-sidebar-primary' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80'
+            isChildActive
+              ? 'text-sidebar-primary'
+              : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80'
           )}
         />
         <span className="flex-1 truncate text-left">{item.label}</span>
@@ -186,7 +177,9 @@ function SidebarItem({
         )}
       >
         <div className="ml-[22px] mt-1 border-l border-sidebar-border pl-3">
-          {renderGroupedChildren(item.children!, location.pathname)}
+          {isDashboards
+            ? renderDashboardGroups(location.pathname)
+            : renderFlatChildren(item.children!, location.pathname)}
         </div>
       </div>
     </div>
@@ -201,7 +194,6 @@ export function AppSidebar() {
   const { user, signOut, hasRole } = useAuth();
   const [openId, setOpenId] = useState<string | null>(null);
 
-  // Only one submenu open at a time
   const handleToggle = (id: string) => {
     setOpenId((prev) => (prev === id ? null : id));
   };
@@ -234,7 +226,7 @@ export function AppSidebar() {
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-60 flex-col bg-sidebar border-r border-sidebar-border">
-      {/* ---- Logo ---- */}
+      {/* Logo */}
       <div className="flex h-16 items-center gap-2.5 border-b border-sidebar-border px-5">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
           <Smartphone className="h-4 w-4 text-sidebar-primary-foreground" />
@@ -244,7 +236,7 @@ export function AppSidebar() {
         </span>
       </div>
 
-      {/* ---- Navigation ---- */}
+      {/* Navigation */}
       <ScrollArea className="flex-1 px-3 py-4">
         <nav className="relative space-y-1">
           {visibleMenu.map((item) => (
@@ -258,7 +250,7 @@ export function AppSidebar() {
         </nav>
       </ScrollArea>
 
-      {/* ---- User ---- */}
+      {/* User */}
       <div className="border-t border-sidebar-border p-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
