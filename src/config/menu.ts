@@ -43,9 +43,9 @@ export const sidebarMenu: MenuItem[] = [
       { label: 'Venda', path: '/dashboards/venda', group: 'Dashboards Operacionais' },
       { label: 'Estoque', path: '/dashboards/estoque', group: 'Dashboards Operacionais' },
       { label: 'Metas', path: '/dashboards/metas', group: 'Dashboards Operacionais' },
-      { label: 'IE - Estoque', path: '/dashboards/ie-estoque', group: 'Inteligência Empresarial' },
-      { label: 'IE - Comercial', path: '/dashboards/ie-comercial', group: 'Inteligência Empresarial' },
-      { label: 'IE - Serviço', path: '/dashboards/ie-servico', group: 'Inteligência Empresarial' },
+      { label: 'IE - Estoque', path: '/dashboards/ie/estoque', group: 'Inteligência Empresarial' },
+      { label: 'IE - Comercial', path: '/dashboards/ie/comercial', group: 'Inteligência Empresarial' },
+      { label: 'IE - Serviço', path: '/dashboards/ie/servico', group: 'Inteligência Empresarial' },
     ],
   },
   {
@@ -135,3 +135,31 @@ export const sidebarMenu: MenuItem[] = [
     ],
   },
 ];
+
+// Exported separately for direct access to dashboard structure
+export const dashboardMenu = {
+  key: 'dashboards',
+  label: 'Dashboards',
+  icon: 'pie-chart',
+  type: 'submenu' as const,
+  children: [
+    {
+      type: 'group' as const,
+      label: 'Dashboards Operacionais',
+      children: [
+        { key: 'dashboard_venda', label: 'Venda', icon: 'shopping-cart', route: '/dashboards/venda' },
+        { key: 'dashboard_estoque', label: 'Estoque', icon: 'box', route: '/dashboards/estoque' },
+        { key: 'dashboard_metas', label: 'Metas', icon: 'line-chart', route: '/dashboards/metas' },
+      ],
+    },
+    {
+      type: 'group' as const,
+      label: 'Inteligência Empresarial',
+      children: [
+        { key: 'ie_estoque', label: 'IE - Estoque', icon: 'cube', route: '/dashboards/ie/estoque' },
+        { key: 'ie_comercial', label: 'IE - Comercial', icon: 'trending-up', route: '/dashboards/ie/comercial' },
+        { key: 'ie_servico', label: 'IE - Serviço', icon: 'settings', route: '/dashboards/ie/servico' },
+      ],
+    },
+  ],
+};
