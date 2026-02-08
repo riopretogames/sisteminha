@@ -1,5 +1,5 @@
 import { Outlet, Navigate } from 'react-router-dom';
-import { AppSidebar } from './AppSidebar';
+import { AppSidebar } from '@/components/Sidebar';
 import { AppHeader } from './AppHeader';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
