@@ -11,9 +11,13 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { RequirePermission } from '@/components/auth/RequirePermission';
 import { flattenLinks } from '@/config/menu';
 import { resolvePage } from '@/routes/registry';
+import { PERMISSIONS } from '@/config/permissions';
 
 import Login from './pages/Login';
 import NotFound from './pages/NotFound';
+import { lazy } from 'react';
+
+const OSDetalhe = lazy(() => import('./pages/OSDetalhe'));
 
 /**
  * As rotas protegidas NÃO são escritas à mão — são derivadas de
@@ -44,6 +48,19 @@ const App = () => (
 
             {/* Tudo abaixo exige sessão (AppLayout redireciona se não houver). */}
             <Route element={<AppLayout />}>
+              {/* Drill-down de OS: não é item de menu (menu.ts não modela rota
+                  com parâmetro), mas Kanban e tabela já tentavam navegar pra
+                  cá — a rota simplesmente não existia até agora. */}
+              <Route
+                path="/os/:id"
+                element={
+                  <RequirePermission permission={PERMISSIONS.ORDERS_VIEW}>
+                    <Suspense fallback={<CarregandoPagina />}>
+                      <OSDetalhe />
+                    </Suspense>
+                  </RequirePermission>
+                }
+              />
               {flattenLinks().map((link) => {
                 const Page = resolvePage(link.element);
                 return (

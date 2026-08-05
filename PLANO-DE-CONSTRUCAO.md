@@ -98,11 +98,23 @@ origem = número da venda.
   `estoque_minimo` (não é um número fixo pra todo mundo — é melhor assim,
   cada item pode ter seu próprio limite).
 
-## Passo 4 — Ligar Ordem de Serviço ↔ Financeiro
+## Passo 4 — Ligar Ordem de Serviço ↔ Financeiro ✅ (05/08)
 
-- Confirmar (com você, olhando a tela) se fechar uma OS hoje gera algo em
-  Contas a Receber, ou se fica solto. Pelo que vi no banco, não há ligação
-  automática ainda.
+- **Confirmado e corrigido:** fechar uma OS não gerava nada em Financeiro.
+  Achado extra no caminho: o valor a cobrar da OS (`total_orcamento`) também
+  não tinha NENHUMA tela pra ser preenchido depois da abertura — e clicar
+  num card de OS (Kanban ou tabela) já tentava navegar pra uma tela de
+  detalhe que nunca existiu (caía em "página não encontrada").
+- **Tela nova — Detalhe da OS** (`/os/:id`): mostra cliente, aparelho,
+  defeito relatado e um campo editável de "Valor do orçamento". É o mínimo
+  pra fechar o Passo 4; diagnóstico técnico, peças e demais campos do laudo
+  completo ficam pro Passo 5.
+- **Regra combinada com o Felipe:** ao mover a OS pra "Entregue" — só se o
+  tipo for "Paga" e o orçamento for maior que zero — o sistema cria
+  sozinho a conta a receber, já como paga (a loja cobra na retirada, não
+  tem essa etapa "aguardando pagamento" separada). Garantia e Cortesia
+  nunca geram cobrança. Gatilho é idempotente: se a OS sair de "Entregue"
+  e voltar por engano, não duplica a cobrança.
 
 ## Passo 5 — Completar o que falta (lista real, tirada do próprio menu do sistema)
 
