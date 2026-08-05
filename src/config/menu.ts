@@ -209,7 +209,10 @@ export const MENU: MenuRoot[] = [
         id: 'cad-catalogo',
         label: 'Catálogo',
         children: [
-          { kind: 'link', id: 'cad-produtos', label: 'Produtos', path: '/cadastros/produtos', element: 'CadastroProdutos', permission: PERMISSIONS.REGISTRY_PRODUCTS_MANAGE, hint: 'Console, jogo, celular, acessório e peça' },
+          // "Cadastro de Produtos" foi removido daqui de propósito (05/08):
+          // a tela de Estoque já tem CRUD completo de produto (nome, custo,
+          // preço, categoria, localização, estoque). Duas telas pro mesmo
+          // cadastro só confundiria sobre qual é a "de verdade".
           { kind: 'link', id: 'cad-servicos', label: 'Serviços', path: '/cadastros/servicos', element: 'CadastroServicos', permission: PERMISSIONS.REGISTRY_SERVICES_MANAGE, hint: 'Mão de obra da assistência e valor de referência' },
           { kind: 'link', id: 'cad-pagamento', label: 'Formas de Pagamento', path: '/cadastros/formas-pagamento', element: 'FormasPagamento', permission: PERMISSIONS.REGISTRY_PRODUCTS_MANAGE, hint: 'Parcelas, taxas e juros de cada forma' },
         ],

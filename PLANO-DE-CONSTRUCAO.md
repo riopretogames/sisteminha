@@ -118,20 +118,40 @@ origem = número da venda.
 
 ## Passo 5 — Completar o que falta (lista real, tirada do próprio menu do sistema)
 
-O arquivo de menu já lista essas telas, mas nenhuma delas está construída
-ainda (cai na tela "Em construção" honesta, não em erro):
+Lista original, 15+ telas. Priorizamos "operação do dia a dia" primeiro.
 
-- **Dashboards:** Venda, Estoque, Metas
-- **Inteligência Empresarial:** Estoque, Comercial, Serviço
-- **Vendas:** Histórico, Pagamentos
-- **OS:** Finalizadas, Orçamentos
-- **Cadastros:** Importação de Clientes, Fornecedores, Transportadoras,
-  Serviços, Formas de Pagamento
-- **Minha Empresa**
-- ⚠️ **Cadastro de Produtos** já está listado no menu como "não construído",
-  mas a tela de **Estoque já tem CRUD completo de produto** — bem provável
-  que esse item do menu seja redundante e possa ser removido em vez de
-  construído de novo. Confirmo com você quando chegar nesse passo.
+- ✅ **Cadastro de Produtos removido do menu** (05/08) — era redundante com
+  a tela de Estoque, que já tem CRUD completo de produto.
+- ✅ **Histórico de Vendas** (`/vendas/historico`) — lista as últimas 200
+  vendas, com busca e um "ver detalhes" que mostra os produtos e
+  pagamentos de cada venda. Diferente do Relatório de Vendas (que é
+  fotografia com totais/CSV): aqui é pra achar uma venda específica.
+- ✅ **OS Finalizadas** (`/os/finalizadas`) — o "arquivo morto" do Kanban
+  (entregues e canceladas), com indicador de receita das entregues.
+- ✅ **OS Orçamentos** (`/os/orcamentos`) — fila de quem está esperando o
+  cliente aprovar o orçamento, mais antiga primeiro, com botão de
+  aprovar/recusar direto na lista (sem precisar entrar no Kanban).
+- **Bônus:** clicar num card de OS (Kanban ou tabela) já tentava navegar
+  pra uma tela de detalhe que nunca existia — construída no Passo 4,
+  ganhou uso extra aqui (as duas telas novas de OS linkam pra ela).
+- **Bug corrigido no caminho:** a tela de Detalhe da OS (Passo 4) usava uma
+  lista de status "fixa" (`OS_STATUS` em constants.ts) em vez da lista de
+  status customizável por loja (`os_status_config`, editável em
+  "Gerenciar Status") — se alguém personalizasse um status, o rótulo/cor
+  apareceriam errados nessa tela. Criei um hook `useOsStatuses` reutilizável
+  e corrigi. O Dashboard também usa a lista fixa nesse mesmo ponto — não
+  mexi lá por ora (não foi eu que escrevi, e é só um card de "OS recentes",
+  baixo risco), mas fica anotado como pendência menor.
+
+**Ainda faltam, em ordem de prioridade decrescente (não construídas ainda):**
+- **Cadastros de apoio:** Fornecedores, Transportadoras, Serviços, Formas
+  de Pagamento, Importação de Clientes em massa.
+- **Vendas > Pagamentos:** tela dedicada de conciliação de pagamentos
+  (a informação já existe em `pagamentos_venda`, só falta a tela).
+- **Minha Empresa:** editar dados da loja (nome, CNPJ, logo, cores).
+- **Dashboards e Inteligência Empresarial:** ver Passo 6 — são
+  essencialmente a mesma coisa (dashboard de lucro/vendas/estoque), faz
+  mais sentido tratar junto.
 
 ## Passo 6 — Dashboard de lucro mensal e por produto
 

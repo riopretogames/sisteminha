@@ -6,7 +6,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { moeda, dataHora } from '@/lib/format';
-import { OS_STATUS, OS_PRIORITY } from '@/lib/constants';
+import { OS_PRIORITY } from '@/lib/constants';
+import { useOsStatuses } from '@/hooks/useOsStatuses';
 import { PageHeader, Vazio } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -54,6 +55,7 @@ export default function OSDetalhe() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const podeEditar = can(PERMISSIONS.ORDERS_EDIT);
+  const { getStatusConfig } = useOsStatuses();
 
   const [orcamento, setOrcamento] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -119,7 +121,7 @@ export default function OSDetalhe() {
     return <Vazio titulo="OS não encontrada" descricao="Ela pode ter sido excluída." />;
   }
 
-  const statusCfg = OS_STATUS[os.status as keyof typeof OS_STATUS];
+  const statusCfg = getStatusConfig(os.status);
   const jaFoiEntregue = os.status === 'entregue';
 
   return (

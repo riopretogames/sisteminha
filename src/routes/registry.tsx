@@ -24,8 +24,11 @@ export const PAGES: Record<string, Page> = {
   EstoqueCritico: lazy(() => import('@/pages/EstoqueCritico')),
   EstoqueMovimentacoes: lazy(() => import('@/pages/EstoqueMovimentacoes')),
   PDV: lazy(() => import('@/pages/PDV')),
+  VendasHistorico: lazy(() => import('@/pages/VendasHistorico')),
   OrdensServico: lazy(() => import('@/pages/OrdensServico')),
   NovaOS: lazy(() => import('@/pages/NovaOS')),
+  OSFinalizadas: lazy(() => import('@/pages/OSFinalizadas')),
+  OSOrcamentos: lazy(() => import('@/pages/OSOrcamentos')),
   Clientes: lazy(() => import('@/pages/Clientes')),
 
   /* ── Cadastros ──────────────────────────────────────────────────────────── */
@@ -56,10 +59,9 @@ export const PAGES: Record<string, Page> = {
    *
    *   DashboardVenda, DashboardEstoque, DashboardMetas
    *   IeEstoque, IeComercial, IeServico
-   *   VendasHistorico, VendasPagamentos
-   *   OSFinalizadas, OSOrcamentos
-   *   ClientesImportar, Fornecedores, Transportadoras, Usuarios
-   *   CadastroProdutos, CadastroServicos, FormasPagamento
+   *   VendasPagamentos
+   *   ClientesImportar, Fornecedores, Transportadoras
+   *   CadastroServicos, FormasPagamento
    *   MinhaEmpresa
    */
 };
