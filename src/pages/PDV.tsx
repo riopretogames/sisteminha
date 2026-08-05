@@ -218,42 +218,48 @@ export default function PDV() {
 
       if (vendaError) throw vendaError;
 
-      // Create sale items
-      const itensVenda = cart.map(item => ({
-        venda_id: venda.id,
-        produto_id: item.produto.id,
-        quantidade: item.quantidade,
-        preco_unitario: item.produto.preco,
-        total: item.produto.preco * item.quantidade,
-      }));
+      try {
+        // Create sale items — a baixa de estoque e o registro em
+        // movimentos_estoque acontecem sozinhos aqui: gatilho
+        // `baixar_estoque_ao_vender` no banco (ver migration
+        // 20260804120000). Se o estoque for insuficiente, o INSERT abaixo
+        // falha inteiro (nenhum item é gravado) e cai no catch.
+        const itensVenda = cart.map(item => ({
+          venda_id: venda.id,
+          produto_id: item.produto.id,
+          quantidade: item.quantidade,
+          preco_unitario: item.produto.preco,
+          total: item.produto.preco * item.quantidade,
+        }));
 
-      const { error: itensError } = await supabase
-        .from('itens_venda')
-        .insert(itensVenda);
+        const { error: itensError } = await supabase
+          .from('itens_venda')
+          .insert(itensVenda);
 
-      if (itensError) throw itensError;
+        if (itensError) throw itensError;
 
-      // Create payments
-      const pagamentosVenda = pagamentos.map(p => ({
-        venda_id: venda.id,
-        forma: p.forma,
-        valor: p.valor,
-      }));
+        // Create payments
+        const pagamentosVenda = pagamentos.map(p => ({
+          venda_id: venda.id,
+          forma: p.forma,
+          valor: p.valor,
+        }));
 
-      const { error: pagamentosError } = await supabase
-        .from('pagamentos_venda')
-        .insert(pagamentosVenda);
+        const { error: pagamentosError } = await supabase
+          .from('pagamentos_venda')
+          .insert(pagamentosVenda);
 
-      if (pagamentosError) throw pagamentosError;
-
-      // Update stock
-      for (const item of cart) {
+        if (pagamentosError) throw pagamentosError;
+      } catch (innerError) {
+        // A venda já foi criada (é outra linha, outra transação). Se itens
+        // ou pagamento falharem depois — por exemplo, estoque insuficiente
+        // — não dá pra deixar essa venda "pago" sem item nem pagamento
+        // nenhum. Marca como cancelada em vez de deixar órfã.
         await supabase
-          .from('produtos')
-          .update({
-            estoque_atual: item.produto.estoque_atual - item.quantidade,
-          })
-          .eq('id', item.produto.id);
+          .from('vendas')
+          .update({ status: 'cancelado', observacoes: 'Cancelada automaticamente: falha ao gravar itens/pagamento.' })
+          .eq('id', venda.id);
+        throw innerError;
       }
 
       toast({

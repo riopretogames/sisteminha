@@ -22,6 +22,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { PERMISSIONS } from '@/config/permissions';
 import { useViewMode } from '@/hooks/useViewMode';
 import { OS_PRIORITY } from '@/lib/constants';
 import { OSTableView } from '@/components/os/OSTableView';
@@ -33,7 +34,7 @@ import type { ServiceOrder, StatusConfig, OsPrioridade } from '@/types/os';
 export default function OrdensServico() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { hasRole } = useAuth();
+  const { can } = useAuth();
   const { viewMode, setViewMode } = useViewMode();
 
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
@@ -74,7 +75,7 @@ export default function OrdensServico() {
           cliente_id,
           marca,
           modelo,
-          imei,
+          numero_serie,
           defeito_cliente,
           status,
           prioridade,
@@ -95,7 +96,7 @@ export default function OrdensServico() {
           cliente_nome: (order.clientes as any)?.nome || 'Cliente',
           marca: order.marca,
           modelo: order.modelo,
-          imei: order.imei,
+          numero_serie: order.numero_serie,
           defeito_cliente: order.defeito_cliente,
           status: order.status || 'recebido',
           prioridade: (order.prioridade || 'normal') as OsPrioridade,
@@ -218,8 +219,8 @@ export default function OrdensServico() {
             </Button>
           )}
 
-          {/* Status Manager - admin only */}
-          {hasRole('admin') && (
+          {/* Gerenciar status: quem configura o sistema */}
+          {can(PERMISSIONS.SETTINGS_EDIT) && (
             <Button
               variant="outline"
               size="sm"

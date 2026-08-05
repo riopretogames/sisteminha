@@ -48,7 +48,7 @@ export default function NovaOS() {
   const [clienteOpen, setClienteOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
-    imei: '',
+    numero_serie: '',
     marca: '',
     modelo: '',
     cor: '',
@@ -56,6 +56,7 @@ export default function NovaOS() {
     condicao_entrada: '',
     senha_aparelho: '',
     defeito_cliente: '',
+    observacoes: '',
     prioridade: 'normal' as OsPrioridade,
     tipo: 'paga' as OsTipo,
   });
@@ -110,7 +111,7 @@ export default function NovaOS() {
           tenant_id: profile.tenant_id,
           numero_os: '', // Trigger will generate
           cliente_id: selectedCliente.id,
-          imei: formData.imei.trim() || null,
+          numero_serie: formData.numero_serie.trim() || null,
           marca: formData.marca.trim() || null,
           modelo: formData.modelo.trim() || null,
           cor: formData.cor.trim() || null,
@@ -118,6 +119,7 @@ export default function NovaOS() {
           condicao_entrada: formData.condicao_entrada.trim() || null,
           senha_aparelho: formData.senha_aparelho.trim() || null,
           defeito_cliente: formData.defeito_cliente.trim(),
+          observacoes: formData.observacoes.trim() || null,
           prioridade: formData.prioridade,
           tipo: formData.tipo,
           status: 'recebido' as const,
@@ -250,12 +252,12 @@ export default function NovaOS() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="imei">IMEI</Label>
+                <Label htmlFor="numero_serie">Nº de Série / IMEI</Label>
                 <Input
-                  id="imei"
-                  value={formData.imei}
-                  onChange={e => setFormData({ ...formData, imei: e.target.value })}
-                  placeholder="IMEI do aparelho"
+                  id="numero_serie"
+                  value={formData.numero_serie}
+                  onChange={e => setFormData({ ...formData, numero_serie: e.target.value })}
+                  placeholder="Serial do console, IMEI do celular..."
                 />
               </div>
             </div>
@@ -296,6 +298,24 @@ export default function NovaOS() {
                 onChange={e => setFormData({ ...formData, defeito_cliente: e.target.value })}
                 placeholder="Descreva o problema relatado pelo cliente..."
                 rows={3}
+              />
+              {/* Nível 1 do laudo: o relato do cliente, nas palavras dele.
+                  Suspeita e constatação técnica são registradas depois, na
+                  bancada — nunca aqui. */}
+              <p className="text-xs text-muted-foreground">
+                Escreva o que o cliente falou, com as palavras dele. O
+                diagnóstico técnico entra depois, na bancada.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="observacoes">Observações</Label>
+              <Textarea
+                id="observacoes"
+                value={formData.observacoes}
+                onChange={e => setFormData({ ...formData, observacoes: e.target.value })}
+                placeholder="Riscos combinados, recomendações, o que foi avisado ao cliente..."
+                rows={2}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">

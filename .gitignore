@@ -9,6 +9,7 @@ lerna-debug.log*
 
 node_modules
 dist
+dist-analyze
 dist-ssr
 *.local
 
@@ -22,3 +23,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Variaveis de ambiente (nunca versionar)
+.env
+.env.local
+.env.*.local
+
+# Estado local do Supabase CLI (cache de link do projeto, nao e config)
+supabase/.temp

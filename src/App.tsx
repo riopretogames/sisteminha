@@ -1,22 +1,36 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "@/hooks/useAuth";
-import { AppLayout } from "@/components/layout/AppLayout";
+import { Suspense } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// Pages
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Clientes from "./pages/Clientes";
-import Estoque from "./pages/Estoque";
-import OrdensServico from "./pages/OrdensServico";
-import NovaOS from "./pages/NovaOS";
-import PDV from "./pages/PDV";
-import NotFound from "./pages/NotFound";
+import { Toaster } from '@/components/ui/toaster';
+import { Toaster as Sonner } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { AuthProvider } from '@/hooks/useAuth';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { RequirePermission } from '@/components/auth/RequirePermission';
+import { flattenLinks } from '@/config/menu';
+import { resolvePage } from '@/routes/registry';
+
+import Login from './pages/Login';
+import NotFound from './pages/NotFound';
+
+/**
+ * As rotas protegidas NÃO são escritas à mão — são derivadas de
+ * `config/menu.ts`. Antes existiam 7 rotas para ~30 itens de menu, e a maioria
+ * dos cliques caía em 404. Agora é impossível o menu e o roteador
+ * discordarem: item no menu é rota, por construção.
+ */
 
 const queryClient = new QueryClient();
+
+function CarregandoPagina() {
+  return (
+    <div className="flex h-64 items-center justify-center">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -27,22 +41,34 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
-            
-            {/* Protected routes */}
+
+            {/* Tudo abaixo exige sessão (AppLayout redireciona se não houver). */}
             <Route element={<AppLayout />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/clientes" element={<Clientes />} />
-              <Route path="/clientes/novo" element={<Clientes />} />
-              <Route path="/estoque" element={<Estoque />} />
-              <Route path="/os" element={<OrdensServico />} />
-              <Route path="/os/nova" element={<NovaOS />} />
-              <Route path="/pdv" element={<PDV />} />
+              {flattenLinks().map((link) => {
+                const Page = resolvePage(link.element);
+                return (
+                  <Route
+                    key={link.id}
+                    path={link.path}
+                    element={
+                      <RequirePermission permission={link.permission}>
+                        <Suspense fallback={<CarregandoPagina />}>
+                          <Page />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                );
+              })}
             </Route>
 
-            {/* Redirects */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            
-            {/* 404 */}
+            {/* Caminhos antigos, mantidos para não quebrar link já salvo
+                por alguém da equipe. Podem sair depois da transição. */}
+            <Route path="/" element={<Navigate to="/home" replace />} />
+            <Route path="/dashboard" element={<Navigate to="/home" replace />} />
+            <Route path="/clientes" element={<Navigate to="/cadastros/clientes" replace />} />
+            <Route path="/clientes/novo" element={<Navigate to="/cadastros/clientes" replace />} />
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

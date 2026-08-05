@@ -22,7 +22,7 @@ export interface ServiceOrder {
   cliente_nome: string;
   marca: string | null;
   modelo: string | null;
-  imei: string | null;
+  numero_serie: string | null;
   defeito_cliente: string;
   status: string;
   prioridade: OsPrioridade;

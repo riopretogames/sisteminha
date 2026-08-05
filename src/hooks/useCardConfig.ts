@@ -4,7 +4,7 @@ export interface CardConfig {
   numero_os: boolean;
   cliente_nome: boolean;
   modelo: boolean;
-  imei: boolean;
+  numero_serie: boolean;
   defeito: boolean;
   status: boolean;
   valor_orcamento: boolean;
@@ -19,7 +19,7 @@ const DEFAULT_CONFIG: CardConfig = {
   numero_os: true,
   cliente_nome: true,
   modelo: true,
-  imei: false,
+  numero_serie: false,
   defeito: true,
   status: true,
   valor_orcamento: true,

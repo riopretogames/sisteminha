@@ -19,11 +19,13 @@ import {
 } from '@/components/ui/command';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
+import { PERMISSIONS } from '@/config/permissions';
+import { flattenLinks } from '@/config/menu';
 
 export function AppHeader() {
   const [searchOpen, setSearchOpen] = useState(false);
   const navigate = useNavigate();
-  const { hasRole } = useAuth();
+  const { can } = useAuth();
 
   // Keyboard shortcut for search (Ctrl+K)
   useEffect(() => {
@@ -37,15 +39,15 @@ export function AppHeader() {
     return () => document.removeEventListener('keydown', down);
   }, []);
 
+  // Ação rápida aparece pela PERMISSÃO que ela exige, não por lista de papéis.
+  // Assim, mudar o que um Vendedor pode fazer não exige tocar neste arquivo.
   const quickActions = [
-    { label: 'Nova Venda', icon: ShoppingCart, path: '/pdv', color: 'bg-primary', roles: ['admin', 'vendedor'] },
-    { label: 'Nova OS', icon: ClipboardList, path: '/os/nova', color: 'bg-secondary', roles: ['admin', 'atendente', 'tecnico'] },
-    { label: 'Novo Cliente', icon: Users, path: '/clientes/novo', color: 'bg-success', roles: ['admin', 'atendente', 'vendedor'] },
+    { label: 'Nova Venda', icon: ShoppingCart, path: '/pdv', color: 'bg-primary', permission: PERMISSIONS.SALES_CREATE },
+    { label: 'Nova OS', icon: ClipboardList, path: '/os/nova', color: 'bg-secondary', permission: PERMISSIONS.ORDERS_CREATE },
+    { label: 'Novo Cliente', icon: Users, path: '/cadastros/clientes', color: 'bg-success', permission: PERMISSIONS.REGISTRY_CUSTOMERS_MANAGE },
   ];
 
-  const filteredActions = quickActions.filter(
-    action => action.roles.some(role => hasRole(role))
-  );
+  const filteredActions = quickActions.filter((action) => can(action.permission));
 
   return (
     <>
@@ -127,39 +129,23 @@ export function AppHeader() {
               );
             })}
           </CommandGroup>
+          {/* Navegação derivada do menu e filtrada pelas permissões do usuário —
+              a busca nunca oferece um destino que a pessoa não pode abrir. */}
           <CommandGroup heading="Navegação">
-            <CommandItem
-              onSelect={() => {
-                navigate('/dashboard');
-                setSearchOpen(false);
-              }}
-            >
-              Dashboard
-            </CommandItem>
-            <CommandItem
-              onSelect={() => {
-                navigate('/clientes');
-                setSearchOpen(false);
-              }}
-            >
-              Clientes
-            </CommandItem>
-            <CommandItem
-              onSelect={() => {
-                navigate('/estoque');
-                setSearchOpen(false);
-              }}
-            >
-              Estoque
-            </CommandItem>
-            <CommandItem
-              onSelect={() => {
-                navigate('/os');
-                setSearchOpen(false);
-              }}
-            >
-              Ordens de Serviço
-            </CommandItem>
+            {flattenLinks()
+              .filter((link) => !link.permission || can(link.permission))
+              .map((link) => (
+                <CommandItem
+                  key={link.id}
+                  value={`${link.label} ${link.hint ?? ''}`}
+                  onSelect={() => {
+                    navigate(link.path);
+                    setSearchOpen(false);
+                  }}
+                >
+                  {link.label}
+                </CommandItem>
+              ))}
           </CommandGroup>
         </CommandList>
       </CommandDialog>

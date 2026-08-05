@@ -1,165 +1,290 @@
-import {
-  Home,
-  LayoutDashboard,
-  FileBarChart,
-  Package,
-  ShoppingCart,
-  ClipboardList,
-  DollarSign,
-  FileText,
-  Building2,
-  Settings,
-  type LucideIcon,
-} from 'lucide-react';
+import { PERMISSIONS, type Permission } from './permissions';
+import type { IconName } from './icons';
 
-export interface MenuChild {
-  label: string;
-  path: string;
-  roles?: string[];
-  group?: string; // visual grouping label
-}
+/**
+ * MENU — fonte única de verdade da navegação do RPG System.IO.
+ *
+ * Este arquivo é DADO, não componente. Nada aqui importa React, e o ícone é
+ * uma string resolvida pelo registry em `config/icons.ts`. Consequência prática:
+ * Sidebar, rotas e guards de permissão são todos derivados daqui, e o menu pode
+ * um dia vir do banco sem que nenhum componente mude.
+ *
+ * Três tipos de nó, e só três:
+ *
+ *   link    → item clicável. Tem `path`, `element` e (quase sempre) `permission`.
+ *   group   → rótulo visual. NUNCA clicável, NUNCA tem rota. Só agrupa.
+ *   section → item de primeiro nível que abre/fecha e contém group | link.
+ *
+ * `element` é a chave do componente no registry de rotas (`routes/registry.tsx`).
+ * Item cujo element ainda não existe cai na página "Em construção" — de
+ * propósito: tela honesta é melhor que 404 silencioso.
+ */
 
-export interface MenuItem {
+export interface MenuLink {
+  kind: 'link';
   id: string;
   label: string;
-  icon: LucideIcon;
-  path?: string;
-  children?: MenuChild[];
-  roles?: string[];
+  path: string;
+  element: string;
+  icon?: IconName;
+  permission?: Permission;
+  /** Descrição curta em português leigo — usada nos hubs de módulo. */
+  hint?: string;
+  hidden?: boolean;
 }
 
-export const sidebarMenu: MenuItem[] = [
+export interface MenuGroup {
+  kind: 'group';
+  id: string;
+  label: string;
+  children: MenuLink[];
+  hidden?: boolean;
+}
+
+export interface MenuSection {
+  kind: 'section';
+  id: string;
+  label: string;
+  icon: IconName;
+  /** Permissão do módulo inteiro. Sem ela, a seção some por completo. */
+  permission?: Permission;
+  children: Array<MenuGroup | MenuLink>;
+  /** Esconde o módulo sem removê-lo da config (feature flag). */
+  hidden?: boolean;
+}
+
+export type MenuNode = MenuLink | MenuGroup | MenuSection;
+export type MenuRoot = MenuLink | MenuSection;
+
+export const MENU: MenuRoot[] = [
   {
+    kind: 'link',
     id: 'home',
     label: 'Home',
-    icon: Home,
-    path: '/dashboard',
+    path: '/home',
+    element: 'Home',
+    icon: 'home',
+    permission: PERMISSIONS.HOME_VIEW,
   },
+
   {
+    kind: 'section',
     id: 'dashboards',
     label: 'Dashboards',
-    icon: LayoutDashboard,
+    icon: 'dashboard',
+    permission: PERMISSIONS.DASHBOARDS_VIEW,
     children: [
-      { label: 'Venda', path: '/dashboards/venda', group: 'Dashboards Operacionais' },
-      { label: 'Estoque', path: '/dashboards/estoque', group: 'Dashboards Operacionais' },
-      { label: 'Metas', path: '/dashboards/metas', group: 'Dashboards Operacionais' },
-      { label: 'IE - Estoque', path: '/dashboards/ie/estoque', group: 'Inteligência Empresarial' },
-      { label: 'IE - Comercial', path: '/dashboards/ie/comercial', group: 'Inteligência Empresarial' },
-      { label: 'IE - Serviço', path: '/dashboards/ie/servico', group: 'Inteligência Empresarial' },
+      {
+        kind: 'group',
+        id: 'dashboards-operacionais',
+        label: 'Dashboards Operacionais',
+        children: [
+          { kind: 'link', id: 'dash-venda', label: 'Venda', path: '/dashboards/venda', element: 'DashboardVenda', permission: PERMISSIONS.DASHBOARDS_SALES_VIEW },
+          { kind: 'link', id: 'dash-estoque', label: 'Estoque', path: '/dashboards/estoque', element: 'DashboardEstoque', permission: PERMISSIONS.DASHBOARDS_STOCK_VIEW },
+          { kind: 'link', id: 'dash-metas', label: 'Metas', path: '/dashboards/metas', element: 'DashboardMetas', permission: PERMISSIONS.DASHBOARDS_GOALS_VIEW },
+        ],
+      },
+      {
+        kind: 'group',
+        id: 'inteligencia-empresarial',
+        label: 'Inteligência Empresarial',
+        children: [
+          { kind: 'link', id: 'ie-estoque', label: 'IE - Estoque', path: '/dashboards/ie/estoque', element: 'IeEstoque', permission: PERMISSIONS.BI_STOCK_VIEW },
+          { kind: 'link', id: 'ie-comercial', label: 'IE - Comercial', path: '/dashboards/ie/comercial', element: 'IeComercial', permission: PERMISSIONS.BI_COMMERCIAL_VIEW },
+          { kind: 'link', id: 'ie-servico', label: 'IE - Serviço', path: '/dashboards/ie/servico', element: 'IeServico', permission: PERMISSIONS.BI_SERVICE_VIEW },
+        ],
+      },
     ],
   },
+
   {
+    kind: 'section',
     id: 'relatorios',
     label: 'Relatórios',
-    icon: FileBarChart,
-    roles: ['admin'],
+    icon: 'reports',
+    permission: PERMISSIONS.REPORTS_VIEW,
     children: [
-      { label: 'Relatório de Vendas', path: '/relatorios/vendas' },
-      { label: 'Relatório de OS', path: '/relatorios/os' },
-      { label: 'Relatório Financeiro', path: '/relatorios/financeiro' },
-      { label: 'Relatório de Estoque', path: '/relatorios/estoque' },
+      { kind: 'link', id: 'rel-vendas', label: 'Relatório de Vendas', path: '/relatorios/vendas', element: 'RelatorioVendas', permission: PERMISSIONS.REPORTS_VIEW },
+      { kind: 'link', id: 'rel-os', label: 'Relatório de OS', path: '/relatorios/os', element: 'RelatorioOS', permission: PERMISSIONS.REPORTS_VIEW },
+      { kind: 'link', id: 'rel-financeiro', label: 'Relatório Financeiro', path: '/relatorios/financeiro', element: 'RelatorioFinanceiro', permission: PERMISSIONS.FINANCE_VIEW },
+      { kind: 'link', id: 'rel-estoque', label: 'Relatório de Estoque', path: '/relatorios/estoque', element: 'RelatorioEstoque', permission: PERMISSIONS.REPORTS_VIEW },
     ],
   },
+
   {
+    kind: 'section',
     id: 'estoque',
     label: 'Estoque',
-    icon: Package,
+    icon: 'package',
+    permission: PERMISSIONS.INVENTORY_VIEW,
     children: [
-      { label: 'Produtos', path: '/estoque' },
-      { label: 'Movimentações', path: '/estoque/movimentacoes' },
-      { label: 'Estoque Crítico', path: '/estoque/critico' },
-      { label: 'Fornecedores', path: '/estoque/fornecedores' },
+      { kind: 'link', id: 'est-produtos', label: 'Produtos', path: '/estoque', element: 'Estoque', permission: PERMISSIONS.INVENTORY_VIEW },
+      { kind: 'link', id: 'est-mov', label: 'Movimentações', path: '/estoque/movimentacoes', element: 'EstoqueMovimentacoes', permission: PERMISSIONS.INVENTORY_VIEW },
+      { kind: 'link', id: 'est-critico', label: 'Estoque Crítico', path: '/estoque/critico', element: 'EstoqueCritico', permission: PERMISSIONS.INVENTORY_VIEW },
     ],
   },
+
   {
+    kind: 'section',
     id: 'venda',
     label: 'Venda',
-    icon: ShoppingCart,
+    icon: 'cart',
+    permission: PERMISSIONS.SALES_VIEW,
     children: [
-      { label: 'Nova Venda (PDV)', path: '/pdv' },
-      { label: 'Histórico de Vendas', path: '/vendas/historico' },
-      { label: 'Pagamentos', path: '/vendas/pagamentos' },
+      { kind: 'link', id: 'venda-pdv', label: 'Nova Venda (PDV)', path: '/pdv', element: 'PDV', permission: PERMISSIONS.SALES_CREATE },
+      { kind: 'link', id: 'venda-hist', label: 'Histórico de Vendas', path: '/vendas/historico', element: 'VendasHistorico', permission: PERMISSIONS.SALES_VIEW },
+      { kind: 'link', id: 'venda-pag', label: 'Pagamentos', path: '/vendas/pagamentos', element: 'VendasPagamentos', permission: PERMISSIONS.SALES_VIEW },
     ],
   },
+
   {
+    kind: 'section',
     id: 'os',
     label: 'Ordem de Serviço',
-    icon: ClipboardList,
+    icon: 'clipboard',
+    permission: PERMISSIONS.ORDERS_VIEW,
     children: [
-      { label: 'Kanban de OS', path: '/os' },
-      { label: 'Lista de OS', path: '/os/lista' },
-      { label: 'OS Finalizadas', path: '/os/finalizadas' },
-      { label: 'Orçamentos', path: '/os/orcamentos' },
+      { kind: 'link', id: 'os-kanban', label: 'Kanban de OS', path: '/os', element: 'OrdensServico', permission: PERMISSIONS.ORDERS_VIEW },
+      { kind: 'link', id: 'os-nova', label: 'Nova OS', path: '/os/nova', element: 'NovaOS', permission: PERMISSIONS.ORDERS_CREATE },
+      { kind: 'link', id: 'os-finalizadas', label: 'OS Finalizadas', path: '/os/finalizadas', element: 'OSFinalizadas', permission: PERMISSIONS.ORDERS_VIEW },
+      { kind: 'link', id: 'os-orcamentos', label: 'Orçamentos', path: '/os/orcamentos', element: 'OSOrcamentos', permission: PERMISSIONS.ORDERS_VIEW },
     ],
   },
+
   {
+    kind: 'section',
     id: 'financeiro',
     label: 'Financeiro',
-    icon: DollarSign,
-    roles: ['admin'],
+    icon: 'money',
+    permission: PERMISSIONS.FINANCE_VIEW,
     children: [
-      { label: 'Caixa', path: '/financeiro/caixa' },
-      { label: 'Contas a Pagar', path: '/financeiro/pagar' },
-      { label: 'Contas a Receber', path: '/financeiro/receber' },
-      { label: 'Fluxo de Caixa', path: '/financeiro/fluxo' },
+      { kind: 'link', id: 'fin-caixa', label: 'Caixa', path: '/financeiro/caixa', element: 'FinanceiroCaixa', permission: PERMISSIONS.FINANCE_CASHIER_CLOSE },
+      { kind: 'link', id: 'fin-pagar', label: 'Contas a Pagar', path: '/financeiro/pagar', element: 'ContasPagar', permission: PERMISSIONS.FINANCE_PAYABLE_MANAGE },
+      { kind: 'link', id: 'fin-receber', label: 'Contas a Receber', path: '/financeiro/receber', element: 'ContasReceber', permission: PERMISSIONS.FINANCE_RECEIVABLE_MANAGE },
+      { kind: 'link', id: 'fin-fluxo', label: 'Fluxo de Caixa', path: '/financeiro/fluxo', element: 'FluxoCaixa', permission: PERMISSIONS.FINANCE_CASHFLOW_VIEW },
     ],
   },
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // CADASTROS
+  //
+  // Espelha o que existe hoje no OK Cells, mas agrupado por natureza do dado em
+  // vez de uma lista solta de 10 itens. O grupo "Tabelas de Apoio" reúne todos
+  // os cadastros de lista simples (descrição + ativo), que rodam numa tela
+  // genérica configurada em `config/catalogos.ts` — uma tela, doze cadastros.
+  // ───────────────────────────────────────────────────────────────────────────
   {
+    kind: 'section',
     id: 'cadastros',
     label: 'Cadastros',
-    icon: FileText,
+    icon: 'file',
+    permission: PERMISSIONS.REGISTRY_VIEW,
     children: [
-      { label: 'Clientes', path: '/clientes' },
-      { label: 'Produtos', path: '/cadastros/produtos' },
-      { label: 'Serviços', path: '/cadastros/servicos' },
-      { label: 'Usuários', path: '/cadastros/usuarios', roles: ['admin'] },
+      {
+        kind: 'link',
+        id: 'cad-hub',
+        label: 'Visão Geral',
+        path: '/cadastros',
+        element: 'CadastrosHub',
+        permission: PERMISSIONS.REGISTRY_VIEW,
+        hint: 'Todos os cadastros do sistema em um só lugar',
+      },
+      {
+        kind: 'group',
+        id: 'cad-pessoas',
+        label: 'Pessoas e Parceiros',
+        children: [
+          { kind: 'link', id: 'cad-clientes', label: 'Clientes', path: '/cadastros/clientes', element: 'Clientes', permission: PERMISSIONS.REGISTRY_CUSTOMERS_MANAGE, hint: 'Quem compra e quem deixa aparelho na assistência' },
+          { kind: 'link', id: 'cad-clientes-import', label: 'Importação de Clientes', path: '/cadastros/clientes/importar', element: 'ClientesImportar', permission: PERMISSIONS.REGISTRY_CUSTOMERS_MANAGE, hint: 'Subir clientes em massa por planilha' },
+          { kind: 'link', id: 'cad-fornecedores', label: 'Fornecedores', path: '/cadastros/fornecedores', element: 'Fornecedores', permission: PERMISSIONS.REGISTRY_SUPPLIERS_MANAGE, hint: 'De quem você compra produto e peça' },
+          { kind: 'link', id: 'cad-transportadoras', label: 'Transportadoras', path: '/cadastros/transportadoras', element: 'Transportadoras', permission: PERMISSIONS.REGISTRY_SUPPLIERS_MANAGE, hint: 'Quem leva e traz encomenda' },
+          // `users.manage` em vez de `users.view`: só o Administrador tem essa
+          // permissão. Gerente enxerga o resto de Cadastros, mas não a tela que
+          // decide quem entra no sistema e com qual poder.
+          { kind: 'link', id: 'cad-usuarios', label: 'Usuários', path: '/cadastros/usuarios', element: 'Usuarios', permission: PERMISSIONS.USERS_MANAGE, hint: 'Quem acessa o sistema e com qual perfil' },
+        ],
+      },
+      {
+        kind: 'group',
+        id: 'cad-catalogo',
+        label: 'Catálogo',
+        children: [
+          { kind: 'link', id: 'cad-produtos', label: 'Produtos', path: '/cadastros/produtos', element: 'CadastroProdutos', permission: PERMISSIONS.REGISTRY_PRODUCTS_MANAGE, hint: 'Console, jogo, celular, acessório e peça' },
+          { kind: 'link', id: 'cad-servicos', label: 'Serviços', path: '/cadastros/servicos', element: 'CadastroServicos', permission: PERMISSIONS.REGISTRY_SERVICES_MANAGE, hint: 'Mão de obra da assistência e valor de referência' },
+          { kind: 'link', id: 'cad-pagamento', label: 'Formas de Pagamento', path: '/cadastros/formas-pagamento', element: 'FormasPagamento', permission: PERMISSIONS.REGISTRY_PRODUCTS_MANAGE, hint: 'Parcelas, taxas e juros de cada forma' },
+        ],
+      },
+      {
+        kind: 'group',
+        id: 'cad-apoio',
+        label: 'Tabelas de Apoio',
+        children: [
+          { kind: 'link', id: 'cad-catalogos', label: 'Listas do Sistema', path: '/cadastros/listas', element: 'CatalogosHub', permission: PERMISSIONS.REGISTRY_VIEW, hint: 'Marcas, cores, condições, checklist, origens e afins' },
+        ],
+      },
     ],
   },
+
   {
+    kind: 'link',
     id: 'empresa',
     label: 'Minha Empresa',
-    icon: Building2,
     path: '/empresa',
-    roles: ['admin'],
+    element: 'MinhaEmpresa',
+    icon: 'company',
+    permission: PERMISSIONS.COMPANY_VIEW,
   },
+
   {
+    kind: 'section',
     id: 'configuracoes',
     label: 'Configurações',
-    icon: Settings,
-    roles: ['admin'],
+    icon: 'settings',
+    permission: PERMISSIONS.SETTINGS_VIEW,
     children: [
-      { label: 'Perfis de Usuário', path: '/configuracoes/perfis' },
-      { label: 'Permissões', path: '/configuracoes/permissoes' },
-      { label: 'Preferências do Sistema', path: '/configuracoes/preferencias' },
-      { label: 'Logs / Auditoria', path: '/configuracoes/logs' },
+      { kind: 'link', id: 'cfg-perfis', label: 'Perfis e Permissões', path: '/configuracoes/perfis', element: 'ConfigPerfis', permission: PERMISSIONS.ROLES_MANAGE },
+      { kind: 'link', id: 'cfg-prefs', label: 'Preferências do Sistema', path: '/configuracoes/preferencias', element: 'ConfigPreferencias', permission: PERMISSIONS.SETTINGS_EDIT },
+      { kind: 'link', id: 'cfg-logs', label: 'Logs / Auditoria', path: '/configuracoes/logs', element: 'ConfigLogs', permission: PERMISSIONS.AUDIT_VIEW },
     ],
   },
 ];
 
-// Exported separately for direct access to dashboard structure
-export const dashboardMenu = {
-  key: 'dashboards',
-  label: 'Dashboards',
-  icon: 'pie-chart',
-  type: 'submenu' as const,
-  children: [
-    {
-      type: 'group' as const,
-      label: 'Dashboards Operacionais',
-      children: [
-        { key: 'dashboard_venda', label: 'Venda', icon: 'shopping-cart', route: '/dashboards/venda' },
-        { key: 'dashboard_estoque', label: 'Estoque', icon: 'box', route: '/dashboards/estoque' },
-        { key: 'dashboard_metas', label: 'Metas', icon: 'line-chart', route: '/dashboards/metas' },
-      ],
-    },
-    {
-      type: 'group' as const,
-      label: 'Inteligência Empresarial',
-      children: [
-        { key: 'ie_estoque', label: 'IE - Estoque', icon: 'cube', route: '/dashboards/ie/estoque' },
-        { key: 'ie_comercial', label: 'IE - Comercial', icon: 'trending-up', route: '/dashboards/ie/comercial' },
-        { key: 'ie_servico', label: 'IE - Serviço', icon: 'settings', route: '/dashboards/ie/servico' },
-      ],
-    },
-  ],
-};
+/* ────────────────────────────────────────────────────────────────────────── */
+/*  Derivações — não duplique esta lógica em componente nenhum.               */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+/** Todos os links navegáveis, achatados. É a base para gerar as rotas. */
+export function flattenLinks(nodes: MenuRoot[] = MENU): MenuLink[] {
+  const out: MenuLink[] = [];
+
+  for (const node of nodes) {
+    if (node.kind === 'link') {
+      out.push(node);
+      continue;
+    }
+    for (const child of node.children) {
+      if (child.kind === 'link') out.push(child);
+      else out.push(...child.children);
+    }
+  }
+
+  return out.filter((l) => !l.hidden);
+}
+
+/** Descobre a seção dona de um caminho — abre o submenu certo ao entrar na rota. */
+export function findSectionIdByPath(pathname: string): string | null {
+  for (const node of MENU) {
+    if (node.kind !== 'section') continue;
+
+    const links: MenuLink[] = [];
+    for (const child of node.children) {
+      if (child.kind === 'link') links.push(child);
+      else links.push(...child.children);
+    }
+
+    if (links.some((l) => pathname === l.path || pathname.startsWith(l.path + '/'))) {
+      return node.id;
+    }
+  }
+  return null;
+}

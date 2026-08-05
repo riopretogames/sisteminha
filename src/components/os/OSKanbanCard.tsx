@@ -69,9 +69,9 @@ export function OSKanbanCard({ order, config, statusConfig, onClick }: OSKanbanC
         )}
 
         {/* IMEI */}
-        {config.imei && order.imei && (
+        {config.numero_serie && order.numero_serie && (
           <div className="text-xs text-muted-foreground font-mono">
-            IMEI: {order.imei}
+            Nº série: {order.numero_serie}
           </div>
         )}
 

@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
+import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
 import { OS_STATUS } from '@/lib/constants';
 
@@ -38,7 +39,7 @@ interface RecentOS {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { user, hasRole } = useAuth();
+  const { user, can } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({
     vendasHoje: 0,
     vendasOntem: 0,
@@ -181,7 +182,7 @@ export default function Dashboard() {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-3 gap-4">
-        {hasRole('vendedor') || hasRole('admin') ? (
+        {can(PERMISSIONS.SALES_CREATE) ? (
           <Button
             size="lg"
             className="h-20 text-lg kpi-vendas border-0 hover:opacity-90"
@@ -191,7 +192,7 @@ export default function Dashboard() {
             Nova Venda
           </Button>
         ) : null}
-        {hasRole('atendente') || hasRole('tecnico') || hasRole('admin') ? (
+        {can(PERMISSIONS.ORDERS_CREATE) ? (
           <Button
             size="lg"
             className="h-20 text-lg kpi-os border-0 hover:opacity-90"
@@ -201,11 +202,11 @@ export default function Dashboard() {
             Nova OS
           </Button>
         ) : null}
-        {hasRole('atendente') || hasRole('vendedor') || hasRole('admin') ? (
+        {can(PERMISSIONS.REGISTRY_CUSTOMERS_MANAGE) ? (
           <Button
             size="lg"
             className="h-20 text-lg kpi-caixa border-0 hover:opacity-90"
-            onClick={() => navigate('/clientes/novo')}
+            onClick={() => navigate('/cadastros/clientes')}
           >
             <Users className="mr-3 h-6 w-6" />
             Novo Cliente
