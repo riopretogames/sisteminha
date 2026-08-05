@@ -63,15 +63,21 @@ origem = número da venda.
   caixas vendendo a última unidade ao mesmo tempo poderiam deixar o estoque
   negativo).
 
-## Passo 2 — Levar a mesma lógica pras outras entradas/saídas
+## Passo 2 — Levar a mesma lógica pras outras entradas/saídas ✅ (05/08)
 
-- **Ajuste manual de estoque** (quando alguém edita a quantidade direto na
-  tela de Estoque): hoje isso muda `estoque_atual` sem passar por
-  `movimentos_estoque`. Precisa gravar também, com motivo = "ajuste manual".
-- **Peça usada em Ordem de Serviço:** confirmei que hoje **não existe
-  nenhuma ligação** entre `service_order_items` (peças usadas num reparo) e
-  o estoque — usar uma peça no laudo não desconta nada. Mesmo princípio do
-  Passo 1, mas motivo = "OS" + número da ordem.
+- **Ajuste manual de estoque:** feito. A tela de Estoque agora chama a
+  função `ajustar_estoque_produto` quando a quantidade muda, que grava em
+  `movimentos_estoque` com motivo "Ajuste manual", atômico.
+- **Entrada inicial:** bônus incluído — cadastrar um produto novo já com
+  estoque grava uma movimentação de "entrada" automaticamente (não existia
+  rastro nenhum disso antes).
+- **Peça usada em Ordem de Serviço:** o gatilho no banco já está pronto
+  (`baixar_estoque_ao_usar_em_os`, dispara em `service_order_items`), mas
+  **ainda não há nenhuma tela no app que crie esse tipo de registro** — não
+  existe "adicionar peça" nem na Nova OS nem no Kanban. Confirmei buscando
+  no código inteiro: a tabela só é referenciada nos tipos gerados do
+  Supabase, em lugar nenhum da interface. Construir essa tela entra como
+  parte do Passo 5 (telas que faltam).
 
 ## Passo 3 — Estoque crítico (o alerta que você pediu)
 

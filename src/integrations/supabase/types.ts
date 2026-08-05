@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -1624,6 +1624,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ajustar_estoque_produto: {
+        Args: {
+          _motivo?: string
+          _nova_quantidade: number
+          _produto_id: string
+        }
+        Returns: undefined
+      }
       catalogo_e_do_tipo: {
         Args: { _id: string; _tipo: string }
         Returns: boolean

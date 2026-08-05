@@ -189,6 +189,10 @@ export default function Estoque() {
       };
 
       if (editingProduto) {
+        // estoque_atual sai do UPDATE genérico e vai pela função
+        // `ajustar_estoque_produto`, que grava a auditoria em
+        // movimentos_estoque (motivo "Ajuste manual") — sem isso, mudar a
+        // quantidade aqui não deixava nenhum rastro.
         const { error } = await supabase
           .from('produtos')
           .update({
@@ -200,13 +204,21 @@ export default function Estoque() {
             categoria: produtoData.categoria,
             custo: produtoData.custo,
             preco: produtoData.preco,
-            estoque_atual: produtoData.estoque_atual,
             estoque_minimo: produtoData.estoque_minimo,
             localizacao: produtoData.localizacao,
           })
           .eq('id', editingProduto.id);
 
         if (error) throw error;
+
+        if (produtoData.estoque_atual !== editingProduto.estoque_atual) {
+          const { error: ajusteError } = await supabase.rpc('ajustar_estoque_produto', {
+            _produto_id: editingProduto.id,
+            _nova_quantidade: produtoData.estoque_atual,
+          });
+
+          if (ajusteError) throw ajusteError;
+        }
 
         toast({
           title: 'Produto atualizado!',
