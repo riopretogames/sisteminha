@@ -98,11 +98,19 @@ export default function Dashboard() {
 
       const caixaHoje = vendasHojeData?.reduce((acc, v) => acc + Number(v.total), 0) || 0;
 
-      // Fetch critical stock
-      const { count: estoqueCritico } = await supabase
+      // Fetch critical stock — o PostgREST não compara duas colunas da
+      // mesma linha direto no filtro (`.lte('estoque_atual', 'estoque_minimo')`
+      // comparava com o TEXTO "estoque_minimo", não com a coluna: sempre
+      // deu número errado). Traz as duas colunas e conta no cliente, mesmo
+      // padrão usado em Estoque.tsx e EstoqueCritico.tsx.
+      const { data: estoqueData } = await supabase
         .from('produtos')
-        .select('*', { count: 'exact', head: true })
-        .lte('estoque_atual', 'estoque_minimo');
+        .select('estoque_atual, estoque_minimo')
+        .eq('ativo', true);
+
+      const estoqueCritico = (estoqueData ?? []).filter(
+        (p) => p.estoque_atual <= p.estoque_minimo
+      ).length;
 
       // Fetch recent OS with client name
       const { data: osData } = await supabase
@@ -272,7 +280,10 @@ export default function Dashboard() {
         </Card>
 
         {/* Estoque Crítico */}
-        <Card className="overflow-hidden">
+        <Card
+          className="cursor-pointer overflow-hidden transition-shadow hover:shadow-md"
+          onClick={() => navigate('/estoque/critico')}
+        >
           <div className="kpi-estoque p-1" />
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Estoque Crítico</CardTitle>

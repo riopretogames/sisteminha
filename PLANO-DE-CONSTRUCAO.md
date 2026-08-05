@@ -79,21 +79,24 @@ origem = número da venda.
   Supabase, em lugar nenhum da interface. Construir essa tela entra como
   parte do Passo 5 (telas que faltam).
 
-## Passo 3 — Estoque crítico (o alerta que você pediu)
+## Passo 3 — Estoque crítico (o alerta que você pediu) ✅ (05/08)
 
-- **Achado concreto:** o card "Estoque Crítico" que já aparece no Dashboard
-  hoje **tem um bug** — a consulta compara a quantidade atual com o texto
-  literal `"estoque_minimo"` em vez do valor de cada produto
-  (`src/pages/Dashboard.tsx:105`). Ou seja, esse número no Dashboard hoje
-  está sempre errado. É rápido de corrigir.
-- Depois de corrigir, construir as duas telas que o próprio menu do sistema
-  já prevê mas ainda não existem: **Estoque Crítico** (lista de produtos no
-  ou abaixo do mínimo) e **Movimentações de Estoque** (histórico do que o
-  Passo 1/2 vai começar a gerar).
-- Aí sim dá pra ligar o "me avisa quando chegar a X" — hoje cada produto já
-  tem um campo `estoque_minimo` configurável por item (não é fixo em 100
-  pra todo mundo, é por produto — o que é melhor: cada produto pode ter seu
-  próprio limite de reposição).
+- **Bug corrigido:** o card "Estoque Crítico" do Dashboard comparava a
+  quantidade com o texto literal `"estoque_minimo"` em vez do valor de cada
+  produto — sempre deu número errado. Agora traz as duas colunas e conta no
+  cliente, mesmo padrão do resto do sistema.
+- **Tela nova — Estoque Crítico** (`/estoque/critico`): lista só quem está
+  no ou abaixo do próprio mínimo, do mais urgente pro menos urgente, com
+  indicador de zerados e um botão "Repor" que já chama a função de ajuste
+  do Passo 2 (com auditoria automática, motivo "Reposição de estoque").
+  Card do Dashboard agora clica e leva direto pra essa tela.
+- **Tela nova — Movimentações de Estoque** (`/estoque/movimentacoes`):
+  histórico com filtro de período, exportação CSV, mostrando tudo que os
+  gatilhos dos Passos 1 e 2 vêm gravando (venda, ajuste manual, cadastro
+  inicial). Reaproveitei o `RelatorioShell` que os relatórios já usavam.
+- O alerta de reposição já funciona: cada produto tem seu próprio
+  `estoque_minimo` (não é um número fixo pra todo mundo — é melhor assim,
+  cada item pode ter seu próprio limite).
 
 ## Passo 4 — Ligar Ordem de Serviço ↔ Financeiro
 

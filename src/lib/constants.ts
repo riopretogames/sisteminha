@@ -52,6 +52,14 @@ export const PRODUTO_LOCALIZACOES = {
   sucata: { label: 'Sucata', icon: 'trash' },
 } as const;
 
+// Tipos de movimentação de estoque
+export const MOVIMENTO_TIPOS = {
+  entrada: { label: 'Entrada', cor: 'bg-emerald-100 text-emerald-700' },
+  saida: { label: 'Saída', cor: 'bg-red-100 text-red-700' },
+  ajuste: { label: 'Ajuste', cor: 'bg-blue-100 text-blue-700' },
+  inventario: { label: 'Inventário', cor: 'bg-slate-100 text-slate-600' },
+} as const;
+
 // Formas de pagamento
 export const FORMAS_PAGAMENTO = {
   pix: { label: 'PIX', icon: 'qr-code' },
