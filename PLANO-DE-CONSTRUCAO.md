@@ -171,6 +171,23 @@ Lista original, 15+ telas. Priorizamos "operação do dia a dia" primeiro.
   real", cards de hoje/semana) e IE > Estoque/Serviço (mesma lógica de
   cruzamento, mas pro giro de estoque e pro lucro de OS/assistência).
 
+## Bug corrigido ao vivo — overflow na margem do produto (05/08)
+
+- **Achado testando o app no ar:** cadastrar um produto com custo muito
+  baixo perto do preço (ex.: custo R$0,01, preço R$50) fazia o cálculo
+  automático de margem passar de 999,99% — o limite que a coluna
+  `margem_percent` aguentava (`DECIMAL(5,2)`) — e o cadastro inteiro falhava
+  com um erro técnico ("numeric field overflow"), sem nenhuma mensagem
+  amigável pro usuário.
+- **Correção:** a margem agora é limitada (entre -9999,99% e 9999,99%) em
+  vez de deixar o banco travar o cadastro. Qualquer custo/preço digitado
+  salva sem erro; casos extremos só mostram a margem "no teto", que já é
+  aviso suficiente de que o custo ou o preço foi digitado errado.
+- **Testado ao vivo** reproduzindo exatamente o cenário que tinha dado
+  erro (custo R$0,01, preço R$50): cadastro funcionou, margem apareceu
+  travada em 10000,0% (arredondamento de 9999,99%). Produto de teste
+  removido depois do teste.
+
 ## Passo 7 — Revisão de permissões
 
 - Cada tela nova entra já checando permissão (o sistema já tem esse
