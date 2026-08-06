@@ -153,13 +153,23 @@ Lista original, 15+ telas. Priorizamos "operação do dia a dia" primeiro.
   essencialmente a mesma coisa (dashboard de lucro/vendas/estoque), faz
   mais sentido tratar junto.
 
-## Passo 6 — Dashboard de lucro mensal e por produto
+## Passo 6 — Dashboard de lucro mensal e por produto ✅ (05/08, parte 1)
 
-- Com o Passo 1 corrigindo a baixa de estoque e o `custo`/`preco` que já
-  existem em `produtos`, dá pra calcular lucro real por produto (hoje o
-  sistema já tem o campo `margem_percent` calculado automaticamente, só
-  falta a tela que soma isso por mês/produto).
-- Isso alimenta os Dashboards e IE do Passo 5.
+- **Nova tela — IE Comercial** (`/dashboards/ie/comercial`): cruza as vendas
+  do período com o custo de cada produto e responde exatamente o pedido
+  original — "quanto é o lucro, quanto vem do produto tal". Mostra por
+  produto: quantidade vendida, receita, lucro e margem %, com totais do
+  período e exportação CSV. Quem não tem permissão de ver custo
+  (`inventory.cost.view`) só enxerga receita e quantidade — não o lucro.
+- **Limitação assumida, documentada no código:** o lucro usa o custo ATUAL
+  do produto, não o custo de quando a venda aconteceu (a tabela
+  `itens_venda` não guarda isso). Se o preço de custo mudar com o tempo,
+  vendas antigas recalculam com o custo de hoje. Se isso incomodar, a
+  solução é gravar `custo_unitario` em `itens_venda` no momento da venda —
+  fica como possível ajuste futuro.
+- **Ainda faltam:** Dashboard > Venda/Estoque/Metas (visão mais "tempo
+  real", cards de hoje/semana) e IE > Estoque/Serviço (mesma lógica de
+  cruzamento, mas pro giro de estoque e pro lucro de OS/assistência).
 
 ## Passo 7 — Revisão de permissões
 

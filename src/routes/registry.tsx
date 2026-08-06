@@ -48,6 +48,9 @@ export const PAGES: Record<string, Page> = {
   RelatorioFinanceiro: lazy(() => import('@/pages/relatorios/RelatorioFinanceiro')),
   RelatorioEstoque: lazy(() => import('@/pages/relatorios/RelatorioEstoque')),
 
+  /* ── Inteligência Empresarial ───────────────────────────────────────────── */
+  IeComercial: lazy(() => import('@/pages/IeComercial')),
+
   /* ── Configurações ──────────────────────────────────────────────────────── */
   ConfigPerfis: lazy(() => import('@/pages/configuracoes/ConfigPerfis')),
   ConfigPreferencias: lazy(() => import('@/pages/configuracoes/ConfigPreferencias')),
@@ -58,7 +61,7 @@ export const PAGES: Record<string, Page> = {
    * Ficam aqui como lista de trabalho.
    *
    *   DashboardVenda, DashboardEstoque, DashboardMetas
-   *   IeEstoque, IeComercial, IeServico
+   *   IeEstoque, IeServico
    *   VendasPagamentos
    *   ClientesImportar, Fornecedores, Transportadoras
    *   CadastroServicos, FormasPagamento
