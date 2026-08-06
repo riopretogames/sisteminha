@@ -38,6 +38,7 @@ export const PAGES: Record<string, Page> = {
   Usuarios: lazy(() => import('@/pages/cadastros/Usuarios')),
   Fornecedores: lazy(() => import('@/pages/cadastros/Fornecedores')),
   Transportadoras: lazy(() => import('@/pages/cadastros/Transportadoras')),
+  CadastroServicos: lazy(() => import('@/pages/cadastros/CadastroServicos')),
   FormasPagamento: lazy(() => import('@/pages/cadastros/FormasPagamento')),
   ClientesImportar: lazy(() => import('@/pages/cadastros/ClientesImportar')),
 
@@ -70,7 +71,6 @@ export const PAGES: Record<string, Page> = {
    *
    *   DashboardVenda, DashboardEstoque, DashboardMetas
    *   IeEstoque, IeServico
-   *   CadastroServicos
    */
 };
 

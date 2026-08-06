@@ -172,11 +172,22 @@ Lista original, 15+ telas. Priorizamos "operação do dia a dia" primeiro.
   estadual, contato, endereço, cores e logo da loja. Quem só pode ver
   (`company.view`) enxerga os mesmos dados em modo leitura; quem pode
   editar (`company.edit`) vê os campos e o botão Salvar.
+- ✅ **Serviços** (`/cadastros/servicos`) — catálogo de mão de obra da
+  assistência técnica: preço de referência, custo estimado (só quem tem
+  permissão de ver custo), tempo estimado, garantia (padrão da casa: 3
+  meses) e um aviso obrigatório pra reparo de risco (reballing, reflow,
+  banho químico, oxidação). O campo Grupo usa o mesmo catálogo de
+  "Listas do Sistema" (Console/Jogo/Celular/etc.) em vez de reinventar uma
+  lista fixa. **Bug pego na revisão antes de ir pro ar:** a rota já estava
+  cadastrada no menu, mas o mapa central de páginas (`registry.tsx`) não
+  tinha a entrada — a tela ficaria travada em "Em construção" mesmo
+  pronta. Corrigido junto. **Correção proativa:** nome de serviço
+  duplicado agora dá uma mensagem amigável em vez do erro cru do banco.
 
-**Ainda faltam:**
-- **Cadastros de apoio:** Serviços (mão de obra da assistência técnica —
-  tabela `servicos` também já existe pronta, só falta a tela).
-- **Dashboards e Inteligência Empresarial:** ver Passo 6.
+**Cadastros de apoio — Passo 5 concluído.** Tudo que faltava (Fornecedores,
+Transportadoras, Formas de Pagamento, Importação de Clientes, Serviços)
+está construído. Só ficam de fora Dashboards e Inteligência Empresarial —
+ver Passo 6.
 
 ## Passo 6 — Dashboard de lucro mensal e por produto ✅ (05/08, parte 1)
 
