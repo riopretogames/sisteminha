@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -678,6 +678,47 @@ export type Database = {
             columns: ["venda_id"]
             isOneToOne: false
             referencedRelation: "vendas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      metas_faturamento: {
+        Row: {
+          ano: number
+          created_at: string
+          faixa: Database["public"]["Enums"]["faixa_premiacao"]
+          id: string
+          mes: number
+          tenant_id: string
+          updated_at: string
+          valor_meta: number
+        }
+        Insert: {
+          ano: number
+          created_at?: string
+          faixa: Database["public"]["Enums"]["faixa_premiacao"]
+          id?: string
+          mes: number
+          tenant_id: string
+          updated_at?: string
+          valor_meta: number
+        }
+        Update: {
+          ano?: number
+          created_at?: string
+          faixa?: Database["public"]["Enums"]["faixa_premiacao"]
+          id?: string
+          mes?: number
+          tenant_id?: string
+          updated_at?: string
+          valor_meta?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_faturamento_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -1676,6 +1717,7 @@ export type Database = {
         | "loja"
         | "outro"
       cliente_tag: "vip" | "fiel" | "problema"
+      faixa_premiacao: "bronze" | "prata" | "ouro" | "diamante"
       forma_pagamento:
         | "pix"
         | "dinheiro"
@@ -1860,6 +1902,7 @@ export const Constants = {
         "outro",
       ],
       cliente_tag: ["vip", "fiel", "problema"],
+      faixa_premiacao: ["bronze", "prata", "ouro", "diamante"],
       forma_pagamento: [
         "pix",
         "dinheiro",

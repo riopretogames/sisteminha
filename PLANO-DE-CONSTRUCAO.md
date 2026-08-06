@@ -203,9 +203,47 @@ ver Passo 6.
   vendas antigas recalculam com o custo de hoje. Se isso incomodar, a
   solução é gravar `custo_unitario` em `itens_venda` no momento da venda —
   fica como possível ajuste futuro.
-- **Ainda faltam:** Dashboard > Venda/Estoque/Metas (visão mais "tempo
-  real", cards de hoje/semana) e IE > Estoque/Serviço (mesma lógica de
-  cruzamento, mas pro giro de estoque e pro lucro de OS/assistência).
+- ✅ **Dashboard de Vendas** (`/dashboards/venda`) — "olha só como tá indo
+  agora": vendas de hoje (com trend vs. ontem), vendas da semana, ticket
+  médio, melhor dia da semana e top 5 produtos mais vendidos na semana.
+  Sem filtro de período/CSV de propósito — isso já existe no Relatório de
+  Vendas; aqui é sempre "agora".
+- ✅ **Dashboard de Estoque** (`/dashboards/estoque`) — produtos ativos,
+  valor total em estoque (só quem vê custo), estoque crítico e
+  movimentações de hoje, cada um linkando pra tela cheia correspondente
+  em vez de duplicar lista. Top 5 por valor parado (ou por menor estoque,
+  pra quem não vê custo).
+- ✅ **IE - Estoque** (`/dashboards/ie/estoque`) — giro de produto: cruza
+  vendas do período com o estoque atual pra achar o que vende rápido e o
+  que fica parado (dinheiro empatado). Cruza TODOS os produtos ativos,
+  não só quem vendeu no período — senão um produto parado (zero venda)
+  nunca apareceria.
+- ✅ **Dashboard de Metas** (`/dashboards/metas`) — progresso do
+  faturamento do mês contra as 4 faixas de premiação (Bronze/Prata/Ouro/
+  Diamante) que a loja já usa de verdade (não inventei um sistema novo).
+  Valores reais do ano inteiro de 2026 vieram da pasta `premiacoes/` da
+  empresa (migration `20260806100000_metas_faturamento.sql`) — combinado
+  com o Felipe usar os números que já existiam. **Fronteira importante,
+  garantida com revisão dedicada:** a tela só mostra progresso de
+  faturamento — nunca calcula comissão, prêmio ou pontuação de Trello,
+  isso continua sendo do processo de premiação (fora do Sisteminha). A
+  quebra "por vendedor" é uma estimativa client-side, claramente rotulada
+  como tal.
+- ✅ **Itens da OS** (dentro de `/os/:id`, seção "Peças e serviços") — o
+  gatilho de baixa de estoque por peça usada em OS já existia no banco
+  desde o Passo 2, mas nenhuma tela criava esse tipo de registro. Agora
+  dá pra lançar "Peça do estoque" (desconta automático, com rastro em
+  Movimentações) ou "Serviço avulso" (só lançamento, sem mexer em
+  estoque, com atalho pra puxar preço/custo do catálogo de Serviços).
+  Item de peça não pode ser excluído pela tela (reverteria a baixa sem
+  rastro) — só serviço avulso. Botão "Usar soma dos itens" preenche o
+  campo de orçamento já existente (não substitui o fluxo do Passo 4).
+  **Corrigido na revisão:** faltava checar se a quantidade lançada cabia
+  no estoque disponível antes de mandar pro banco.
+- **Ainda falta:** IE - Serviço (lucro de OS/assistência) — agora que os
+  itens da OS existem, dá pra construir de verdade cruzando
+  `service_order_items` (preço cobrado × custo unitário) por período/
+  técnico, em vez da versão "só receita" que tinha sido cogitada antes.
 
 ## Bug corrigido ao vivo — overflow na margem do produto (05/08)
 

@@ -18,6 +18,11 @@ import { lazy, type LazyExoticComponent, type ComponentType } from 'react';
 type Page = LazyExoticComponent<ComponentType<unknown>>;
 
 export const PAGES: Record<string, Page> = {
+  /* ── Dashboards operacionais ────────────────────────────────────────────── */
+  DashboardVenda: lazy(() => import('@/pages/DashboardVenda')),
+  DashboardEstoque: lazy(() => import('@/pages/DashboardEstoque')),
+  DashboardMetas: lazy(() => import('@/pages/DashboardMetas')),
+
   /* ── Operação ───────────────────────────────────────────────────────────── */
   Home: lazy(() => import('@/pages/Dashboard')),
   Estoque: lazy(() => import('@/pages/Estoque')),
@@ -56,6 +61,7 @@ export const PAGES: Record<string, Page> = {
 
   /* ── Inteligência Empresarial ───────────────────────────────────────────── */
   IeComercial: lazy(() => import('@/pages/IeComercial')),
+  IeEstoque: lazy(() => import('@/pages/IeEstoque')),
 
   /* ── Minha Empresa ──────────────────────────────────────────────────────── */
   MinhaEmpresa: lazy(() => import('@/pages/MinhaEmpresa')),
@@ -69,8 +75,8 @@ export const PAGES: Record<string, Page> = {
    * Não precisam ser listadas: `element` ausente cai em EmConstrucao.
    * Ficam aqui como lista de trabalho.
    *
-   *   DashboardVenda, DashboardEstoque, DashboardMetas
-   *   IeEstoque, IeServico
+   *   IeServico (depende da tela de itens da OS, feita — falta só o
+   *   relatório de lucro em cima dos itens)
    */
 };
 
