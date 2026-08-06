@@ -25,6 +25,7 @@ export const PAGES: Record<string, Page> = {
   EstoqueMovimentacoes: lazy(() => import('@/pages/EstoqueMovimentacoes')),
   PDV: lazy(() => import('@/pages/PDV')),
   VendasHistorico: lazy(() => import('@/pages/VendasHistorico')),
+  VendasPagamentos: lazy(() => import('@/pages/VendasPagamentos')),
   OrdensServico: lazy(() => import('@/pages/OrdensServico')),
   NovaOS: lazy(() => import('@/pages/NovaOS')),
   OSFinalizadas: lazy(() => import('@/pages/OSFinalizadas')),
@@ -35,6 +36,10 @@ export const PAGES: Record<string, Page> = {
   CadastrosHub: lazy(() => import('@/pages/cadastros/CadastrosHub')),
   CatalogosHub: lazy(() => import('@/pages/cadastros/CatalogosHub')),
   Usuarios: lazy(() => import('@/pages/cadastros/Usuarios')),
+  Fornecedores: lazy(() => import('@/pages/cadastros/Fornecedores')),
+  Transportadoras: lazy(() => import('@/pages/cadastros/Transportadoras')),
+  FormasPagamento: lazy(() => import('@/pages/cadastros/FormasPagamento')),
+  ClientesImportar: lazy(() => import('@/pages/cadastros/ClientesImportar')),
 
   /* ── Financeiro ─────────────────────────────────────────────────────────── */
   FinanceiroCaixa: lazy(() => import('@/pages/financeiro/FinanceiroCaixa')),
@@ -51,6 +56,9 @@ export const PAGES: Record<string, Page> = {
   /* ── Inteligência Empresarial ───────────────────────────────────────────── */
   IeComercial: lazy(() => import('@/pages/IeComercial')),
 
+  /* ── Minha Empresa ──────────────────────────────────────────────────────── */
+  MinhaEmpresa: lazy(() => import('@/pages/MinhaEmpresa')),
+
   /* ── Configurações ──────────────────────────────────────────────────────── */
   ConfigPerfis: lazy(() => import('@/pages/configuracoes/ConfigPerfis')),
   ConfigPreferencias: lazy(() => import('@/pages/configuracoes/ConfigPreferencias')),
@@ -62,10 +70,7 @@ export const PAGES: Record<string, Page> = {
    *
    *   DashboardVenda, DashboardEstoque, DashboardMetas
    *   IeEstoque, IeServico
-   *   VendasPagamentos
-   *   ClientesImportar, Fornecedores, Transportadoras
-   *   CadastroServicos, FormasPagamento
-   *   MinhaEmpresa
+   *   CadastroServicos
    */
 };
 

@@ -143,15 +143,40 @@ Lista original, 15+ telas. Priorizamos "operação do dia a dia" primeiro.
   mexi lá por ora (não foi eu que escrevi, e é só um card de "OS recentes",
   baixo risco), mas fica anotado como pendência menor.
 
-**Ainda faltam, em ordem de prioridade decrescente (não construídas ainda):**
-- **Cadastros de apoio:** Fornecedores, Transportadoras, Serviços, Formas
-  de Pagamento, Importação de Clientes em massa.
-- **Vendas > Pagamentos:** tela dedicada de conciliação de pagamentos
-  (a informação já existe em `pagamentos_venda`, só falta a tela).
-- **Minha Empresa:** editar dados da loja (nome, CNPJ, logo, cores).
-- **Dashboards e Inteligência Empresarial:** ver Passo 6 — são
-  essencialmente a mesma coisa (dashboard de lucro/vendas/estoque), faz
-  mais sentido tratar junto.
+- ✅ **Fornecedores** (`/cadastros/fornecedores`) — cadastro completo (dados
+  fiscais, contato, endereço, prazo de entrega), exclusão lógica. Tabela e
+  RLS já existiam prontas desde a migration de cadastros (01/08); só
+  faltava a tela.
+- ✅ **Transportadoras** (`/cadastros/transportadoras`) — cadastro simples
+  com link de rastreio clicável. Mesma situação: tabela e RLS já prontas.
+- ✅ **Formas de Pagamento** (`/cadastros/formas-pagamento`) — cadastro com
+  parcelamento, taxa, juros (simples/composto) e a flag "entra no
+  fechamento de caixa". **Bug pego na revisão antes de ir pro ar:** taxa e
+  juros são `DECIMAL(5,2)` no banco (máx. 999,99%) e o formulário não
+  travava esse limite — digitar um valor maior estouraria o cadastro com o
+  mesmo tipo de erro cru corrigido hoje mais cedo em
+  `produtos.margem_percent`. Corrigido com um limite no próprio formulário
+  antes de qualquer usuário esbarrar nisso. **Limitação assumida:** taxa
+  por parcela individual (3x com uma taxa, 12x com outra) ainda não é
+  editável — só existe a taxa "flat", igual pra qualquer parcelamento.
+- ✅ **Importação de Clientes** (`/cadastros/clientes/importar`) — sobe uma
+  planilha CSV (nome, telefone, email, CPF/CNPJ — só nome é obrigatório),
+  mostra pré-visualização antes de gravar e importa em lotes. Tem botão de
+  baixar um modelo pronto. **Limitação assumida:** não verifica duplicado
+  — subir a mesma planilha duas vezes duplica cliente.
+- ✅ **Vendas > Pagamentos** (`/vendas/pagamentos`) — conferência de caixa
+  por pagamento (não por venda: uma venda paga metade em dinheiro e metade
+  no cartão vira duas linhas), com resumo por forma de pagamento pra bater
+  com a maquininha e o PIX.
+- ✅ **Minha Empresa** (`/empresa`) — editar nome, CNPJ, inscrição
+  estadual, contato, endereço, cores e logo da loja. Quem só pode ver
+  (`company.view`) enxerga os mesmos dados em modo leitura; quem pode
+  editar (`company.edit`) vê os campos e o botão Salvar.
+
+**Ainda faltam:**
+- **Cadastros de apoio:** Serviços (mão de obra da assistência técnica —
+  tabela `servicos` também já existe pronta, só falta a tela).
+- **Dashboards e Inteligência Empresarial:** ver Passo 6.
 
 ## Passo 6 — Dashboard de lucro mensal e por produto ✅ (05/08, parte 1)
 
