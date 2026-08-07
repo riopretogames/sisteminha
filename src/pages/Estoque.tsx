@@ -99,7 +99,7 @@ export default function Estoque() {
   const fetchProdutos = async () => {
     try {
       const { data, error } = await supabase
-        .from('produtos')
+        .from('vw_produtos')
         .select('*')
         .eq('ativo', true)
         .order('nome');

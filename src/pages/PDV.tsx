@@ -122,7 +122,7 @@ export default function PDV() {
 
   const fetchProdutos = async () => {
     const { data } = await supabase
-      .from('produtos')
+      .from('vw_produtos')
       .select('id, nome, preco, estoque_atual')
       .eq('ativo', true)
       .gt('estoque_atual', 0)

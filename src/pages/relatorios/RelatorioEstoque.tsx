@@ -27,7 +27,7 @@ export default function RelatorioEstoque() {
     queryKey: ['rel-estoque'],
     queryFn: async (): Promise<LinhaProduto[]> => {
       const { data, error } = await supabase
-        .from('produtos')
+        .from('vw_produtos')
         .select('id, nome, marca, categoria, estoque_atual, estoque_minimo, custo, preco')
         .eq('ativo', true)
         .order('nome');

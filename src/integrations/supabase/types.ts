@@ -1785,7 +1785,72 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      // ATENÇÃO: escrito à mão, não gerado.
+      // As views entraram pela migration 20260808110000 e o `supabase gen
+      // types` ainda não rodou (depende de `supabase login`, que é passo do
+      // Felipe). O conteúdo abaixo reproduz exatamente o que o gerador
+      // produziria — quando regerar, esta seção é substituída por igual.
+      //
+      // Custo é `number | null` mesmo onde a tabela tem NOT NULL: a view
+      // devolve NULL para quem não tem `inventory.cost.view`.
+      vw_produtos: {
+        Row: {
+          ativo: boolean | null
+          categoria: Database["public"]["Enums"]["produto_categoria"] | null
+          codigo_barra: string | null
+          created_at: string | null
+          custo: number | null
+          estoque_atual: number | null
+          estoque_maximo: number | null
+          estoque_minimo: number | null
+          foto_url: string | null
+          garantia_meses: number | null
+          id: string | null
+          imei_serial: string | null
+          localizacao: Database["public"]["Enums"]["produto_localizacao"] | null
+          marca: string | null
+          margem_percent: number | null
+          modelo: string | null
+          nome: string | null
+          preco: number | null
+          tenant_id: string | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
+      vw_servicos: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          custo_estimado: number | null
+          descricao: string | null
+          exige_aviso_risco: boolean | null
+          garantia_meses: number | null
+          grupo_id: string | null
+          id: string | null
+          nome: string | null
+          preco_referencia: number | null
+          tempo_estimado_horas: number | null
+          tenant_id: string | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
+      vw_os_itens: {
+        Row: {
+          created_at: string | null
+          custo_unitario: number | null
+          descricao: string | null
+          garantia_item_meses: number | null
+          horas_mao_obra: number | null
+          id: string | null
+          os_id: string | null
+          preco_cobrado: number | null
+          produto_id: string | null
+          quantidade: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       ajustar_estoque_produto: {

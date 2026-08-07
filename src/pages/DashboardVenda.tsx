@@ -99,7 +99,7 @@ export default function DashboardVenda() {
     queryFn: async (): Promise<VendaRow[]> => {
       const { data, error } = await supabase
         .from('vendas')
-        .select('id, created_at, total, itens_venda(produto_id, quantidade, total, produtos(nome))')
+        .select('id, created_at, total, itens_venda(produto_id, quantidade, total, produtos:vw_produtos(nome))')
         .gte('created_at', limites.inicioBusca.toISOString())
         .neq('status', 'cancelado');
       if (error) throw error;

@@ -54,7 +54,7 @@ export default function EstoqueCritico() {
     queryKey: ['estoque-critico'],
     queryFn: async (): Promise<Produto[]> => {
       const { data, error } = await supabase
-        .from('produtos')
+        .from('vw_produtos')
         .select('id, nome, marca, categoria, estoque_atual, estoque_minimo')
         .eq('ativo', true);
       if (error) throw error;

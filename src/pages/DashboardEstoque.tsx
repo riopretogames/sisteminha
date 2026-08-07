@@ -73,7 +73,7 @@ export default function DashboardEstoque() {
       // Produtos ativos — traz estoque_atual/estoque_minimo/custo juntos e
       // calcula tudo no cliente (crítico, valor parado, top 5).
       const { data: produtosData, error: produtosError } = await supabase
-        .from('produtos')
+        .from('vw_produtos')
         .select('id, nome, categoria, estoque_atual, estoque_minimo, custo, preco')
         .eq('ativo', true);
       if (produtosError) throw produtosError;

@@ -132,7 +132,7 @@ export default function CadastroServicos() {
   const fetchServicos = async () => {
     try {
       const { data, error } = await supabase
-        .from('servicos')
+        .from('vw_servicos')
         .select('*')
         .eq('ativo', true)
         .order('nome');

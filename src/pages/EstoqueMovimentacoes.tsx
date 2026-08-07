@@ -42,7 +42,7 @@ export default function EstoqueMovimentacoes() {
     queryFn: async (): Promise<LinhaMovimento[]> => {
       const { data, error } = await supabase
         .from('movimentos_estoque')
-        .select('*, produtos(nome)')
+        .select('*, produtos:vw_produtos(nome)')
         .gte('created_at', periodo.de)
         .lte('created_at', `${periodo.ate}T23:59:59`)
         .order('created_at', { ascending: false });

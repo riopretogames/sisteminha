@@ -139,7 +139,7 @@ export default function TrocaDevolucao() {
       const [itensRes, devolvidosRes] = await Promise.all([
         supabase
           .from('itens_venda')
-          .select('id, produto_id, quantidade, preco_unitario, produtos(nome)')
+          .select('id, produto_id, quantidade, preco_unitario, produtos:vw_produtos(nome)')
           .eq('venda_id', vendaSelecionada!.id),
         supabase
           .from('devolucoes')
@@ -175,7 +175,7 @@ export default function TrocaDevolucao() {
     queryKey: ['troca-devolucao-produtos'],
     queryFn: async (): Promise<ProdutoOpcao[]> => {
       const { data, error } = await supabase
-        .from('produtos')
+        .from('vw_produtos')
         .select('id, nome, preco, estoque_atual')
         .eq('ativo', true)
         .gt('estoque_atual', 0)

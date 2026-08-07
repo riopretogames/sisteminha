@@ -159,15 +159,32 @@ comentado nas 3.
   applied` nas duas versões — senão o CLI tenta reaplicar. As duas foram
   deixadas idempotentes de qualquer forma (`CREATE OR REPLACE` nas views,
   `DROP TRIGGER IF EXISTS` no gatilho), então reaplicar não quebraria.
-- [ ] **Ligar as telas de leitura nas views** — por área, junto da
-  lapidação de cada uma: Estoque, Cadastros, OS, Relatórios,
-  Dashboards/IE. Escrita/edição continua indo direto na tabela.
-  Levantamento inicial: só 2 telas usam `select('*')` nessas tabelas
-  (`Estoque.tsx:103` e `CadastroServicos.tsx:136`) — o resto já lista
-  coluna por coluna, o que reduz bem o trabalho.
-- [ ] **Regerar `types.ts`** depois de aplicar a Parte 1, pra que as views
-  fiquem tipadas e não precisem passar pelo cliente `db` não tipado (que
-  o backlog quer apagar).
+- [x] ✅ **Ligar as telas de leitura nas views (07/08).** 14 arquivos.
+  Regra aplicada sem exceção: **toda leitura** dessas 3 tabelas passa por
+  view, mesmo a que não pede custo — assim ninguém precisa lembrar da
+  regra depois, e adicionar `custo` a um `select` existente continua
+  funcionando (vem nulo) em vez de virar erro. Escrita (`insert`,
+  `update`, soft-delete) continua indo direto na tabela, com as policies
+  de RLS que já existiam.
+  - Leitura direta → view: Dashboard, DashboardEstoque, Estoque (só a
+    linha 102 — as outras 3 são escrita), EstoqueCritico, IeEstoque, PDV,
+    RelatorioEstoque, TrocaDevolucao, OSDetalhe (produtos, serviços e
+    itens da OS), CadastroServicos.
+  - Consulta aninhada (`venda → itens → produto`): usa apelido
+    `produtos:vw_produtos(...)`, então o JSON continua com a chave
+    `produtos` e nenhum código de tela precisou mudar. Vale pra
+    IeComercial, IeEstoque, DashboardVenda, EstoqueMovimentacoes,
+    OSDetalhe, TrocaDevolucao, VendasHistorico.
+  - Verificado antes de editar, com chamada real à API REST: as 3 views
+    respondem, o apelido funciona, `select('*')` na view funciona, e os
+    filtros/ordenação usados hoje continuam válidos. Depois: `tsc` limpo,
+    build ok, `eslint` sem nenhum problema novo (os 37 erros que ele
+    aponta são todos anteriores — mesma contagem antes e depois).
+- [ ] **Regerar `types.ts`.** As 3 views foram **escritas à mão** na
+  seção `Views` (o gerador precisa de `supabase login`, que é passo do
+  Felipe). O conteúdo reproduz o que o gerador produziria; regerar
+  substitui por igual. Enquanto não rodar, vale lembrar que aquele
+  trecho não é gerado.
 - [ ] **Parte 2 da fundação — a tranca.** Migration com o
   `REVOKE`/`GRANT` por coluna. **Só depois** dos dois itens acima.
 - [ ] **Conferir com uma conta de teste** sem `inventory.cost.view`,

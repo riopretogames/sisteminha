@@ -152,9 +152,9 @@ export default function OSDetalhe() {
     queryKey: ['os-itens', id],
     queryFn: async (): Promise<ItemOS[]> => {
       const { data, error } = await supabase
-        .from('service_order_items')
+        .from('vw_os_itens')
         .select(
-          'id, produto_id, descricao, quantidade, preco_cobrado, custo_unitario, horas_mao_obra, garantia_item_meses, produtos(nome)'
+          'id, produto_id, descricao, quantidade, preco_cobrado, custo_unitario, horas_mao_obra, garantia_item_meses, produtos:vw_produtos(nome)'
         )
         .eq('os_id', id)
         .order('created_at');
@@ -171,7 +171,7 @@ export default function OSDetalhe() {
     if (!itemDialogOpen) return;
 
     supabase
-      .from('produtos')
+      .from('vw_produtos')
       .select('id, nome, preco, custo, estoque_atual')
       .eq('ativo', true)
       .gt('estoque_atual', 0)
@@ -179,7 +179,7 @@ export default function OSDetalhe() {
       .then(({ data }) => setProdutos((data ?? []) as ProdutoOpcao[]));
 
     supabase
-      .from('servicos')
+      .from('vw_servicos')
       .select('id, nome, preco_referencia, custo_estimado, tempo_estimado_horas')
       .eq('ativo', true)
       .order('nome')

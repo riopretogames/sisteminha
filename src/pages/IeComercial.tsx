@@ -40,7 +40,7 @@ export default function IeComercial() {
       const { data, error } = await supabase
         .from('vendas')
         .select(
-          'id, created_at, status, itens_venda(quantidade, preco_unitario, total, produtos(id, nome, categoria, custo))'
+          'id, created_at, status, itens_venda(quantidade, preco_unitario, total, produtos:vw_produtos(id, nome, categoria, custo))'
         )
         .gte('created_at', periodo.de)
         .lte('created_at', `${periodo.ate}T23:59:59`)

@@ -76,7 +76,7 @@ export default function VendasHistorico() {
       const [itensRes, pagamentosRes] = await Promise.all([
         supabase
           .from('itens_venda')
-          .select('id, quantidade, preco_unitario, total, produtos(nome)')
+          .select('id, quantidade, preco_unitario, total, produtos:vw_produtos(nome)')
           .eq('venda_id', vendaAberta!.id),
         supabase
           .from('pagamentos_venda')

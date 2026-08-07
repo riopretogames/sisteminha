@@ -104,7 +104,7 @@ export default function Dashboard() {
       // deu número errado). Traz as duas colunas e conta no cliente, mesmo
       // padrão usado em Estoque.tsx e EstoqueCritico.tsx.
       const { data: estoqueData } = await supabase
-        .from('produtos')
+        .from('vw_produtos')
         .select('estoque_atual, estoque_minimo')
         .eq('ativo', true);
 

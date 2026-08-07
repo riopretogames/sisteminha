@@ -54,13 +54,13 @@ export default function IeEstoque() {
         supabase
           .from('vendas')
           .select(
-            'id, created_at, status, itens_venda(quantidade, total, produtos(id, nome, categoria, custo, estoque_atual))'
+            'id, created_at, status, itens_venda(quantidade, total, produtos:vw_produtos(id, nome, categoria, custo, estoque_atual))'
           )
           .gte('created_at', periodo.de)
           .lte('created_at', `${periodo.ate}T23:59:59`)
           .neq('status', 'cancelado'),
         supabase
-          .from('produtos')
+          .from('vw_produtos')
           .select('id, nome, categoria, custo, estoque_atual')
           .eq('ativo', true),
       ]);
