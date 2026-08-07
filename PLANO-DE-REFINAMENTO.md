@@ -65,6 +65,21 @@ Migration `20260807020000`, aplicada em produção. Commit `a6704a6`.
 
 ## Decisão que só você pode tomar
 
+> ### ✅ DECIDIDO EM 07/08 — Opção B (fechar de verdade)
+>
+> **Escolha do Felipe.** Motivo, nas palavras dele: a loja já roda hoje num
+> sistema antigo e defasado; o Sisteminha está sendo construído com calma
+> pra substituir aquele. Não é um remendo com prazo apertado — dá pra
+> fazer certo desde o começo, em vez de deixar dívida pra depois.
+>
+> **O que isso passa a valer como regra do projeto:** permissão que existe
+> no catálogo tem que valer no banco também, não só na tela. Onde a trava
+> real não for possível, isso vira item registrado — não silêncio.
+>
+> Implicação prática: as 4 áreas travadas por essa pergunta (Estoque,
+> Cadastros, OS, Relatórios) estão liberadas, e cada uma delas passa a ler
+> custo pela via restrita. Ver **Plano da Opção B** logo abaixo.
+
 **Achado mais corroborado desta revisão** (6 agentes diferentes, sem saber
 um do outro, chegaram à mesma conclusão): `inventory.cost.view` existe como
 permissão no catálogo e é atribuída a papéis, mas **nenhuma política de
@@ -87,8 +102,45 @@ bug isolado que "escapou". A pergunta é de produto/segurança, não de código:
   view em vez da tabela. Custo real vira uma segunda consulta, só pra quem
   tem a permissão.
 
-Não vou decidir isso sozinho — me diz qual caminho quando chegar a hora de
-mexer em Estoque/Cadastros/OS (é o mesmo padrão nas 4 áreas).
+### Plano da Opção B
+
+O projeto já tem a peça central pronta: a função
+`public.has_permission(_user_id, _permission)` (migration
+`20260802000001`, SECURITY DEFINER e STABLE), que é o que as políticas de
+RLS já usam hoje. Dá pra apoiar a solução nela em vez de inventar
+mecanismo novo.
+
+**Abordagem escolhida — uma view por tabela, com o custo condicional.**
+Em vez de duas vias ("com custo" e "sem custo") e duas consultas
+espalhadas pelo código, cada tabela ganha uma view em que a coluna de
+custo é `CASE WHEN has_permission(auth.uid(), 'inventory.cost.view')
+THEN custo END`. Quem tem a permissão recebe o valor; quem não tem
+recebe nulo, direto do banco. A view usa `security_invoker` pra que a
+RLS de tenant continue valendo igual.
+
+Vantagem sobre a ideia original de "view sem a coluna": o front-end não
+precisa escolher entre duas consultas conforme a permissão — só troca a
+origem da leitura de tabela pra view, e o banco decide o resto. Menos
+lugar pra errar.
+
+- [ ] **Fundação (fazer uma vez):** migration criando as views com custo
+  condicional pra `produtos`, `servicos` e `service_order_items`.
+  Escrita, mas ainda não aplicada.
+- [ ] **Ligar as telas de leitura na view** — feito por área, junto da
+  lapidação de cada uma: Estoque, Cadastros, OS, Relatórios,
+  Dashboards/IE. Escrita/edição continua indo direto na tabela.
+- [ ] **Conferir o resultado com uma conta de teste** sem
+  `inventory.cost.view`, consultando a API direto (não pela tela) — é o
+  único jeito de provar que fechou de verdade.
+- [ ] **Desconto de venda** (a decisão irmã, registrada em Vendas/PDV):
+  pela mesma régua da Opção B, `descontos != 0` sem `sales.discount`
+  precisa de trava no banco — um trigger `BEFORE INSERT/UPDATE` em
+  `vendas`. Não sai de graça na mesma migration das views (é mecanismo
+  diferente), mas entra na mesma frente de trabalho.
+
+**O que muda pro usuário na tela: nada.** Quem já via custo continua
+vendo; quem não via continua não vendo. A diferença é que agora a trava
+é real, não cosmética.
 
 ---
 
