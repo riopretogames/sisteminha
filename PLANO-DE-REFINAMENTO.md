@@ -123,20 +123,49 @@ precisa escolher entre duas consultas conforme a permissão — só troca a
 origem da leitura de tabela pra view, e o banco decide o resto. Menos
 lugar pra errar.
 
-- [ ] **Fundação (fazer uma vez):** migration criando as views com custo
-  condicional pra `produtos`, `servicos` e `service_order_items`.
-  Escrita, mas ainda não aplicada.
-- [ ] **Ligar as telas de leitura na view** — feito por área, junto da
+**Correção descoberta ao escrever a migration — a view sozinha não fecha
+nada.** A ideia original ("criar view sem a coluna de custo e apontar as
+consultas pra ela") deixa a tabela original acessível do mesmo jeito: quem
+consulta a API direto continua pedindo `produtos` em vez de `vw_produtos` e
+recebe o custo igual. **A tranca de verdade é tirar o SELECT da coluna do
+papel `authenticated`** (`REVOKE SELECT ON produtos` + `GRANT SELECT` só nas
+colunas liberadas). Só que, no instante em que isso entra, qualquer
+`SELECT *` nessas tabelas passa a dar erro de permissão — então essa parte
+só pode ser aplicada **depois** que todas as telas estiverem lendo pelas
+views. Por isso a fundação virou 2 partes.
+
+Consequência técnica: as views **não** usam `security_invoker`. Se usassem,
+leriam a tabela com os privilégios de quem chamou e perderiam o acesso ao
+custo junto com todo mundo na Parte 2. Rodando com o privilégio do dono,
+elas precisam repetir o filtro de tenant no `WHERE` — o isolamento entre
+lojas passa a ser responsabilidade da view, não da RLS. Está explícito e
+comentado nas 3.
+
+- [x] **Parte 1 da fundação — as views.** Migration
+  `20260808110000_custo_protegido_views.sql`: `vw_produtos`, `vw_servicos`
+  e `vw_os_itens`, com custo condicional via `has_permission`,
+  `security_barrier` e filtro de tenant explícito. **Não quebra nada** —
+  as tabelas continuam acessíveis. Escrita, ainda não aplicada.
+- [x] **Trava de desconto.** Migration
+  `20260808120000_trava_desconto_venda.sql`: gatilho
+  `validar_desconto_venda` em `vendas`, que recusa gravar
+  `descontos != 0` sem `sales.discount`. Só dispara quando o valor do
+  desconto muda; zerar desconto é sempre permitido. Escrita, ainda não
+  aplicada.
+- [ ] **Ligar as telas de leitura nas views** — por área, junto da
   lapidação de cada uma: Estoque, Cadastros, OS, Relatórios,
   Dashboards/IE. Escrita/edição continua indo direto na tabela.
-- [ ] **Conferir o resultado com uma conta de teste** sem
-  `inventory.cost.view`, consultando a API direto (não pela tela) — é o
-  único jeito de provar que fechou de verdade.
-- [ ] **Desconto de venda** (a decisão irmã, registrada em Vendas/PDV):
-  pela mesma régua da Opção B, `descontos != 0` sem `sales.discount`
-  precisa de trava no banco — um trigger `BEFORE INSERT/UPDATE` em
-  `vendas`. Não sai de graça na mesma migration das views (é mecanismo
-  diferente), mas entra na mesma frente de trabalho.
+  Levantamento inicial: só 2 telas usam `select('*')` nessas tabelas
+  (`Estoque.tsx:103` e `CadastroServicos.tsx:136`) — o resto já lista
+  coluna por coluna, o que reduz bem o trabalho.
+- [ ] **Regerar `types.ts`** depois de aplicar a Parte 1, pra que as views
+  fiquem tipadas e não precisem passar pelo cliente `db` não tipado (que
+  o backlog quer apagar).
+- [ ] **Parte 2 da fundação — a tranca.** Migration com o
+  `REVOKE`/`GRANT` por coluna. **Só depois** dos dois itens acima.
+- [ ] **Conferir com uma conta de teste** sem `inventory.cost.view`,
+  consultando a API direto (não pela tela) — é o único jeito de provar
+  que fechou de verdade.
 
 **O que muda pro usuário na tela: nada.** Quem já via custo continua
 vendo; quem não via continua não vendo. A diferença é que agora a trava
