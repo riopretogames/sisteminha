@@ -152,17 +152,22 @@ o arquivo antes de assumir.
   [decisão de custo/margem](#decisão-que-só-você-pode-tomar) pra decidir
   junto.
 
+**⚪ Não se aplica — decisão de negócio (08/08)**
+- [x] `clientes.liberado_venda`/`limite_credito` — **a loja não trabalha
+  com crediário/fiado**, então o controle de limite de crédito não tem
+  cenário real pra existir. Não é feature adiada, é feature que não
+  cabe no jeito que a Rio Preto Games vende. Os campos ficam no schema
+  (não fazem mal parados), mas não vale construir UI pra eles.
+
 **🟠 Média — ainda pendente de decisão**
-- [ ] `clientes.liberado_venda`/`limite_credito` nunca são lidos nem
-  escritos no PDV — o controle de crédito que o schema já modela não
-  existe na operação. (Não escolhido na rodada de 07/08.)
 - [ ] Catálogo "Origens da Venda" (Listas do Sistema) existe, mas `vendas`
   não tem coluna pra guardar isso — órfão. (Não escolhido na rodada de
   07/08.)
-- [ ] Falta pensar em: troca/devolução de produto, orçamento de venda
-  antes de fechar, venda fiada — operações comuns de loja física sem
-  lugar nenhum no sistema hoje. Isso é construir feature nova, não
-  lapidar o que existe — melhor decidir separado, quando chegar a hora.
+- [ ] **Em desenho (08/08): Troca/devolução de produto.** Feature nova
+  (não existe rascunho nenhum hoje) — discutindo o desenho com o Felipe
+  antes de construir. Venda fiada saiu da lista (loja não trabalha com
+  crediário). Orçamento de venda antes de fechar continua anotado, sem
+  desenho ainda.
 
 ---
 
