@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { FORMAS_PAGAMENTO } from '@/lib/constants';
 
@@ -64,6 +65,7 @@ interface Pagamento {
 export default function PDV() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -195,20 +197,22 @@ export default function PDV() {
     setProcessing(true);
 
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('tenant_id, id')
-        .single();
-
-      if (!profile?.tenant_id) throw new Error('Tenant não encontrado');
+      // Perfil vem de useAuth() (já carregado no login, do usuário certo) —
+      // não refaz consulta em `profiles`. A consulta antiga (`.select().single()`
+      // sem filtrar por usuário) trazia QUALQUER perfil do tenant e quebrava
+      // com "Tenant não encontrado" assim que a loja tivesse 2+ usuários,
+      // porque `.single()` falha se vier mais de uma linha.
+      const tenantId = user?.profile?.tenant_id ?? null;
+      const vendedorId = user?.id ?? null;
+      if (!tenantId || !vendedorId) throw new Error('Tenant não encontrado');
 
       // Create sale
       const { data: venda, error: vendaError } = await supabase
         .from('vendas')
         .insert({
-          tenant_id: profile.tenant_id,
+          tenant_id: tenantId,
           cliente_id: selectedCliente?.id || null,
-          vendedor_id: profile.id,
+          vendedor_id: vendedorId,
           status: 'pago',
           subtotal: total,
           total: total,

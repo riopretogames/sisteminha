@@ -49,6 +49,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { CLIENTE_TAGS, CLIENTE_ORIGEM } from '@/lib/constants';
 
@@ -66,6 +67,7 @@ interface Cliente {
 export default function Clientes() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -145,13 +147,12 @@ export default function Clientes() {
     setSaving(true);
 
     try {
-      // Get user's tenant_id
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('tenant_id')
-        .single();
+      // Perfil vem de useAuth() — não refaz consulta em `profiles` sem
+      // filtrar por usuário (isso quebrava com "Tenant não encontrado"
+      // assim que a loja tivesse 2+ usuários, ver PDV.tsx pro mesmo fix).
+      const tenantId = user?.profile?.tenant_id ?? null;
 
-      if (!profile?.tenant_id) {
+      if (!tenantId) {
         throw new Error('Tenant não encontrado');
       }
 
@@ -161,7 +162,7 @@ export default function Clientes() {
         email: formData.email.trim() || null,
         telefones: formData.telefone.trim() ? [formData.telefone.trim()] : [],
         origem: formData.origem as "facebook" | "google" | "indicacao" | "instagram" | "loja" | "outro" | "whatsapp",
-        tenant_id: profile.tenant_id,
+        tenant_id: tenantId,
       };
 
       if (editingCliente) {

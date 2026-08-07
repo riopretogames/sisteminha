@@ -1047,8 +1047,8 @@ export type Database = {
           id: string
           os_id: string
           sla_tempo: number | null
-          status_anterior: Database["public"]["Enums"]["os_status"] | null
-          status_novo: Database["public"]["Enums"]["os_status"]
+          status_anterior: string | null
+          status_novo: string
           usuario_id: string | null
         }
         Insert: {
@@ -1057,8 +1057,8 @@ export type Database = {
           id?: string
           os_id: string
           sla_tempo?: number | null
-          status_anterior?: Database["public"]["Enums"]["os_status"] | null
-          status_novo: Database["public"]["Enums"]["os_status"]
+          status_anterior?: string | null
+          status_novo: string
           usuario_id?: string | null
         }
         Update: {
@@ -1067,8 +1067,8 @@ export type Database = {
           id?: string
           os_id?: string
           sla_tempo?: number | null
-          status_anterior?: Database["public"]["Enums"]["os_status"] | null
-          status_novo?: Database["public"]["Enums"]["os_status"]
+          status_anterior?: string | null
+          status_novo?: string
           usuario_id?: string | null
         }
         Relationships: [

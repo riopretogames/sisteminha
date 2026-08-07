@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { PRODUTO_CATEGORIAS, PRODUTO_LOCALIZACOES } from '@/lib/constants';
 
@@ -70,6 +71,7 @@ interface Produto {
 export default function Estoque() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -164,12 +166,12 @@ export default function Estoque() {
     setSaving(true);
 
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('tenant_id')
-        .single();
+      // Perfil vem de useAuth() — não refaz consulta em `profiles` sem
+      // filtrar por usuário (isso quebrava com "Tenant não encontrado"
+      // assim que a loja tivesse 2+ usuários, ver PDV.tsx pro mesmo fix).
+      const tenantId = user?.profile?.tenant_id ?? null;
 
-      if (!profile?.tenant_id) {
+      if (!tenantId) {
         throw new Error('Tenant não encontrado');
       }
 
@@ -185,7 +187,7 @@ export default function Estoque() {
         estoque_atual: parseInt(formData.estoque_atual) || 0,
         estoque_minimo: parseInt(formData.estoque_minimo) || 1,
         localizacao: formData.localizacao,
-        tenant_id: profile.tenant_id,
+        tenant_id: tenantId,
       };
 
       if (editingProduto) {

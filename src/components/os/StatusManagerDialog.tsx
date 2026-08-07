@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { Plus, Trash2, GripVertical, Save } from 'lucide-react';
 import type { StatusConfig } from '@/types/os';
 
@@ -53,6 +54,7 @@ export function StatusManagerDialog({
   onStatusesChange,
 }: StatusManagerDialogProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [localStatuses, setLocalStatuses] = useState<StatusConfig[]>([]);
   const [newLabel, setNewLabel] = useState('');
   const [newColor, setNewColor] = useState(COLOR_OPTIONS[0].value);
@@ -163,13 +165,12 @@ export function StatusManagerDialog({
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Get current tenant_id
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('tenant_id')
-        .single();
+      // Perfil vem de useAuth() — não refaz consulta em `profiles` sem
+      // filtrar por usuário (isso quebrava com "Tenant não encontrado"
+      // assim que a loja tivesse 2+ usuários, ver PDV.tsx pro mesmo fix).
+      const tenantId = user?.profile?.tenant_id ?? null;
 
-      if (!profile?.tenant_id) {
+      if (!tenantId) {
         throw new Error('Tenant não encontrado');
       }
 
@@ -186,7 +187,7 @@ export function StatusManagerDialog({
         if (status.id.startsWith('new-')) {
           // Insert new
           await supabase.from('os_status_config').insert({
-            tenant_id: profile.tenant_id,
+            tenant_id: tenantId,
             key: status.key,
             label: status.label,
             color: status.color,

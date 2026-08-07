@@ -27,6 +27,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { OS_PRIORITY } from '@/lib/constants';
 import { useEffect } from 'react';
@@ -43,6 +44,7 @@ type OsTipo = "paga" | "garantia" | "cortesia";
 export default function NovaOS() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [clienteOpen, setClienteOpen] = useState(false);
@@ -98,17 +100,16 @@ export default function NovaOS() {
     setSaving(true);
 
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('tenant_id')
-        .single();
-
-      if (!profile?.tenant_id) throw new Error('Tenant não encontrado');
+      // Perfil vem de useAuth() — não refaz consulta em `profiles` sem
+      // filtrar por usuário (isso quebrava com "Tenant não encontrado"
+      // assim que a loja tivesse 2+ usuários, ver PDV.tsx pro mesmo fix).
+      const tenantId = user?.profile?.tenant_id ?? null;
+      if (!tenantId) throw new Error('Tenant não encontrado');
 
       const { data: os, error } = await supabase
         .from('service_orders')
         .insert([{
-          tenant_id: profile.tenant_id,
+          tenant_id: tenantId,
           numero_os: '', // Trigger will generate
           cliente_id: selectedCliente.id,
           numero_serie: formData.numero_serie.trim() || null,
