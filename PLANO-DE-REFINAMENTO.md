@@ -163,11 +163,35 @@ o arquivo antes de assumir.
 - [ ] Catálogo "Origens da Venda" (Listas do Sistema) existe, mas `vendas`
   não tem coluna pra guardar isso — órfão. (Não escolhido na rodada de
   07/08.)
-- [ ] **Em desenho (08/08): Troca/devolução de produto.** Feature nova
-  (não existe rascunho nenhum hoje) — discutindo o desenho com o Felipe
-  antes de construir. Venda fiada saiu da lista (loja não trabalha com
-  crediário). Orçamento de venda antes de fechar continua anotado, sem
-  desenho ainda.
+- [ ] Orçamento de venda antes de fechar (feature nova, sem desenho ainda
+  — venda fiada saiu de vez da lista, loja não trabalha com crediário).
+
+**✅ Feature nova — Troca/Devolução de produto (08/08)**
+- [x] Construída: `/vendas/troca-devolucao`. Devolução sempre em dinheiro
+  de verdade (loja não trabalha com crédito de loja/crediário), cobre
+  devolução pura e troca na mesma tela. Migration
+  `20260808100000_troca_devolucao.sql` (tabelas `devolucoes`/
+  `devolucao_itens`, gatilho de estorno de estoque, RLS gateada por
+  `sales.cancel` — permissão que já existia cadastrada mas era
+  decorativa, agora tem uso de verdade). Commit `ff10209`.
+- [x] **Bug pego na revisão adversarial, corrigido antes de subir**: se a
+  troca criasse a venda nova com sucesso mas o registro da devolução
+  falhasse depois, a venda nova ficava órfã (paga, estoque baixado, sem
+  devolução atrelada). Corrigido cancelando a venda nova nesse cenário.
+- [ ] **2 pendências novas, documentadas no código e ligadas ao
+  Financeiro:**
+  1. Dinheiro devolvido ainda não entra na conferência de Caixa (mesma
+     família do achado já existente de Caixa não refletir venda/OS).
+  2. Faturamento reportado (`VendasHistorico`, `DashboardVenda`) conta o
+     valor do produto trocado **duas vezes** (venda original + venda
+     nova da troca) — a venda nova grava o preço cheio do produto (pra
+     não perder a contagem de vendas por produto), mas só a diferença é
+     cobrada de verdade. Resolver exige decidir como relatório de
+     faturamento deve tratar troca — via nesta rodada, corrigir junto do
+     Financeiro.
+- [ ] Sem trava no banco (só client-side) contra devolver mais unidades
+  do que foi vendido em devoluções parciais simultâneas — risco baixo
+  com terminal único, lacuna real se um dia tiver mais de um PDV.
 
 ---
 
