@@ -141,17 +141,24 @@ elas precisam repetir o filtro de tenant no `WHERE` — o isolamento entre
 lojas passa a ser responsabilidade da view, não da RLS. Está explícito e
 comentado nas 3.
 
-- [x] **Parte 1 da fundação — as views.** Migration
+- [x] ✅ **Parte 1 da fundação — as views.** Migration
   `20260808110000_custo_protegido_views.sql`: `vw_produtos`, `vw_servicos`
   e `vw_os_itens`, com custo condicional via `has_permission`,
   `security_barrier` e filtro de tenant explícito. **Não quebra nada** —
-  as tabelas continuam acessíveis. Escrita, ainda não aplicada.
-- [x] **Trava de desconto.** Migration
+  as tabelas continuam acessíveis. **Aplicada em produção em 07/08**, via
+  SQL Editor, conferida pelas 4 linhas de verificação.
+- [x] ✅ **Trava de desconto.** Migration
   `20260808120000_trava_desconto_venda.sql`: gatilho
   `validar_desconto_venda` em `vendas`, que recusa gravar
   `descontos != 0` sem `sales.discount`. Só dispara quando o valor do
-  desconto muda; zerar desconto é sempre permitido. Escrita, ainda não
-  aplicada.
+  desconto muda; zerar desconto é sempre permitido. **Aplicada em
+  produção em 07/08.**
+- [ ] **Reconciliar o histórico de migrations.** As duas acima entraram
+  pelo SQL Editor, então a tabela de controle da Supabase não sabe delas.
+  Antes do próximo `db push`, rodar `supabase migration repair --status
+  applied` nas duas versões — senão o CLI tenta reaplicar. As duas foram
+  deixadas idempotentes de qualquer forma (`CREATE OR REPLACE` nas views,
+  `DROP TRIGGER IF EXISTS` no gatilho), então reaplicar não quebraria.
 - [ ] **Ligar as telas de leitura nas views** — por área, junto da
   lapidação de cada uma: Estoque, Cadastros, OS, Relatórios,
   Dashboards/IE. Escrita/edição continua indo direto na tabela.

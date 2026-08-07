@@ -72,6 +72,11 @@ $$;
 COMMENT ON FUNCTION public.validar_permissao_desconto() IS
   'Impede gravar desconto em venda sem sales.discount, inclusive por chamada direta à API. Só dispara quando o valor do desconto muda para diferente de zero.';
 
+-- Idempotente: esta migration foi aplicada à mão pelo SQL Editor antes de
+-- existir CLI no projeto, então precisa poder rodar de novo sem quebrar
+-- quando o histórico de migrations for reconciliado.
+DROP TRIGGER IF EXISTS validar_desconto_venda ON public.vendas;
+
 CREATE TRIGGER validar_desconto_venda
   BEFORE INSERT OR UPDATE OF descontos ON public.vendas
   FOR EACH ROW
