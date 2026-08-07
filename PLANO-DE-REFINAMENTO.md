@@ -294,12 +294,17 @@ o arquivo antes de assumir.
 ## Cadastros de Apoio
 
 **🔴 Alta**
-- [ ] Formas de Pagamento é uma tela isolada — PDV, Pagamentos e Caixa
-  continuam no enum fixo antigo. Mesma história em Fornecedores (não
-  alimenta compra/entrada de estoque) e em Origem/Motivo de Compra do
-  Cliente (Clientes.tsx nunca usa, grava só o enum legado). **3 "Passos"
-  marcados como ✅ no PLANO-DE-CONSTRUCAO.md são, na prática, vitrine de
-  CRUD sem ligação com o resto do sistema.**
+- [ ] Cadastro "pronto mas isolado" — nada do resto do sistema consome.
+  **3 "Passos" marcados como ✅ no PLANO-DE-CONSTRUCAO.md são, na prática,
+  vitrine de CRUD sem ligação com o resto do sistema.** Estado por
+  cadastro:
+  - **Formas de Pagamento** — *parcialmente resolvido em 07/08*: o PDV já
+    consulta o cadastro de verdade (migration `20260807060000`, commit
+    `23292e8` — ver [Vendas/PDV](#vendas--pdv)). **Falta ainda**
+    Vendas>Pagamentos e Caixa, que continuam no enum fixo antigo.
+  - **Fornecedores** — não alimenta compra/entrada de estoque.
+  - **Origem/Motivo de Compra do Cliente** — `Clientes.tsx` nunca usa,
+    grava só o enum legado.
 
 **🟠 Média**
 - [ ] `tempo_estimado_horas` em Cadastro de Serviços tem o mesmo risco de
