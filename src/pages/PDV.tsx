@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
 import { FORMAS_PAGAMENTO } from '@/lib/constants';
 import { moeda as formatCurrency } from '@/lib/format';
@@ -58,34 +59,66 @@ interface Cliente {
   nome: string;
 }
 
+/**
+ * Forma de pagamento cadastrada em Cadastros > Formas de Pagamento (Passo
+ * 5) — parcelamento e taxa configuráveis por loja. `forma_enum` é a
+ * categoria ampla (pix/dinheiro/cartao_credito/...) que essa forma
+ * representa, só pra continuar preenchendo `pagamentos_venda.forma` e não
+ * quebrar relatório nenhum que já agrupa por esse enum.
+ */
+interface FormaPagamentoCadastro {
+  id: string;
+  descricao: string;
+  forma_enum: FormaPagamento;
+  max_parcelas: number;
+  contem_taxa: boolean;
+  taxa_percent: number;
+}
+
 interface Pagamento {
+  formaPagamentoId: string;
+  descricao: string;
   forma: FormaPagamento;
+  parcelas: number;
   valor: number;
 }
 
 export default function PDV() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
+  const podeDarDesconto = can(PERMISSIONS.SALES_DISCOUNT);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [formasPagamento, setFormasPagamento] = useState<FormaPagamentoCadastro[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [search, setSearch] = useState('');
   const [clienteSearch, setClienteSearch] = useState('');
   const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
+  const [desconto, setDesconto] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
   const [showClienteDialog, setShowClienteDialog] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [novoPagamento, setNovoPagamento] = useState<{ forma: FormaPagamento; valor: string }>({
-    forma: 'pix',
+  const [novoPagamento, setNovoPagamento] = useState<{ formaPagamentoId: string; parcelas: string; valor: string }>({
+    formaPagamentoId: '',
+    parcelas: '1',
     valor: '',
   });
 
   useEffect(() => {
     fetchProdutos();
     fetchClientes();
+    fetchFormasPagamento();
   }, []);
+
+  // Uma vez que as formas de pagamento carregam, pré-seleciona a primeira
+  // (por ordem) em vez de deixar o Select vazio.
+  useEffect(() => {
+    if (formasPagamento.length > 0 && !novoPagamento.formaPagamentoId) {
+      setNovoPagamento((f) => ({ ...f, formaPagamentoId: formasPagamento[0].id }));
+    }
+  }, [formasPagamento, novoPagamento.formaPagamentoId]);
 
   const fetchProdutos = async () => {
     const { data } = await supabase
@@ -104,6 +137,16 @@ export default function PDV() {
       .eq('ativo', true)
       .order('nome');
     setClientes(data || []);
+  };
+
+  const fetchFormasPagamento = async () => {
+    const { data } = await supabase
+      .from('formas_pagamento')
+      .select('id, descricao, forma_enum, max_parcelas, contem_taxa, taxa_percent')
+      .eq('ativo', true)
+      .order('ordem', { ascending: true })
+      .order('descricao', { ascending: true });
+    setFormasPagamento((data ?? []) as FormaPagamentoCadastro[]);
   };
 
   const addToCart = (produto: Produto) => {
@@ -156,20 +199,66 @@ export default function PDV() {
     setCart(cart.filter(item => item.produto.id !== produtoId));
   };
 
-  const total = cart.reduce(
+  const subtotalBruto = cart.reduce(
     (acc, item) => acc + item.produto.preco * item.quantidade,
     0
   );
 
+  // Desconto é sempre em R$ (mesma unidade da coluna vendas.descontos), e
+  // travado entre 0 e o subtotal — nunca deixa o total ficar negativo.
+  // Quem não tem `sales.discount` nem vê o campo (a UI já esconde), então
+  // o valor digitado é sempre 0 pra esse perfil.
+  const descontoValor = podeDarDesconto
+    ? Math.min(subtotalBruto, Math.max(0, parseFloat(desconto) || 0))
+    : 0;
+  const total = subtotalBruto - descontoValor;
+
   const totalPago = pagamentos.reduce((acc, p) => acc + p.valor, 0);
   const troco = totalPago - total;
+
+  const selecionarFormaPagamento = (formaPagamentoId: string) => {
+    const forma = formasPagamento.find((f) => f.id === formaPagamentoId);
+    setNovoPagamento((f) => ({
+      ...f,
+      formaPagamentoId,
+      // Se a forma nova não permitir tantas parcelas quanto a anterior,
+      // volta pra 1 em vez de mandar um valor de parcela inválido.
+      parcelas: forma && Number(f.parcelas) > forma.max_parcelas ? '1' : f.parcelas,
+    }));
+  };
 
   const addPagamento = () => {
     const valor = parseFloat(novoPagamento.valor);
     if (!valor || valor <= 0) return;
-    
-    setPagamentos([...pagamentos, { forma: novoPagamento.forma, valor }]);
-    setNovoPagamento({ forma: 'pix', valor: '' });
+
+    const forma = formasPagamento.find((f) => f.id === novoPagamento.formaPagamentoId);
+    if (!forma) {
+      toast({ title: 'Escolha uma forma de pagamento', variant: 'destructive' });
+      return;
+    }
+
+    const parcelas = Math.max(1, Math.min(forma.max_parcelas, parseInt(novoPagamento.parcelas, 10) || 1));
+
+    setPagamentos([
+      ...pagamentos,
+      { formaPagamentoId: forma.id, descricao: forma.descricao, forma: forma.forma_enum, parcelas, valor },
+    ]);
+    setNovoPagamento({ formaPagamentoId: forma.id, parcelas: '1', valor: '' });
+  };
+
+  /** Botões de atalho: acha a forma cadastrada pelo nome. Se a loja
+   * renomeou ou excluiu essa forma específica, o botão correspondente
+   * simplesmente não aparece (ver render) em vez de quebrar com uma forma
+   * inexistente. */
+  const acharFormaPorNome = (nome: string) =>
+    formasPagamento.find((f) => f.descricao.toLowerCase() === nome.toLowerCase());
+
+  const pagarComForma = (nome: string) => {
+    const forma = acharFormaPorNome(nome);
+    if (!forma) return;
+    setPagamentos([
+      { formaPagamentoId: forma.id, descricao: forma.descricao, forma: forma.forma_enum, parcelas: 1, valor: total },
+    ]);
   };
 
   const removePagamento = (index: number) => {
@@ -215,8 +304,9 @@ export default function PDV() {
           cliente_id: selectedCliente?.id || null,
           vendedor_id: vendedorId,
           status: 'pago',
-          subtotal: total,
-          total: total,
+          subtotal: subtotalBruto,
+          descontos: descontoValor,
+          total,
         })
         .select()
         .single();
@@ -247,6 +337,8 @@ export default function PDV() {
         const pagamentosVenda = pagamentos.map(p => ({
           venda_id: venda.id,
           forma: p.forma,
+          forma_pagamento_id: p.formaPagamentoId,
+          parcelas: p.parcelas,
           valor: p.valor,
         }));
 
@@ -275,14 +367,16 @@ export default function PDV() {
       // Reset
       setCart([]);
       setPagamentos([]);
+      setDesconto('');
       setSelectedCliente(null);
       setShowCheckout(false);
       fetchProdutos();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error:', error);
+      const message = error instanceof Error ? error.message : 'Erro desconhecido';
       toast({
         title: 'Erro ao finalizar venda',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
     } finally {
@@ -407,6 +501,35 @@ export default function PDV() {
           )}
         </CardContent>
         <div className="p-4 border-t">
+          {podeDarDesconto && (
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <label htmlFor="desconto" className="text-sm text-muted-foreground">
+                Desconto (R$)
+              </label>
+              <Input
+                id="desconto"
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder="0,00"
+                value={desconto}
+                onChange={e => setDesconto(e.target.value)}
+                className="w-28 h-8 text-right"
+              />
+            </div>
+          )}
+          {descontoValor > 0 && (
+            <div className="flex items-center justify-between text-sm text-muted-foreground mb-1">
+              <span>Subtotal</span>
+              <span>{formatCurrency(subtotalBruto)}</span>
+            </div>
+          )}
+          {descontoValor > 0 && (
+            <div className="flex items-center justify-between text-sm text-destructive mb-1">
+              <span>Desconto</span>
+              <span>-{formatCurrency(descontoValor)}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between text-lg font-bold mb-4">
             <span>Total</span>
             <span className="text-primary">{formatCurrency(total)}</span>
@@ -478,21 +601,23 @@ export default function PDV() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Payment methods */}
+            {/* Payment methods — vem do cadastro de Formas de Pagamento
+                (Cadastros > Formas de Pagamento), não de uma lista fixa. */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Adicionar Pagamento</label>
               <div className="flex gap-2">
                 <Select
-                  value={novoPagamento.forma}
-                  onValueChange={value => setNovoPagamento({ ...novoPagamento, forma: value as FormaPagamento })}
+                  value={novoPagamento.formaPagamentoId}
+                  onValueChange={selecionarFormaPagamento}
                 >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Forma" />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(FORMAS_PAGAMENTO).map(([key, config]) => (
-                      <SelectItem key={key} value={key}>
-                        {config.label}
+                    {formasPagamento.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.descricao}
+                        {f.contem_taxa ? ` (taxa ${f.taxa_percent}%)` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -509,34 +634,53 @@ export default function PDV() {
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
+              {(() => {
+                const formaSelecionada = formasPagamento.find((f) => f.id === novoPagamento.formaPagamentoId);
+                if (!formaSelecionada || formaSelecionada.max_parcelas <= 1) return null;
+                return (
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="parcelas" className="text-sm text-muted-foreground">
+                      Parcelas
+                    </label>
+                    <Input
+                      id="parcelas"
+                      type="number"
+                      min={1}
+                      max={formaSelecionada.max_parcelas}
+                      value={novoPagamento.parcelas}
+                      onChange={e => setNovoPagamento({ ...novoPagamento, parcelas: e.target.value })}
+                      className="w-20 h-8"
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      até {formaSelecionada.max_parcelas}x
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
 
-            {/* Quick payment buttons */}
+            {/* Quick payment buttons — atalho pras 3 formas mais comuns,
+                achadas pelo nome no cadastro. Some sozinho se a loja
+                renomeou/excluiu a forma correspondente. */}
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setPagamentos([{ forma: 'pix', valor: total }])}
-              >
-                <QrCode className="mr-2 h-4 w-4" />
-                PIX Total
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setPagamentos([{ forma: 'dinheiro', valor: total }])}
-              >
-                <Banknote className="mr-2 h-4 w-4" />
-                Dinheiro
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setPagamentos([{ forma: 'cartao_credito', valor: total }])}
-              >
-                <CreditCard className="mr-2 h-4 w-4" />
-                Cartão
-              </Button>
+              {acharFormaPorNome('PIX') && (
+                <Button variant="outline" className="flex-1" onClick={() => pagarComForma('PIX')}>
+                  <QrCode className="mr-2 h-4 w-4" />
+                  PIX Total
+                </Button>
+              )}
+              {acharFormaPorNome('Dinheiro') && (
+                <Button variant="outline" className="flex-1" onClick={() => pagarComForma('Dinheiro')}>
+                  <Banknote className="mr-2 h-4 w-4" />
+                  Dinheiro
+                </Button>
+              )}
+              {acharFormaPorNome('Cartão Crédito') && (
+                <Button variant="outline" className="flex-1" onClick={() => pagarComForma('Cartão Crédito')}>
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Cartão
+                </Button>
+              )}
             </div>
 
             {/* Payment list */}
@@ -544,7 +688,10 @@ export default function PDV() {
               <div className="space-y-2">
                 {pagamentos.map((p, i) => (
                   <div key={i} className="flex items-center justify-between p-2 rounded bg-muted">
-                    <span>{FORMAS_PAGAMENTO[p.forma].label}</span>
+                    <span>
+                      {p.descricao}
+                      {p.parcelas > 1 ? ` (${p.parcelas}x)` : ''}
+                    </span>
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{formatCurrency(p.valor)}</span>
                       <Button

@@ -470,6 +470,7 @@ export type Database = {
           created_at: string
           descricao: string
           entra_no_caixa: boolean
+          forma_enum: Database["public"]["Enums"]["forma_pagamento"]
           grupo: string | null
           id: string
           juros: Database["public"]["Enums"]["tipo_juros"]
@@ -486,6 +487,7 @@ export type Database = {
           created_at?: string
           descricao: string
           entra_no_caixa?: boolean
+          forma_enum?: Database["public"]["Enums"]["forma_pagamento"]
           grupo?: string | null
           id?: string
           juros?: Database["public"]["Enums"]["tipo_juros"]
@@ -502,6 +504,7 @@ export type Database = {
           created_at?: string
           descricao?: string
           entra_no_caixa?: boolean
+          forma_enum?: Database["public"]["Enums"]["forma_pagamento"]
           grupo?: string | null
           id?: string
           juros?: Database["public"]["Enums"]["tipo_juros"]
@@ -837,6 +840,7 @@ export type Database = {
         Row: {
           created_at: string | null
           forma: Database["public"]["Enums"]["forma_pagamento"]
+          forma_pagamento_id: string | null
           gateway_id: string | null
           id: string
           parcelas: number | null
@@ -846,6 +850,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           forma: Database["public"]["Enums"]["forma_pagamento"]
+          forma_pagamento_id?: string | null
           gateway_id?: string | null
           id?: string
           parcelas?: number | null
@@ -855,6 +860,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           forma?: Database["public"]["Enums"]["forma_pagamento"]
+          forma_pagamento_id?: string | null
           gateway_id?: string | null
           id?: string
           parcelas?: number | null
@@ -862,6 +868,13 @@ export type Database = {
           venda_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "pagamentos_venda_forma_pagamento_id_fkey"
+            columns: ["forma_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "formas_pagamento"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pagamentos_venda_venda_id_fkey"
             columns: ["venda_id"]
