@@ -434,6 +434,116 @@ export type Database = {
           },
         ]
       }
+      devolucao_itens: {
+        Row: {
+          devolucao_id: string
+          id: string
+          preco_unitario: number
+          produto_id: string
+          quantidade: number
+        }
+        Insert: {
+          devolucao_id: string
+          id?: string
+          preco_unitario: number
+          produto_id: string
+          quantidade: number
+        }
+        Update: {
+          devolucao_id?: string
+          id?: string
+          preco_unitario?: number
+          produto_id?: string
+          quantidade?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devolucao_itens_devolucao_id_fkey"
+            columns: ["devolucao_id"]
+            isOneToOne: false
+            referencedRelation: "devolucoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devolucao_itens_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      devolucoes: {
+        Row: {
+          created_at: string
+          forma_pagamento_id: string | null
+          id: string
+          motivo: string | null
+          numero_devolucao: string | null
+          tenant_id: string
+          usuario_id: string | null
+          valor_cliente_pagou_a_mais: number
+          valor_devolvido_cliente: number
+          venda_nova_id: string | null
+          venda_original_id: string
+        }
+        Insert: {
+          created_at?: string
+          forma_pagamento_id?: string | null
+          id?: string
+          motivo?: string | null
+          numero_devolucao?: string | null
+          tenant_id: string
+          usuario_id?: string | null
+          valor_cliente_pagou_a_mais?: number
+          valor_devolvido_cliente?: number
+          venda_nova_id?: string | null
+          venda_original_id: string
+        }
+        Update: {
+          created_at?: string
+          forma_pagamento_id?: string | null
+          id?: string
+          motivo?: string | null
+          numero_devolucao?: string | null
+          tenant_id?: string
+          usuario_id?: string | null
+          valor_cliente_pagou_a_mais?: number
+          valor_devolvido_cliente?: number
+          venda_nova_id?: string | null
+          venda_original_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devolucoes_forma_pagamento_id_fkey"
+            columns: ["forma_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "formas_pagamento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devolucoes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devolucoes_venda_nova_id_fkey"
+            columns: ["venda_nova_id"]
+            isOneToOne: false
+            referencedRelation: "vendas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devolucoes_venda_original_id_fkey"
+            columns: ["venda_original_id"]
+            isOneToOne: false
+            referencedRelation: "vendas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documento_sequencias: {
         Row: {
           ano_mes: string
