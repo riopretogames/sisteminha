@@ -132,27 +132,37 @@ o arquivo antes de assumir.
   gerenciamento de estado inteiro merece uma sessão própria, com atenção
   total, não uma passada rápida de limpeza.
 
-**🟠 Média — decisão de produto, aguardando você (ver pergunta)**
-- [ ] Formas de Pagamento (cadastro do Passo 5) não é consultado pelo PDV
-  — o formulário de pagamento ainda usa a lista fixa antiga em vez do
-  cadastro dinâmico.
+**🟠 Média — feito em 07/08 (escolhido pelo Felipe)**
+- [x] ✅ **07/08** Formas de Pagamento (cadastro do Passo 5) agora é
+  consultado de verdade pelo PDV — Select busca de `formas_pagamento`
+  (com parcelamento/taxa reais), não mais da lista fixa. Migration
+  `20260807060000` liga `pagamentos_venda.forma_pagamento_id` ao
+  cadastro, mantendo `forma` (enum) preenchido automaticamente pra não
+  quebrar relatório nenhum. Commit `23292e8`.
+- [x] ✅ **07/08** `sales.discount` ganhou UI de verdade — campo de
+  desconto em R$ no carrinho, gated pela permissão, grava
+  `vendas.descontos`/`subtotal`/`total` corretamente. Commit `23292e8`.
+- [x] **Nova decisão pendente, mesma família da anterior**: o desconto é
+  travado só no client + RLS por operação (`sales.create`) — não tem
+  trigger no banco impedindo `descontos != 0` vindo direto da API sem
+  `sales.discount`. Mesma escolha arquitetural do resto do sistema (RLS
+  por linha/operação, não por valor de coluna); fechar isso de verdade
+  exigiria um trigger `BEFORE INSERT/UPDATE` em `vendas` validando a
+  permissão contra o valor. Fica registrado junto da
+  [decisão de custo/margem](#decisão-que-só-você-pode-tomar) pra decidir
+  junto.
+
+**🟠 Média — ainda pendente de decisão**
 - [ ] `clientes.liberado_venda`/`limite_credito` nunca são lidos nem
   escritos no PDV — o controle de crédito que o schema já modela não
-  existe na operação.
-- [ ] `sales.discount` existe como permissão e no banco, mas não há UI de
-  desconto nenhuma — permissão decorativa.
+  existe na operação. (Não escolhido na rodada de 07/08.)
 - [ ] Catálogo "Origens da Venda" (Listas do Sistema) existe, mas `vendas`
-  não tem coluna pra guardar isso — órfão.
+  não tem coluna pra guardar isso — órfão. (Não escolhido na rodada de
+  07/08.)
 - [ ] Falta pensar em: troca/devolução de produto, orçamento de venda
   antes de fechar, venda fiada — operações comuns de loja física sem
-  lugar nenhum no sistema hoje.
-
-**🔵 Simplificação**
-- [ ] `PDV.tsx` é a única tela da área sem react-query/hook de dados —
-  ainda `useState`/`useEffect` manual.
-- [ ] Duplica formatação de moeda em vez de usar `lib/format.ts`.
-- [ ] `NAV_ITEMS`/`SHORTCUTS.newSale` são código morto (navegação real vem
-  de `menu.ts`, atalho de teclado não tem listener).
+  lugar nenhum no sistema hoje. Isso é construir feature nova, não
+  lapidar o que existe — melhor decidir separado, quando chegar a hora.
 
 ---
 
