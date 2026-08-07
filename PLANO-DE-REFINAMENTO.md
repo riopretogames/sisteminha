@@ -112,14 +112,27 @@ o arquivo antes de assumir.
 ## Vendas / PDV
 
 **🔴 Alta**
-- [ ] Cancelamento automático de venda (quando itens/pagamento falham
-  depois da venda já criada) não reverte a baixa de estoque que o gatilho
-  já tinha feito — estoque sai de verdade numa venda marcada como
-  cancelada, sem rastro do motivo. *PDV.tsx:221-263.*
-- [ ] SELECT em vendas/itens/pagamentos não valida `sales.view`, só tenant
-  — `RequirePermission` é conveniência de UI aqui, não proteção real.
+- [x] ✅ **07/08** Cancelamento automático de venda não revertia a baixa de
+  estoque. Corrigido com gatilho `estornar_estoque_venda_cancelada`
+  (migration `20260807040000`) — dispara em qualquer transição pra
+  `cancelado`, devolve estoque de cada item e grava auditoria em
+  `movimentos_estoque` (motivo "Estorno de venda cancelada"). Commit
+  `26fc3c0`.
+- [x] **Reclassificado** — "SELECT em vendas não valida `sales.view`" não é
+  um bug isolado: é a mesma arquitetura de todo o projeto (RLS trava por
+  tenant, permissão trava só a tela — igual `produtos`/`servicos`/etc.).
+  Faz parte da [decisão pendente](#decisão-que-só-você-pode-tomar), não
+  precisa de tratamento separado.
 
-**🟠 Média**
+**🔵 Simplificação — feito em 07/08**
+- [x] `formatCurrency` local duplicava `lib/format.ts::moeda()` — trocado.
+- [x] `NAV_ITEMS`/`SHORTCUTS` (código morto) removidos de `constants.ts`.
+- [ ] `PDV.tsx` sem react-query/hook — **adiado de propósito**: é a tela
+  mais crítica do sistema (fecha venda de verdade), migrar o
+  gerenciamento de estado inteiro merece uma sessão própria, com atenção
+  total, não uma passada rápida de limpeza.
+
+**🟠 Média — decisão de produto, aguardando você (ver pergunta)**
 - [ ] Formas de Pagamento (cadastro do Passo 5) não é consultado pelo PDV
   — o formulário de pagamento ainda usa a lista fixa antiga em vez do
   cadastro dinâmico.
