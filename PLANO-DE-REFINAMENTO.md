@@ -212,14 +212,16 @@ comentado nas 3.
   coluna nova nasceria invisível pro sistema inteiro. Tem checagem que
   aborta se um nome de coluna protegida não existir. **Ainda não
   aplicada** — ver ordem abaixo.
-- [ ] **Ordem de aplicação da tranca (importante).** Não pode entrar
-  antes do front novo estar publicado: o site no ar ainda roda o código
-  antigo, que lê custo direto da tabela, e quebraria na hora.
-  1. Aplicar `20260808130000` (a view de movimentos) — inofensiva.
-  2. Publicar o front (merge na `main` + push; o Lovable reconstrói).
-  3. Aplicar `20260808140000` (a tranca).
-  4. Conferir com conta sem `inventory.cost.view`, consultando a API
-     direto — é o único jeito de provar que fechou.
+- [x] ✅ **APLICADA EM PRODUÇÃO EM 07/08.** Sequência executada: view de
+  movimentos → merge na `main` e push (commit `2b5b3ab`, o Lovable
+  reconstruiu) → tranca. As 3 conferências voltaram limpas: as 6 colunas
+  de custo **trancadas**, as 6 colunas comuns de controle **ainda
+  abertas** (não trancou demais), as 4 views **existindo**.
+  **A Opção B está fechada. O vazamento de custo acabou.**
+- [ ] **Conferir com conta de teste** sem `inventory.cost.view`,
+  consultando a API direto — a prova final, do lado de quem tentaria
+  burlar. Vale fazer quando existir um segundo usuário de verdade (hoje
+  todas as contas são administrador).
 - [ ] **Risco a vigiar depois de trancar:** um
   `GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated` — coisa que
   ferramenta de plataforma às vezes gera sozinha — desfaz a tranca em
