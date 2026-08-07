@@ -98,8 +98,10 @@ END $$;
 
 COMMENT ON COLUMN public.produtos.custo IS
   'PROTEGIDA: authenticated NÃO tem SELECT nesta coluna. Leitura só por public.vw_produtos, que devolve o valor apenas para quem tem inventory.cost.view. Escrita continua normal.';
+-- Preserva o texto que a migration 20260805180000 deixou aqui (a explicação do
+-- clamp de ±9999,99%) — sobrescrever perderia informação que ainda vale.
 COMMENT ON COLUMN public.produtos.margem_percent IS
-  'PROTEGIDA (coluna gerada a partir de custo): leitura só por public.vw_produtos.';
+  'Margem calculada automaticamente a partir de custo/preco. Limitada entre -9999,99% e 9999,99% para nunca estourar o cadastro — valores fora dessa faixa indicam custo ou preço digitado errado. PROTEGIDA: authenticated NÃO tem SELECT nesta coluna; leitura só por public.vw_produtos.';
 COMMENT ON COLUMN public.servicos.custo_estimado IS
   'PROTEGIDA: leitura só por public.vw_servicos, gateada por inventory.cost.view.';
 COMMENT ON COLUMN public.service_order_items.custo_unitario IS

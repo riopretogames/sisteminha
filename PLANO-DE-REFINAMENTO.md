@@ -192,11 +192,39 @@ comentado nas 3.
   Felipe). O conteúdo reproduz o que o gerador produziria; regerar
   substitui por igual. Enquanto não rodar, vale lembrar que aquele
   trecho não é gerado.
-- [ ] **Parte 2 da fundação — a tranca.** Migration com o
-  `REVOKE`/`GRANT` por coluna. **Só depois** dos dois itens acima.
-- [ ] **Conferir com uma conta de teste** sem `inventory.cost.view`,
-  consultando a API direto (não pela tela) — é o único jeito de provar
-  que fechou de verdade.
+- [x] ✅ **Quarto vazamento, que esta revisão NÃO tinha achado (07/08).**
+  `movimentos_estoque` guarda `custo_unitario` **e** `valor_total`. É o
+  mesmo vazamento dos outros três e, nesse caso, mais fácil de explorar:
+  o histórico tem uma linha por produto que já entrou ou saiu, com o
+  custo daquele momento — dava pra reconstruir a tabela de custo inteira
+  da loja sem nunca tocar em `produtos`. A tela já escondia a coluna de
+  quem não tem a permissão; faltava a trava real. Achado ao preparar a
+  Parte 2. Migration `20260808130000` cria `vw_movimentos_estoque`;
+  `EstoqueMovimentacoes` e `DashboardEstoque` já leem dela.
+  **Lição pro resto do plano:** a auditoria procurou onde o custo é
+  *mostrado*, não onde é *guardado*. Vale a mesma varredura antes de
+  confiar em qualquer outro achado de "onde tal dado aparece".
+- [x] **Parte 2 escrita — a tranca.** Migration
+  `20260808140000_tranca_colunas_de_custo.sql`: `REVOKE SELECT` na tabela
+  + `GRANT SELECT` coluna a coluna sem as protegidas, nas 4 tabelas, pra
+  `authenticated` e `anon`. A lista de colunas é **descoberta** de
+  `information_schema`, não digitada — lista fixa envelheceria, e uma
+  coluna nova nasceria invisível pro sistema inteiro. Tem checagem que
+  aborta se um nome de coluna protegida não existir. **Ainda não
+  aplicada** — ver ordem abaixo.
+- [ ] **Ordem de aplicação da tranca (importante).** Não pode entrar
+  antes do front novo estar publicado: o site no ar ainda roda o código
+  antigo, que lê custo direto da tabela, e quebraria na hora.
+  1. Aplicar `20260808130000` (a view de movimentos) — inofensiva.
+  2. Publicar o front (merge na `main` + push; o Lovable reconstrói).
+  3. Aplicar `20260808140000` (a tranca).
+  4. Conferir com conta sem `inventory.cost.view`, consultando a API
+     direto — é o único jeito de provar que fechou.
+- [ ] **Risco a vigiar depois de trancar:** um
+  `GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated` — coisa que
+  ferramenta de plataforma às vezes gera sozinha — desfaz a tranca em
+  silêncio, sem erro nenhum. Vale reconferir os privilégios depois de
+  qualquer migration gerada fora daqui.
 
 **O que muda pro usuário na tela: nada.** Quem já via custo continua
 vendo; quem não via continua não vendo. A diferença é que agora a trava
