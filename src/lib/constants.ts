@@ -71,25 +71,6 @@ export const FORMAS_PAGAMENTO = {
   vale_troca: { label: 'Vale Troca', icon: 'repeat' },
 } as const;
 
-// Navigation items
-export const NAV_ITEMS = [
-  { path: '/dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
-  { path: '/clientes', label: 'Clientes', icon: 'users' },
-  { path: '/estoque', label: 'Estoque', icon: 'package' },
-  { path: '/os', label: 'Ordens de Serviço', icon: 'clipboard-list' },
-  { path: '/pdv', label: 'PDV', icon: 'shopping-cart' },
-  { path: '/relatorios', label: 'Relatórios', icon: 'bar-chart-3' },
-  { path: '/configuracoes', label: 'Configurações', icon: 'settings' },
-] as const;
-
-// Keyboard shortcuts
-export const SHORTCUTS = {
-  search: 'Ctrl+K',
-  newSale: 'Ctrl+N',
-  newOS: 'Ctrl+O',
-  newClient: 'Ctrl+C',
-} as const;
-
 // Card fields configuration for Kanban view
 export const CARD_FIELDS = {
   numero_os: { label: 'Número da OS', icon: 'hash' },

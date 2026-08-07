@@ -37,6 +37,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { FORMAS_PAGAMENTO } from '@/lib/constants';
+import { moeda as formatCurrency } from '@/lib/format';
 
 type FormaPagamento = keyof typeof FORMAS_PAGAMENTO;
 
@@ -287,13 +288,6 @@ export default function PDV() {
     } finally {
       setProcessing(false);
     }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(value);
   };
 
   const filteredProdutos = produtos.filter(p =>
