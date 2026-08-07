@@ -272,12 +272,32 @@ o arquivo antes de assumir.
   (não fazem mal parados), mas não vale construir UI pra eles.
 
 **🟠 Média — ainda pendente de decisão**
-- [ ] **Achado pelo Felipe testando o app (07/08):** o PDV tem
-  "selecionar cliente", mas não tem "cadastrar cliente". Cliente novo no
-  balcão obriga o vendedor a abandonar a venda, ir na tela de Clientes,
-  cadastrar e voltar — perdendo o carrinho. É lacuna de operação de
-  balcão, não bug: nenhum dos ~90 achados da revisão pegou isso, porque
-  leitura de código não sente fila de loja. Em construção nesta rodada.
+- [x] ✅ **07/08 — Cadastro rápido de cliente no PDV.** Achado pelo
+  Felipe testando o app: havia "selecionar cliente" mas não "cadastrar
+  cliente", então cliente novo no balcão obrigava a abandonar a venda e
+  perder o carrinho. Nenhum dos ~90 achados da revisão pegou isso —
+  leitura de código não sente fila de loja.
+  Construído em `PDV.tsx`: botão ao lado do seletor abre um dialog com
+  nome (obrigatório) e telefone; ao salvar, o cliente já fica vinculado
+  à venda em andamento e entra na lista em memória na ordem certa, sem
+  refetch. Carrinho, desconto e pagamentos não são tocados. Gateado por
+  `registry.customers.manage` — **conferido que é exatamente a chave que
+  a policy de INSERT em `clientes` exige** (e que as policies antigas
+  permissivas foram removidas na `20260801000002`, então o gate do front
+  e o do banco coincidem de verdade). `tenant_id` vem de `useAuth()`,
+  não de re-consulta a `profiles`.
+  Efeito colateral bom: `clienteSearch` agora é limpo ao selecionar
+  cliente, ao escolher "sem cliente" e ao fechar a venda — antes sobrava
+  filtro velho entre vendas.
+- [ ] **Duplicidade de cliente não é impedida em lugar nenhum** — nem no
+  cadastro rápido, nem na tela de Clientes, nem no banco (`clientes` não
+  tem UNIQUE). O cadastro rápido tende a aumentar isso justamente por
+  ser rápido. Decidir se vale checar telefone/nome antes de gravar.
+- [ ] **`Clientes.tsx` não checa permissão nenhuma na interface** —
+  descoberto ao conferir qual chave o PDV deveria usar. A tela mostra os
+  botões pra todo mundo e deixa a RLS recusar com erro cru. Mesma
+  família do achado de Estoque, e reforça a nota de que `Clientes.tsx` é
+  a tela mais antiga da área.
 - [ ] Catálogo "Origens da Venda" (Listas do Sistema) existe, mas `vendas`
   não tem coluna pra guardar isso — órfão. (Não escolhido na rodada de
   07/08.)

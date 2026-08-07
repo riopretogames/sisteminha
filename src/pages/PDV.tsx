@@ -7,6 +7,7 @@ import {
   Minus,
   Trash2,
   User,
+  UserPlus,
   CreditCard,
   Banknote,
   QrCode,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -60,6 +62,27 @@ interface Cliente {
 }
 
 /**
+ * Cadastro rápido de cliente — só o que o balcão consegue perguntar com
+ * a fila andando. O cadastro completo (CPF, e-mail, origem, endereço)
+ * continua sendo o de Cadastros > Clientes; aqui a prioridade é não
+ * fazer o vendedor abandonar a venda pra registrar um nome novo.
+ */
+interface NovoClienteFormData {
+  nome: string;
+  telefone: string;
+}
+
+const NOVO_CLIENTE_VAZIO: NovoClienteFormData = { nome: '', telefone: '' };
+
+/** Mensagem de RLS é críptica; traduz pro que de fato aconteceu. */
+function traduzirErro(error: unknown): string {
+  const msg = error instanceof Error ? error.message : 'Tente novamente.';
+  return /row-level security|policy/i.test(msg)
+    ? 'Seu perfil de acesso não permite fazer isso.'
+    : msg;
+}
+
+/**
  * Forma de pagamento cadastrada em Cadastros > Formas de Pagamento (Passo
  * 5) — parcelamento e taxa configuráveis por loja. `forma_enum` é a
  * categoria ampla (pix/dinheiro/cartao_credito/...) que essa forma
@@ -88,6 +111,10 @@ export default function PDV() {
   const { toast } = useToast();
   const { user, can } = useAuth();
   const podeDarDesconto = can(PERMISSIONS.SALES_DISCOUNT);
+  // Mesma chave que protege a tela de Cadastros > Clientes e a policy de
+  // INSERT em `clientes` — se o front usasse outra, o botão apareceria e o
+  // banco recusaria na hora de salvar.
+  const podeCadastrarCliente = can(PERMISSIONS.REGISTRY_CUSTOMERS_MANAGE);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [formasPagamento, setFormasPagamento] = useState<FormaPagamentoCadastro[]>([]);
@@ -99,6 +126,9 @@ export default function PDV() {
   const [desconto, setDesconto] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
   const [showClienteDialog, setShowClienteDialog] = useState(false);
+  const [showNovoClienteDialog, setShowNovoClienteDialog] = useState(false);
+  const [novoCliente, setNovoCliente] = useState<NovoClienteFormData>(NOVO_CLIENTE_VAZIO);
+  const [salvandoCliente, setSalvandoCliente] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [novoPagamento, setNovoPagamento] = useState<{ formaPagamentoId: string; parcelas: string; valor: string }>({
     formaPagamentoId: '',
@@ -147,6 +177,88 @@ export default function PDV() {
       .order('ordem', { ascending: true })
       .order('descricao', { ascending: true });
     setFormasPagamento((data ?? []) as FormaPagamentoCadastro[]);
+  };
+
+  const abrirNovoClienteDialog = () => {
+    // Aproveita o que já foi digitado na busca: quem procurou "Marcos" e não
+    // achou quase sempre quer cadastrar exatamente esse nome.
+    setNovoCliente({ ...NOVO_CLIENTE_VAZIO, nome: clienteSearch.trim() });
+    setShowNovoClienteDialog(true);
+  };
+
+  /**
+   * Cadastro rápido: grava o cliente e já o deixa vinculado à venda em
+   * andamento. Nada aqui toca em `cart`, `pagamentos` ou `desconto` — o
+   * ponto da tela é justamente não perder a venda pra cadastrar alguém.
+   */
+  const salvarNovoCliente = async () => {
+    const nome = novoCliente.nome.trim();
+    if (!nome) {
+      toast({
+        title: 'Nome obrigatório',
+        description: 'Informe o nome do cliente.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Perfil vem de useAuth() (mesmo caminho do checkout). Sem tenant o RLS
+    // recusaria o INSERT com mensagem de policy — melhor avisar antes.
+    const tenantId = user?.profile?.tenant_id ?? null;
+    if (!tenantId) {
+      toast({
+        title: 'Usuário sem loja vinculada',
+        description: 'Peça ao administrador para vincular seu usuário à loja.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSalvandoCliente(true);
+
+    try {
+      const telefone = novoCliente.telefone.trim();
+      // `telefones` é TEXT[] no banco, alimentado por um campo só — mesmo
+      // corte que Cadastros > Clientes já faz. Os demais campos ficam no
+      // DEFAULT (origem 'loja', ativo true), que é o certo pra balcão.
+      const { data, error } = await supabase
+        .from('clientes')
+        .insert({
+          tenant_id: tenantId,
+          nome,
+          telefones: telefone ? [telefone] : [],
+        })
+        .select('id, nome')
+        .single();
+
+      if (error) throw error;
+
+      // Insere na lista em memória em vez de refazer fetchClientes(): o
+      // vendedor não pode esperar uma segunda ida ao banco, e a lista é
+      // ordenada por nome — respeita essa ordem pra não parecer bagunçada.
+      const criado: Cliente = data;
+      setClientes((atuais) =>
+        [...atuais, criado].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+      );
+      setSelectedCliente(criado);
+      setClienteSearch('');
+
+      toast({
+        title: 'Cliente cadastrado!',
+        description: `${criado.nome} já está vinculado a esta venda.`,
+      });
+
+      setShowNovoClienteDialog(false);
+    } catch (error) {
+      console.error('Error saving cliente:', error);
+      toast({
+        title: 'Erro ao cadastrar cliente',
+        description: traduzirErro(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setSalvandoCliente(false);
+    }
   };
 
   const addToCart = (produto: Produto) => {
@@ -369,6 +481,7 @@ export default function PDV() {
       setPagamentos([]);
       setDesconto('');
       setSelectedCliente(null);
+      setClienteSearch('');
       setShowCheckout(false);
       fetchProdutos();
     } catch (error) {
@@ -437,16 +550,33 @@ export default function PDV() {
       {/* Cart Section */}
       <Card className="w-96 flex flex-col">
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <CardTitle>Carrinho</CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowClienteDialog(true)}
-            >
-              <User className="mr-2 h-4 w-4" />
-              {selectedCliente?.nome || 'Cliente'}
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="max-w-[11rem]"
+                onClick={() => setShowClienteDialog(true)}
+              >
+                <User className="mr-2 h-4 w-4" />
+                {/* Nome comprido não pode empurrar o botão de cadastrar
+                    pra fora do cabeçalho do carrinho. */}
+                <span className="truncate">{selectedCliente?.nome || 'Cliente'}</span>
+              </Button>
+              {podeCadastrarCliente && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  title="Cadastrar cliente novo"
+                  aria-label="Cadastrar cliente novo"
+                  onClick={abrirNovoClienteDialog}
+                >
+                  <UserPlus className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="flex-1 overflow-auto">
@@ -566,6 +696,7 @@ export default function PDV() {
                 className="w-full justify-start"
                 onClick={() => {
                   setSelectedCliente(null);
+                  setClienteSearch('');
                   setShowClienteDialog(false);
                 }}
               >
@@ -579,6 +710,10 @@ export default function PDV() {
                   className="w-full justify-start"
                   onClick={() => {
                     setSelectedCliente(cliente);
+                    // Busca resolvida: zera o filtro pra não sobrar texto
+                    // velho na próxima abertura nem no cadastro rápido,
+                    // que aproveita o que foi digitado aqui.
+                    setClienteSearch('');
                     setShowClienteDialog(false);
                   }}
                 >
@@ -588,6 +723,48 @@ export default function PDV() {
               ))}
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de cadastro rápido de cliente */}
+      <Dialog open={showNovoClienteDialog} onOpenChange={setShowNovoClienteDialog}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Cadastro rápido de cliente</DialogTitle>
+            <DialogDescription>
+              Só o essencial pra não travar a fila. O cadastro completo fica em
+              Cadastros &gt; Clientes e pode ser preenchido depois.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="novo-cliente-nome">Nome *</Label>
+              <Input
+                id="novo-cliente-nome"
+                value={novoCliente.nome}
+                onChange={e => setNovoCliente({ ...novoCliente, nome: e.target.value })}
+                placeholder="Nome do cliente"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="novo-cliente-telefone">Telefone (opcional)</Label>
+              <Input
+                id="novo-cliente-telefone"
+                value={novoCliente.telefone}
+                onChange={e => setNovoCliente({ ...novoCliente, telefone: e.target.value })}
+                placeholder="(00) 00000-0000"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNovoClienteDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={salvarNovoCliente} disabled={salvandoCliente}>
+              {salvandoCliente ? 'Salvando...' : 'Cadastrar e usar na venda'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
