@@ -180,6 +180,13 @@ comentado nas 3.
     filtros/ordenação usados hoje continuam válidos. Depois: `tsc` limpo,
     build ok, `eslint` sem nenhum problema novo (os 37 erros que ele
     aponta são todos anteriores — mesma contagem antes e depois).
+  - ✅ **Validado no app rodando (07/08), pelo Felipe** — primeira vez
+    nesta rodada que uma mudança foi testada de verdade no navegador, e
+    não só por leitura de código. Passou por Estoque, Estoque Crítico,
+    Movimentações, PDV, OS, Cadastro de Serviços, os 3 Dashboards, IE
+    Comercial, IE Estoque, Relatório de Estoque e Histórico de Vendas.
+    Nenhuma tela quebrou, nenhum custo veio vazio, nenhuma lista veio
+    vazia. **A Parte 2 está liberada.**
 - [ ] **Regerar `types.ts`.** As 3 views foram **escritas à mão** na
   seção `Views` (o gerador precisa de `supabase login`, que é passo do
   Felipe). O conteúdo reproduz o que o gerador produziria; regerar
@@ -265,6 +272,12 @@ o arquivo antes de assumir.
   (não fazem mal parados), mas não vale construir UI pra eles.
 
 **🟠 Média — ainda pendente de decisão**
+- [ ] **Achado pelo Felipe testando o app (07/08):** o PDV tem
+  "selecionar cliente", mas não tem "cadastrar cliente". Cliente novo no
+  balcão obriga o vendedor a abandonar a venda, ir na tela de Clientes,
+  cadastrar e voltar — perdendo o carrinho. É lacuna de operação de
+  balcão, não bug: nenhum dos ~90 achados da revisão pegou isso, porque
+  leitura de código não sente fila de loja. Em construção nesta rodada.
 - [ ] Catálogo "Origens da Venda" (Listas do Sistema) existe, mas `vendas`
   não tem coluna pra guardar isso — órfão. (Não escolhido na rodada de
   07/08.)
