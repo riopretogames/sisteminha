@@ -91,7 +91,7 @@ export default function DashboardEstoque() {
 
       // Movimentações de hoje
       const { count: movimentacoesHoje } = await supabase
-        .from('movimentos_estoque')
+        .from('vw_movimentos_estoque')
         .select('*', { count: 'exact', head: true })
         .gte('created_at', hoje.toISOString());
 

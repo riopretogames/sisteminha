@@ -1851,6 +1851,24 @@ export type Database = {
         }
         Relationships: []
       }
+      vw_movimentos_estoque: {
+        Row: {
+          created_at: string | null
+          custo_unitario: number | null
+          id: string | null
+          motivo: string | null
+          origem: string | null
+          produto_id: string | null
+          quantidade: number | null
+          saldo_anterior: number | null
+          saldo_depois: number | null
+          tenant_id: string | null
+          tipo: Database["public"]["Enums"]["movimento_tipo"] | null
+          usuario_id: string | null
+          valor_total: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       ajustar_estoque_produto: {
