@@ -8,6 +8,9 @@ import {
   Trash2,
   User,
   UserPlus,
+  UserCheck,
+  Ban,
+  AlertTriangle,
   CreditCard,
   Banknote,
   QrCode,
@@ -39,6 +42,12 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  buscarClientesSemelhantes,
+  traduzirErroCliente,
+  type ClienteSemelhante,
+} from '@/hooks/useClientes';
+import { mascaraTelefone, soDigitos } from '@/lib/documento';
 import { FORMAS_PAGAMENTO } from '@/lib/constants';
 import { moeda as formatCurrency } from '@/lib/format';
 
@@ -59,6 +68,9 @@ interface CartItem {
 interface Cliente {
   id: string;
   nome: string;
+  telefones: string[] | null;
+  /** Falso = a loja bloqueou este cliente. O banco recusa a venda também. */
+  liberado_venda: boolean | null;
 }
 
 /**
@@ -129,6 +141,9 @@ export default function PDV() {
   const [showNovoClienteDialog, setShowNovoClienteDialog] = useState(false);
   const [novoCliente, setNovoCliente] = useState<NovoClienteFormData>(NOVO_CLIENTE_VAZIO);
   const [salvandoCliente, setSalvandoCliente] = useState(false);
+  // Cadastros parecidos encontrados antes de criar mais um. Decisão de 08/08:
+  // um cliente, um cadastro — quando já existe, a venda segue com o que existe.
+  const [clientesSemelhantes, setClientesSemelhantes] = useState<ClienteSemelhante[]>([]);
   const [processing, setProcessing] = useState(false);
   const [novoPagamento, setNovoPagamento] = useState<{ formaPagamentoId: string; parcelas: string; valor: string }>({
     formaPagamentoId: '',
@@ -163,7 +178,7 @@ export default function PDV() {
   const fetchClientes = async () => {
     const { data } = await supabase
       .from('clientes')
-      .select('id, nome')
+      .select('id, nome, telefones, liberado_venda')
       .eq('ativo', true)
       .order('nome');
     setClientes(data || []);
@@ -183,7 +198,67 @@ export default function PDV() {
     // Aproveita o que já foi digitado na busca: quem procurou "Marcos" e não
     // achou quase sempre quer cadastrar exatamente esse nome.
     setNovoCliente({ ...NOVO_CLIENTE_VAZIO, nome: clienteSearch.trim() });
+    setClientesSemelhantes([]);
     setShowNovoClienteDialog(true);
+  };
+
+  /**
+   * Vincula o cliente à venda.
+   *
+   * Cliente bloqueado é recusado aqui e também pelo banco (gatilho
+   * `trg_venda_cliente_bloqueado`). A checagem na tela existe pra o vendedor
+   * descobrir agora, e não depois de montar o carrinho inteiro.
+   */
+  const selecionarCliente = (cliente: Cliente) => {
+    if (cliente.liberado_venda === false) {
+      toast({
+        title: 'Cliente bloqueado',
+        description: `${cliente.nome} está bloqueado para venda. Libere na ficha dele em Cadastros > Clientes.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSelectedCliente(cliente);
+    // Busca resolvida: zera o filtro pra não sobrar texto velho na próxima
+    // abertura nem no cadastro rápido, que aproveita o que foi digitado aqui.
+    setClienteSearch('');
+    setShowClienteDialog(false);
+  };
+
+  /** Procura cadastro que já exista, enquanto o vendedor digita. */
+  const procurarClienteSemelhante = async () => {
+    const achados = await buscarClientesSemelhantes({
+      telefone: novoCliente.telefone,
+      nome: novoCliente.nome,
+    });
+    setClientesSemelhantes(achados);
+    return achados;
+  };
+
+  /** Fecha o cadastro rápido e segue a venda com o cadastro que já existia. */
+  const usarClienteExistente = (id: string) => {
+    const jaCarregado = clientes.find((c) => c.id === id);
+
+    if (jaCarregado) {
+      selecionarCliente(jaCarregado);
+    } else {
+      // Cliente que existe no banco mas não está na lista em memória (foi
+      // cadastrado em outro terminal depois desta tela abrir).
+      void fetchClientes();
+      const semelhante = clientesSemelhantes.find((c) => c.id === id);
+      if (semelhante) {
+        selecionarCliente({
+          id: semelhante.id,
+          nome: semelhante.nome,
+          telefones: semelhante.telefones,
+          liberado_venda: semelhante.liberado_venda,
+        });
+      }
+    }
+
+    setShowNovoClienteDialog(false);
+    setClientesSemelhantes([]);
   };
 
   /**
@@ -217,6 +292,18 @@ export default function PDV() {
     setSalvandoCliente(true);
 
     try {
+      // Um cliente, um cadastro. Procura antes de criar: se já existe, o
+      // vendedor usa o que existe e a venda segue — sem erro na cara dele.
+      const achados = await procurarClienteSemelhante();
+      if (achados.some((c) => c.motivo !== 'nome')) {
+        toast({
+          title: 'Este cliente já tem cadastro',
+          description: 'Use o cadastro que já existe, logo acima do formulário.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const telefone = novoCliente.telefone.trim();
       // `telefones` é TEXT[] no banco, alimentado por um campo só — mesmo
       // corte que Cadastros > Clientes já faz. Os demais campos ficam no
@@ -228,7 +315,7 @@ export default function PDV() {
           nome,
           telefones: telefone ? [telefone] : [],
         })
-        .select('id, nome')
+        .select('id, nome, telefones, liberado_venda')
         .single();
 
       if (error) throw error;
@@ -249,11 +336,13 @@ export default function PDV() {
       });
 
       setShowNovoClienteDialog(false);
+      setClientesSemelhantes([]);
     } catch (error) {
       console.error('Error saving cliente:', error);
       toast({
         title: 'Erro ao cadastrar cliente',
-        description: traduzirErro(error),
+        // Traduz também a recusa da trava de duplicidade (banco), não só RLS.
+        description: traduzirErroCliente(error),
         variant: 'destructive',
       });
     } finally {
@@ -501,9 +590,17 @@ export default function PDV() {
     p.nome.toLowerCase().includes(search.toLowerCase())
   );
 
-  const filteredClientes = clientes.filter(c =>
-    c.nome.toLowerCase().includes(clienteSearch.toLowerCase())
-  );
+  // Busca por nome OU telefone: no balcão, o que a pessoa informa primeiro
+  // costuma ser o número, não o nome completo. Ignora pontuação dos dois lados.
+  const filteredClientes = clientes.filter((c) => {
+    const termo = clienteSearch.trim().toLowerCase();
+    if (!termo) return true;
+    const digitos = soDigitos(termo);
+    return (
+      c.nome.toLowerCase().includes(termo) ||
+      (digitos.length > 0 && (c.telefones ?? []).some((t) => soDigitos(t).includes(digitos)))
+    );
+  });
 
   return (
     <div className="flex h-[calc(100vh-7rem)] gap-6 animate-fade-in">
@@ -686,7 +783,7 @@ export default function PDV() {
           </DialogHeader>
           <div className="space-y-4">
             <Input
-              placeholder="Buscar cliente..."
+              placeholder="Buscar por nome ou telefone..."
               value={clienteSearch}
               onChange={e => setClienteSearch(e.target.value)}
             />
@@ -703,24 +800,34 @@ export default function PDV() {
                 <X className="mr-2 h-4 w-4" />
                 Sem cliente
               </Button>
-              {filteredClientes.map(cliente => (
-                <Button
-                  key={cliente.id}
-                  variant={selectedCliente?.id === cliente.id ? 'default' : 'outline'}
-                  className="w-full justify-start"
-                  onClick={() => {
-                    setSelectedCliente(cliente);
-                    // Busca resolvida: zera o filtro pra não sobrar texto
-                    // velho na próxima abertura nem no cadastro rápido,
-                    // que aproveita o que foi digitado aqui.
-                    setClienteSearch('');
-                    setShowClienteDialog(false);
-                  }}
-                >
-                  <User className="mr-2 h-4 w-4" />
-                  {cliente.nome}
-                </Button>
-              ))}
+              {filteredClientes.map(cliente => {
+                const bloqueado = cliente.liberado_venda === false;
+                return (
+                  <Button
+                    key={cliente.id}
+                    variant={selectedCliente?.id === cliente.id ? 'default' : 'outline'}
+                    className="w-full justify-start"
+                    onClick={() => selecionarCliente(cliente)}
+                  >
+                    {bloqueado ? (
+                      <Ban className="mr-2 h-4 w-4 shrink-0 text-destructive" />
+                    ) : (
+                      <User className="mr-2 h-4 w-4 shrink-0" />
+                    )}
+                    <span className="truncate">{cliente.nome}</span>
+                    {cliente.telefones?.[0] && (
+                      <span className="ml-2 truncate text-xs text-muted-foreground">
+                        {cliente.telefones[0]}
+                      </span>
+                    )}
+                    {bloqueado && (
+                      <Badge variant="destructive" className="ml-auto shrink-0 text-[10px]">
+                        Bloqueado
+                      </Badge>
+                    )}
+                  </Button>
+                );
+              })}
             </div>
           </div>
         </DialogContent>
@@ -736,6 +843,45 @@ export default function PDV() {
               Cadastros &gt; Clientes e pode ser preenchido depois.
             </DialogDescription>
           </DialogHeader>
+          {/* Cadastro que já existe. Aparece antes do formulário porque a
+              decisão certa quase sempre é usar este, não criar outro. */}
+          {clientesSemelhantes.length > 0 && (
+            <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3">
+              <p className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-500">
+                <AlertTriangle className="h-4 w-4" />
+                {clientesSemelhantes.some((c) => c.motivo !== 'nome')
+                  ? 'Este cliente já está cadastrado'
+                  : 'Já existe alguém com esse nome'}
+              </p>
+              <div className="mt-2 space-y-2">
+                {clientesSemelhantes.map((c) => (
+                  <div key={c.id} className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm">
+                      <strong>{c.nome}</strong>
+                      {c.telefones?.[0] && (
+                        <span className="text-muted-foreground"> — {c.telefones[0]}</span>
+                      )}
+                      {!c.liberado_venda && (
+                        <Badge variant="destructive" className="ml-2 text-[10px]">
+                          Bloqueado
+                        </Badge>
+                      )}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={!c.liberado_venda}
+                      onClick={() => usarClienteExistente(c.id)}
+                    >
+                      <UserCheck className="mr-2 h-4 w-4" />
+                      Usar na venda
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="novo-cliente-nome">Nome *</Label>
@@ -743,6 +889,7 @@ export default function PDV() {
                 id="novo-cliente-nome"
                 value={novoCliente.nome}
                 onChange={e => setNovoCliente({ ...novoCliente, nome: e.target.value })}
+                onBlur={procurarClienteSemelhante}
                 placeholder="Nome do cliente"
                 autoFocus
               />
@@ -752,8 +899,12 @@ export default function PDV() {
               <Input
                 id="novo-cliente-telefone"
                 value={novoCliente.telefone}
-                onChange={e => setNovoCliente({ ...novoCliente, telefone: e.target.value })}
-                placeholder="(00) 00000-0000"
+                onChange={e =>
+                  setNovoCliente({ ...novoCliente, telefone: mascaraTelefone(e.target.value) })
+                }
+                onBlur={procurarClienteSemelhante}
+                placeholder="(17) 99999-9999"
+                inputMode="numeric"
               />
             </div>
           </div>

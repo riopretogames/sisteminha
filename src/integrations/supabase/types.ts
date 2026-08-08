@@ -325,6 +325,7 @@ export type Database = {
           foto_url: string | null
           genero: string | null
           id: string
+          inscricao_estadual: string | null
           instagram: string | null
           liberado_venda: boolean
           limite_credito: number | null
@@ -358,6 +359,7 @@ export type Database = {
           foto_url?: string | null
           genero?: string | null
           id?: string
+          inscricao_estadual?: string | null
           instagram?: string | null
           liberado_venda?: boolean
           limite_credito?: number | null
@@ -391,6 +393,7 @@ export type Database = {
           foto_url?: string | null
           genero?: string | null
           id?: string
+          inscricao_estadual?: string | null
           instagram?: string | null
           liberado_venda?: boolean
           limite_credito?: number | null
@@ -1879,6 +1882,17 @@ export type Database = {
         }
         Returns: undefined
       }
+      buscar_clientes_semelhantes: {
+        Args: { _documento?: string; _nome?: string; _telefone?: string }
+        Returns: {
+          cpf_cnpj: string
+          id: string
+          liberado_venda: boolean
+          motivo: string
+          nome: string
+          telefones: string[]
+        }[]
+      }
       catalogo_e_do_tipo: {
         Args: { _id: string; _tipo: string }
         Returns: boolean
@@ -1900,6 +1914,7 @@ export type Database = {
         Args: { _documento: string; _tenant: string }
         Returns: string
       }
+      somente_digitos: { Args: { _texto: string }; Returns: string }
       user_belongs_to_tenant: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean

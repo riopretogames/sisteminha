@@ -65,6 +65,30 @@ Consequência concreta, que vale para todo código novo:
   proteção **em silêncio**. Se alguma ferramenta gerar uma migration assim,
   reconferir os privilégios.
 
+## Regra de cliente único (08/08)
+
+Decisão do Felipe: **não pode existir dois cadastros do mesmo cliente.** Se o
+cliente já tem cadastro, a equipe usa o que existe e continua a venda.
+
+O que isso significa para código novo:
+
+- A comparação é **só pelos dígitos**, nunca pelo texto digitado. "123.456.789-00"
+  e "12345678900" são o mesmo CPF. A regra mora na função
+  `public.somente_digitos` — front e banco usam a mesma, de propósito.
+- **Documento e telefone recusam** (índice `clientes_documento_unico` e gatilho
+  `trg_cliente_telefone_repetido`, migration `20260808150000`). **Nome igual só
+  avisa** — dois "João Silva" podem ser duas pessoas.
+- Toda porta que cria cliente tem que **procurar antes de gravar**, com
+  `buscar_clientes_semelhantes`, e oferecer o cadastro encontrado. Recusar sem
+  oferecer saída é tela quebrada para quem está atendendo.
+- Cuidado com **gravação em lote**: lote é tudo-ou-nada, então um repetido
+  derruba a planilha inteira. `ClientesImportar.tsx` refaz linha a linha quando
+  o lote falha — qualquer importação nova precisa do mesmo cuidado.
+- `clientes.liberado_venda` desligado = **o banco recusa a venda** (gatilho
+  `trg_venda_cliente_bloqueado`, migration `20260808160000`), inclusive a venda
+  nova gerada por uma troca. Não tem relação com fiado: a loja não trabalha com
+  crediário, e `limite_credito` segue sem uso.
+
 ## Documentos de referência
 
 - `PLANO-DE-REFINAMENTO.md` — o plano de trabalho atual, item por item,

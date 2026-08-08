@@ -51,6 +51,8 @@ interface LinhaImportada {
 interface ResumoImportacao {
   sucesso: number;
   falha: number;
+  /** Linhas recusadas por já existirem. Não é erro de planilha. */
+  repetidos: string[];
   erros: string[];
 }
 
@@ -133,6 +135,14 @@ function mensagemAmigavel(msg: string): string {
   return /row-level security|policy/i.test(msg)
     ? 'Seu perfil de acesso não permite fazer isso.'
     : msg;
+}
+
+/**
+ * A linha foi recusada por já existir? (trava de duplicidade, migration
+ * 20260808150000 — índice de CPF/CNPJ ou gatilho de telefone.)
+ */
+function ehClienteRepetido(msg: string): boolean {
+  return /clientes_documento_unico/i.test(msg) || /telefone .* já está no cadastro/i.test(msg);
 }
 
 function baixarModelo() {
@@ -275,38 +285,56 @@ export default function ClientesImportar() {
     let sucesso = 0;
     let falha = 0;
     const erros = new Set<string>();
+    const repetidos: string[] = [];
+
+    const paraBanco = (l: (typeof validas)[number]) => ({
+      tenant_id: tenantId,
+      nome: l.nome,
+      telefones: l.telefone ? [l.telefone] : [],
+      email: l.email || null,
+      cpf_cnpj: l.cpfCnpj || null,
+    });
 
     for (const lote of lotes) {
-      const payload = lote.map((l) => ({
-        tenant_id: tenantId,
-        nome: l.nome,
-        telefones: l.telefone ? [l.telefone] : [],
-        email: l.email || null,
-        cpf_cnpj: l.cpfCnpj || null,
-      }));
+      const { data, error } = await supabase.from('clientes').insert(lote.map(paraBanco)).select('id');
 
-      const { data, error } = await supabase.from('clientes').insert(payload).select('id');
-
-      if (error) {
-        falha += lote.length;
-        erros.add(mensagemAmigavel(error.message));
-      } else {
+      if (!error) {
         sucesso += data?.length ?? lote.length;
+        continue;
+      }
+
+      // Gravar em lote é tudo-ou-nada: com a trava de cliente repetido, uma
+      // única linha duplicada derrubaria as outras 49 da planilha. Quando o
+      // lote falha, refaz linha a linha — quem pode entrar, entra; quem já
+      // existe é listado pelo nome, para a pessoa conferir depois.
+      for (const linha of lote) {
+        const { error: erroLinha } = await supabase.from('clientes').insert(paraBanco(linha));
+
+        if (!erroLinha) {
+          sucesso += 1;
+        } else if (ehClienteRepetido(erroLinha.message)) {
+          repetidos.push(linha.nome);
+        } else {
+          falha += 1;
+          erros.add(mensagemAmigavel(erroLinha.message));
+        }
       }
     }
 
-    setResumo({ sucesso, falha, erros: [...erros] });
+    setResumo({ sucesso, falha, repetidos, erros: [...erros] });
     setImportando(false);
+
+    const jaExistiam = repetidos.length > 0 ? ` ${repetidos.length} já existia(m).` : '';
 
     if (falha === 0) {
       toast({
         title: 'Importação concluída!',
-        description: `${sucesso} ${sucesso === 1 ? 'cliente cadastrado' : 'clientes cadastrados'} com sucesso.`,
+        description: `${sucesso} ${sucesso === 1 ? 'cliente cadastrado' : 'clientes cadastrados'} com sucesso.${jaExistiam}`,
       });
     } else {
       toast({
         title: sucesso === 0 ? 'Falha na importação' : 'Importação concluída com falhas',
-        description: `${sucesso} cadastrado(s), ${falha} com falha.`,
+        description: `${sucesso} cadastrado(s), ${falha} com falha.${jaExistiam}`,
         variant: sucesso === 0 ? 'destructive' : undefined,
       });
     }
@@ -455,10 +483,16 @@ export default function ClientesImportar() {
       )}
 
       {resumo && (
-        <Card className={resumo.falha > 0 ? 'border-amber-500/40' : 'border-emerald-500/40'}>
+        <Card
+          className={
+            resumo.falha > 0 || resumo.repetidos.length > 0
+              ? 'border-amber-500/40'
+              : 'border-emerald-500/40'
+          }
+        >
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              {resumo.falha === 0 ? (
+              {resumo.falha === 0 && resumo.repetidos.length === 0 ? (
                 <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               ) : (
                 <XCircle className="h-5 w-5 text-amber-600" />
@@ -471,6 +505,25 @@ export default function ClientesImportar() {
               <span className="font-medium text-emerald-600">{resumo.sucesso}</span>{' '}
               {resumo.sucesso === 1 ? 'cliente cadastrado' : 'clientes cadastrados'} com sucesso.
             </p>
+            {resumo.repetidos.length > 0 && (
+              <>
+                <p>
+                  <span className="font-medium text-amber-600">{resumo.repetidos.length}</span>{' '}
+                  {resumo.repetidos.length === 1
+                    ? 'linha já tinha cadastro e foi ignorada'
+                    : 'linhas já tinham cadastro e foram ignoradas'}{' '}
+                  — o cadastro que já existia foi mantido, nada foi sobrescrito.
+                </p>
+                <ul className="list-inside list-disc text-muted-foreground">
+                  {resumo.repetidos.slice(0, 20).map((nome, i) => (
+                    <li key={`${nome}-${i}`}>{nome}</li>
+                  ))}
+                  {resumo.repetidos.length > 20 && (
+                    <li>e mais {resumo.repetidos.length - 20}...</li>
+                  )}
+                </ul>
+              </>
+            )}
             {resumo.falha > 0 && (
               <>
                 <p>
