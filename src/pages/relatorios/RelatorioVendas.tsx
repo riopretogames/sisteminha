@@ -79,10 +79,26 @@ export default function RelatorioVendas() {
   });
 
   const linhas = data ?? [];
-  const faturamento = linhas
-    .filter((v) => v.status !== 'cancelado')
-    .reduce((acc, v) => acc + Number(v.total), 0);
-  const validas = linhas.filter((v) => v.status !== 'cancelado').length;
+  const vendasValidas = linhas.filter((v) => v.status !== 'cancelado');
+  const canceladas = linhas.filter((v) => v.status === 'cancelado');
+
+  const faturamento = vendasValidas.reduce((acc, v) => acc + Number(v.total), 0);
+  const validas = vendasValidas.length;
+  const descontoTotal = vendasValidas.reduce((acc, v) => acc + Number(v.descontos ?? 0), 0);
+  const brutoTotal = vendasValidas.reduce((acc, v) => acc + Number(v.subtotal ?? 0), 0);
+  const perdidoEmCancelamento = canceladas.reduce((acc, v) => acc + Number(v.total), 0);
+
+  // Dias do PERÍODO, não dias com venda: dividir só pelos dias que venderam
+  // esconde justamente os dias parados, que é o que a média deveria revelar.
+  const diasNoPeriodo = Math.max(
+    1,
+    Math.round(
+      (new Date(periodo.ate).getTime() - new Date(periodo.de).getTime()) / 86_400_000
+    ) + 1
+  );
+  const diasComVenda = new Set(vendasValidas.map((v) => v.created_at.slice(0, 10))).size;
+
+  const maiorVenda = vendasValidas.reduce((maior, v) => Math.max(maior, Number(v.total)), 0);
 
   return (
     <RelatorioShell
@@ -101,6 +117,36 @@ export default function RelatorioVendas() {
           <Indicador
             rotulo="Ticket médio"
             valor={moeda(validas ? faturamento / validas : 0)}
+          />
+          <Indicador
+            rotulo="Média por dia"
+            valor={moeda(faturamento / diasNoPeriodo)}
+            detalhe={`${diasComVenda} de ${diasNoPeriodo} dias com venda`}
+          />
+          <Indicador
+            rotulo="Maior venda"
+            valor={moeda(maiorVenda)}
+            detalhe="A maior do período"
+          />
+          {/* Desconto dado é dinheiro que saiu do bolso da loja sem virar
+              produto. Sem esta linha, ele nunca aparece em lugar nenhum. */}
+          <Indicador
+            rotulo="Desconto concedido"
+            valor={moeda(descontoTotal)}
+            detalhe={
+              brutoTotal > 0
+                ? `${((descontoTotal / brutoTotal) * 100).toFixed(1)}% do valor cheio`
+                : undefined
+            }
+            tom={descontoTotal > 0 ? 'alerta' : 'neutro'}
+          />
+          <Indicador
+            rotulo="Canceladas"
+            valor={String(canceladas.length)}
+            detalhe={
+              canceladas.length > 0 ? `${moeda(perdidoEmCancelamento)} que não entraram` : undefined
+            }
+            tom={canceladas.length > 0 ? 'negativo' : 'neutro'}
           />
         </>
       }

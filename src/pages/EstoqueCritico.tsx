@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { PageHeader, Indicador, Vazio } from '@/components/PageHeader';
+import { moeda } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -36,6 +37,9 @@ interface Produto {
   nome: string;
   marca: string | null;
   categoria: string;
+  /** Vem nulo para quem não tem `inventory.cost.view` — a view decide. */
+  custo?: number | null;
+  preco?: number | null;
   estoque_atual: number;
   estoque_minimo: number;
 }
@@ -55,7 +59,7 @@ export default function EstoqueCritico() {
     queryFn: async (): Promise<Produto[]> => {
       const { data, error } = await supabase
         .from('vw_produtos')
-        .select('id, nome, marca, categoria, estoque_atual, estoque_minimo')
+        .select('id, nome, marca, categoria, estoque_atual, estoque_minimo, custo, preco')
         .eq('ativo', true);
       if (error) throw error;
       return (data ?? []) as Produto[];
@@ -67,6 +71,30 @@ export default function EstoqueCritico() {
     .sort((a, b) => (a.estoque_atual - a.estoque_minimo) - (b.estoque_atual - b.estoque_minimo));
 
   const zerados = criticos.filter((p) => p.estoque_atual === 0).length;
+
+  /**
+   * Quanto custa resolver a lista inteira.
+   *
+   * "12 produtos em alerta" não ajuda a decidir nada. "Repor tudo custa
+   * R$ 3.400 e devolve R$ 5.900 na prateleira" é uma decisão de compra — e é
+   * essa a pergunta de quem abre esta tela.
+   *
+   * A quantidade considerada é o que falta para chegar ao mínimo, não um
+   * palpite de quanto comprar.
+   */
+  const faltando = criticos.reduce(
+    (soma, p) => soma + Math.max(0, p.estoque_minimo - p.estoque_atual),
+    0
+  );
+  const custoReposicao = criticos.reduce(
+    (soma, p) => soma + Math.max(0, p.estoque_minimo - p.estoque_atual) * Number(p.custo ?? 0),
+    0
+  );
+  const valorEmVenda = criticos.reduce(
+    (soma, p) => soma + Math.max(0, p.estoque_minimo - p.estoque_atual) * Number(p.preco ?? 0),
+    0
+  );
+  const vecusto = custoReposicao > 0;
 
   const abrirReposicao = (produto: Produto) => {
     setRepondo(produto);
@@ -114,7 +142,7 @@ export default function EstoqueCritico() {
         hint="Produtos no ou abaixo do estoque mínimo — cada um tem seu próprio limite de reposição, configurado no cadastro do produto."
       />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-2">
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Indicador
           rotulo="Produtos em alerta"
           valor={String(criticos.length)}
@@ -127,6 +155,24 @@ export default function EstoqueCritico() {
           detalhe="Sem nenhuma unidade disponível"
           tom={zerados > 0 ? 'negativo' : 'positivo'}
         />
+        <Indicador
+          rotulo="Peças faltando"
+          valor={String(faltando)}
+          detalhe="Para todos chegarem ao mínimo"
+        />
+        {vecusto ? (
+          <Indicador
+            rotulo="Custo para repor tudo"
+            valor={moeda(custoReposicao)}
+            detalhe={`Venderia por ${moeda(valorEmVenda)}`}
+          />
+        ) : (
+          <Indicador
+            rotulo="Valor em venda"
+            valor={moeda(valorEmVenda)}
+            detalhe="Do que falta repor"
+          />
+        )}
       </div>
 
       {isLoading ? (

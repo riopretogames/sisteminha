@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { moeda, data as fmtData } from '@/lib/format';
 import { Indicador } from '@/components/PageHeader';
 import { RelatorioShell, usePeriodo, type Coluna } from './RelatorioShell';
-import { OS_ETAPAS, osEmAndamento } from '@/config/osStatus';
+import { OS_ETAPAS, OS_CANCELADO, osEmAndamento } from '@/config/osStatus';
 
 interface LinhaOS {
   id: string;
@@ -98,7 +98,35 @@ export default function RelatorioOS() {
   const linhas = data ?? [];
   const entregues = linhas.filter((o) => o.status === OS_ETAPAS.ENTREGUE);
   const emAndamento = linhas.filter((o) => osEmAndamento(o.status));
+  const canceladas = linhas.filter((o) => o.status === OS_CANCELADO);
   const receita = entregues.reduce((acc, o) => acc + Number(o.valor_final_pago ?? 0), 0);
+
+  const orcado = linhas.reduce((acc, o) => acc + Number(o.total_orcamento ?? 0), 0);
+  const orcadoEmAberto = emAndamento.reduce(
+    (acc, o) => acc + Number(o.total_orcamento ?? 0),
+    0
+  );
+
+  /**
+   * Quanto tempo o conserto leva, na média — só de OS já finalizada.
+   *
+   * É o número que responde a pergunta mais feita no balcão ("quando fica
+   * pronto?") com dado em vez de chute, e o único jeito de saber se o prazo de
+   * 3 dias que a loja promete tem lastro.
+   */
+  const comTempo = entregues.filter((o) => o.data_finalizacao);
+  const diasMedios =
+    comTempo.length > 0
+      ? comTempo.reduce((soma, o) => {
+          const abertura = new Date(o.created_at).getTime();
+          const fim = new Date(o.data_finalizacao!).getTime();
+          return soma + Math.max(0, (fim - abertura) / 86_400_000);
+        }, 0) / comTempo.length
+      : 0;
+
+  // Quantas viraram serviço de verdade. Sem isso, não dá para saber se o
+  // problema da loja é entrar pouca OS ou perder orçamento aprovado.
+  const taxaConversao = linhas.length > 0 ? (entregues.length / linhas.length) * 100 : 0;
 
   return (
     <RelatorioShell
@@ -124,6 +152,33 @@ export default function RelatorioOS() {
             valor={moeda(receita)}
             detalhe={`${entregues.length} entregues`}
             tom="positivo"
+          />
+          <Indicador
+            rotulo="Ticket médio da OS"
+            valor={moeda(entregues.length ? receita / entregues.length : 0)}
+            detalhe="Só de OS entregue"
+          />
+          <Indicador
+            rotulo="Tempo médio de reparo"
+            valor={diasMedios > 0 ? `${diasMedios.toFixed(1)} dias` : '—'}
+            detalhe={comTempo.length > 0 ? `De ${comTempo.length} OS finalizadas` : 'Sem OS finalizada'}
+          />
+          <Indicador
+            rotulo="Orçamento em aberto"
+            valor={moeda(orcadoEmAberto)}
+            detalhe="Aprovado, ainda não recebido"
+            tom={orcadoEmAberto > 0 ? 'alerta' : 'neutro'}
+          />
+          <Indicador
+            rotulo="Taxa de conclusão"
+            valor={`${taxaConversao.toFixed(0)}%`}
+            detalhe={`${entregues.length} de ${linhas.length} abertas`}
+          />
+          <Indicador
+            rotulo="Canceladas"
+            valor={String(canceladas.length)}
+            detalhe={orcado > 0 ? `${moeda(orcado)} orçados no total` : undefined}
+            tom={canceladas.length > 0 ? 'negativo' : 'neutro'}
           />
         </>
       }

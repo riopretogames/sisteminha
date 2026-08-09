@@ -14,6 +14,7 @@ interface LinhaProduto {
   categoria: string;
   estoque_atual: number;
   estoque_minimo: number;
+  estoque_maximo: number;
   custo: number;
   preco: number;
 }
@@ -28,7 +29,7 @@ export default function RelatorioEstoque() {
     queryFn: async (): Promise<LinhaProduto[]> => {
       const { data, error } = await supabase
         .from('vw_produtos')
-        .select('id, nome, marca, categoria, estoque_atual, estoque_minimo, custo, preco')
+        .select('id, nome, marca, categoria, estoque_atual, estoque_minimo, estoque_maximo, custo, preco')
         .eq('ativo', true)
         .order('nome');
       if (error) throw error;
@@ -115,6 +116,14 @@ export default function RelatorioEstoque() {
   const imobilizado = linhas.reduce((acc, p) => acc + Number(p.custo) * p.estoque_atual, 0);
   const potencial = linhas.reduce((acc, p) => acc + Number(p.preco) * p.estoque_atual, 0);
 
+  const pecasEmEstoque = linhas.reduce((acc, p) => acc + p.estoque_atual, 0);
+  // Item zerado é diferente de item crítico: o crítico ainda vende, o zerado é
+  // venda perdida acontecendo agora.
+  const zerados = linhas.filter((p) => p.estoque_atual === 0);
+  const semGiro = linhas.filter((p) => p.estoque_atual > p.estoque_maximo);
+  const lucroPotencial = potencial - imobilizado;
+  const margemMedia = imobilizado > 0 ? (lucroPotencial / imobilizado) * 100 : 0;
+
   return (
     <RelatorioShell
       titulo="Relatório de Estoque"
@@ -140,15 +149,47 @@ export default function RelatorioEstoque() {
             detalhe="Saldo no mínimo ou abaixo"
             tom={criticos.length > 0 ? 'negativo' : 'positivo'}
           />
+          <Indicador
+            rotulo="Itens zerados"
+            valor={String(zerados.length)}
+            detalhe="Venda perdida acontecendo agora"
+            tom={zerados.length > 0 ? 'negativo' : 'positivo'}
+          />
+          <Indicador
+            rotulo="Peças na prateleira"
+            valor={String(pecasEmEstoque)}
+            detalhe="Somando todas as unidades"
+          />
+
           {vecusto ? (
-            <Indicador
-              rotulo="Valor imobilizado"
-              valor={moeda(imobilizado)}
-              detalhe={`Venderia por ${moeda(potencial)}`}
-            />
+            <>
+              <Indicador
+                rotulo="Valor imobilizado"
+                valor={moeda(imobilizado)}
+                detalhe="Dinheiro parado em mercadoria"
+              />
+              <Indicador
+                rotulo="Valor a preço de venda"
+                valor={moeda(potencial)}
+                detalhe="Se vender tudo pelo preço de tabela"
+              />
+              <Indicador
+                rotulo="Lucro potencial"
+                valor={moeda(lucroPotencial)}
+                detalhe={`Margem média de ${margemMedia.toFixed(0)}%`}
+                tom="positivo"
+              />
+            </>
           ) : (
             <Indicador rotulo="Valor a preço de venda" valor={moeda(potencial)} />
           )}
+
+          <Indicador
+            rotulo="Acima do máximo"
+            valor={String(semGiro.length)}
+            detalhe="Comprado demais ou parado"
+            tom={semGiro.length > 0 ? 'alerta' : 'neutro'}
+          />
         </>
       }
     />

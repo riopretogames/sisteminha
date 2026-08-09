@@ -79,9 +79,30 @@ export default function RelatorioFinanceiro() {
 
   const linhas = data ?? [];
   const ativos = linhas.filter((t) => t.status !== 'cancelado');
-  const receber = ativos.filter((t) => t.natureza === 'receber').reduce((a, t) => a + Number(t.valor), 0);
-  const pagar = ativos.filter((t) => t.natureza === 'pagar').reduce((a, t) => a + Number(t.valor), 0);
-  const vencidos = ativos.filter((t) => t.situacao === 'vencido').length;
+  const soma = (lista: LinhaFin[]) => lista.reduce((a, t) => a + Number(t.valor), 0);
+
+  const aReceber = ativos.filter((t) => t.natureza === 'receber');
+  const aPagar = ativos.filter((t) => t.natureza === 'pagar');
+  const receber = soma(aReceber);
+  const pagar = soma(aPagar);
+
+  /**
+   * Separa o que JÁ ACONTECEU do que ainda vai acontecer.
+   *
+   * A tela somava tudo num número só, misturando título pago com título que
+   * vence daqui a 20 dias. São coisas diferentes: um é dinheiro que entrou, o
+   * outro é promessa. Quem olha o resultado do mês precisa dos dois separados
+   * para saber se o mês foi bom ou se só ainda não venceu nada.
+   */
+  const recebido = soma(aReceber.filter((t) => t.situacao === 'pago'));
+  const pago = soma(aPagar.filter((t) => t.situacao === 'pago'));
+
+  const vencidosReceber = aReceber.filter((t) => t.situacao === 'vencido');
+  const vencidosPagar = aPagar.filter((t) => t.situacao === 'vencido');
+  const vencidos = vencidosReceber.length + vencidosPagar.length;
+
+  const venceHoje = ativos.filter((t) => t.situacao === 'vence_hoje');
+  const aVencer = ativos.filter((t) => t.situacao === 'a_vencer');
 
   return (
     <RelatorioShell
@@ -96,13 +117,74 @@ export default function RelatorioFinanceiro() {
       vazio="Nenhum título vence neste período."
       indicadores={
         <>
-          <Indicador rotulo="A receber" valor={moeda(receber)} tom="positivo" />
-          <Indicador rotulo="A pagar" valor={moeda(pagar)} tom="negativo" />
           <Indicador
-            rotulo="Resultado"
+            rotulo="A receber"
+            valor={moeda(receber)}
+            detalhe={`${aReceber.length} título(s)`}
+            tom="positivo"
+          />
+          <Indicador
+            rotulo="A pagar"
+            valor={moeda(pagar)}
+            detalhe={`${aPagar.length} título(s)`}
+            tom="negativo"
+          />
+          <Indicador
+            rotulo="Resultado previsto"
             valor={moeda(receber - pagar)}
-            detalhe={vencidos ? `${vencidos} título(s) vencido(s)` : 'Nenhum vencido'}
+            detalhe="Se tudo for pago e recebido"
             tom={receber - pagar >= 0 ? 'positivo' : 'negativo'}
+          />
+          <Indicador
+            rotulo="Resultado realizado"
+            valor={moeda(recebido - pago)}
+            detalhe="Só o que já entrou e saiu de verdade"
+            tom={recebido - pago >= 0 ? 'positivo' : 'negativo'}
+          />
+
+          <Indicador
+            rotulo="Já recebido"
+            valor={moeda(recebido)}
+            detalhe={receber > 0 ? `${((recebido / receber) * 100).toFixed(0)}% do previsto` : undefined}
+          />
+          <Indicador
+            rotulo="Já pago"
+            valor={moeda(pago)}
+            detalhe={pagar > 0 ? `${((pago / pagar) * 100).toFixed(0)}% do previsto` : undefined}
+          />
+          {/* Vencido separado por natureza: cliente que não pagou e conta que a
+              loja atrasou exigem ações opostas, e somados viram um número que
+              não diz o que fazer. */}
+          <Indicador
+            rotulo="Vencido a receber"
+            valor={moeda(soma(vencidosReceber))}
+            detalhe={
+              vencidosReceber.length > 0
+                ? `${vencidosReceber.length} cliente(s) em atraso`
+                : 'Ninguém devendo'
+            }
+            tom={vencidosReceber.length > 0 ? 'negativo' : 'positivo'}
+          />
+          <Indicador
+            rotulo="Vencido a pagar"
+            valor={moeda(soma(vencidosPagar))}
+            detalhe={
+              vencidosPagar.length > 0
+                ? `${vencidosPagar.length} conta(s) atrasada(s)`
+                : 'Nada atrasado'
+            }
+            tom={vencidosPagar.length > 0 ? 'negativo' : 'positivo'}
+          />
+          <Indicador
+            rotulo="Vence hoje"
+            valor={moeda(soma(venceHoje))}
+            detalhe={`${venceHoje.length} título(s)`}
+            tom={venceHoje.length > 0 ? 'alerta' : 'neutro'}
+          />
+          <Indicador
+            rotulo="Ainda a vencer"
+            valor={moeda(soma(aVencer))}
+            detalhe={`${aVencer.length} título(s), ${vencidos} vencido(s)`}
           />
         </>
       }
