@@ -67,14 +67,23 @@ export function useCatalogo(tipo: string) {
       const proximaOrdem =
         Math.max(0, ...(query.data ?? []).map((i) => i.ordem)) + 10;
 
-      const { error } = await db.from('catalogos').insert({
-        tenant_id: tenantId,
-        tipo,
-        descricao: descricao.trim(),
-        ordem: proximaOrdem,
-      });
+      // Devolve o item criado: quem cadastra no meio de um formulário (o campo
+      // de lista da Nova OS, por exemplo) precisa do id para já deixá-lo
+      // escolhido, sem obrigar a pessoa a procurar de novo o que acabou de
+      // digitar.
+      const { data, error } = await db
+        .from('catalogos')
+        .insert({
+          tenant_id: tenantId,
+          tipo,
+          descricao: descricao.trim(),
+          ordem: proximaOrdem,
+        })
+        .select('*')
+        .single();
 
       if (error) throw error;
+      return data as CatalogoItem;
     },
     onSuccess: invalidar,
     onError: aoFalhar,

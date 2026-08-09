@@ -11,6 +11,7 @@ import { useOsStatuses } from '@/hooks/useOsStatuses';
 import { PageHeader, Vazio } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { SenhaPadraoLeitura } from '@/components/os/SenhaPadrao';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -108,14 +109,21 @@ interface OSCompleta {
   prioridade: keyof typeof OS_PRIORITY;
   marca: string | null;
   modelo: string | null;
+  cor: string | null;
+  memoria: string | null;
   numero_serie: string | null;
   defeito_cliente: string;
   observacoes: string | null;
+  anotacoes_checkin: string | null;
+  senha_aparelho: string | null;
+  senha_padrao: string | null;
   total_orcamento: number;
   valor_final_pago: number | null;
   data_finalizacao: string | null;
   created_at: string;
   clientes: { nome: string; telefones: string[] } | null;
+  /** Marcações do check-in, com o item de catálogo que cada uma representa. */
+  os_checklist: { catalogo_id: string; catalogos: { descricao: string; tipo: string } | null }[];
 }
 
 export default function OSDetalhe() {
@@ -345,7 +353,7 @@ export default function OSDetalhe() {
       const { data, error } = await supabase
         .from('service_orders')
         .select(
-          'id, numero_os, status, tipo, prioridade, marca, modelo, numero_serie, defeito_cliente, observacoes, total_orcamento, valor_final_pago, data_finalizacao, created_at, clientes(nome, telefones)'
+          'id, numero_os, status, tipo, prioridade, marca, modelo, cor, memoria, numero_serie, defeito_cliente, observacoes, anotacoes_checkin, senha_aparelho, senha_padrao, total_orcamento, valor_final_pago, data_finalizacao, created_at, clientes(nome, telefones), os_checklist(catalogo_id, catalogos(descricao, tipo))'
         )
         .eq('id', id)
         .maybeSingle();
@@ -441,9 +449,25 @@ export default function OSDetalhe() {
             <p className="font-medium">
               {[os.marca, os.modelo].filter(Boolean).join(' ') || '—'}
             </p>
+            {(os.cor || os.memoria) && (
+              <p className="text-muted-foreground">
+                {[os.cor, os.memoria].filter(Boolean).join(' · ')}
+              </p>
+            )}
             <p className="text-muted-foreground">
               {os.numero_serie ? `Nº série/IMEI: ${os.numero_serie}` : 'Sem nº de série informado'}
             </p>
+            {(os.senha_aparelho || os.senha_padrao) && (
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                {os.senha_aparelho && (
+                  <span>
+                    <span className="text-muted-foreground">Senha: </span>
+                    <code className="rounded bg-muted px-1.5 py-0.5">{os.senha_aparelho}</code>
+                  </span>
+                )}
+                {os.senha_padrao && <SenhaPadraoLeitura valor={os.senha_padrao} />}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -453,11 +477,52 @@ export default function OSDetalhe() {
           </CardHeader>
           <CardContent className="text-sm">
             <p>{os.defeito_cliente}</p>
+            {os.anotacoes_checkin && (
+              <p className="mt-2 whitespace-pre-wrap">{os.anotacoes_checkin}</p>
+            )}
             {os.observacoes && (
-              <p className="mt-2 text-muted-foreground">{os.observacoes}</p>
+              <p className="mt-2 whitespace-pre-wrap text-muted-foreground">
+                <span className="font-medium">Interno: </span>
+                {os.observacoes}
+              </p>
             )}
           </CardContent>
         </Card>
+
+        {/* Check-in: o que foi marcado na entrada. Sem isto, a marcação seria
+            dado gravado que ninguém vê — e é justamente o que a loja mostra ao
+            cliente quando ele volta dizendo que deixou uma fonte junto. */}
+        {os.os_checklist?.length > 0 && (
+          <Card className="sm:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-base">Check-in do aparelho</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-3">
+              {[
+                { tipo: 'checklist_defeito', titulo: 'Sintomas relatados' },
+                { tipo: 'acessorio_entrada', titulo: 'Itens que vieram junto' },
+                { tipo: 'condicao_entrada', titulo: 'Estado na entrada' },
+              ].map((bloco) => {
+                const itens = os.os_checklist.filter((c) => c.catalogos?.tipo === bloco.tipo);
+                if (itens.length === 0) return null;
+                return (
+                  <div key={bloco.tipo}>
+                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {bloco.titulo}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {itens.map((c) => (
+                        <Badge key={c.catalogo_id} variant="secondary">
+                          {c.catalogos?.descricao}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="sm:col-span-2">
           <CardHeader>

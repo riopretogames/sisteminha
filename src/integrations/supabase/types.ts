@@ -966,6 +966,52 @@ export type Database = {
           },
         ]
       }
+      os_checklist: {
+        Row: {
+          catalogo_id: string
+          created_at: string
+          observacao: string | null
+          os_id: string
+          tenant_id: string
+        }
+        Insert: {
+          catalogo_id: string
+          created_at?: string
+          observacao?: string | null
+          os_id: string
+          tenant_id: string
+        }
+        Update: {
+          catalogo_id?: string
+          created_at?: string
+          observacao?: string | null
+          os_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "os_checklist_catalogo_id_fkey"
+            columns: ["catalogo_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_checklist_os_id_fkey"
+            columns: ["os_id"]
+            isOneToOne: false
+            referencedRelation: "service_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_checklist_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       os_status_config: {
         Row: {
           ativo: boolean | null
@@ -1335,19 +1381,25 @@ export type Database = {
       service_orders: {
         Row: {
           acessorios_deixados: Json | null
+          anotacoes_checkin: string | null
           cliente_id: string
           condicao_entrada: string | null
           constatacao_tecnica: string | null
           cor: string | null
+          cor_id: string | null
           created_at: string | null
           data_finalizacao: string | null
           defeito_cliente: string
           diagnostico_tecnico: string | null
+          equipamento_id: string | null
           garantia_meses: number
           id: string
           marca: string | null
+          marca_id: string | null
           memoria: string | null
+          memoria_id: string | null
           modelo: string | null
+          modelo_id: string | null
           numero_os: string
           numero_serie: string | null
           observacoes: string | null
@@ -1356,6 +1408,7 @@ export type Database = {
           reparo_inviavel: boolean
           risco_informado_em: string | null
           senha_aparelho: string | null
+          senha_padrao: string | null
           status: string | null
           suspeita_tecnica: string | null
           tecnico_id: string | null
@@ -1366,22 +1419,29 @@ export type Database = {
           total_pecas: number | null
           updated_at: string | null
           valor_final_pago: number | null
+          vendedor_id: string | null
         }
         Insert: {
           acessorios_deixados?: Json | null
+          anotacoes_checkin?: string | null
           cliente_id: string
           condicao_entrada?: string | null
           constatacao_tecnica?: string | null
           cor?: string | null
+          cor_id?: string | null
           created_at?: string | null
           data_finalizacao?: string | null
           defeito_cliente: string
           diagnostico_tecnico?: string | null
+          equipamento_id?: string | null
           garantia_meses?: number
           id?: string
           marca?: string | null
+          marca_id?: string | null
           memoria?: string | null
+          memoria_id?: string | null
           modelo?: string | null
+          modelo_id?: string | null
           numero_os: string
           numero_serie?: string | null
           observacoes?: string | null
@@ -1390,6 +1450,7 @@ export type Database = {
           reparo_inviavel?: boolean
           risco_informado_em?: string | null
           senha_aparelho?: string | null
+          senha_padrao?: string | null
           status?: string | null
           suspeita_tecnica?: string | null
           tecnico_id?: string | null
@@ -1400,22 +1461,29 @@ export type Database = {
           total_pecas?: number | null
           updated_at?: string | null
           valor_final_pago?: number | null
+          vendedor_id?: string | null
         }
         Update: {
           acessorios_deixados?: Json | null
+          anotacoes_checkin?: string | null
           cliente_id?: string
           condicao_entrada?: string | null
           constatacao_tecnica?: string | null
           cor?: string | null
+          cor_id?: string | null
           created_at?: string | null
           data_finalizacao?: string | null
           defeito_cliente?: string
           diagnostico_tecnico?: string | null
+          equipamento_id?: string | null
           garantia_meses?: number
           id?: string
           marca?: string | null
+          marca_id?: string | null
           memoria?: string | null
+          memoria_id?: string | null
           modelo?: string | null
+          modelo_id?: string | null
           numero_os?: string
           numero_serie?: string | null
           observacoes?: string | null
@@ -1424,6 +1492,7 @@ export type Database = {
           reparo_inviavel?: boolean
           risco_informado_em?: string | null
           senha_aparelho?: string | null
+          senha_padrao?: string | null
           status?: string | null
           suspeita_tecnica?: string | null
           tecnico_id?: string | null
@@ -1434,6 +1503,7 @@ export type Database = {
           total_pecas?: number | null
           updated_at?: string | null
           valor_final_pago?: number | null
+          vendedor_id?: string | null
         }
         Relationships: [
           {
@@ -1444,10 +1514,52 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "service_orders_cor_id_fkey"
+            columns: ["cor_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_orders_equipamento_id_fkey"
+            columns: ["equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_orders_marca_id_fkey"
+            columns: ["marca_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_orders_memoria_id_fkey"
+            columns: ["memoria_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_orders_modelo_id_fkey"
+            columns: ["modelo_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "service_orders_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_orders_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
