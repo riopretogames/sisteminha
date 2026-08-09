@@ -19,7 +19,8 @@ import { supabase } from './client';
  *
  *   1. Aplique as migrations no Supabase
  *        supabase db push
- *      (ou deixe o Lovable aplicar ao sincronizar o projeto)
+ *      (hoje elas são coladas à mão no SQL Editor, porque o CLI ainda não
+ *       está autenticado — falta rodar `npx supabase login` uma vez)
  *
  *   2. Regenere os tipos
  *        supabase gen types typescript --project-id <id> > src/integrations/supabase/types.ts
