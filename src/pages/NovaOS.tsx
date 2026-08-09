@@ -81,6 +81,9 @@ const FORM_VAZIO = {
   observacoes: '',
   tecnico_id: '',
   vendedor_id: '',
+  // Prazo do laudo: 3 dias. Regra da loja (09/08) - a OS nasce com ele
+  // preenchido, e o atendente troca por "reparo avançado" ou por uma data
+  // livre quando for o caso.
   prazo_previsto: '',
   // Padrão da loja. Decisão do Felipe em 09/08.
   garantia_dias: '90',
@@ -107,6 +110,31 @@ const GARANTIAS = [
   { dias: '365', label: '1 ano' },
 ];
 
+/**
+ * Tipo de reparo — atalho que preenche o prazo prometido.
+ *
+ * Regra da loja, ditada pelo Felipe em 09/08: toda OS nasce com **3 dias**,
+ * que é o prazo para dar o laudo ao cliente. Passou disso sem laudo, a OS entra
+ * na lista de atrasadas. Reparo avançado (microsoldagem, placa, o que depende
+ * de peça) leva **30 dias**.
+ *
+ * São atalhos, não regras fechadas: a data continua editável logo abaixo,
+ * porque sempre existe o caso que não cabe em nenhuma das duas caixas.
+ */
+const TIPOS_DE_REPARO = [
+  { id: 'simples', label: 'Reparo simples', dias: 3, hint: '3 dias para o laudo' },
+  { id: 'avancado', label: 'Reparo avançado', dias: 30, hint: '30 dias de retorno' },
+] as const;
+
+/** Data de hoje + N dias, em 'YYYY-MM-DD' e no fuso local. */
+function prazoEmDias(dias: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + dias);
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const dia = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mes}-${dia}`;
+}
+
 export default function NovaOS() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -120,7 +148,13 @@ export default function NovaOS() {
   const [clienteBusca, setClienteBusca] = useState('');
   const [novoClienteAberto, setNovoClienteAberto] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState(FORM_VAZIO);
+  // Nasce com o prazo do laudo já preenchido (3 dias). Calculado aqui e não na
+  // constante porque a data de hoje muda: constante de módulo congelaria o
+  // valor de quando a página foi carregada pela primeira vez.
+  const [form, setForm] = useState(() => ({
+    ...FORM_VAZIO,
+    prazo_previsto: prazoEmDias(TIPOS_DE_REPARO[0].dias),
+  }));
 
   // Os três blocos do check-in, cada um guardando ids do catálogo.
   const [defeitos, setDefeitos] = useState<string[]>([]);
@@ -617,8 +651,24 @@ export default function NovaOS() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="prazo">Prazo prometido</Label>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Prazo prometido</Label>
+              <div className="flex flex-wrap gap-2">
+                {TIPOS_DE_REPARO.map((tipo) => {
+                  const escolhido = form.prazo_previsto === prazoEmDias(tipo.dias);
+                  return (
+                    <Button
+                      key={tipo.id}
+                      type="button"
+                      variant={escolhido ? 'default' : 'outline'}
+                      onClick={() => alterar('prazo_previsto', prazoEmDias(tipo.dias))}
+                    >
+                      {tipo.label}
+                      <span className="ml-2 text-xs opacity-80">({tipo.hint})</span>
+                    </Button>
+                  );
+                })}
+              </div>
               <Input
                 id="prazo"
                 type="date"
@@ -626,7 +676,9 @@ export default function NovaOS() {
                 onChange={(e) => alterar('prazo_previsto', e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                A data combinada com o cliente. Sai no laudo.
+                Toda OS nasce com 3 dias — o prazo para dar o laudo ao cliente. Passou disso sem
+                laudo, ela entra na lista de atrasadas. Os botões são atalhos: a data continua
+                livre para o caso que não cabe em nenhum dos dois.
               </p>
             </div>
 

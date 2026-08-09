@@ -10,6 +10,7 @@ import { PERMISSIONS } from '@/config/permissions';
 import { PageHeader, Vazio } from '@/components/PageHeader';
 import { supabase } from '@/integrations/supabase/client';
 import { mascaraCpfCnpj, mascaraTelefone, mascaraCep } from '@/lib/documento';
+import { UploadLogo } from '@/components/UploadLogo';
 
 /**
  * Minha Empresa — dados cadastrais do próprio tenant (uma linha por loja).
@@ -357,25 +358,15 @@ export default function MinhaEmpresa() {
               </div>
 
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="logo_url">URL do logo</Label>
-                {podeEditar ? (
-                  <Input
-                    id="logo_url"
-                    value={formData.logo_url}
-                    onChange={e => setFormData({ ...formData, logo_url: e.target.value })}
-                    placeholder="https://.../logo.png"
-                  />
-                ) : (
-                  <p className="text-sm text-muted-foreground">{formData.logo_url || '—'}</p>
-                )}
-                {formData.logo_url && !logoError && (
-                  <img
-                    src={formData.logo_url}
-                    alt="Prévia do logo da loja"
-                    className="h-20 max-w-[200px] rounded border object-contain p-2"
-                    onError={() => setLogoError(true)}
-                  />
-                )}
+                {/* Anexar arquivo, não colar endereço: pedir "URL do logo" só
+                    funciona para quem já tem a imagem publicada em algum lugar
+                    da internet. Quem tem loja tem o arquivo no computador. */}
+                <UploadLogo
+                  tenantId={user?.profile?.tenant_id ?? null}
+                  valor={formData.logo_url}
+                  onChange={(url) => setFormData({ ...formData, logo_url: url })}
+                  podeEditar={podeEditar}
+                />
               </div>
             </div>
 
