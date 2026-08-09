@@ -152,6 +152,42 @@ export default function VendasPagamentos() {
     totaisPorForma.has(forma),
   );
 
+  const de = (forma: FormaPagamento) => totaisPorForma.get(forma) ?? 0;
+
+  /**
+   * Os números que a conferência de caixa realmente usa.
+   *
+   * A tela mostrava só o total por forma. Isso responde "quanto entrou em PIX",
+   * mas quem fecha o caixa precisa de três montes separados, porque cada um
+   * confere contra um lugar diferente:
+   *
+   *   dinheiro  → a gaveta, contada na mão
+   *   cartões   → o extrato da maquininha
+   *   PIX       → o extrato do banco
+   *
+   * Somar tudo num número só obriga a pessoa a refazer a conta no papel.
+   */
+  const total = linhas.reduce((soma, l) => soma + l.valor, 0);
+  const emEspecie = de('dinheiro');
+  const emCartao = de('cartao_credito') + de('cartao_debito');
+  const emPix = de('pix');
+  // Boleto, crediário e vale-troca não entram em nenhum dos três montes: não
+  // caem na gaveta hoje nem aparecem no extrato do dia.
+  const aPrazo = de('boleto') + de('crediario') + de('vale_troca');
+
+  const vendasDistintas = new Set(linhas.map((l) => l.vendaId)).size;
+  const parcelados = linhas.filter((l) => (l.parcelas ?? 1) > 1);
+  const valorParcelado = parcelados.reduce((soma, l) => soma + l.valor, 0);
+
+  // Média por dia usa os dias do PERÍODO escolhido, não os dias com venda:
+  // dividir só pelos dias que venderam esconde justamente os dias parados.
+  const diasNoPeriodo = Math.max(
+    1,
+    Math.round(
+      (new Date(periodo.ate).getTime() - new Date(periodo.de).getTime()) / 86_400_000
+    ) + 1
+  );
+
   return (
     <RelatorioShell
       titulo="Vendas — Pagamentos"
@@ -165,6 +201,50 @@ export default function VendasPagamentos() {
       vazio="Nenhum pagamento recebido neste período."
       indicadores={
         <>
+          <Indicador
+            rotulo="Total recebido"
+            valor={moeda(total)}
+            detalhe={`${linhas.length} pagamento${linhas.length === 1 ? '' : 's'} em ${vendasDistintas} venda${vendasDistintas === 1 ? '' : 's'}`}
+            tom="positivo"
+          />
+          <Indicador
+            rotulo="Dinheiro na gaveta"
+            valor={moeda(emEspecie)}
+            detalhe="Confere contando a gaveta"
+            tom={emEspecie > 0 ? 'alerta' : 'neutro'}
+          />
+          <Indicador
+            rotulo="Cartões"
+            valor={moeda(emCartao)}
+            detalhe="Confere com a maquininha"
+          />
+          <Indicador rotulo="PIX" valor={moeda(emPix)} detalhe="Confere com o extrato" />
+
+          <Indicador
+            rotulo="Ticket médio"
+            valor={moeda(vendasDistintas ? total / vendasDistintas : 0)}
+            detalhe="Por venda, não por pagamento"
+          />
+          <Indicador
+            rotulo="Média por dia"
+            valor={moeda(total / diasNoPeriodo)}
+            detalhe={`${diasNoPeriodo} dia${diasNoPeriodo === 1 ? '' : 's'} no período`}
+          />
+          <Indicador
+            rotulo="Parcelado"
+            valor={moeda(valorParcelado)}
+            detalhe={`${parcelados.length} pagamento${parcelados.length === 1 ? '' : 's'} em mais de 1x`}
+          />
+          {aPrazo > 0 && (
+            <Indicador
+              rotulo="A prazo"
+              valor={moeda(aPrazo)}
+              detalhe="Boleto, crediário e vale — não entra no caixa de hoje"
+              tom="alerta"
+            />
+          )}
+
+          {/* Detalhe por forma: é o que bate linha a linha com cada extrato. */}
           {formasComMovimento.map((forma) => (
             <Indicador
               key={forma}

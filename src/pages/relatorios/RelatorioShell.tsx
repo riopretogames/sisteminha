@@ -155,7 +155,12 @@ export function RelatorioShell<T>({
         </div>
       )}
 
-      {indicadores && <div className="mb-6 grid gap-3 sm:grid-cols-3">{indicadores}</div>}
+      {/* 4 colunas em tela grande: a conferência de caixa passou a ter oito ou
+          mais indicadores, e em 3 colunas eles empurravam a tabela para baixo
+          da dobra — quem confere caixa precisa dos dois na mesma tela. */}
+      {indicadores && (
+        <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{indicadores}</div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center py-16">
