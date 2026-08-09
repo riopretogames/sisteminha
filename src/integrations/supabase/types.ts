@@ -1392,6 +1392,7 @@ export type Database = {
           defeito_cliente: string
           diagnostico_tecnico: string | null
           equipamento_id: string | null
+          garantia_dias: number
           garantia_meses: number
           id: string
           marca: string | null
@@ -1434,6 +1435,7 @@ export type Database = {
           defeito_cliente: string
           diagnostico_tecnico?: string | null
           equipamento_id?: string | null
+          garantia_dias?: number
           garantia_meses?: number
           id?: string
           marca?: string | null
@@ -1476,6 +1478,7 @@ export type Database = {
           defeito_cliente?: string
           diagnostico_tecnico?: string | null
           equipamento_id?: string | null
+          garantia_dias?: number
           garantia_meses?: number
           id?: string
           marca?: string | null

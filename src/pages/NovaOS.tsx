@@ -80,9 +80,31 @@ const FORM_VAZIO = {
   observacoes: '',
   tecnico_id: '',
   vendedor_id: '',
+  prazo_previsto: '',
+  // Padrão da loja. Decisão do Felipe em 09/08.
+  garantia_dias: '90',
   prioridade: 'normal' as OsPrioridade,
   tipo: 'paga' as OsTipo,
 };
+
+/**
+ * Prazos de garantia que a loja pratica.
+ *
+ * Esta é uma lista fixa de propósito, contrariando a regra geral de "campo que
+ * a loja cadastra vem de Listas do Sistema" — e vale explicar por quê: o valor
+ * aqui é CONTA, não texto. Vai virar data de vencimento quando os status da
+ * assistência entrarem. Numa lista editável, alguém cadastraria "três meses" ou
+ * "1 ano e meio" e o cálculo quebraria sem aviso.
+ *
+ * "Outro" resolve o caso raro sem travar o balcão: digita os dias e pronto.
+ */
+const GARANTIAS = [
+  { dias: '30', label: '30 dias' },
+  { dias: '60', label: '60 dias' },
+  { dias: '90', label: '90 dias (padrão da loja)' },
+  { dias: '180', label: '180 dias' },
+  { dias: '365', label: '1 ano' },
+];
 
 export default function NovaOS() {
   const navigate = useNavigate();
@@ -230,6 +252,10 @@ export default function NovaOS() {
             observacoes: form.observacoes.trim() || null,
             tecnico_id: form.tecnico_id || null,
             vendedor_id: form.vendedor_id || null,
+            prazo_previsto: form.prazo_previsto || null,
+            // Sem automação nenhuma por enquanto: só guarda o prazo prometido.
+            // A contagem a partir da retirada entra junto com os status.
+            garantia_dias: Number(form.garantia_dias) || 90,
             prioridade: form.prioridade,
             tipo: form.tipo,
             status: 'recebido' as const,
@@ -588,6 +614,53 @@ export default function NovaOS() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="prazo">Prazo prometido</Label>
+              <Input
+                id="prazo"
+                type="date"
+                value={form.prazo_previsto}
+                onChange={(e) => alterar('prazo_previsto', e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                A data combinada com o cliente. Sai no laudo.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="garantia">Garantia</Label>
+              <Select
+                value={
+                  GARANTIAS.some((g) => g.dias === form.garantia_dias)
+                    ? form.garantia_dias
+                    : 'outro'
+                }
+                onValueChange={(v) => alterar('garantia_dias', v === 'outro' ? '' : v)}
+              >
+                <SelectTrigger id="garantia">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GARANTIAS.map((g) => (
+                    <SelectItem key={g.dias} value={g.dias}>
+                      {g.label}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="outro">Outro prazo...</SelectItem>
+                </SelectContent>
+              </Select>
+              {!GARANTIAS.some((g) => g.dias === form.garantia_dias) && (
+                <Input
+                  type="number"
+                  min={0}
+                  value={form.garantia_dias}
+                  onChange={(e) => alterar('garantia_dias', e.target.value)}
+                  placeholder="Quantos dias de garantia"
+                  autoFocus
+                />
+              )}
             </div>
 
             <div className="space-y-2">

@@ -5,7 +5,7 @@ import { ArrowLeft, Loader2, Plus, Save, Trash2, Wrench, Package } from 'lucide-
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
-import { moeda, dataHora } from '@/lib/format';
+import { moeda, dataHora, data as formatarData } from '@/lib/format';
 import { OS_PRIORITY } from '@/lib/constants';
 import { useOsStatuses } from '@/hooks/useOsStatuses';
 import { PageHeader, Vazio } from '@/components/PageHeader';
@@ -117,6 +117,8 @@ interface OSCompleta {
   anotacoes_checkin: string | null;
   senha_aparelho: string | null;
   senha_padrao: string | null;
+  prazo_previsto: string | null;
+  garantia_dias: number | null;
   total_orcamento: number;
   valor_final_pago: number | null;
   data_finalizacao: string | null;
@@ -353,7 +355,7 @@ export default function OSDetalhe() {
       const { data, error } = await supabase
         .from('service_orders')
         .select(
-          'id, numero_os, status, tipo, prioridade, marca, modelo, cor, memoria, numero_serie, defeito_cliente, observacoes, anotacoes_checkin, senha_aparelho, senha_padrao, total_orcamento, valor_final_pago, data_finalizacao, created_at, clientes(nome, telefones), os_checklist(catalogo_id, catalogos(descricao, tipo))'
+          'id, numero_os, status, tipo, prioridade, marca, modelo, cor, memoria, numero_serie, defeito_cliente, observacoes, anotacoes_checkin, senha_aparelho, senha_padrao, prazo_previsto, garantia_dias, total_orcamento, valor_final_pago, data_finalizacao, created_at, clientes(nome, telefones), os_checklist(catalogo_id, catalogos(descricao, tipo))'
         )
         .eq('id', id)
         .maybeSingle();
@@ -457,6 +459,18 @@ export default function OSDetalhe() {
             <p className="text-muted-foreground">
               {os.numero_serie ? `Nº série/IMEI: ${os.numero_serie}` : 'Sem nº de série informado'}
             </p>
+            {/* Prazo e garantia: é o que o cliente cobra no balcão, então tem
+                que estar visível sem precisar abrir o laudo. */}
+            <div className="flex flex-wrap gap-x-6 gap-y-1 pt-2">
+              <span>
+                <span className="text-muted-foreground">Prazo prometido: </span>
+                {os.prazo_previsto ? formatarData(os.prazo_previsto) : 'não combinado'}
+              </span>
+              <span>
+                <span className="text-muted-foreground">Garantia: </span>
+                {os.garantia_dias ? `${os.garantia_dias} dias` : '—'}
+              </span>
+            </div>
             {(os.senha_aparelho || os.senha_padrao) && (
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 {os.senha_aparelho && (
