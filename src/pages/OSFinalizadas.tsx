@@ -1,12 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { moeda, dataHora } from '@/lib/format';
+import { soDigitos } from '@/lib/documento';
 import { useOsStatuses } from '@/hooks/useOsStatuses';
 import { PageHeader, Indicador, Vazio } from '@/components/PageHeader';
-import { Input } from '@/components/ui/input';
+import { FiltrosOS } from '@/components/os/FiltrosOS';
+import {
+  FILTROS_OS_VAZIO,
+  aplicarFiltrosOS,
+  type FiltrosOSValores,
+} from '@/lib/filtrosOS';
 import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -17,6 +22,10 @@ import {
  * O Kanban mostra só o fluxo ativo (por isso `mainStatuses` em
  * OrdensServico.tsx nem lista essas duas); aqui é pra consultar o que já
  * terminou, sem precisar rolar o quadro inteiro pra achar.
+ *
+ * Ganhou o painel de filtros em 09/08: consultar OS antiga por um campo de
+ * busca só funciona pra quem já sabe o número. Quem liga perguntando "e o meu
+ * console?" traz telefone, marca ou data — não o número da OS.
  */
 
 interface OSFinalizada {
@@ -25,16 +34,21 @@ interface OSFinalizada {
   status: string;
   modelo: string | null;
   marca: string | null;
+  numero_serie: string | null;
+  equipamento_id: string | null;
+  marca_id: string | null;
+  modelo_id: string | null;
+  tecnico_id: string | null;
   valor_final_pago: number | null;
   data_finalizacao: string | null;
   created_at: string;
-  clientes: { nome: string } | null;
+  clientes: { nome: string; telefones: string[] | null } | null;
 }
 
 export default function OSFinalizadas() {
   const navigate = useNavigate();
   const { getStatusConfig } = useOsStatuses();
-  const [busca, setBusca] = useState('');
+  const [filtros, setFiltros] = useState<FiltrosOSValores>(FILTROS_OS_VAZIO);
 
   const { data, isLoading } = useQuery({
     queryKey: ['os-finalizadas'],
@@ -42,58 +56,64 @@ export default function OSFinalizadas() {
       const { data, error } = await supabase
         .from('service_orders')
         .select(
-          'id, numero_os, status, modelo, marca, valor_final_pago, data_finalizacao, created_at, clientes(nome)'
+          'id, numero_os, status, modelo, marca, numero_serie, equipamento_id, marca_id, modelo_id, tecnico_id, valor_final_pago, data_finalizacao, created_at, clientes(nome, telefones)'
         )
         .in('status', ['entregue', 'cancelado'])
         .order('data_finalizacao', { ascending: false, nullsFirst: false })
-        .limit(200);
+        .limit(500);
       if (error) throw error;
       return (data ?? []) as unknown as OSFinalizada[];
     },
   });
 
-  const os = data ?? [];
-  const buscaLower = busca.toLowerCase();
-  const filtradas = os.filter(
-    (o) =>
-      o.numero_os.toLowerCase().includes(buscaLower) ||
-      (o.clientes?.nome ?? '').toLowerCase().includes(buscaLower) ||
-      (o.modelo ?? '').toLowerCase().includes(buscaLower)
-  );
+  const { data: tecnicos } = useQuery({
+    queryKey: ['profiles-ativos'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, nome')
+        .eq('ativo', true)
+        .order('nome');
+      return data ?? [];
+    },
+  });
 
-  const entregues = os.filter((o) => o.status === 'entregue');
+  const os = data ?? [];
+  const filtradas = aplicarFiltrosOS(os, filtros, soDigitos);
+
+  // Os indicadores acompanham o filtro: mostrar o total geral enquanto a lista
+  // está recortada faria a pessoa somar coisas que não estão na tela.
+  const entregues = filtradas.filter((o) => o.status === 'entregue');
+  const canceladas = filtradas.filter((o) => o.status === 'cancelado');
   const receita = entregues.reduce((acc, o) => acc + Number(o.valor_final_pago ?? 0), 0);
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-6xl">
       <PageHeader
         titulo="OS Finalizadas"
         hint="Ordens de serviço entregues ou canceladas. Clique numa linha para ver o detalhe completo."
       />
 
+      <FiltrosOS
+        valores={filtros}
+        onChange={setFiltros}
+        tecnicos={tecnicos ?? []}
+        resultados={filtradas.length}
+      />
+
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
         <Indicador rotulo="Entregues" valor={String(entregues.length)} tom="positivo" />
-        <Indicador
-          rotulo="Canceladas"
-          valor={String(os.filter((o) => o.status === 'cancelado').length)}
-        />
+        <Indicador rotulo="Canceladas" valor={String(canceladas.length)} tom="negativo" />
         <Indicador rotulo="Receita de OS entregues" valor={moeda(receita)} />
-      </div>
-
-      <div className="relative mb-4 max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por OS, cliente ou modelo…"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          className="pl-9"
-        />
       </div>
 
       {isLoading ? (
         <div className="py-16 text-center text-muted-foreground">Carregando…</div>
       ) : filtradas.length === 0 ? (
-        <Vazio titulo="Nenhuma OS finalizada encontrada" />
+        <Vazio
+          titulo="Nenhuma OS finalizada encontrada"
+          descricao="Tente limpar o filtro ou alargar o período."
+        />
       ) : (
         <div className="rounded-lg border">
           <Table>

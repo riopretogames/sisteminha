@@ -1,10 +1,18 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, X, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
-import { moeda, dataHora, diasAte } from '@/lib/format';
+import { moeda, diasAte } from '@/lib/format';
+import { soDigitos } from '@/lib/documento';
+import { FiltrosOS } from '@/components/os/FiltrosOS';
+import {
+  FILTROS_OS_VAZIO,
+  aplicarFiltrosOS,
+  type FiltrosOSValores,
+} from '@/lib/filtrosOS';
 import { OS_PRIORITY } from '@/lib/constants';
 import { PageHeader, Indicador, Vazio } from '@/components/PageHeader';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +36,11 @@ interface OSOrcamento {
   prioridade: keyof typeof OS_PRIORITY;
   total_orcamento: number;
   created_at: string;
+  numero_serie: string | null;
+  equipamento_id: string | null;
+  marca_id: string | null;
+  modelo_id: string | null;
+  tecnico_id: string | null;
   clientes: { nome: string; telefones: string[] } | null;
 }
 
@@ -37,17 +50,32 @@ export default function OSOrcamentos() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const podeEditar = can(PERMISSIONS.ORDERS_EDIT);
+  const [filtros, setFiltros] = useState<FiltrosOSValores>(FILTROS_OS_VAZIO);
 
   const { data, isLoading } = useQuery({
     queryKey: ['os-orcamentos'],
     queryFn: async (): Promise<OSOrcamento[]> => {
       const { data, error } = await supabase
         .from('service_orders')
-        .select('id, numero_os, modelo, marca, prioridade, total_orcamento, created_at, clientes(nome, telefones)')
+        .select(
+          'id, numero_os, modelo, marca, prioridade, total_orcamento, created_at, numero_serie, equipamento_id, marca_id, modelo_id, tecnico_id, clientes(nome, telefones)'
+        )
         .eq('status', 'aguardando_aprovacao')
         .order('created_at', { ascending: true });
       if (error) throw error;
       return (data ?? []) as unknown as OSOrcamento[];
+    },
+  });
+
+  const { data: tecnicos } = useQuery({
+    queryKey: ['profiles-ativos'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, nome')
+        .eq('ativo', true)
+        .order('nome');
+      return data ?? [];
     },
   });
 
@@ -73,7 +101,7 @@ export default function OSOrcamentos() {
     }
   };
 
-  const orcamentos = data ?? [];
+  const orcamentos = aplicarFiltrosOS(data ?? [], filtros, soDigitos);
   const valorTotal = orcamentos.reduce((acc, o) => acc + Number(o.total_orcamento), 0);
   const semValor = orcamentos.filter((o) => Number(o.total_orcamento) <= 0).length;
 
@@ -82,6 +110,13 @@ export default function OSOrcamentos() {
       <PageHeader
         titulo="OS Orçamentos"
         hint="Ordens de serviço aguardando o cliente aprovar o valor do reparo, da mais antiga para a mais recente."
+      />
+
+      <FiltrosOS
+        valores={filtros}
+        onChange={setFiltros}
+        tecnicos={tecnicos ?? []}
+        resultados={orcamentos.length}
       />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
@@ -142,12 +177,17 @@ export default function OSOrcamentos() {
                     </TableCell>
                     {podeEditar && (
                       <TableCell>
-                        <div className="flex gap-1">
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600" onClick={() => decidir(o.id, true)} title="Aprovar">
-                            <Check className="h-4 w-4" />
+                        {/* Cor por tipo de ação (ver `lib/acoes.ts`): aprovar
+                            é sempre verde, recusar é sempre vermelho. Botão
+                            cheio, não fantasma — são as duas ações da tela. */}
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="sucesso" onClick={() => decidir(o.id, true)}>
+                            <Check className="mr-1 h-4 w-4" />
+                            Aprovar
                           </Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" onClick={() => decidir(o.id, false)} title="Recusar">
-                            <X className="h-4 w-4" />
+                          <Button size="sm" variant="destructive" onClick={() => decidir(o.id, false)}>
+                            <X className="mr-1 h-4 w-4" />
+                            Recusar
                           </Button>
                         </div>
                       </TableCell>
