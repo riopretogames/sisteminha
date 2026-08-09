@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus,
@@ -6,16 +6,14 @@ import {
   MoreHorizontal,
   Phone,
   Mail,
-  Crown,
-  Heart,
-  AlertTriangle,
+  Ban,
   Edit,
   Trash2,
   Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -31,284 +29,153 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
+import { PageHeader, Vazio } from '@/components/PageHeader';
+import { ClienteFormDialog } from '@/components/clientes/ClienteFormDialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
-import { CLIENTE_TAGS, CLIENTE_ORIGEM } from '@/lib/constants';
+import { useCatalogo } from '@/hooks/useCatalogos';
+import { useClientes, type Cliente } from '@/hooks/useClientes';
+import { PERMISSIONS } from '@/config/permissions';
+import { CLIENTE_ORIGEM } from '@/lib/constants';
+import { soDigitos } from '@/lib/documento';
+import { corDaEtiqueta } from '@/lib/cores';
 
-interface Cliente {
-  id: string;
-  nome: string;
-  cpf_cnpj: string | null;
-  email: string | null;
-  telefones: string[];
-  tags: string[];
-  origem: string;
-  created_at: string;
-}
+/**
+ * Lista de clientes.
+ *
+ * O cadastro em si mora em `components/clientes/ClienteFormDialog` — a ficha
+ * do cliente reaproveita o mesmo formulário, e manter uma cópia em cada lugar
+ * garantiria que uma das duas ficasse para trás.
+ */
 
 export default function Clientes() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { can } = useAuth();
+  const { clientes, carregando, inativar } = useClientes();
+  const origens = useCatalogo('origem_cliente');
+  const marcacoes = useCatalogo('tag_cliente');
+
+  // Mesma chave que a policy de INSERT/UPDATE em `clientes` exige. Antes esta
+  // tela mostrava os botões para todo mundo e deixava o banco recusar com erro
+  // cru — era a única tela de cadastro sem checagem nenhuma.
+  const podeGerenciar = can(PERMISSIONS.REGISTRY_CUSTOMERS_MANAGE);
+
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
-  const [formData, setFormData] = useState({
-    nome: '',
-    cpf_cnpj: '',
-    email: '',
-    telefone: '',
-    origem: 'loja' as string,
-    observacoes: '',
-  });
-  const [saving, setSaving] = useState(false);
+  const [editando, setEditando] = useState<Cliente | null>(null);
 
-  useEffect(() => {
-    fetchClientes();
-  }, []);
+  const origemPorId = useMemo(() => {
+    const mapa = new Map<string, string>();
+    (origens.data ?? []).forEach((o) => mapa.set(o.id, o.descricao));
+    return mapa;
+  }, [origens.data]);
 
-  const fetchClientes = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('clientes')
-        .select('*')
-        .eq('ativo', true)
-        .order('nome');
+  /** Marcações vêm do catálogo editável, com a cor definida lá. */
+  const marcacaoPorId = useMemo(() => {
+    const mapa = new Map<string, { descricao: string; cor: string | null }>();
+    (marcacoes.data ?? []).forEach((m) => mapa.set(m.id, { descricao: m.descricao, cor: m.cor }));
+    return mapa;
+  }, [marcacoes.data]);
 
-      if (error) throw error;
-      setClientes(data || []);
-    } catch (error) {
-      console.error('Error fetching clientes:', error);
-      toast({
-        title: 'Erro ao carregar clientes',
-        description: 'Tente novamente mais tarde.',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+  /** Catálogo editável quando existir; lista fixa antiga para cadastro velho. */
+  const rotuloOrigem = (cliente: Cliente): string => {
+    if (cliente.origem_id && origemPorId.has(cliente.origem_id)) {
+      return origemPorId.get(cliente.origem_id)!;
     }
+    const legado = CLIENTE_ORIGEM[cliente.origem as keyof typeof CLIENTE_ORIGEM];
+    return legado?.label ?? cliente.origem ?? '—';
   };
 
-  const handleOpenDialog = (cliente?: Cliente) => {
-    if (cliente) {
-      setEditingCliente(cliente);
-      setFormData({
-        nome: cliente.nome,
-        cpf_cnpj: cliente.cpf_cnpj || '',
-        email: cliente.email || '',
-        telefone: cliente.telefones?.[0] || '',
-        origem: cliente.origem || 'loja',
-        observacoes: '',
-      });
-    } else {
-      setEditingCliente(null);
-      setFormData({
-        nome: '',
-        cpf_cnpj: '',
-        email: '',
-        telefone: '',
-        origem: 'loja',
-        observacoes: '',
-      });
-    }
+  const abrirNovo = () => {
+    setEditando(null);
     setDialogOpen(true);
   };
 
-  const handleSave = async () => {
-    if (!formData.nome.trim()) {
-      toast({
-        title: 'Nome obrigatório',
-        description: 'Informe o nome do cliente.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setSaving(true);
-
-    try {
-      // Perfil vem de useAuth() — não refaz consulta em `profiles` sem
-      // filtrar por usuário (isso quebrava com "Tenant não encontrado"
-      // assim que a loja tivesse 2+ usuários, ver PDV.tsx pro mesmo fix).
-      const tenantId = user?.profile?.tenant_id ?? null;
-
-      if (!tenantId) {
-        throw new Error('Tenant não encontrado');
-      }
-
-      const clienteData = {
-        nome: formData.nome.trim(),
-        cpf_cnpj: formData.cpf_cnpj.trim() || null,
-        email: formData.email.trim() || null,
-        telefones: formData.telefone.trim() ? [formData.telefone.trim()] : [],
-        origem: formData.origem as "facebook" | "google" | "indicacao" | "instagram" | "loja" | "outro" | "whatsapp",
-        tenant_id: tenantId,
-      };
-
-      if (editingCliente) {
-        const { error } = await supabase
-          .from('clientes')
-          .update({
-            nome: clienteData.nome,
-            cpf_cnpj: clienteData.cpf_cnpj,
-            email: clienteData.email,
-            telefones: clienteData.telefones,
-            origem: clienteData.origem,
-          })
-          .eq('id', editingCliente.id);
-
-        if (error) throw error;
-
-        toast({
-          title: 'Cliente atualizado!',
-          description: 'Os dados foram salvos com sucesso.',
-        });
-      } else {
-        const { error } = await supabase
-          .from('clientes')
-          .insert(clienteData);
-
-        if (error) throw error;
-
-        toast({
-          title: 'Cliente cadastrado!',
-          description: 'O cliente foi adicionado com sucesso.',
-        });
-      }
-
-      setDialogOpen(false);
-      fetchClientes();
-    } catch (error: any) {
-      console.error('Error saving cliente:', error);
-      toast({
-        title: 'Erro ao salvar',
-        description: error.message || 'Tente novamente.',
-        variant: 'destructive',
-      });
-    } finally {
-      setSaving(false);
-    }
+  const abrirEdicao = (cliente: Cliente) => {
+    setEditando(cliente);
+    setDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este cliente?')) return;
-
-    try {
-      const { error } = await supabase
-        .from('clientes')
-        .update({ ativo: false })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast({
-        title: 'Cliente excluído',
-        description: 'O cliente foi removido.',
-      });
-
-      fetchClientes();
-    } catch (error: any) {
-      toast({
-        title: 'Erro ao excluir',
-        description: error.message,
-        variant: 'destructive',
-      });
-    }
+  const excluir = async (cliente: Cliente) => {
+    if (!confirm(`Excluir o cadastro de ${cliente.nome}?`)) return;
+    await inativar.mutateAsync(cliente.id);
+    toast({ title: 'Cliente excluído', description: 'O cadastro foi removido da lista.' });
   };
 
-  const filteredClientes = clientes.filter(cliente => {
-    const searchLower = search.toLowerCase();
-    return (
-      cliente.nome.toLowerCase().includes(searchLower) ||
-      cliente.cpf_cnpj?.toLowerCase().includes(searchLower) ||
-      cliente.email?.toLowerCase().includes(searchLower) ||
-      cliente.telefones?.some(t => t.includes(search))
-    );
-  });
+  const filtrados = useMemo(() => {
+    const termo = search.trim().toLowerCase();
+    if (!termo) return clientes;
+    const digitos = soDigitos(termo);
 
-  const getTagIcon = (tag: string) => {
-    switch (tag) {
-      case 'vip':
-        return <Crown className="h-3 w-3" />;
-      case 'fiel':
-        return <Heart className="h-3 w-3" />;
-      case 'problema':
-        return <AlertTriangle className="h-3 w-3" />;
-      default:
-        return null;
-    }
-  };
+    return clientes.filter((c) => {
+      const porTexto =
+        c.nome.toLowerCase().includes(termo) ||
+        c.email?.toLowerCase().includes(termo) ||
+        c.instagram?.toLowerCase().includes(termo);
+
+      // Busca por número ignora pontuação: quem digita "17999991234" tem que
+      // achar o cliente salvo como "(17) 99999-1234".
+      const porNumero =
+        digitos.length > 0 &&
+        (soDigitos(c.cpf_cnpj).includes(digitos) ||
+          (c.telefones ?? []).some((t) => soDigitos(t).includes(digitos)));
+
+      return Boolean(porTexto) || porNumero;
+    });
+  }, [clientes, search]);
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Clientes</h1>
-          <p className="text-muted-foreground">
-            Gerencie sua base de clientes
-          </p>
-        </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Cliente
-        </Button>
-      </div>
+      <PageHeader
+        titulo="Clientes"
+        hint="A base da loja. Um cliente, um cadastro — o sistema não deixa cadastrar a mesma pessoa duas vezes."
+        acoes={
+          podeGerenciar && (
+            <Button onClick={abrirNovo}>
+              <Plus className="mr-2 h-4 w-4" />
+              Novo Cliente
+            </Button>
+          )
+        }
+      />
 
-      {/* Search */}
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome, CPF, email ou telefone..."
+            placeholder="Buscar por nome, CPF, telefone, e-mail ou @..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
           />
         </div>
+        {!carregando && (
+          <span className="text-sm text-muted-foreground">
+            {filtrados.length} de {clientes.length}
+          </span>
+        )}
       </div>
 
-      {/* Table */}
       <Card>
         <CardContent className="p-0">
-          {loading ? (
+          {carregando ? (
             <div className="flex items-center justify-center py-12">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             </div>
-          ) : filteredClientes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="rounded-full bg-muted p-4">
-                <Search className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <p className="mt-4 text-lg font-medium">Nenhum cliente encontrado</p>
-              <p className="text-muted-foreground">
-                {search ? 'Tente outra busca' : 'Cadastre seu primeiro cliente'}
-              </p>
-              {!search && (
-                <Button className="mt-4" onClick={() => handleOpenDialog()}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Cadastrar Cliente
-                </Button>
+          ) : filtrados.length === 0 ? (
+            <div className="py-4">
+              <Vazio
+                titulo="Nenhum cliente encontrado"
+                descricao={search ? 'Tente outra busca.' : 'Cadastre seu primeiro cliente.'}
+              />
+              {!search && podeGerenciar && (
+                <div className="flex justify-center pb-8">
+                  <Button onClick={abrirNovo}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Cadastrar Cliente
+                  </Button>
+                </div>
               )}
             </div>
           ) : (
@@ -318,15 +185,34 @@ export default function Clientes() {
                   <TableHead>Nome</TableHead>
                   <TableHead>Contato</TableHead>
                   <TableHead>CPF/CNPJ</TableHead>
-                  <TableHead>Origem</TableHead>
-                  <TableHead>Tags</TableHead>
+                  <TableHead>Como conheceu</TableHead>
+                  <TableHead>Marcações</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredClientes.map(cliente => (
-                  <TableRow key={cliente.id}>
-                    <TableCell className="font-medium">{cliente.nome}</TableCell>
+                {filtrados.map((cliente) => (
+                  <TableRow
+                    key={cliente.id}
+                    className="cursor-pointer"
+                    onClick={() => navigate(`/cadastros/clientes/${cliente.id}`)}
+                  >
+                    <TableCell className="font-medium">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {cliente.nome}
+                        {cliente.tipo_pessoa === 'juridica' && (
+                          <Badge variant="outline" className="text-xs">
+                            PJ
+                          </Badge>
+                        )}
+                        {cliente.liberado_venda === false && (
+                          <Badge variant="destructive" className="text-xs">
+                            <Ban className="mr-1 h-3 w-3" />
+                            Bloqueado
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1">
                         {cliente.telefones?.[0] && (
@@ -344,27 +230,28 @@ export default function Clientes() {
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {cliente.cpf_cnpj || '-'}
+                      {cliente.cpf_cnpj || '—'}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">
-                        {CLIENTE_ORIGEM[cliente.origem as keyof typeof CLIENTE_ORIGEM]?.label || cliente.origem}
-                      </Badge>
+                      <Badge variant="outline">{rotuloOrigem(cliente)}</Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
-                        {cliente.tags?.map(tag => {
-                          const tagConfig = CLIENTE_TAGS[tag as keyof typeof CLIENTE_TAGS];
+                      <div className="flex flex-wrap gap-1">
+                        {cliente.cliente_tags?.map(({ catalogo_id }) => {
+                          const marcacao = marcacaoPorId.get(catalogo_id);
+                          if (!marcacao) return null;
                           return (
-                            <Badge key={tag} className={tagConfig?.color || ''}>
-                              {getTagIcon(tag)}
-                              <span className="ml-1">{tagConfig?.label || tag}</span>
+                            <Badge
+                              key={catalogo_id}
+                              className={corDaEtiqueta(marcacao.cor, marcacao.descricao)}
+                            >
+                              {marcacao.descricao}
                             </Badge>
                           );
                         })}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon">
@@ -372,21 +259,27 @@ export default function Clientes() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => navigate(`/clientes/${cliente.id}`)}>
-                            <Eye className="mr-2 h-4 w-4" />
-                            Ver detalhes
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleOpenDialog(cliente)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Editar
-                          </DropdownMenuItem>
                           <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => handleDelete(cliente.id)}
+                            onClick={() => navigate(`/cadastros/clientes/${cliente.id}`)}
                           >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Excluir
+                            <Eye className="mr-2 h-4 w-4" />
+                            Ver ficha
                           </DropdownMenuItem>
+                          {podeGerenciar && (
+                            <>
+                              <DropdownMenuItem onClick={() => abrirEdicao(cliente)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => excluir(cliente)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Excluir
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -398,90 +291,13 @@ export default function Clientes() {
         </CardContent>
       </Card>
 
-      {/* Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>
-              {editingCliente ? 'Editar Cliente' : 'Novo Cliente'}
-            </DialogTitle>
-            <DialogDescription>
-              {editingCliente
-                ? 'Atualize os dados do cliente'
-                : 'Preencha os dados para cadastrar um novo cliente'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="nome">Nome *</Label>
-              <Input
-                id="nome"
-                value={formData.nome}
-                onChange={e => setFormData({ ...formData, nome: e.target.value })}
-                placeholder="Nome completo"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="cpf_cnpj">CPF/CNPJ</Label>
-                <Input
-                  id="cpf_cnpj"
-                  value={formData.cpf_cnpj}
-                  onChange={e => setFormData({ ...formData, cpf_cnpj: e.target.value })}
-                  placeholder="000.000.000-00"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="telefone">Telefone</Label>
-                <Input
-                  id="telefone"
-                  value={formData.telefone}
-                  onChange={e => setFormData({ ...formData, telefone: e.target.value })}
-                  placeholder="(00) 00000-0000"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={e => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="email@exemplo.com"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="origem">Origem</Label>
-                <Select
-                  value={formData.origem}
-                  onValueChange={value => setFormData({ ...formData, origem: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(CLIENTE_ORIGEM).map(([key, config]) => (
-                      <SelectItem key={key} value={key}>
-                        {config.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? 'Salvando...' : editingCliente ? 'Salvar' : 'Cadastrar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ClienteFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        cliente={editando}
+        nomeInicial={editando ? '' : search.trim()}
+        onUsarExistente={(id) => navigate(`/cadastros/clientes/${id}`)}
+      />
     </div>
   );
 }

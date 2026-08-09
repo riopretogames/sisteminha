@@ -310,6 +310,49 @@ export type Database = {
           },
         ]
       }
+      cliente_tags: {
+        Row: {
+          catalogo_id: string
+          cliente_id: string
+          created_at: string
+          tenant_id: string
+        }
+        Insert: {
+          catalogo_id: string
+          cliente_id: string
+          created_at?: string
+          tenant_id: string
+        }
+        Update: {
+          catalogo_id?: string
+          cliente_id?: string
+          created_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cliente_tags_catalogo_id_fkey"
+            columns: ["catalogo_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cliente_tags_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cliente_tags_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clientes: {
         Row: {
           ativo: boolean | null
@@ -325,6 +368,7 @@ export type Database = {
           foto_url: string | null
           genero: string | null
           id: string
+          inscricao_estadual: string | null
           instagram: string | null
           liberado_venda: boolean
           limite_credito: number | null
@@ -358,6 +402,7 @@ export type Database = {
           foto_url?: string | null
           genero?: string | null
           id?: string
+          inscricao_estadual?: string | null
           instagram?: string | null
           liberado_venda?: boolean
           limite_credito?: number | null
@@ -391,6 +436,7 @@ export type Database = {
           foto_url?: string | null
           genero?: string | null
           id?: string
+          inscricao_estadual?: string | null
           instagram?: string | null
           liberado_venda?: boolean
           limite_credito?: number | null
@@ -1879,6 +1925,17 @@ export type Database = {
         }
         Returns: undefined
       }
+      buscar_clientes_semelhantes: {
+        Args: { _documento?: string; _nome?: string; _telefone?: string }
+        Returns: {
+          cpf_cnpj: string
+          id: string
+          liberado_venda: boolean
+          motivo: string
+          nome: string
+          telefones: string[]
+        }[]
+      }
       catalogo_e_do_tipo: {
         Args: { _id: string; _tipo: string }
         Returns: boolean
@@ -1900,6 +1957,7 @@ export type Database = {
         Args: { _documento: string; _tenant: string }
         Returns: string
       }
+      somente_digitos: { Args: { _texto: string }; Returns: string }
       user_belongs_to_tenant: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean

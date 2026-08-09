@@ -295,11 +295,21 @@ o arquivo antes de assumir.
   junto.
 
 **⚪ Não se aplica — decisão de negócio (08/08)**
-- [x] `clientes.liberado_venda`/`limite_credito` — **a loja não trabalha
-  com crediário/fiado**, então o controle de limite de crédito não tem
+- [x] `clientes.limite_credito` — **a loja não trabalha com
+  crediário/fiado**, então o controle de limite de crédito não tem
   cenário real pra existir. Não é feature adiada, é feature que não
-  cabe no jeito que a Rio Preto Games vende. Os campos ficam no schema
-  (não fazem mal parados), mas não vale construir UI pra eles.
+  cabe no jeito que a Rio Preto Games vende. A coluna fica no schema
+  (não faz mal parada), mas não vale construir UI pra ela.
+- [x] ✅ **Revisto em 08/08 — `liberado_venda` SAIU desta lista.** Na
+  revisão do cadastro de cliente, o Felipe decidiu que o liga/desliga
+  "pode comprar na loja" tem uso real e nenhuma relação com fiado:
+  serve pra golpe, cheque sem fundo e cliente que a loja não quer mais
+  atender. Agora tem UI na ficha **e** trava no banco (gatilho
+  `trg_venda_cliente_bloqueado`, migration `20260808160000`) — o PDV
+  recusa selecionar e o banco recusa gravar, inclusive pela venda nova
+  que a Troca gera. Era uma coluna que existia desde 01/08 sem ninguém
+  ler, exatamente o problema que a flag `entra_no_caixa` ainda tem no
+  Financeiro.
 
 **🟠 Média — ainda pendente de decisão**
 - [x] ✅ **07/08 — Cadastro rápido de cliente no PDV.** Achado pelo
@@ -319,15 +329,26 @@ o arquivo antes de assumir.
   Efeito colateral bom: `clienteSearch` agora é limpo ao selecionar
   cliente, ao escolher "sem cliente" e ao fechar a venda — antes sobrava
   filtro velho entre vendas.
-- [ ] **Duplicidade de cliente não é impedida em lugar nenhum** — nem no
-  cadastro rápido, nem na tela de Clientes, nem no banco (`clientes` não
-  tem UNIQUE). O cadastro rápido tende a aumentar isso justamente por
-  ser rápido. Decidir se vale checar telefone/nome antes de gravar.
-- [ ] **`Clientes.tsx` não checa permissão nenhuma na interface** —
-  descoberto ao conferir qual chave o PDV deveria usar. A tela mostra os
-  botões pra todo mundo e deixa a RLS recusar com erro cru. Mesma
-  família do achado de Estoque, e reforça a nota de que `Clientes.tsx` é
-  a tela mais antiga da área.
+- [x] ✅ **08/08 — Duplicidade de cliente, resolvida nas duas pontas.**
+  Decisão do Felipe: **não vai ser permitido dois cadastros**; se o
+  cliente já tem cadastro, a equipe seleciona o que existe e continua a
+  venda. Migration `20260808150000`: índice único de CPF/CNPJ por loja e
+  gatilho de telefone repetido, comparando **só os dígitos** (senão
+  bastava digitar sem pontuação pra furar). Antes de gravar, tela e PDV
+  chamam `buscar_clientes_semelhantes` e oferecem o cadastro encontrado
+  — a recusa nunca chega como erro cru pra quem está atendendo.
+  Nome igual é só aviso, nunca recusa: dois "João Silva" podem ser duas
+  pessoas de verdade.
+  Efeito colateral tratado: **Importação de Clientes gravava em lote, e
+  lote é tudo-ou-nada** — um repetido derrubaria os outros 49 da
+  planilha. Agora, quando o lote falha, ele é refeito linha a linha:
+  quem pode entrar entra, e os repetidos aparecem listados pelo nome,
+  separados dos erros de verdade.
+- [x] ✅ **08/08 — `Clientes.tsx` agora checa permissão na interface.**
+  Era a única tela de cadastro sem checagem: mostrava os botões pra todo
+  mundo e deixava a RLS recusar com erro cru. Usa
+  `registry.customers.manage`, a mesma chave que a policy do banco
+  exige.
 - [ ] Catálogo "Origens da Venda" (Listas do Sistema) existe, mas `vendas`
   não tem coluna pra guardar isso — órfão. (Não escolhido na rodada de
   07/08.)
@@ -471,23 +492,80 @@ o arquivo antes de assumir.
     `23292e8` — ver [Vendas/PDV](#vendas--pdv)). **Falta ainda**
     Vendas>Pagamentos e Caixa, que continuam no enum fixo antigo.
   - **Fornecedores** — não alimenta compra/entrada de estoque.
-  - **Origem/Motivo de Compra do Cliente** — `Clientes.tsx` nunca usa,
-    grava só o enum legado.
+  - **Tags de Cliente** — ✅ *resolvido em 08/08, achado pelo Felipe*: o
+    catálogo `tag_cliente` tinha 4 marcações editáveis (VIP, Fiel,
+    Atacado, Atenção) e a ficha do cliente oferecia **3 fixas no
+    código**, porque `clientes.tags` era um ENUM no banco. Criar
+    "Atacado" em Listas do Sistema não fazia efeito nenhum. Agora existe
+    `cliente_tags` (migration `20260808170000`), ligada ao catálogo com
+    chave estrangeira de verdade — marcação nova aparece sozinha. As
+    marcações antigas foram migradas ('problema' virou 'Atenção', que é
+    o nome que dá pra dizer na frente do cliente). A coluna `tags` ficou
+    marcada como legada, **não foi apagada** — apagar coluna com dado
+    real depende de autorização sua.
+  - **Origem/Motivo de Compra do Cliente** — ✅ *resolvido em 08/08*: o
+    cadastro de cliente passou a ler os dois catálogos de verdade (8
+    origens e 9 motivos, que já estavam semeados e nunca apareceram em
+    tela nenhuma). O enum `origem` antigo continua sendo preenchido
+    sozinho a partir da descrição escolhida, pra não quebrar relatório —
+    mesmo tratamento que a `20260807060000` deu às formas de pagamento.
 
 **🟠 Média**
 - [ ] `tempo_estimado_horas` em Cadastro de Serviços tem o mesmo risco de
   overflow já corrigido 2x no projeto (margem, taxa/juros) — sem clamp.
-- [ ] "Ver detalhes" em Clientes.tsx navega pra `/clientes/:id`, rota
-  que não existe — 404 (mesmo bug que o Passo 4 já corrigiu pros cards
-  de OS, aqui nunca foi).
+- [x] ✅ **08/08 — "Ver detalhes" não dá mais tela branca.** A rota
+  passou a existir (`/cadastros/clientes/:id`, montada em `App.tsx` do
+  mesmo jeito que o drill-down de OS) e virou a **ficha do cliente**:
+  dados cadastrais, o que ele já comprou, as OS dele, quanto já gastou,
+  última compra e aviso de aniversário próximo. Total gasto ignora venda
+  cancelada de propósito, senão devolução viraria faturamento na ficha.
+  As abas de compra e de OS respeitam `sales.view` e `orders.view` — a
+  ficha não conta dinheiro pra quem o RBAC diz que não vê venda.
 - [ ] `custo_estimado` de Serviços lido pela API por qualquer usuário do
   tenant — mesma família da [decisão pendente](#decisão-que-só-você-pode-tomar).
+- [ ] **Foto do cliente e Galeria de Arquivos — adiado de propósito
+  (08/08).** As colunas `foto_url` existem, mas o projeto **não tem
+  nenhum armazenamento de arquivo configurado** (nenhum bucket, nenhuma
+  policy de storage). Não é ligar o que existe, é construir uma camada
+  nova, com regra de quem pode ver e apagar. Decisão do Felipe: fica
+  para uma etapa própria, junto das fotos de antes/depois da OS, que
+  usam o mesmo mecanismo e valem mais para a assistência.
+- [ ] **Cliente bloqueado ainda abre OS.** A trava de 08/08 vale para
+  venda (`vendas`), não para `service_orders` — aparelho que já está na
+  bancada precisa ser devolvido de algum jeito. Falta pelo menos um
+  aviso visível em Nova OS, senão o bloqueio parece valer para tudo e
+  não vale.
+- [ ] **O cadastro rápido do PDV não pede CPF**, só nome e telefone. Quem
+  cadastrar sem telefone escapa da trava de duplicidade — é o furo
+  conhecido e aceito da porta rápida. Avaliar depois se vale exigir
+  telefone no balcão.
+- [ ] **Listas do Sistema não deixa escolher a cor do item**, apesar de a
+  coluna `catalogos.cor` existir e de o próprio texto de ajuda prometer
+  "etiqueta colorida". Marcação criada pela loja hoje chega sem cor, e
+  `corDaEtiqueta` sorteia uma da paleta pelo nome (sempre a mesma pro
+  mesmo nome) só pra não sair cinza no meio das coloridas. O seletor de
+  cor de verdade — igual ao que "Gerenciar Status" já tem pras OS —
+  continua faltando.
+- [ ] **Varredura pendente: procurar o mesmo padrão nas outras telas.**
+  A revisão inteira não tinha achado o furo das marcações; quem achou
+  foi o Felipe, perguntando. São 16 tipos de catálogo cadastrados e
+  vale conferir um por um quem está de fato ligado na tela que deveria
+  usar — em especial `condicao`, `memoria`, `grade`, `tipo_peca` e
+  `localizacao` no Estoque, e `checklist_defeito`, `acessorio_entrada` e
+  `condicao_entrada` na OS. `origem_venda` já se sabe que é órfão
+  (`vendas` não tem coluna pra guardar).
 
 **🔵 Simplificação**
-- [ ] `Clientes.tsx` é a tela mais antiga da área — não usa `useAuth()`
-  direto (usava re-fetch, já corrigido acima), não reaproveita
-  `PageHeader`/`Vazio`, ainda no enum `origem` fixo em vez do catálogo
-  dinâmico. Candidata natural a virar o próximo "Fornecedores.tsx".
+- [x] ✅ **08/08 — `Clientes.tsx` deixou de ser a tela mais antiga da
+  área.** Reescrita no padrão do projeto: `PageHeader`/`Vazio`,
+  react-query pelo novo `useClientes`, catálogo dinâmico no lugar do
+  enum fixo e checagem de permissão. O formulário saiu de 5 campos para
+  a ficha inteira que o banco já guardava desde 01/08 (tipo de pessoa,
+  RG/Inscrição Estadual, nascimento, gênero, dois telefones, Instagram,
+  site, endereço completo com busca por CEP, marcações, origem, motivo
+  da compra e observações — que existia no formulário e **nunca era
+  gravada**). Mora em `components/clientes/ClienteFormDialog.tsx`,
+  porque a ficha do cliente reaproveita o mesmo formulário.
 - [ ] Boilerplate de CRUD quase idêntico em 4 telas (Fornecedores,
   Transportadoras, Serviços, Formas de Pagamento) — vira um hook
   `useCrudSimples`.
@@ -664,9 +742,13 @@ Não quebram nada hoje — limpar enquanto a mão está na área correspondente:
 - [ ] Hook `useCrudSimples` pro esqueleto repetido de cadastro simples.
 - [ ] Hook `useLocalStorageState<T>` pra unificar `useCardConfig` e
   `useViewMode`.
-- [ ] Hooks faltando pras entidades centrais: não existe `useProdutos`,
-  `useVendas` nem `useServiceOrders` — 34 arquivos acessam o Supabase
-  direto, sem hook nenhum.
+- [ ] Hooks faltando pras entidades centrais: continua sem `useProdutos`,
+  `useVendas` e `useServiceOrders` — a maioria dos arquivos ainda acessa
+  o Supabase direto. **`useClientes` já existe** (08/08), e serve de
+  molde: nasceu menos por arrumação e mais por necessidade — a regra de
+  "cliente repetido" precisa ser idêntica no cadastro completo e no
+  cadastro rápido do PDV, e duas cópias garantiriam que uma das portas
+  deixasse passar.
 - [ ] Migrar `PDV.tsx` pro padrão react-query do resto do projeto.
 - [ ] Consolidar as 3 cópias do fallback de status de OS.
 - [ ] Bundle principal (`index-*.js`) em ~600kB, acima do limite

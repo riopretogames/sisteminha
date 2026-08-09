@@ -18,6 +18,7 @@ import NotFound from './pages/NotFound';
 import { lazy } from 'react';
 
 const OSDetalhe = lazy(() => import('./pages/OSDetalhe'));
+const ClienteFicha = lazy(() => import('./pages/ClienteFicha'));
 
 /**
  * As rotas protegidas NÃO são escritas à mão — são derivadas de
@@ -57,6 +58,21 @@ const App = () => (
                   <RequirePermission permission={PERMISSIONS.ORDERS_VIEW}>
                     <Suspense fallback={<CarregandoPagina />}>
                       <OSDetalhe />
+                    </Suspense>
+                  </RequirePermission>
+                }
+              />
+              {/* Ficha do cliente: mesmo caso do drill-down de OS acima — o
+                  menu não modela rota com parâmetro, e "Ver detalhes" na lista
+                  de clientes apontava para um caminho que não existia.
+                  `/cadastros/clientes/importar` continua funcionando: o router
+                  prefere caminho fixo a parâmetro, não importa a ordem aqui. */}
+              <Route
+                path="/cadastros/clientes/:id"
+                element={
+                  <RequirePermission permission={PERMISSIONS.REGISTRY_CUSTOMERS_MANAGE}>
+                    <Suspense fallback={<CarregandoPagina />}>
+                      <ClienteFicha />
                     </Suspense>
                   </RequirePermission>
                 }

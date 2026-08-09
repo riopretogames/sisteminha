@@ -65,6 +65,53 @@ Consequência concreta, que vale para todo código novo:
   proteção **em silêncio**. Se alguma ferramenta gerar uma migration assim,
   reconferir os privilégios.
 
+## Regra de cliente único (08/08)
+
+Decisão do Felipe: **não pode existir dois cadastros do mesmo cliente.** Se o
+cliente já tem cadastro, a equipe usa o que existe e continua a venda.
+
+O que isso significa para código novo:
+
+- A comparação é **só pelos dígitos**, nunca pelo texto digitado. "123.456.789-00"
+  e "12345678900" são o mesmo CPF. A regra mora na função
+  `public.somente_digitos` — front e banco usam a mesma, de propósito.
+- **Documento e telefone recusam** (índice `clientes_documento_unico` e gatilho
+  `trg_cliente_telefone_repetido`, migration `20260808150000`). **Nome igual só
+  avisa** — dois "João Silva" podem ser duas pessoas.
+- Toda porta que cria cliente tem que **procurar antes de gravar**, com
+  `buscar_clientes_semelhantes`, e oferecer o cadastro encontrado. Recusar sem
+  oferecer saída é tela quebrada para quem está atendendo.
+- Cuidado com **gravação em lote**: lote é tudo-ou-nada, então um repetido
+  derruba a planilha inteira. `ClientesImportar.tsx` refaz linha a linha quando
+  o lote falha — qualquer importação nova precisa do mesmo cuidado.
+- `clientes.liberado_venda` desligado = **o banco recusa a venda** (gatilho
+  `trg_venda_cliente_bloqueado`, migration `20260808160000`), inclusive a venda
+  nova gerada por uma troca. Não tem relação com fiado: a loja não trabalha com
+  crediário, e `limite_credito` segue sem uso.
+
+## Regra das listas editáveis (08/08)
+
+Decisão do Felipe: **campo que a loja cadastra em Cadastros > Listas do Sistema
+tem que aparecer sozinho na tela que o usa.** Criou uma origem de cliente nova
+lá? Ela aparece no cadastro de cliente, sem migration, sem mexer em código.
+
+Consequência para código novo:
+
+- **Nunca criar lista fixa no código** para algo que já tem tipo em
+  `src/config/catalogos.ts` (são 16 tipos hoje). Use `useCatalogo(tipo)`.
+- Enum do banco só serve para valor que é **regra do sistema** (status de
+  venda, papel de usuário), nunca para algo que a loja escolhe. Quando um enum
+  desses aparecer no caminho, o certo é ligar no catálogo — foi o que
+  `20260808170000` fez com as marcações do cliente.
+- Ao **exibir** um item escolhido, incluir o item mesmo se ele estiver
+  desativado no catálogo. Senão, editar a ficha apaga em silêncio a escolha
+  antiga (o campo vem vazio e o vazio é salvo).
+- Catálogo com `permitePadrao` deve **pré-selecionar o item padrão** em
+  cadastro novo.
+- Cor vinda do banco precisa existir por extenso em `src/lib/cores.ts`: o
+  Tailwind só gera CSS do que encontra no código, então classe montada em
+  pedaços ou lida só do banco aparece sem cor nenhuma.
+
 ## Documentos de referência
 
 - `PLANO-DE-REFINAMENTO.md` — o plano de trabalho atual, item por item,

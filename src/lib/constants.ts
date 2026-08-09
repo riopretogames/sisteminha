@@ -18,12 +18,8 @@ export const OS_PRIORITY = {
   urgente: { label: 'Urgente', color: 'bg-red-100 text-red-600' },
 } as const;
 
-// Cliente tags
-export const CLIENTE_TAGS = {
-  vip: { label: 'VIP', color: 'tag-vip', icon: 'crown' },
-  fiel: { label: 'Fiel', color: 'tag-fiel', icon: 'heart' },
-  problema: { label: 'Problema', color: 'tag-problema', icon: 'alert-triangle' },
-} as const;
+// As marcações de cliente saíram daqui em 08/08: eram 3 fixas no código e
+// agora vêm do catálogo `tag_cliente`, editável em Listas do Sistema.
 
 // Cliente origem
 export const CLIENTE_ORIGEM = {
