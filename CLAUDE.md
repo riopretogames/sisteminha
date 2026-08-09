@@ -127,6 +127,30 @@ Consequência para código novo:
   Tailwind só gera CSS do que encontra no código, então classe montada em
   pedaços ou lida só do banco aparece sem cor nenhuma.
 
+### Venda e Assistência têm cadastros SEPARADOS (09/08)
+
+Regra do Felipe, depois de eu errar exatamente nisto: **"os cadastros da ordem
+de serviço são diferentes dos cadastros de venda. Lembre-se sempre disso."**
+
+Eu tinha ligado a Nova OS nos catálogos do estoque (`marca`, `modelo`, `cor`,
+`memoria`, `grupo_produto`). Está errado, e o motivo é operacional:
+
+- Na bancada entra aparelho de marca que a loja **nunca vendeu** e nunca vai
+  vender. Misturado, o cadastro de marcas do estoque enche de fabricante fora
+  de linha de venda, e quem cadastra produto garimpa no meio disso.
+- "Equipamento" na OS (Celular, Video game, Notebook) **não é** "Grupo de
+  Produto" no estoque (Console, Jogo, Peça): uma pergunta é "o que entrou na
+  bancada", a outra é "em que prateleira isso fica".
+
+Na prática: a assistência usa `os_equipamento`, `os_marca`, `os_modelo`,
+`os_cor`, `os_memoria` (migration `20260809110000`), além de
+`checklist_defeito`, `acessorio_entrada` e `condicao_entrada`. Produto e venda
+seguem com os seus.
+
+**Ao criar tela nova, pergunte de qual lado ela está** antes de escolher o
+catálogo. Se a mesma palavra ("marca", "cor") serve às duas áreas, quase certo
+que são dois cadastros, não um.
+
 ## Documentos de referência
 
 - `PLANO-DE-REFINAMENTO.md` — o plano de trabalho atual, item por item,

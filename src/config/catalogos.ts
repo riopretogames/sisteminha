@@ -206,7 +206,67 @@ export const CATALOGOS: CatalogoDef[] = [
     permitePadrao: true,
   },
 
-  /* ── Assistência técnica ───────────────────────────────────────────────── */
+  /* ── Assistência técnica ───────────────────────────────────────────────────
+   *
+   * A assistência tem cadastro PRÓPRIO de equipamento, marca, modelo, cor e
+   * memória — separado do de produto/estoque. Regra do Felipe (09/08):
+   * "os cadastros da ordem de serviço são diferentes dos cadastros de venda".
+   *
+   * O motivo é operacional, não organizacional: na bancada entra aparelho de
+   * marca que a loja nunca vendeu (e nunca vai vender). Se fosse a mesma lista,
+   * a marca de estoque encheria de fabricante que não está à venda, e quem
+   * cadastra produto teria que garimpar no meio disso.
+   */
+  {
+    tipo: 'os_equipamento',
+    label: 'Equipamentos (Assistência)',
+    singular: 'Equipamento',
+    genero: 'm',
+    grupo: 'assistencia',
+    icon: 'wrench',
+    hint: 'Que tipo de aparelho entra na bancada. Não confundir com Grupo de Produto, que é prateleira de loja.',
+    exemplo: 'Celular, Video game, Controle, Notebook, Tablet, Caixa de som',
+  },
+  {
+    tipo: 'os_marca',
+    label: 'Marcas (Assistência)',
+    singular: 'Marca',
+    genero: 'f',
+    grupo: 'assistencia',
+    icon: 'brand',
+    hint: 'Fabricante do aparelho que chega para conserto — inclusive marca que a loja não vende.',
+    exemplo: 'Samsung, Apple, Xiaomi, Motorola, Sony, Microsoft, Nintendo',
+  },
+  {
+    tipo: 'os_modelo',
+    label: 'Modelos (Assistência)',
+    singular: 'Modelo',
+    genero: 'm',
+    grupo: 'assistencia',
+    icon: 'package',
+    hint: 'Modelo do aparelho que chega para conserto. Use o nome do jeito que o cliente fala.',
+    exemplo: 'iPhone 13, Galaxy A54, PS5 Slim, Xbox Series S, Redmi Note 12',
+  },
+  {
+    tipo: 'os_cor',
+    label: 'Cores (Assistência)',
+    singular: 'Cor',
+    genero: 'f',
+    grupo: 'assistencia',
+    icon: 'package',
+    hint: 'Cor do aparelho recebido. Ajuda a não trocar dois aparelhos iguais na bancada.',
+    exemplo: 'Preto, Branco, Azul, Grafite, Dourado, Rosa',
+  },
+  {
+    tipo: 'os_memoria',
+    label: 'Memórias (Assistência)',
+    singular: 'Memória',
+    genero: 'f',
+    grupo: 'assistencia',
+    icon: 'boxes',
+    hint: 'Capacidade do aparelho recebido. Entra no laudo e evita discussão na devolução.',
+    exemplo: '64GB, 128GB, 256GB, 512GB, 1TB',
+  },
   {
     tipo: 'checklist_defeito',
     label: 'Checklist de Defeitos',

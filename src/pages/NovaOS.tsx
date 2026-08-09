@@ -105,10 +105,10 @@ export default function NovaOS() {
   const [condicoes, setCondicoes] = useState<string[]>([]);
 
   // Só para converter id → texto na hora de gravar as colunas antigas.
-  const marcas = useCatalogo('marca');
-  const modelos = useCatalogo('modelo');
-  const cores = useCatalogo('cor');
-  const memorias = useCatalogo('memoria');
+  const marcas = useCatalogo('os_marca');
+  const modelos = useCatalogo('os_modelo');
+  const cores = useCatalogo('os_cor');
+  const memorias = useCatalogo('os_memoria');
   const condicoesCatalogo = useCatalogo('condicao_entrada');
   const defeitosCatalogo = useCatalogo('checklist_defeito');
 
@@ -391,7 +391,7 @@ export default function NovaOS() {
             <div className="grid gap-4 sm:grid-cols-2">
               <CampoCatalogo
                 id="equipamento"
-                tipo="grupo_produto"
+                tipo="os_equipamento"
                 label="Equipamento"
                 placeholder="Celular, Console, Controle..."
                 valor={form.equipamento_id}
@@ -411,14 +411,14 @@ export default function NovaOS() {
             <div className="grid gap-4 sm:grid-cols-2">
               <CampoCatalogo
                 id="marca"
-                tipo="marca"
+                tipo="os_marca"
                 label="Marca"
                 valor={form.marca_id}
                 onChange={(v) => alterar('marca_id', v)}
               />
               <CampoCatalogo
                 id="modelo"
-                tipo="modelo"
+                tipo="os_modelo"
                 label="Modelo"
                 valor={form.modelo_id}
                 onChange={(v) => alterar('modelo_id', v)}
@@ -428,14 +428,14 @@ export default function NovaOS() {
             <div className="grid gap-4 sm:grid-cols-2">
               <CampoCatalogo
                 id="cor"
-                tipo="cor"
+                tipo="os_cor"
                 label="Cor"
                 valor={form.cor_id}
                 onChange={(v) => alterar('cor_id', v)}
               />
               <CampoCatalogo
                 id="memoria"
-                tipo="memoria"
+                tipo="os_memoria"
                 label="Memória / Capacidade"
                 valor={form.memoria_id}
                 onChange={(v) => alterar('memoria_id', v)}
