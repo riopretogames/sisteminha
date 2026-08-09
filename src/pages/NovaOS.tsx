@@ -34,6 +34,7 @@ import { PERMISSIONS } from '@/config/permissions';
 import { OS_PRIORITY } from '@/lib/constants';
 import { soDigitos } from '@/lib/documento';
 import { cn } from '@/lib/utils';
+import { OS_STATUS_INICIAL } from '@/config/osStatus';
 
 /**
  * Abertura de Ordem de Serviço — o check-in do aparelho.
@@ -258,7 +259,7 @@ export default function NovaOS() {
             garantia_dias: Number(form.garantia_dias) || 90,
             prioridade: form.prioridade,
             tipo: form.tipo,
-            status: 'recebido' as const,
+            status: OS_STATUS_INICIAL,
           },
         ])
         .select()

@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { moeda, data as fmtData } from '@/lib/format';
 import { Indicador } from '@/components/PageHeader';
 import { RelatorioShell, usePeriodo, type Coluna } from './RelatorioShell';
+import { OS_ETAPAS, osEmAndamento } from '@/config/osStatus';
 
 interface LinhaOS {
   id: string;
@@ -95,8 +96,8 @@ export default function RelatorioOS() {
   });
 
   const linhas = data ?? [];
-  const entregues = linhas.filter((o) => o.status === 'entregue');
-  const emAndamento = linhas.filter((o) => !['entregue', 'cancelado'].includes(o.status));
+  const entregues = linhas.filter((o) => o.status === OS_ETAPAS.ENTREGUE);
+  const emAndamento = linhas.filter((o) => osEmAndamento(o.status));
   const receita = entregues.reduce((acc, o) => acc + Number(o.valor_final_pago ?? 0), 0);
 
   return (

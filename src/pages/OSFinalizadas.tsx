@@ -12,6 +12,7 @@ import {
   aplicarFiltrosOS,
   type FiltrosOSValores,
 } from '@/lib/filtrosOS';
+import { OS_STATUS_ENCERRADOS } from '@/config/osStatus';
 import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -58,7 +59,7 @@ export default function OSFinalizadas() {
         .select(
           'id, numero_os, status, modelo, marca, numero_serie, equipamento_id, marca_id, modelo_id, tecnico_id, valor_final_pago, data_finalizacao, created_at, clientes(nome, telefones)'
         )
-        .in('status', ['entregue', 'cancelado'])
+        .in('status', OS_STATUS_ENCERRADOS)
         .order('data_finalizacao', { ascending: false, nullsFirst: false })
         .limit(500);
       if (error) throw error;

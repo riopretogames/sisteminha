@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
 import { OS_STATUS } from '@/lib/constants';
+import { OS_ETAPAS } from '@/config/osStatus';
 
 interface DashboardStats {
   vendasHoje: number;
@@ -87,7 +88,7 @@ export default function Dashboard() {
       const { count: osPendentes } = await supabase
         .from('service_orders')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'aguardando_aprovacao');
+        .eq('status', OS_ETAPAS.AGUARDANDO_APROVACAO);
 
       // Fetch today's revenue
       const { data: vendasHojeData } = await supabase

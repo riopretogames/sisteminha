@@ -83,6 +83,50 @@ export type Database = {
           },
         ]
       }
+      automacao_eventos: {
+        Row: {
+          criado_em: string
+          dados: Json
+          entidade: string
+          entidade_id: string
+          erro: string | null
+          evento: string
+          id: number
+          processado_em: string | null
+          tenant_id: string
+        }
+        Insert: {
+          criado_em?: string
+          dados?: Json
+          entidade: string
+          entidade_id: string
+          erro?: string | null
+          evento: string
+          id?: number
+          processado_em?: string | null
+          tenant_id: string
+        }
+        Update: {
+          criado_em?: string
+          dados?: Json
+          entidade?: string
+          entidade_id?: string
+          erro?: string | null
+          evento?: string
+          id?: number
+          processado_em?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automacao_eventos_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bootstrap_administradores: {
         Row: {
           created_at: string
@@ -1017,11 +1061,13 @@ export type Database = {
           ativo: boolean | null
           color: string
           created_at: string | null
+          etapa: number | null
           icon: string | null
           id: string
           key: string
           label: string
           ordem: number
+          sistema: boolean
           tenant_id: string
           updated_at: string | null
         }
@@ -1029,11 +1075,13 @@ export type Database = {
           ativo?: boolean | null
           color?: string
           created_at?: string | null
+          etapa?: number | null
           icon?: string | null
           id?: string
           key: string
           label: string
           ordem?: number
+          sistema?: boolean
           tenant_id: string
           updated_at?: string | null
         }
@@ -1041,11 +1089,13 @@ export type Database = {
           ativo?: boolean | null
           color?: string
           created_at?: string | null
+          etapa?: number | null
           icon?: string | null
           id?: string
           key?: string
           label?: string
           ordem?: number
+          sistema?: boolean
           tenant_id?: string
           updated_at?: string | null
         }

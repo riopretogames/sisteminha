@@ -1,0 +1,72 @@
+/**
+ * As etapas obrigatórias da assistência técnica.
+ *
+ * -----------------------------------------------------------------------------
+ * O problema que isto resolve
+ * -----------------------------------------------------------------------------
+ * Antes de 09/08, as chaves de status estavam escritas à mão em 34 lugares de 7
+ * telas, mais um gatilho no banco. Excluir o status errado em "Gerenciar
+ * Status" quebrava um fluxo inteiro sem ninguém perceber — a fila de orçamentos
+ * ficava suja para sempre, por exemplo.
+ *
+ * Agora existe um lugar só. E a `key` de cada etapa é contrato:
+ *
+ *   - o código depende dela (esta lista);
+ *   - o banco depende dela (gatilho de título, estorno de estoque);
+ *   - **as automações do n8n dependem dela** — cada etapa vai ter fluxo
+ *     pendurado, e renomear a chave quebraria o fluxo do lado de fora, onde
+ *     nenhum teste daqui alcança.
+ *
+ * Por isso o banco recusa excluir, desativar ou renomear a chave de uma etapa
+ * de sistema (migration `20260809130000`). Rótulo e cor, a loja muda à vontade.
+ *
+ * -----------------------------------------------------------------------------
+ * A esteira, ditada pelo Felipe em 09/08
+ * -----------------------------------------------------------------------------
+ * Entra na loja → laudo → orçamento com o cliente → cliente aprovou → serviço
+ * pronto → cliente retirou e pagou.
+ *
+ * A loja pode criar outras etapas no meio (existe "Aguardando peça", por
+ * exemplo). Essas cinco é que não podem faltar.
+ */
+
+export const OS_ETAPAS = {
+  /** 1 — Entrou na loja, OS criada. Esperando o técnico dar o laudo. */
+  AGUARDANDO_ANALISE: 'aguardando_analise',
+  /** 2 — Orçamento na mão do cliente. A loja está parada esperando resposta. */
+  AGUARDANDO_APROVACAO: 'aguardando_aprovacao',
+  /** 3 — Cliente aprovou. A bancada pode executar. */
+  APROVADO: 'aprovado',
+  /** 4 — Serviço pronto. Aparelho na prateleira esperando o cliente. */
+  FINALIZADO: 'finalizado',
+  /** 5 — Cliente retirou e pagou. É daqui que a garantia passa a contar. */
+  ENTREGUE: 'entregue',
+} as const;
+
+/**
+ * Fora da esteira, mas o sistema depende dela: é a saída de emergência para OS
+ * que não vai acontecer. Cancelar estorna o estoque das peças lançadas.
+ */
+export const OS_CANCELADO = 'cancelado';
+
+export type OsEtapa = (typeof OS_ETAPAS)[keyof typeof OS_ETAPAS];
+
+/** As cinco, na ordem do fluxo. Serve para montar o Kanban. */
+export const OS_ETAPAS_EM_ORDEM: OsEtapa[] = [
+  OS_ETAPAS.AGUARDANDO_ANALISE,
+  OS_ETAPAS.AGUARDANDO_APROVACAO,
+  OS_ETAPAS.APROVADO,
+  OS_ETAPAS.FINALIZADO,
+  OS_ETAPAS.ENTREGUE,
+];
+
+/** Status em que a OS já terminou — não aparece na fila de trabalho. */
+export const OS_STATUS_ENCERRADOS: string[] = [OS_ETAPAS.ENTREGUE, OS_CANCELADO];
+
+/** A OS ainda está em andamento? */
+export function osEmAndamento(status: string | null | undefined): boolean {
+  return !OS_STATUS_ENCERRADOS.includes(status ?? '');
+}
+
+/** Status com que toda OS nasce. */
+export const OS_STATUS_INICIAL: OsEtapa = OS_ETAPAS.AGUARDANDO_ANALISE;

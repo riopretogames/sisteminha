@@ -9,6 +9,14 @@ export interface StatusConfig {
   icon: string;
   ordem: number;
   ativo: boolean;
+  /**
+   * Etapa obrigatória da assistência. Nome e cor a loja muda; excluir,
+   * desativar ou renomear a chave, não — código e automações do n8n dependem
+   * dela. O banco recusa de qualquer jeito (migration 20260809130000).
+   */
+  sistema?: boolean;
+  /** Posição na esteira oficial (1 a 5). Nulo em etapa extra da loja. */
+  etapa?: number | null;
   created_at: string;
   updated_at: string;
 }

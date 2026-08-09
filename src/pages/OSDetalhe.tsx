@@ -40,6 +40,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { OS_ETAPAS } from '@/config/osStatus';
 
 /**
  * Detalhe de uma OS.
@@ -411,7 +412,7 @@ export default function OSDetalhe() {
   }
 
   const statusCfg = getStatusConfig(os.status);
-  const jaFoiEntregue = os.status === 'entregue';
+  const jaFoiEntregue = os.status === OS_ETAPAS.ENTREGUE;
 
   return (
     <div className="mx-auto max-w-3xl">

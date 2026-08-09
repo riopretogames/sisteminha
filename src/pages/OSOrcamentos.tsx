@@ -21,6 +21,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
+import { OS_ETAPAS, OS_CANCELADO } from '@/config/osStatus';
 
 /**
  * OS Orçamentos — fila de quem está esperando o cliente aprovar (ou
@@ -60,7 +61,7 @@ export default function OSOrcamentos() {
         .select(
           'id, numero_os, modelo, marca, prioridade, total_orcamento, created_at, numero_serie, equipamento_id, marca_id, modelo_id, tecnico_id, clientes(nome, telefones)'
         )
-        .eq('status', 'aguardando_aprovacao')
+        .eq('status', OS_ETAPAS.AGUARDANDO_APROVACAO)
         .order('created_at', { ascending: true });
       if (error) throw error;
       return (data ?? []) as unknown as OSOrcamento[];
@@ -83,13 +84,13 @@ export default function OSOrcamentos() {
     try {
       const { error } = await supabase
         .from('service_orders')
-        .update({ status: aprovado ? 'em_reparo' : 'cancelado' })
+        .update({ status: aprovado ? OS_ETAPAS.APROVADO : OS_CANCELADO })
         .eq('id', id);
       if (error) throw error;
 
       toast({
         title: aprovado ? 'Orçamento aprovado' : 'Orçamento recusado',
-        description: aprovado ? 'OS movida para Em Reparo.' : 'OS movida para Cancelado.',
+        description: aprovado ? 'OS liberada para execução.' : 'OS movida para Cancelado.',
       });
       queryClient.invalidateQueries({ queryKey: ['os-orcamentos'] });
     } catch (error: unknown) {

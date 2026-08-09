@@ -30,6 +30,7 @@ import { OSKanbanView } from '@/components/os/OSKanbanView';
 import { CardConfigDialog } from '@/components/os/CardConfigDialog';
 import { StatusManagerDialog } from '@/components/os/StatusManagerDialog';
 import type { ServiceOrder, StatusConfig, OsPrioridade } from '@/types/os';
+import { OS_ETAPAS_EM_ORDEM, OS_STATUS_INICIAL } from '@/config/osStatus';
 
 export default function OrdensServico() {
   const navigate = useNavigate();
@@ -98,7 +99,7 @@ export default function OrdensServico() {
           modelo: order.modelo,
           numero_serie: order.numero_serie,
           defeito_cliente: order.defeito_cliente,
-          status: order.status || 'recebido',
+          status: order.status || OS_STATUS_INICIAL,
           prioridade: (order.prioridade || 'normal') as OsPrioridade,
           total_orcamento: order.total_orcamento || 0,
           tecnico_id: order.tecnico_id,
@@ -170,8 +171,9 @@ export default function OrdensServico() {
     }, {} as Record<string, number>);
   }, [orders]);
 
-  // Get the 4 main statuses for the summary cards
-  const mainStatuses = ['recebido', 'em_reparo', 'pronto', 'entregue'];
+  // As cinco etapas obrigatórias da assistência, na ordem do fluxo. Ditadas
+  // pelo Felipe em 09/08 e travadas no banco: ver `config/osStatus.ts`.
+  const mainStatuses = OS_ETAPAS_EM_ORDEM;
   const getStatusConfig = (key: string) =>
     statuses.find((s) => s.key === key) || { key, label: key, color: 'bg-gray-500/10 text-gray-600' };
 

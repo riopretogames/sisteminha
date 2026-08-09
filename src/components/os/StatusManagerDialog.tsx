@@ -116,6 +116,18 @@ export function StatusManagerDialog({
   const handleDeleteStatus = async (index: number) => {
     const status = localStatuses[index];
 
+    // Etapa obrigatória da assistência: o banco recusa de qualquer forma
+    // (migration 20260809130000), mas avisar aqui evita que a pessoa receba um
+    // erro técnico depois de já ter mexido em outras linhas.
+    if (status.sistema) {
+      toast({
+        title: 'Etapa obrigatória',
+        description: `"${status.label}" faz parte do fluxo fixo da assistência e das automações. Dá para renomear e trocar a cor, mas não excluir.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     // Check if status has linked OS
     const { count } = await supabase
       .from('service_orders')
@@ -290,22 +302,34 @@ export function StatusManagerDialog({
 
                   <div className="flex items-end gap-2">
                     <div className="flex items-center gap-2">
+                      {/* Etapa obrigatória não desliga: sumiria do Kanban e as
+                          OS paradas nela ficariam invisíveis. */}
                       <Switch
                         checked={status.ativo}
+                        disabled={status.sistema}
                         onCheckedChange={(checked) =>
                           handleUpdateStatus(index, 'ativo', checked)
                         }
                       />
                       <Label className="text-xs">Ativo</Label>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => handleDeleteStatus(index)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {status.sistema ? (
+                      <span
+                        className="px-2 text-xs text-muted-foreground"
+                        title="Etapa obrigatória do fluxo da assistência. Nome e cor podem mudar; excluir, não."
+                      >
+                        Fixa
+                      </span>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => handleDeleteStatus(index)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
