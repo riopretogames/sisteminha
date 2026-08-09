@@ -31,6 +31,7 @@ import { CardConfigDialog } from '@/components/os/CardConfigDialog';
 import { StatusManagerDialog } from '@/components/os/StatusManagerDialog';
 import type { ServiceOrder, StatusConfig, OsPrioridade } from '@/types/os';
 import { OS_ETAPAS_EM_ORDEM, OS_STATUS_INICIAL } from '@/config/osStatus';
+import { ordenarOS } from '@/lib/ordenarOS';
 
 export default function OrdensServico() {
   const navigate = useNavigate();
@@ -83,11 +84,12 @@ export default function OrdensServico() {
           prioridade,
           total_orcamento,
           tecnico_id,
+          prazo_previsto,
           created_at,
           clientes!inner(nome),
           tecnico:profiles!service_orders_tecnico_id_fkey(nome)
         `)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
 
@@ -109,6 +111,7 @@ export default function OrdensServico() {
           // o campo do card ficava eternamente vazio — a opção "Técnico
           // Responsável" na configuração do cartão não mostrava nada.
           tecnico_nome: (order.tecnico as { nome?: string } | null)?.nome ?? null,
+          prazo_previsto: order.prazo_previsto,
           created_at: order.created_at,
         })) || []
       );
@@ -167,7 +170,10 @@ export default function OrdensServico() {
   };
 
   const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
+    // Ordem pedida pelo Felipe em 09/08: atrasada primeiro, depois prioridade,
+    // depois a mais antiga. Ver `lib/ordenarOS.ts` para o porquê de cada
+    // degrau. Vale para a tabela E para o quadro — os dois leem daqui.
+    return ordenarOS(orders.filter((order) => {
       const searchLower = search.toLowerCase();
       const matchesSearch =
         order.numero_os.toLowerCase().includes(searchLower) ||
@@ -179,7 +185,7 @@ export default function OrdensServico() {
         statusFilter === 'all' || order.status === statusFilter;
 
       return matchesSearch && matchesStatus;
-    });
+    }));
   }, [orders, search, statusFilter]);
 
   const statusCounts = useMemo(() => {

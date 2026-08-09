@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/select';
 import { OS_PRIORITY } from '@/lib/constants';
 import type { ServiceOrder, StatusConfig } from '@/types/os';
+import { osAtrasada, diasDeAtraso } from '@/lib/ordenarOS';
 
 interface OSTableViewProps {
   orders: ServiceOrder[];
@@ -111,6 +112,7 @@ export function OSTableView({ orders, statuses, loading, onStatusChange }: OSTab
           <TableHeader>
             <TableRow>
               <TableHead>Número</TableHead>
+              <TableHead>Prioridade</TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead>Aparelho</TableHead>
               <TableHead>Defeito</TableHead>
@@ -124,14 +126,28 @@ export function OSTableView({ orders, statuses, loading, onStatusChange }: OSTab
             {orders.map((order) => {
               const statusConfig = getStatusConfig(order.status);
               const prioridadeConfig = OS_PRIORITY[order.prioridade];
+              const atrasada = osAtrasada(order);
+              const diasAtraso = diasDeAtraso(order);
               return (
-                <TableRow key={order.id}>
+                <TableRow key={order.id} className={atrasada ? 'bg-red-500/5' : undefined}>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-medium">{order.numero_os}</span>
-                      {prioridadeConfig && order.prioridade !== 'normal' && (
+                    <span className="font-mono font-medium">{order.numero_os}</span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {/* Mostra SEMPRE, inclusive "Normal": coluna que só
+                          aparece às vezes vira coluna que ninguém confere. */}
+                      {prioridadeConfig && (
                         <Badge variant="outline" className={prioridadeConfig.color}>
                           {prioridadeConfig.label}
+                        </Badge>
+                      )}
+                      {/* Atraso manda na ordem da lista, então precisa estar
+                          visível — senão a OS sobe sem explicação. */}
+                      {atrasada && (
+                        <Badge variant="destructive" className="gap-1">
+                          <Clock className="h-3 w-3" />
+                          {diasAtraso}d atrasada
                         </Badge>
                       )}
                     </div>

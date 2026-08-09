@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { mascaraCpfCnpj, mascaraTelefone, mascaraCep } from '@/lib/documento';
 
 /**
  * Cadastro de Transportadoras.
@@ -401,7 +402,7 @@ export default function Transportadoras() {
                 <Input
                   id="cpf_cnpj"
                   value={formData.cpf_cnpj}
-                  onChange={e => setFormData({ ...formData, cpf_cnpj: e.target.value })}
+                  onChange={e => setFormData({ ...formData, cpf_cnpj: mascaraCpfCnpj(e.target.value) })}
                   placeholder="00.000.000/0000-00"
                 />
               </div>
@@ -410,7 +411,7 @@ export default function Transportadoras() {
                 <Input
                   id="telefone"
                   value={formData.telefone}
-                  onChange={e => setFormData({ ...formData, telefone: e.target.value })}
+                  onChange={e => setFormData({ ...formData, telefone: mascaraTelefone(e.target.value) })}
                   placeholder="(00) 00000-0000"
                 />
               </div>

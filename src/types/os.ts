@@ -37,5 +37,7 @@ export interface ServiceOrder {
   total_orcamento: number;
   tecnico_id: string | null;
   tecnico_nome?: string | null;
+  /** Data prometida ao cliente. Passou dela e a OS não terminou = atrasada. */
+  prazo_previsto?: string | null;
   created_at: string;
 }

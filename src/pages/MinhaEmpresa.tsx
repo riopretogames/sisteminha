@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { PageHeader, Vazio } from '@/components/PageHeader';
 import { supabase } from '@/integrations/supabase/client';
+import { mascaraCpfCnpj, mascaraTelefone, mascaraCep } from '@/lib/documento';
 
 /**
  * Minha Empresa — dados cadastrais do próprio tenant (uma linha por loja).
@@ -87,9 +88,9 @@ export default function MinhaEmpresa() {
 
         setFormData({
           nome_loja: data.nome_loja ?? '',
-          cnpj: data.cnpj ?? '',
+          cnpj: mascaraCpfCnpj(data.cnpj ?? ''),
           inscricao_estadual: data.inscricao_estadual ?? '',
-          telefone: data.telefone ?? '',
+          telefone: mascaraTelefone(data.telefone ?? ''),
           email: data.email ?? '',
           endereco: data.endereco ?? '',
           cor_primaria: data.cor_primaria ?? '',
@@ -221,7 +222,7 @@ export default function MinhaEmpresa() {
                   <Input
                     id="cnpj"
                     value={formData.cnpj}
-                    onChange={e => setFormData({ ...formData, cnpj: e.target.value })}
+                    onChange={e => setFormData({ ...formData, cnpj: mascaraCpfCnpj(e.target.value) })}
                     placeholder="00.000.000/0000-00"
                   />
                 ) : (
@@ -253,7 +254,7 @@ export default function MinhaEmpresa() {
                   <Input
                     id="telefone"
                     value={formData.telefone}
-                    onChange={e => setFormData({ ...formData, telefone: e.target.value })}
+                    onChange={e => setFormData({ ...formData, telefone: mascaraTelefone(e.target.value) })}
                     placeholder="(00) 00000-0000"
                   />
                 ) : (

@@ -33,6 +33,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
+import { mascaraCpfCnpj, mascaraTelefone, mascaraCep } from '@/lib/documento';
 
 /**
  * Cadastro de Fornecedores.
@@ -144,14 +145,14 @@ export default function Fornecedores() {
       setFormData({
         nome: fornecedor.nome,
         razao_social: fornecedor.razao_social ?? '',
-        cpf_cnpj: fornecedor.cpf_cnpj ?? '',
+        cpf_cnpj: mascaraCpfCnpj(fornecedor.cpf_cnpj ?? ''),
         inscricao_estadual: fornecedor.inscricao_estadual ?? '',
-        telefone: fornecedor.telefones?.[0] ?? '',
+        telefone: mascaraTelefone(fornecedor.telefones?.[0] ?? ''),
         contato_nome: fornecedor.contato_nome ?? '',
         email: fornecedor.email ?? '',
         site: fornecedor.site ?? '',
         prazo_entrega_dias: fornecedor.prazo_entrega_dias?.toString() ?? '',
-        cep: fornecedor.cep ?? '',
+        cep: mascaraCep(fornecedor.cep ?? ''),
         estado: fornecedor.estado ?? '',
         municipio: fornecedor.municipio ?? '',
         bairro: fornecedor.bairro ?? '',
@@ -455,7 +456,7 @@ export default function Fornecedores() {
                 <Input
                   id="cpf_cnpj"
                   value={formData.cpf_cnpj}
-                  onChange={(e) => setFormData({ ...formData, cpf_cnpj: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, cpf_cnpj: mascaraCpfCnpj(e.target.value) })}
                   placeholder="000.000.000-00"
                 />
               </div>
@@ -477,7 +478,7 @@ export default function Fornecedores() {
                 <Input
                   id="telefone"
                   value={formData.telefone}
-                  onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, telefone: mascaraTelefone(e.target.value) })}
                   placeholder="(00) 00000-0000"
                 />
               </div>
@@ -539,7 +540,7 @@ export default function Fornecedores() {
                   <Input
                     id="cep"
                     value={formData.cep}
-                    onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, cep: mascaraCep(e.target.value) })}
                     placeholder="00000-000"
                   />
                 </div>
