@@ -62,12 +62,15 @@ export function FiltrosVenda({ valores, onChange, vendedores = [], resultados }:
                 {resultados} {resultados === 1 ? 'venda' : 'vendas'}
               </span>
             )}
-            {temFiltro && (
-              <Button variant="outline" size="sm" onClick={() => onChange(FILTROS_VENDA_VAZIO)}>
-                <X className="mr-2 h-4 w-4" />
-                Limpar filtro
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!temFiltro}
+              onClick={() => onChange(FILTROS_VENDA_VAZIO)}
+            >
+              <X className="mr-2 h-4 w-4" />
+              Limpar filtros
+            </Button>
           </div>
         </div>
 
