@@ -82,7 +82,13 @@ export function StatusManagerDialog({
       return;
     }
 
-    const maxOrdem = Math.max(...localStatuses.map((s) => s.ordem), -1);
+    // Cancelado fica com ordem alta de propósito (é o último de todos). Se a
+    // etapa nova entrasse depois dele, apareceria no fim do quadro, fora da
+    // área visível — parecia que não tinha sido criada.
+    const ordensDoFluxo = localStatuses
+      .filter((s) => s.key !== 'cancelado')
+      .map((s) => s.ordem);
+    const maxOrdem = Math.max(...ordensDoFluxo, -1);
 
     setLocalStatuses([
       ...localStatuses,
@@ -93,7 +99,7 @@ export function StatusManagerDialog({
         label: newLabel.trim(),
         color: newColor,
         icon: 'circle',
-        ordem: maxOrdem + 1,
+        ordem: maxOrdem + 5,
         ativo: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -180,15 +186,21 @@ export function StatusManagerDialog({
       const currentKeys = localStatuses.map((s) => s.key);
       const deletedStatuses = statuses.filter((s) => !currentKeys.includes(s.key));
 
+      // Cada operação confere o erro. Antes, nenhuma conferia: o banco podia
+      // recusar tudo e a tela dizia "Status salvos" do mesmo jeito — a pessoa
+      // criava uma etapa, não via no Kanban e não tinha como saber por quê.
       for (const status of deletedStatuses) {
-        await supabase.from('os_status_config').delete().eq('id', status.id);
+        const { error } = await supabase
+          .from('os_status_config')
+          .delete()
+          .eq('id', status.id);
+        if (error) throw error;
       }
 
       // Upsert all statuses
       for (const status of localStatuses) {
         if (status.id.startsWith('new-')) {
-          // Insert new
-          await supabase.from('os_status_config').insert({
+          const { error } = await supabase.from('os_status_config').insert({
             tenant_id: tenantId,
             key: status.key,
             label: status.label,
@@ -197,9 +209,9 @@ export function StatusManagerDialog({
             ordem: status.ordem,
             ativo: status.ativo,
           });
+          if (error) throw error;
         } else {
-          // Update existing
-          await supabase
+          const { error } = await supabase
             .from('os_status_config')
             .update({
               label: status.label,
@@ -208,6 +220,7 @@ export function StatusManagerDialog({
               ativo: status.ativo,
             })
             .eq('id', status.id);
+          if (error) throw error;
         }
       }
 

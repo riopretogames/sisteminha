@@ -35,7 +35,7 @@ Verificado nesta revisão:
 
 ## Achados novos desta revisão
 
-### 🔴 1. OS some do Kanban se a etapa for desativada
+### ✅ 1. OS some do Kanban se a etapa for desativada — RESOLVIDO 09/08
 
 `src/components/os/OSKanbanView.tsx:19-36`
 
@@ -50,7 +50,7 @@ aparelho continua na prateleira e ninguém lembra dele.
 Hoje não há OS nessa situação (as etapas antigas só foram desativadas onde
 estavam vazias), mas a porta está aberta.
 
-### 🔴 2. O nome do técnico nunca aparece no card
+### ✅ 2. O nome do técnico nunca aparece no card — RESOLVIDO 09/08
 
 `src/pages/OrdensServico.tsx:105` e `src/components/os/OSKanbanCard.tsx:89`
 
@@ -62,7 +62,7 @@ cartão e não aparece nada. Antes isso era desculpável (ninguém atribuía
 técnico); desde ontem a abertura de OS grava o técnico, então o dado existe e
 continua invisível.
 
-### 🟠 3. A ficha da OS não deixa avançar a etapa
+### ✅ 3. A ficha da OS não deixa avançar a etapa — RESOLVIDO 09/08
 
 `src/pages/OSDetalhe.tsx`
 
@@ -73,7 +73,7 @@ Trocar de etapa só pelo Kanban (arrastando) ou pelo seletor da tabela.
 atendente termina o check-in, está na tela da OS… e precisa voltar para a lista
 para mover a etapa. É o caminho mais usado do sistema pedindo um desvio.
 
-### 🟠 4. Arrastar no Kanban não confere permissão antes
+### ✅ 4. Arrastar no Kanban não confere permissão antes — RESOLVIDO 09/08
 
 `src/pages/OrdensServico.tsx:121`
 
@@ -81,17 +81,16 @@ A troca de etapa vai direto para o banco. Quem não tem permissão arrasta o
 cartão, vê o cartão mudar de lugar e **só então** recebe um erro técnico — e o
 cartão volta sozinho.
 
-### 🟠 5. "Cancelado" virou coluna no quadro
+### ✅ 5. "Cancelado" virou coluna no quadro — RESOLVIDO 09/08
 
 Consequência da migration de ontem: como toda etapa ativa vira coluna,
 Cancelado aparece no Kanban junto com o fluxo.
 
-**Decisão sua:** cancelado não é passo do processo, é saída de emergência. Ter
-a coluna facilita cancelar arrastando; por outro lado, ocupa espaço permanente
-com o que ninguém quer olhar. Dá para escondê-la do quadro sem tirá-la do
-sistema.
+**Decidido pelo Felipe:** sai do quadro, e a etapa continua existindo para
+filtro e consulta. OS cancelada aparece em OS Finalizadas e nos relatórios
+normalmente.
 
-### 🟠 6. O título nasce "pago" quando a OS é entregue
+### 🔴 6. O título nasce "pago" quando a OS é entregue — SEGUE ABERTO
 
 `supabase/migrations/20260805150000`
 
@@ -101,6 +100,11 @@ de pagamento e sem passar pelo caixa.
 Isso já estava no mapa do Financeiro, mas **ficou mais grave ontem**: agora
 "Entregue" significa oficialmente "cliente retirou e pagou". O sistema afirma
 que entrou dinheiro sem registrar como entrou nem onde.
+
+**Não foi corrigido de propósito.** A correção de verdade depende das 4
+decisões do Financeiro — principalmente "o que conta como dinheiro na gaveta".
+Consertar meio caminho agora (por exemplo, exigir forma de pagamento na
+entrega) criaria retrabalho assim que essas decisões saírem.
 
 ---
 
@@ -168,12 +172,21 @@ n8n — que dependem do fluxo estar redondo.
 
 ## O que só você decide
 
-1. **Cancelado fica no Kanban ou sai?**
-2. **Quem move a OS para "Entregue"** — o caixa ao receber, ou o balcão ao
-   entregar o aparelho? É isso que amarra a garantia começar a contar.
-3. **O que acontece com a OS pronta que o cliente não busca?** Hoje ela fica
-   parada em "Finalizado" para sempre.
+Respondidas em 09/08:
+
+1. ~~Cancelado fica no Kanban?~~ **Sai**, preservando a etapa para consulta.
+2. ~~Quem move para "Entregue"?~~ **O vendedor** — e, revisado na sequência,
+   ele opera a OS inteira: cria, aprova, finaliza e lança serviço. Quem tem
+   contato com o cliente é o balcão, não a bancada.
+3. ~~OS pronta que o cliente não busca?~~ **Aviso recorrente no painel** e tela
+   própria. Mais de 6 meses = abandonado (a loja descarta ou vende para cobrir
+   o reparo).
+
+Ainda aberto:
+
 4. As **4 perguntas do Financeiro** que estão no `MAPA-FINANCEIRO.md`.
+5. **Em quais etapas o cliente recebe mensagem automática**, e o que cada uma
+   diz — quando ligarmos o n8n.
 
 ---
 

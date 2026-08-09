@@ -43,7 +43,12 @@ export function OSKanbanCard({ order, config, statusConfig, onClick }: OSKanbanC
               {order.numero_os}
             </span>
           )}
-          {config.prioridade && order.prioridade !== 'normal' && prioridadeConfig && (
+          {/* Mostra SEMPRE que a opção estiver ligada. Antes escondia quando a
+              prioridade era "normal" — e como toda OS nasce normal, quem ligava
+              a opção não via nada e concluía que estava quebrada. Quem não quer
+              ver prioridade nenhuma desliga a opção; a tela não decide isso
+              pela pessoa. */}
+          {config.prioridade && prioridadeConfig && (
             <Badge variant="outline" className={prioridadeConfig.color}>
               {prioridadeConfig.label}
             </Badge>

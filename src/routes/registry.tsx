@@ -36,6 +36,7 @@ export const PAGES: Record<string, Page> = {
   NovaOS: lazy(() => import('@/pages/NovaOS')),
   OSFinalizadas: lazy(() => import('@/pages/OSFinalizadas')),
   OSOrcamentos: lazy(() => import('@/pages/OSOrcamentos')),
+  OSAguardandoRetirada: lazy(() => import('@/pages/OSAguardandoRetirada')),
   Clientes: lazy(() => import('@/pages/Clientes')),
 
   /* ── Cadastros ──────────────────────────────────────────────────────────── */

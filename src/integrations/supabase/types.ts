@@ -1048,6 +1048,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "os_checklist_os_id_fkey"
+            columns: ["os_id"]
+            isOneToOne: false
+            referencedRelation: "vw_os_aguardando_retirada"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "os_checklist_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -1365,6 +1372,13 @@ export type Database = {
             referencedRelation: "service_orders"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "service_order_history_os_id_fkey"
+            columns: ["os_id"]
+            isOneToOne: false
+            referencedRelation: "vw_os_aguardando_retirada"
+            referencedColumns: ["id"]
+          },
         ]
       }
       service_order_items: {
@@ -1410,6 +1424,13 @@ export type Database = {
             columns: ["os_id"]
             isOneToOne: false
             referencedRelation: "service_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_items_os_id_fkey"
+            columns: ["os_id"]
+            isOneToOne: false
+            referencedRelation: "vw_os_aguardando_retirada"
             referencedColumns: ["id"]
           },
           {
@@ -1599,6 +1620,13 @@ export type Database = {
             columns: ["modelo_id"]
             isOneToOne: false
             referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_orders_tecnico_id_fkey"
+            columns: ["tecnico_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -1838,6 +1866,13 @@ export type Database = {
             columns: ["os_id"]
             isOneToOne: false
             referencedRelation: "service_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "titulos_financeiros_os_id_fkey"
+            columns: ["os_id"]
+            isOneToOne: false
+            referencedRelation: "vw_os_aguardando_retirada"
             referencedColumns: ["id"]
           },
           {
@@ -2094,6 +2129,40 @@ export type Database = {
           },
         ]
       }
+      vw_os_aguardando_retirada: {
+        Row: {
+          cliente_id: string | null
+          cliente_nome: string | null
+          cliente_telefone: string | null
+          dias_parado: number | null
+          faixa: string | null
+          id: string | null
+          marca: string | null
+          modelo: string | null
+          numero_os: string | null
+          numero_serie: string | null
+          pronto_desde: string | null
+          status: string | null
+          tenant_id: string | null
+          total_orcamento: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_orders_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_orders_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vw_os_itens: {
         Row: {
           created_at: string | null
@@ -2137,6 +2206,13 @@ export type Database = {
             columns: ["os_id"]
             isOneToOne: false
             referencedRelation: "service_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_items_os_id_fkey"
+            columns: ["os_id"]
+            isOneToOne: false
+            referencedRelation: "vw_os_aguardando_retirada"
             referencedColumns: ["id"]
           },
           {

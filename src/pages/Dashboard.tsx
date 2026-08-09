@@ -19,6 +19,7 @@ import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
 import { OS_STATUS } from '@/lib/constants';
 import { OS_ETAPAS } from '@/config/osStatus';
+import { AvisoAguardandoRetirada } from '@/components/os/AvisoAguardandoRetirada';
 
 interface DashboardStats {
   vendasHoje: number;
@@ -222,6 +223,11 @@ export default function Dashboard() {
           </Button>
         ) : null}
       </div>
+
+      {/* Aparelho parado esperando o cliente buscar. Fica ACIMA dos números
+          porque é o único aviso da tela que pede ação hoje: passou de 6 meses,
+          a loja trata como abandonado, e antes disso alguém precisa cobrar. */}
+      <AvisoAguardandoRetirada />
 
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

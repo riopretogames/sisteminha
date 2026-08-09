@@ -149,6 +149,10 @@ export const MENU: MenuRoot[] = [
       { kind: 'link', id: 'os-nova', label: 'Nova OS', path: '/os/nova', element: 'NovaOS', permission: PERMISSIONS.ORDERS_CREATE },
       { kind: 'link', id: 'os-finalizadas', label: 'OS Finalizadas', path: '/os/finalizadas', element: 'OSFinalizadas', permission: PERMISSIONS.ORDERS_VIEW },
       { kind: 'link', id: 'os-orcamentos', label: 'Orçamentos', path: '/os/orcamentos', element: 'OSOrcamentos', permission: PERMISSIONS.ORDERS_VIEW },
+      // Regra da loja: aparelho pronto parado há mais de 6 meses é tratado como
+      // abandonado. Sem esta tela, quem lembrava de cobrar o cliente era a
+      // memória de quem atendeu.
+      { kind: 'link', id: 'os-retirada', label: 'Aguardando Retirada', path: '/os/aguardando-retirada', element: 'OSAguardandoRetirada', permission: PERMISSIONS.ORDERS_VIEW, hint: 'Aparelhos prontos que o cliente ainda não buscou' },
     ],
   },
 

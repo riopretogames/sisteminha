@@ -37,6 +37,7 @@ export default function OrdensServico() {
   const { toast } = useToast();
   const { can } = useAuth();
   const { viewMode, setViewMode } = useViewMode();
+  const podeEditar = can(PERMISSIONS.ORDERS_EDIT);
 
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [statuses, setStatuses] = useState<StatusConfig[]>([]);
@@ -83,7 +84,8 @@ export default function OrdensServico() {
           total_orcamento,
           tecnico_id,
           created_at,
-          clientes!inner(nome)
+          clientes!inner(nome),
+          tecnico:profiles!service_orders_tecnico_id_fkey(nome)
         `)
         .order('created_at', { ascending: false });
 
@@ -103,6 +105,10 @@ export default function OrdensServico() {
           prioridade: (order.prioridade || 'normal') as OsPrioridade,
           total_orcamento: order.total_orcamento || 0,
           tecnico_id: order.tecnico_id,
+          // O card mostra o NOME do técnico. Antes a consulta trazia só o id, e
+          // o campo do card ficava eternamente vazio — a opção "Técnico
+          // Responsável" na configuração do cartão não mostrava nada.
+          tecnico_nome: (order.tecnico as { nome?: string } | null)?.nome ?? null,
           created_at: order.created_at,
         })) || []
       );
@@ -119,6 +125,18 @@ export default function OrdensServico() {
   };
 
   const handleStatusChange = async (orderId: string, newStatus: string) => {
+    // Confere ANTES de mexer na tela. Antes, quem não tinha permissão arrastava
+    // o cartão, via ele mudar de coluna, levava um erro técnico e assistia o
+    // cartão voltar sozinho — parecia bug do sistema, não falta de acesso.
+    if (!podeEditar) {
+      toast({
+        title: 'Sem permissão',
+        description: 'Seu perfil de acesso não permite mudar a etapa da OS.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('service_orders')

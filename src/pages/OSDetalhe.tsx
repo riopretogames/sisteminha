@@ -12,6 +12,7 @@ import { PageHeader, Vazio } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { SenhaPadraoLeitura } from '@/components/os/SenhaPadrao';
+import { TrocarEtapaOS } from '@/components/os/TrocarEtapaOS';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -420,10 +421,22 @@ export default function OSDetalhe() {
         titulo={`OS ${os.numero_os}`}
         hint={`Aberta em ${dataHora(os.created_at)}`}
         acoes={
-          <Button variant="outline" onClick={() => navigate('/os')}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Voltar
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Mover a etapa daqui: abrir uma OS nova cai nesta tela, e antes
+                era preciso voltar à lista só para avançar o fluxo. */}
+            <TrocarEtapaOS
+              osId={os.id}
+              statusAtual={os.status}
+              onMudou={() => {
+                queryClient.invalidateQueries({ queryKey: ['os', id] });
+                queryClient.invalidateQueries({ queryKey: ['os-itens', id] });
+              }}
+            />
+            <Button variant="outline" onClick={() => navigate('/os')}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Voltar
+            </Button>
+          </div>
         }
       />
 
