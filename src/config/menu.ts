@@ -189,20 +189,21 @@ export const MENU: MenuRoot[] = [
         element: 'CadastrosHub',
         permission: PERMISSIONS.REGISTRY_VIEW,
         hint: 'Todos os cadastros do sistema em um só lugar',
+        icon: 'dashboard',
       },
       {
         kind: 'group',
         id: 'cad-pessoas',
         label: 'Pessoas e Parceiros',
         children: [
-          { kind: 'link', id: 'cad-clientes', label: 'Clientes', path: '/cadastros/clientes', element: 'Clientes', permission: PERMISSIONS.REGISTRY_CUSTOMERS_MANAGE, hint: 'Quem compra e quem deixa aparelho na assistência' },
-          { kind: 'link', id: 'cad-clientes-import', label: 'Importação de Clientes', path: '/cadastros/clientes/importar', element: 'ClientesImportar', permission: PERMISSIONS.REGISTRY_CUSTOMERS_MANAGE, hint: 'Subir clientes em massa por planilha' },
-          { kind: 'link', id: 'cad-fornecedores', label: 'Fornecedores', path: '/cadastros/fornecedores', element: 'Fornecedores', permission: PERMISSIONS.REGISTRY_SUPPLIERS_MANAGE, hint: 'De quem você compra produto e peça' },
-          { kind: 'link', id: 'cad-transportadoras', label: 'Transportadoras', path: '/cadastros/transportadoras', element: 'Transportadoras', permission: PERMISSIONS.REGISTRY_SUPPLIERS_MANAGE, hint: 'Quem leva e traz encomenda' },
+          { kind: 'link', id: 'cad-clientes', label: 'Clientes', path: '/cadastros/clientes', element: 'Clientes', permission: PERMISSIONS.REGISTRY_CUSTOMERS_MANAGE, hint: 'Quem compra e quem deixa aparelho na assistência', icon: 'users' },
+          { kind: 'link', id: 'cad-clientes-import', label: 'Importação de Clientes', path: '/cadastros/clientes/importar', element: 'ClientesImportar', permission: PERMISSIONS.REGISTRY_CUSTOMERS_MANAGE, hint: 'Subir clientes em massa por planilha', icon: 'clipboard' },
+          { kind: 'link', id: 'cad-fornecedores', label: 'Fornecedores', path: '/cadastros/fornecedores', element: 'Fornecedores', permission: PERMISSIONS.REGISTRY_SUPPLIERS_MANAGE, hint: 'De quem você compra produto e peça', icon: 'truck' },
+          { kind: 'link', id: 'cad-transportadoras', label: 'Transportadoras', path: '/cadastros/transportadoras', element: 'Transportadoras', permission: PERMISSIONS.REGISTRY_SUPPLIERS_MANAGE, hint: 'Quem leva e traz encomenda', icon: 'truck' },
           // `users.manage` em vez de `users.view`: só o Administrador tem essa
           // permissão. Gerente enxerga o resto de Cadastros, mas não a tela que
           // decide quem entra no sistema e com qual poder.
-          { kind: 'link', id: 'cad-usuarios', label: 'Usuários', path: '/cadastros/usuarios', element: 'Usuarios', permission: PERMISSIONS.USERS_MANAGE, hint: 'Quem acessa o sistema e com qual perfil' },
+          { kind: 'link', id: 'cad-usuarios', label: 'Usuários', path: '/cadastros/usuarios', element: 'Usuarios', permission: PERMISSIONS.USERS_MANAGE, hint: 'Quem acessa o sistema e com qual perfil', icon: 'shield' },
         ],
       },
       {
@@ -214,8 +215,8 @@ export const MENU: MenuRoot[] = [
           // a tela de Estoque já tem CRUD completo de produto (nome, custo,
           // preço, categoria, localização, estoque). Duas telas pro mesmo
           // cadastro só confundiria sobre qual é a "de verdade".
-          { kind: 'link', id: 'cad-servicos', label: 'Serviços', path: '/cadastros/servicos', element: 'CadastroServicos', permission: PERMISSIONS.REGISTRY_SERVICES_MANAGE, hint: 'Mão de obra da assistência e valor de referência' },
-          { kind: 'link', id: 'cad-pagamento', label: 'Formas de Pagamento', path: '/cadastros/formas-pagamento', element: 'FormasPagamento', permission: PERMISSIONS.REGISTRY_PRODUCTS_MANAGE, hint: 'Parcelas, taxas e juros de cada forma' },
+          { kind: 'link', id: 'cad-servicos', label: 'Serviços', path: '/cadastros/servicos', element: 'CadastroServicos', permission: PERMISSIONS.REGISTRY_SERVICES_MANAGE, hint: 'Mão de obra da assistência e valor de referência', icon: 'wrench' },
+          { kind: 'link', id: 'cad-pagamento', label: 'Formas de Pagamento', path: '/cadastros/formas-pagamento', element: 'FormasPagamento', permission: PERMISSIONS.REGISTRY_PRODUCTS_MANAGE, hint: 'Parcelas, taxas e juros de cada forma', icon: 'money' },
         ],
       },
       {
@@ -223,7 +224,7 @@ export const MENU: MenuRoot[] = [
         id: 'cad-apoio',
         label: 'Tabelas de Apoio',
         children: [
-          { kind: 'link', id: 'cad-catalogos', label: 'Listas do Sistema', path: '/cadastros/listas', element: 'CatalogosHub', permission: PERMISSIONS.REGISTRY_VIEW, hint: 'Marcas, cores, condições, checklist, origens e afins' },
+          { kind: 'link', id: 'cad-catalogos', label: 'Listas do Sistema', path: '/cadastros/listas', element: 'CatalogosHub', permission: PERMISSIONS.REGISTRY_VIEW, hint: 'Marcas, cores, condições, checklist, origens e afins', icon: 'boxes' },
         ],
       },
     ],
