@@ -1,13 +1,18 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Receipt } from 'lucide-react';
+import { Receipt } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { moeda, dataHora } from '@/lib/format';
 import { FORMAS_PAGAMENTO } from '@/lib/constants';
 import { PageHeader, Indicador, Vazio } from '@/components/PageHeader';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { FiltrosVenda } from '@/components/vendas/FiltrosVenda';
+import {
+  FILTROS_VENDA_VAZIO,
+  aplicarFiltrosVenda,
+  type FiltrosVendaValores,
+} from '@/lib/filtrosVenda';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -28,7 +33,13 @@ interface Venda {
   created_at: string;
   status: string;
   total: number;
+  vendedor_id: string | null;
   clientes: { nome: string } | null;
+  vendedor: { nome: string } | null;
+  /** Só o necessário para os filtros de produto e número de série. O detalhe
+   *  completo dos itens continua sendo buscado ao abrir a venda. */
+  itens_venda: { produtos: { nome: string; imei_serial: string | null } | null }[] | null;
+  pagamentos_venda: { forma: string | null }[] | null;
 }
 
 interface ItemVenda {
@@ -54,7 +65,7 @@ const STATUS_COR: Record<string, string> = {
 };
 
 export default function VendasHistorico() {
-  const [busca, setBusca] = useState('');
+  const [filtros, setFiltros] = useState<FiltrosVendaValores>(FILTROS_VENDA_VAZIO);
   const [vendaAberta, setVendaAberta] = useState<Venda | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -62,11 +73,33 @@ export default function VendasHistorico() {
     queryFn: async (): Promise<Venda[]> => {
       const { data, error } = await supabase
         .from('vendas')
-        .select('id, numero_venda, created_at, status, total, clientes(nome)')
+        // Traz vendedor, itens e pagamentos junto: sao eles que os filtros de
+        // produto, numero de serie e forma de pagamento consultam. Produto vem
+        // por `vw_produtos` (regra de custo protegido), com apelido para o JSON
+        // manter a chave `produtos`.
+        .select(
+          `id, numero_venda, created_at, status, total, vendedor_id,
+           clientes(nome),
+           vendedor:profiles!vendas_vendedor_id_fkey(nome),
+           itens_venda(produtos:vw_produtos(nome, imei_serial)),
+           pagamentos_venda(forma)`
+        )
         .order('created_at', { ascending: false })
-        .limit(200);
+        .limit(500);
       if (error) throw error;
       return (data ?? []) as unknown as Venda[];
+    },
+  });
+
+  const { data: vendedores } = useQuery({
+    queryKey: ['profiles-ativos'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, nome')
+        .eq('ativo', true)
+        .order('nome');
+      return data ?? [];
     },
   });
 
@@ -94,39 +127,31 @@ export default function VendasHistorico() {
   });
 
   const vendas = data ?? [];
-  const buscaLower = busca.toLowerCase();
-  const filtradas = vendas.filter(
-    (v) =>
-      (v.numero_venda ?? '').toLowerCase().includes(buscaLower) ||
-      (v.clientes?.nome ?? '').toLowerCase().includes(buscaLower)
-  );
+  const filtradas = aplicarFiltrosVenda(vendas, filtros);
 
-  const validas = vendas.filter((v) => v.status !== 'cancelado');
+  const validas = filtradas.filter((v) => v.status !== 'cancelado');
   const faturamento = validas.reduce((acc, v) => acc + Number(v.total), 0);
 
   return (
     <div className="mx-auto max-w-5xl">
       <PageHeader
         titulo="Histórico de Vendas"
-        hint="Últimas 200 vendas. Clique numa linha para ver os produtos e pagamentos daquela venda."
+        hint="Últimas 500 vendas. Clique numa linha para ver os produtos e pagamentos daquela venda."
+      />
+
+      <FiltrosVenda
+        valores={filtros}
+        onChange={setFiltros}
+        vendedores={vendedores ?? []}
+        resultados={filtradas.length}
       />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <Indicador rotulo="Vendas listadas" valor={String(vendas.length)} />
+        <Indicador rotulo="Vendas listadas" valor={String(filtradas.length)} />
         <Indicador rotulo="Faturamento" valor={moeda(faturamento)} tom="positivo" detalhe="Sem contar canceladas" />
         <Indicador
           rotulo="Ticket médio"
           valor={moeda(validas.length ? faturamento / validas.length : 0)}
-        />
-      </div>
-
-      <div className="relative mb-4 max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por número da venda ou cliente…"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          className="pl-9"
         />
       </div>
 
@@ -142,6 +167,7 @@ export default function VendasHistorico() {
                 <TableHead>Venda</TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead>Cliente</TableHead>
+                <TableHead>Vendedor</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead className="w-[1%]"></TableHead>
@@ -157,6 +183,12 @@ export default function VendasHistorico() {
                   <TableCell className="font-medium">{v.numero_venda ?? '—'}</TableCell>
                   <TableCell className="whitespace-nowrap">{dataHora(v.created_at)}</TableCell>
                   <TableCell>{v.clientes?.nome ?? 'Consumidor final'}</TableCell>
+                  {/* Agora que dá para filtrar por vendedor, o nome precisa
+                      estar visível: filtrar por algo que a lista não mostra
+                      obriga a confiar no filtro sem poder conferir. */}
+                  <TableCell className="text-muted-foreground">
+                    {v.vendedor?.nome ?? '—'}
+                  </TableCell>
                   <TableCell>
                     <Badge className={`${STATUS_COR[v.status] ?? ''} border-0 capitalize`}>
                       {v.status}
