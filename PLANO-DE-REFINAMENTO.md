@@ -153,12 +153,10 @@ comentado nas 3.
   `descontos != 0` sem `sales.discount`. Só dispara quando o valor do
   desconto muda; zerar desconto é sempre permitido. **Aplicada em
   produção em 07/08.**
-- [ ] **Reconciliar o histórico de migrations.** As duas acima entraram
-  pelo SQL Editor, então a tabela de controle da Supabase não sabe delas.
-  Antes do próximo `db push`, rodar `supabase migration repair --status
-  applied` nas duas versões — senão o CLI tenta reaplicar. As duas foram
-  deixadas idempotentes de qualquer forma (`CREATE OR REPLACE` nas views,
-  `DROP TRIGGER IF EXISTS` no gatilho), então reaplicar não quebraria.
+- [x] ✅ **08/08 — Histórico de migrations reconciliado.** O Felipe fez o
+  `supabase login`, o projeto está vinculado e as 26 migrations locais
+  batem com o banco. Acabou a colagem manual no SQL Editor: agora é
+  `npx supabase db push`.
 - [x] ✅ **Ligar as telas de leitura nas views (07/08).** 14 arquivos.
   Regra aplicada sem exceção: **toda leitura** dessas 3 tabelas passa por
   view, mesmo a que não pede custo — assim ninguém precisa lembrar da
@@ -187,11 +185,9 @@ comentado nas 3.
     Comercial, IE Estoque, Relatório de Estoque e Histórico de Vendas.
     Nenhuma tela quebrou, nenhum custo veio vazio, nenhuma lista veio
     vazia. **A Parte 2 está liberada.**
-- [ ] **Regerar `types.ts`.** As 3 views foram **escritas à mão** na
-  seção `Views` (o gerador precisa de `supabase login`, que é passo do
-  Felipe). O conteúdo reproduz o que o gerador produziria; regerar
-  substitui por igual. Enquanto não rodar, vale lembrar que aquele
-  trecho não é gerado.
+- [x] ✅ **08/08 — `types.ts` regerado de verdade**, direto do banco, agora
+  que o login existe. Nada mais ali é escrito à mão. Foi essa regeração
+  que denunciou o problema do item abaixo.
 - [x] ✅ **Quarto vazamento, que esta revisão NÃO tinha achado (07/08).**
   `movimentos_estoque` guarda `custo_unitario` **e** `valor_total`. É o
   mesmo vazamento dos outros três e, nesse caso, mais fácil de explorar:
@@ -218,6 +214,24 @@ comentado nas 3.
   de custo **trancadas**, as 6 colunas comuns de controle **ainda
   abertas** (não trancou demais), as 4 views **existindo**.
   **A Opção B está fechada. O vazamento de custo acabou.**
+- [x] ⚠️ **CORREÇÃO EM 08/08 — a linha acima estava errada num ponto.**
+  A conferência de 07/08 dizia "as 4 views existindo". **A quarta não
+  existia.** A migration `20260808130000` (`vw_movimentos_estoque`) nunca
+  chegou ao banco, apesar de anotada como aplicada aqui.
+  Consequência real, que ficou no ar por um dia: `EstoqueMovimentacoes` e
+  `DashboardEstoque` liam uma view inexistente — as duas telas
+  respondiam erro. Como ninguém usa o sistema, ninguém sentiu.
+  **Como apareceu:** ao regerar `types.ts` com o login novo, o gerador
+  trouxe 3 views em vez de 4. Confirmado por chamada direta à API (404 na
+  quarta, 200 nas outras três). Aplicada de fato com `db push` e
+  reconferida — as 4 respondem 200 agora.
+  **Erro meu no caminho:** antes de descobrir isso, eu rodei
+  `migration repair --status applied` nas 7 migrations pendentes de uma
+  vez, incluindo essa — ou seja, marquei como aplicada uma que não
+  estava. Desfeito com `--status reverted` e aplicado de verdade.
+  **Lição, que virou regra no CLAUDE.md:** nunca marcar migration como
+  aplicada sem perguntar ao banco se ela está lá. O registro do plano é
+  memória de quem escreveu, não prova.
 - [ ] **Conferir com conta de teste** sem `inventory.cost.view`,
   consultando a API direto — a prova final, do lado de quem tentaria
   burlar. Vale fazer quando existir um segundo usuário de verdade (hoje

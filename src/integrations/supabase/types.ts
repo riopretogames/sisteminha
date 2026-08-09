@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -517,6 +517,13 @@ export type Database = {
             referencedRelation: "produtos"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "devolucao_itens_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_produtos"
+            referencedColumns: ["id"]
+          },
         ]
       }
       devolucoes: {
@@ -833,6 +840,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "itens_venda_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_produtos"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "itens_venda_venda_id_fkey"
             columns: ["venda_id"]
             isOneToOne: false
@@ -934,6 +948,13 @@ export type Database = {
             columns: ["produto_id"]
             isOneToOne: false
             referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimentos_estoque_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_produtos"
             referencedColumns: ["id"]
           },
           {
@@ -1300,6 +1321,13 @@ export type Database = {
             columns: ["produto_id"]
             isOneToOne: false
             referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_items_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_produtos"
             referencedColumns: ["id"]
           },
         ]
@@ -1831,14 +1859,137 @@ export type Database = {
       }
     }
     Views: {
-      // ATENÇÃO: escrito à mão, não gerado.
-      // As views entraram pela migration 20260808110000 e o `supabase gen
-      // types` ainda não rodou (depende de `supabase login`, que é passo do
-      // Felipe). O conteúdo abaixo reproduz exatamente o que o gerador
-      // produziria — quando regerar, esta seção é substituída por igual.
-      //
-      // Custo é `number | null` mesmo onde a tabela tem NOT NULL: a view
-      // devolve NULL para quem não tem `inventory.cost.view`.
+      vw_movimentos_estoque: {
+        Row: {
+          created_at: string | null
+          custo_unitario: number | null
+          id: string | null
+          motivo: string | null
+          origem: string | null
+          produto_id: string | null
+          quantidade: number | null
+          saldo_anterior: number | null
+          saldo_depois: number | null
+          tenant_id: string | null
+          tipo: Database["public"]["Enums"]["movimento_tipo"] | null
+          usuario_id: string | null
+          valor_total: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          custo_unitario?: never
+          id?: string | null
+          motivo?: string | null
+          origem?: string | null
+          produto_id?: string | null
+          quantidade?: number | null
+          saldo_anterior?: number | null
+          saldo_depois?: number | null
+          tenant_id?: string | null
+          tipo?: Database["public"]["Enums"]["movimento_tipo"] | null
+          usuario_id?: string | null
+          valor_total?: never
+        }
+        Update: {
+          created_at?: string | null
+          custo_unitario?: never
+          id?: string | null
+          motivo?: string | null
+          origem?: string | null
+          produto_id?: string | null
+          quantidade?: number | null
+          saldo_anterior?: number | null
+          saldo_depois?: number | null
+          tenant_id?: string | null
+          tipo?: Database["public"]["Enums"]["movimento_tipo"] | null
+          usuario_id?: string | null
+          valor_total?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimentos_estoque_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimentos_estoque_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_produtos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimentos_estoque_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vw_os_itens: {
+        Row: {
+          created_at: string | null
+          custo_unitario: number | null
+          descricao: string | null
+          garantia_item_meses: number | null
+          horas_mao_obra: number | null
+          id: string | null
+          os_id: string | null
+          preco_cobrado: number | null
+          produto_id: string | null
+          quantidade: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          custo_unitario?: never
+          descricao?: string | null
+          garantia_item_meses?: number | null
+          horas_mao_obra?: number | null
+          id?: string | null
+          os_id?: string | null
+          preco_cobrado?: number | null
+          produto_id?: string | null
+          quantidade?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          custo_unitario?: never
+          descricao?: string | null
+          garantia_item_meses?: number | null
+          horas_mao_obra?: number | null
+          id?: string | null
+          os_id?: string | null
+          preco_cobrado?: number | null
+          produto_id?: string | null
+          quantidade?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_order_items_os_id_fkey"
+            columns: ["os_id"]
+            isOneToOne: false
+            referencedRelation: "service_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_items_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_items_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vw_produtos: {
         Row: {
           ativo: boolean | null
@@ -1862,7 +2013,63 @@ export type Database = {
           tenant_id: string | null
           updated_at: string | null
         }
-        Relationships: []
+        Insert: {
+          ativo?: boolean | null
+          categoria?: Database["public"]["Enums"]["produto_categoria"] | null
+          codigo_barra?: string | null
+          created_at?: string | null
+          custo?: never
+          estoque_atual?: number | null
+          estoque_maximo?: number | null
+          estoque_minimo?: number | null
+          foto_url?: string | null
+          garantia_meses?: number | null
+          id?: string | null
+          imei_serial?: string | null
+          localizacao?:
+            | Database["public"]["Enums"]["produto_localizacao"]
+            | null
+          marca?: string | null
+          margem_percent?: never
+          modelo?: string | null
+          nome?: string | null
+          preco?: number | null
+          tenant_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          categoria?: Database["public"]["Enums"]["produto_categoria"] | null
+          codigo_barra?: string | null
+          created_at?: string | null
+          custo?: never
+          estoque_atual?: number | null
+          estoque_maximo?: number | null
+          estoque_minimo?: number | null
+          foto_url?: string | null
+          garantia_meses?: number | null
+          id?: string | null
+          imei_serial?: string | null
+          localizacao?:
+            | Database["public"]["Enums"]["produto_localizacao"]
+            | null
+          marca?: string | null
+          margem_percent?: never
+          modelo?: string | null
+          nome?: string | null
+          preco?: number | null
+          tenant_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "produtos_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vw_servicos: {
         Row: {
@@ -1880,40 +2087,52 @@ export type Database = {
           tenant_id: string | null
           updated_at: string | null
         }
-        Relationships: []
-      }
-      vw_os_itens: {
-        Row: {
-          created_at: string | null
-          custo_unitario: number | null
-          descricao: string | null
-          garantia_item_meses: number | null
-          horas_mao_obra: number | null
-          id: string | null
-          os_id: string | null
-          preco_cobrado: number | null
-          produto_id: string | null
-          quantidade: number | null
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          custo_estimado?: never
+          descricao?: string | null
+          exige_aviso_risco?: boolean | null
+          garantia_meses?: number | null
+          grupo_id?: string | null
+          id?: string | null
+          nome?: string | null
+          preco_referencia?: number | null
+          tempo_estimado_horas?: number | null
+          tenant_id?: string | null
+          updated_at?: string | null
         }
-        Relationships: []
-      }
-      vw_movimentos_estoque: {
-        Row: {
-          created_at: string | null
-          custo_unitario: number | null
-          id: string | null
-          motivo: string | null
-          origem: string | null
-          produto_id: string | null
-          quantidade: number | null
-          saldo_anterior: number | null
-          saldo_depois: number | null
-          tenant_id: string | null
-          tipo: Database["public"]["Enums"]["movimento_tipo"] | null
-          usuario_id: string | null
-          valor_total: number | null
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          custo_estimado?: never
+          descricao?: string | null
+          exige_aviso_risco?: boolean | null
+          garantia_meses?: number | null
+          grupo_id?: string | null
+          id?: string | null
+          nome?: string | null
+          preco_referencia?: number | null
+          tempo_estimado_horas?: number | null
+          tenant_id?: string | null
+          updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "servicos_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "servicos_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {

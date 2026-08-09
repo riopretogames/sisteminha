@@ -32,15 +32,24 @@ apagar linha — continua exigindo confirmação do Felipe.
 ## Como o trabalho anda
 
 - **Nunca commitar direto na `main`.** Criar branch antes, sempre.
-- **Migrations são aplicadas pelo SQL Editor da Supabase**, colando o
-  arquivo, porque o CLI ainda não está autenticado (falta o Felipe rodar
-  `npx supabase login` uma vez). Quando isso acontecer, passa a ser
-  `npx supabase db push` — e aí precisa rodar
-  `supabase migration repair --status applied` nas migrations que entraram
-  à mão, senão o CLI tenta reaplicar.
-- **`src/integrations/supabase/types.ts` é gerado**, mas a seção `Views`
-  está escrita à mão hoje (o gerador depende do login acima). Ao regerar,
-  conferir que as 4 views continuam lá.
+- **Migrations vão pelo CLI**: `npx supabase db push`. O login foi feito em
+  08/08 e o projeto está vinculado, então acabou a era de colar arquivo no
+  SQL Editor à mão. O histórico das 26 primeiras foi acertado com
+  `migration repair` na mesma data — hoje local e banco estão iguais.
+  - No Windows, use `npx.cmd` no PowerShell: a execução de scripts está
+    desabilitada na máquina do Felipe e o `npx` puro é barrado.
+  - O CLI só faz login em terminal de verdade. Rodar `supabase login` por
+    ferramenta falha com "non-TTY".
+- **`src/integrations/supabase/types.ts` é gerado de verdade** desde 08/08:
+  `npx supabase gen types typescript --project-id ylhxlvqqkifayglqbzre >
+  src/integrations/supabase/types.ts`. Não escreva mais nada à mão ali.
+- **Conferir no banco, não no registro.** Em 08/08 descobriu-se que a
+  migration `20260808130000` (view `vw_movimentos_estoque`) estava anotada
+  como aplicada no plano e **não estava no banco** — duas telas liam uma
+  view inexistente. Quem achou foi o gerador de tipos, que trouxe 3 views em
+  vez de 4. Antes de confiar que algo foi aplicado, pergunte ao banco:
+  `npx supabase migration list --linked`, ou uma chamada à API REST na
+  view/tabela em questão.
 
 ## Regra de custo protegido (Opção B)
 
