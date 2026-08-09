@@ -248,6 +248,39 @@ vendo; quem não via continua não vendo. A diferença é que agora a trava
 
 ---
 
+---
+
+## 🔴 O banco não tem backup nenhum (achado em 08/08)
+
+O painel da Supabase mostra, com todas as letras: **LAST BACKUP — No
+backups**. O projeto está no plano Free, que **não faz backup automático**.
+
+Hoje os dados da loja — clientes, produtos, ordens de serviço, movimentações —
+existem em **um único lugar no mundo**. O código está protegido (fica no seu
+computador e no GitHub); os dados, não. Um `DELETE` errado, uma migration mal
+escrita ou um problema no serviço e não há de onde voltar.
+
+Isso é maior que qualquer item de lapidação abaixo, e continua aberto.
+
+**Por que não foi resolvido em 08/08:** o comando de backup da Supabase roda
+dentro do Docker, e a máquina não tem Docker, nem `pg_dump`, nem `psql`. Sem
+uma dessas ferramentas, não há como puxar o banco para um arquivo local.
+
+Caminhos, em ordem de preferência:
+
+- [ ] **Instalar o Docker Desktop** (gratuito). Depois disso, gerar backup é
+  um comando, a qualquer momento, sem depender de plano pago.
+- [ ] **Plano Pro da Supabase** (~US$ 25/mês), que faz backup diário sozinho.
+  Não se justifica enquanto ninguém usa o sistema — **mas se justifica no dia
+  em que a loja migrar**, e essa decisão não pode chegar depois da migração.
+- [ ] Exportar tabela a tabela em CSV pelo painel. Funciona sem instalar nada,
+  mas é manual e é o tipo de tarefa que ninguém repete.
+
+**Antes de qualquer migration destrutiva** (apagar coluna, apagar tabela),
+resolver isto primeiro. Hoje não existe rede de segurança.
+
+---
+
 ## Como vamos trabalhar: lapidar página por página
 
 Cada área abaixo tem prioridade:
