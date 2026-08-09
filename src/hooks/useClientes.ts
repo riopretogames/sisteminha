@@ -15,7 +15,20 @@ import type { Database } from '@/integrations/supabase/types';
  * rápido do PDV, senão uma das duas portas deixa passar.
  */
 
-export type Cliente = Database['public']['Tables']['clientes']['Row'];
+/**
+ * O cliente vem sempre com as marcações junto.
+ *
+ * `cliente_tags` liga a ficha ao catálogo editável `tag_cliente` (Listas do
+ * Sistema): marcação criada lá aparece aqui sem precisar de migration. A
+ * coluna antiga `clientes.tags` (lista fixa de 3 no banco) não é mais lida —
+ * ver migration 20260808170000.
+ */
+export type Cliente = Database['public']['Tables']['clientes']['Row'] & {
+  cliente_tags?: { catalogo_id: string }[] | null;
+};
+
+/** Uma consulta só traz o cliente e as marcações dele. */
+const SELECT_CLIENTE = '*, cliente_tags(catalogo_id)';
 
 /** O que a tela preenche. Tudo texto — conversão para o banco fica aqui. */
 export interface ClienteFormData {
@@ -40,6 +53,7 @@ export interface ClienteFormData {
   complemento: string;
   origem_id: string;
   motivo_compra_id: string;
+  /** Ids do catálogo `tag_cliente` — não mais os 3 valores fixos antigos. */
   tags: string[];
   liberado_venda: boolean;
   observacoes: string;
@@ -144,10 +158,58 @@ export function formDataParaBanco(
     origem_id: ouNulo(form.origem_id),
     origem: origemEnumPelaDescricao(origemDescricao),
     motivo_compra_id: ouNulo(form.motivo_compra_id),
-    tags: form.tags as Database['public']['Enums']['cliente_tag'][],
+    // `tags` (coluna) não entra: as marcações vivem em `cliente_tags`, que é
+    // gravada logo depois de salvar a ficha.
     liberado_venda: form.liberado_venda,
     observacoes: ouNulo(form.observacoes),
   };
+}
+
+/**
+ * Acerta as marcações do cliente: tira as que saíram, põe as que entraram.
+ *
+ * Feito depois de gravar a ficha, e não junto, porque marcação mora em outra
+ * tabela. Se esta parte falhar, a ficha já está salva — melhor perder a
+ * marcação e avisar do que perder o cadastro inteiro do cliente.
+ */
+async function sincronizarMarcacoes(
+  clienteId: string,
+  tenantId: string,
+  tagIds: string[],
+  jaExistia: boolean
+): Promise<void> {
+  let atuais: string[] = [];
+
+  if (jaExistia) {
+    const { data } = await supabase
+      .from('cliente_tags')
+      .select('catalogo_id')
+      .eq('cliente_id', clienteId);
+    atuais = (data ?? []).map((t) => t.catalogo_id);
+  }
+
+  const remover = atuais.filter((id) => !tagIds.includes(id));
+  const adicionar = tagIds.filter((id) => !atuais.includes(id));
+
+  if (remover.length > 0) {
+    const { error } = await supabase
+      .from('cliente_tags')
+      .delete()
+      .eq('cliente_id', clienteId)
+      .in('catalogo_id', remover);
+    if (error) throw error;
+  }
+
+  if (adicionar.length > 0) {
+    const { error } = await supabase.from('cliente_tags').insert(
+      adicionar.map((catalogo_id) => ({
+        cliente_id: clienteId,
+        catalogo_id,
+        tenant_id: tenantId,
+      }))
+    );
+    if (error) throw error;
+  }
 }
 
 export function bancoParaFormData(cliente: Cliente): ClienteFormData {
@@ -173,7 +235,7 @@ export function bancoParaFormData(cliente: Cliente): ClienteFormData {
     complemento: cliente.complemento ?? '',
     origem_id: cliente.origem_id ?? '',
     motivo_compra_id: cliente.motivo_compra_id ?? '',
-    tags: (cliente.tags ?? []) as string[],
+    tags: (cliente.cliente_tags ?? []).map((t) => t.catalogo_id),
     liberado_venda: cliente.liberado_venda ?? true,
     observacoes: cliente.observacoes ?? '',
   };
@@ -246,7 +308,7 @@ export function useClientes() {
     queryFn: async (): Promise<Cliente[]> => {
       const { data, error } = await supabase
         .from('clientes')
-        .select('*')
+        .select(SELECT_CLIENTE)
         .eq('ativo', true)
         .order('nome');
 
@@ -279,11 +341,13 @@ export function useClientes() {
       const { data, error } = await supabase
         .from('clientes')
         .insert({ ...formDataParaBanco(form, origemDescricao), tenant_id: tenantId })
-        .select('*')
+        .select(SELECT_CLIENTE)
         .single();
 
       if (error) throw error;
-      return data;
+
+      await sincronizarMarcacoes(data.id, tenantId, form.tags, false);
+      return { ...data, cliente_tags: form.tags.map((catalogo_id) => ({ catalogo_id })) };
     },
     onSuccess: invalidar,
     onError: aoFalhar,
@@ -303,11 +367,13 @@ export function useClientes() {
         .from('clientes')
         .update(formDataParaBanco(form, origemDescricao))
         .eq('id', id)
-        .select('*')
+        .select(SELECT_CLIENTE)
         .single();
 
       if (error) throw error;
-      return data;
+
+      await sincronizarMarcacoes(id, data.tenant_id, form.tags, true);
+      return { ...data, cliente_tags: form.tags.map((catalogo_id) => ({ catalogo_id })) };
     },
     onSuccess: invalidar,
     onError: aoFalhar,

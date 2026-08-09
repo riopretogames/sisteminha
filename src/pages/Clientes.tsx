@@ -6,9 +6,6 @@ import {
   MoreHorizontal,
   Phone,
   Mail,
-  Crown,
-  Heart,
-  AlertTriangle,
   Ban,
   Edit,
   Trash2,
@@ -39,8 +36,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCatalogo } from '@/hooks/useCatalogos';
 import { useClientes, type Cliente } from '@/hooks/useClientes';
 import { PERMISSIONS } from '@/config/permissions';
-import { CLIENTE_TAGS, CLIENTE_ORIGEM } from '@/lib/constants';
+import { CLIENTE_ORIGEM } from '@/lib/constants';
 import { soDigitos } from '@/lib/documento';
+import { corDaEtiqueta } from '@/lib/cores';
 
 /**
  * Lista de clientes.
@@ -50,18 +48,13 @@ import { soDigitos } from '@/lib/documento';
  * garantiria que uma das duas ficasse para trás.
  */
 
-const ICONE_TAG: Record<string, typeof Crown> = {
-  vip: Crown,
-  fiel: Heart,
-  problema: AlertTriangle,
-};
-
 export default function Clientes() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { can } = useAuth();
   const { clientes, carregando, inativar } = useClientes();
   const origens = useCatalogo('origem_cliente');
+  const marcacoes = useCatalogo('tag_cliente');
 
   // Mesma chave que a policy de INSERT/UPDATE em `clientes` exige. Antes esta
   // tela mostrava os botões para todo mundo e deixava o banco recusar com erro
@@ -77,6 +70,13 @@ export default function Clientes() {
     (origens.data ?? []).forEach((o) => mapa.set(o.id, o.descricao));
     return mapa;
   }, [origens.data]);
+
+  /** Marcações vêm do catálogo editável, com a cor definida lá. */
+  const marcacaoPorId = useMemo(() => {
+    const mapa = new Map<string, { descricao: string; cor: string | null }>();
+    (marcacoes.data ?? []).forEach((m) => mapa.set(m.id, { descricao: m.descricao, cor: m.cor }));
+    return mapa;
+  }, [marcacoes.data]);
 
   /** Catálogo editável quando existir; lista fixa antiga para cadastro velho. */
   const rotuloOrigem = (cliente: Cliente): string => {
@@ -236,14 +236,16 @@ export default function Clientes() {
                       <Badge variant="outline">{rotuloOrigem(cliente)}</Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
-                        {cliente.tags?.map((tag) => {
-                          const config = CLIENTE_TAGS[tag as keyof typeof CLIENTE_TAGS];
-                          const Icone = ICONE_TAG[tag];
+                      <div className="flex flex-wrap gap-1">
+                        {cliente.cliente_tags?.map(({ catalogo_id }) => {
+                          const marcacao = marcacaoPorId.get(catalogo_id);
+                          if (!marcacao) return null;
                           return (
-                            <Badge key={tag} className={config?.color ?? ''}>
-                              {Icone && <Icone className="h-3 w-3" />}
-                              <span className="ml-1">{config?.label ?? tag}</span>
+                            <Badge
+                              key={catalogo_id}
+                              className={corDaEtiqueta(marcacao.cor, marcacao.descricao)}
+                            >
+                              {marcacao.descricao}
                             </Badge>
                           );
                         })}

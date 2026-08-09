@@ -24,6 +24,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Plus, Trash2, GripVertical, Save } from 'lucide-react';
+import { CORES_ETIQUETA } from '@/lib/cores';
 import type { StatusConfig } from '@/types/os';
 
 interface StatusManagerDialogProps {
@@ -33,19 +34,8 @@ interface StatusManagerDialogProps {
   onStatusesChange: () => void;
 }
 
-const COLOR_OPTIONS = [
-  { value: 'bg-blue-500/10 text-blue-600', label: 'Azul' },
-  { value: 'bg-purple-500/10 text-purple-600', label: 'Roxo' },
-  { value: 'bg-amber-500/10 text-amber-600', label: 'Âmbar' },
-  { value: 'bg-orange-500/10 text-orange-600', label: 'Laranja' },
-  { value: 'bg-violet-500/10 text-violet-600', label: 'Violeta' },
-  { value: 'bg-emerald-500/10 text-emerald-600', label: 'Esmeralda' },
-  { value: 'bg-green-500/10 text-green-600', label: 'Verde' },
-  { value: 'bg-red-500/10 text-red-600', label: 'Vermelho' },
-  { value: 'bg-pink-500/10 text-pink-600', label: 'Rosa' },
-  { value: 'bg-cyan-500/10 text-cyan-600', label: 'Ciano' },
-  { value: 'bg-gray-500/10 text-gray-600', label: 'Cinza' },
-];
+// A paleta vive em `lib/cores.ts` porque as marcações de cliente usam a mesma.
+const COLOR_OPTIONS = CORES_ETIQUETA;
 
 export function StatusManagerDialog({
   open,

@@ -89,6 +89,29 @@ O que isso significa para código novo:
   nova gerada por uma troca. Não tem relação com fiado: a loja não trabalha com
   crediário, e `limite_credito` segue sem uso.
 
+## Regra das listas editáveis (08/08)
+
+Decisão do Felipe: **campo que a loja cadastra em Cadastros > Listas do Sistema
+tem que aparecer sozinho na tela que o usa.** Criou uma origem de cliente nova
+lá? Ela aparece no cadastro de cliente, sem migration, sem mexer em código.
+
+Consequência para código novo:
+
+- **Nunca criar lista fixa no código** para algo que já tem tipo em
+  `src/config/catalogos.ts` (são 16 tipos hoje). Use `useCatalogo(tipo)`.
+- Enum do banco só serve para valor que é **regra do sistema** (status de
+  venda, papel de usuário), nunca para algo que a loja escolhe. Quando um enum
+  desses aparecer no caminho, o certo é ligar no catálogo — foi o que
+  `20260808170000` fez com as marcações do cliente.
+- Ao **exibir** um item escolhido, incluir o item mesmo se ele estiver
+  desativado no catálogo. Senão, editar a ficha apaga em silêncio a escolha
+  antiga (o campo vem vazio e o vazio é salvo).
+- Catálogo com `permitePadrao` deve **pré-selecionar o item padrão** em
+  cadastro novo.
+- Cor vinda do banco precisa existir por extenso em `src/lib/cores.ts`: o
+  Tailwind só gera CSS do que encontra no código, então classe montada em
+  pedaços ou lida só do banco aparece sem cor nenhuma.
+
 ## Documentos de referência
 
 - `PLANO-DE-REFINAMENTO.md` — o plano de trabalho atual, item por item,

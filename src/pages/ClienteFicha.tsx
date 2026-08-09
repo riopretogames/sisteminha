@@ -37,8 +37,8 @@ import { useOsStatuses } from '@/hooks/useOsStatuses';
 import type { Cliente } from '@/hooks/useClientes';
 import { supabase } from '@/integrations/supabase/client';
 import { PERMISSIONS } from '@/config/permissions';
-import { CLIENTE_TAGS } from '@/lib/constants';
 import { moeda, data as formatarData, dataHora } from '@/lib/format';
+import { corDaEtiqueta } from '@/lib/cores';
 
 /**
  * Ficha do cliente.
@@ -52,12 +52,6 @@ import { moeda, data as formatarData, dataHora } from '@/lib/format';
  * O total gasto ignora venda cancelada de propósito — senão devolução viraria
  * faturamento na ficha.
  */
-
-const ICONE_TAG: Record<string, typeof Crown> = {
-  vip: Crown,
-  fiel: Heart,
-  problema: AlertTriangle,
-};
 
 interface VendaDoCliente {
   id: string;
@@ -117,6 +111,7 @@ export default function ClienteFicha() {
   const { getStatusConfig } = useOsStatuses();
   const origens = useCatalogo('origem_cliente');
   const motivos = useCatalogo('motivo_compra');
+  const marcacoes = useCatalogo('tag_cliente');
 
   const podeGerenciar = can(PERMISSIONS.REGISTRY_CUSTOMERS_MANAGE);
   const podeVerVendas = can(PERMISSIONS.SALES_VIEW);
@@ -128,7 +123,11 @@ export default function ClienteFicha() {
     queryKey: ['cliente', id],
     enabled: Boolean(id),
     queryFn: async (): Promise<Cliente | null> => {
-      const { data, error } = await supabase.from('clientes').select('*').eq('id', id!).single();
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('*, cliente_tags(catalogo_id)')
+        .eq('id', id!)
+        .single();
       if (error) throw error;
       return data;
     },
@@ -243,13 +242,12 @@ export default function ClienteFicha() {
             Bloqueado para venda
           </Badge>
         )}
-        {cliente.tags?.map((tag) => {
-          const config = CLIENTE_TAGS[tag as keyof typeof CLIENTE_TAGS];
-          const Icone = ICONE_TAG[tag];
+        {cliente.cliente_tags?.map(({ catalogo_id }) => {
+          const marcacao = (marcacoes.data ?? []).find((m) => m.id === catalogo_id);
+          if (!marcacao) return null;
           return (
-            <Badge key={tag} className={config?.color ?? ''}>
-              {Icone && <Icone className="h-3 w-3" />}
-              <span className="ml-1">{config?.label ?? tag}</span>
+            <Badge key={catalogo_id} className={corDaEtiqueta(marcacao.cor, marcacao.descricao)}>
+              {marcacao.descricao}
             </Badge>
           );
         })}

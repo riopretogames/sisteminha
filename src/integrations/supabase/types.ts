@@ -310,6 +310,49 @@ export type Database = {
           },
         ]
       }
+      cliente_tags: {
+        Row: {
+          catalogo_id: string
+          cliente_id: string
+          created_at: string
+          tenant_id: string
+        }
+        Insert: {
+          catalogo_id: string
+          cliente_id: string
+          created_at?: string
+          tenant_id: string
+        }
+        Update: {
+          catalogo_id?: string
+          cliente_id?: string
+          created_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cliente_tags_catalogo_id_fkey"
+            columns: ["catalogo_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cliente_tags_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cliente_tags_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clientes: {
         Row: {
           ativo: boolean | null

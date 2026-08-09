@@ -490,6 +490,17 @@ o arquivo antes de assumir.
     `23292e8` — ver [Vendas/PDV](#vendas--pdv)). **Falta ainda**
     Vendas>Pagamentos e Caixa, que continuam no enum fixo antigo.
   - **Fornecedores** — não alimenta compra/entrada de estoque.
+  - **Tags de Cliente** — ✅ *resolvido em 08/08, achado pelo Felipe*: o
+    catálogo `tag_cliente` tinha 4 marcações editáveis (VIP, Fiel,
+    Atacado, Atenção) e a ficha do cliente oferecia **3 fixas no
+    código**, porque `clientes.tags` era um ENUM no banco. Criar
+    "Atacado" em Listas do Sistema não fazia efeito nenhum. Agora existe
+    `cliente_tags` (migration `20260808170000`), ligada ao catálogo com
+    chave estrangeira de verdade — marcação nova aparece sozinha. As
+    marcações antigas foram migradas ('problema' virou 'Atenção', que é
+    o nome que dá pra dizer na frente do cliente). A coluna `tags` ficou
+    marcada como legada, **não foi apagada** — apagar coluna com dado
+    real depende de autorização sua.
   - **Origem/Motivo de Compra do Cliente** — ✅ *resolvido em 08/08*: o
     cadastro de cliente passou a ler os dois catálogos de verdade (8
     origens e 9 motivos, que já estavam semeados e nunca apareceram em
@@ -526,6 +537,21 @@ o arquivo antes de assumir.
   cadastrar sem telefone escapa da trava de duplicidade — é o furo
   conhecido e aceito da porta rápida. Avaliar depois se vale exigir
   telefone no balcão.
+- [ ] **Listas do Sistema não deixa escolher a cor do item**, apesar de a
+  coluna `catalogos.cor` existir e de o próprio texto de ajuda prometer
+  "etiqueta colorida". Marcação criada pela loja hoje chega sem cor, e
+  `corDaEtiqueta` sorteia uma da paleta pelo nome (sempre a mesma pro
+  mesmo nome) só pra não sair cinza no meio das coloridas. O seletor de
+  cor de verdade — igual ao que "Gerenciar Status" já tem pras OS —
+  continua faltando.
+- [ ] **Varredura pendente: procurar o mesmo padrão nas outras telas.**
+  A revisão inteira não tinha achado o furo das marcações; quem achou
+  foi o Felipe, perguntando. São 16 tipos de catálogo cadastrados e
+  vale conferir um por um quem está de fato ligado na tela que deveria
+  usar — em especial `condicao`, `memoria`, `grade`, `tipo_peca` e
+  `localizacao` no Estoque, e `checklist_defeito`, `acessorio_entrada` e
+  `condicao_entrada` na OS. `origem_venda` já se sabe que é órfão
+  (`vendas` não tem coluna pra guardar).
 
 **🔵 Simplificação**
 - [x] ✅ **08/08 — `Clientes.tsx` deixou de ser a tela mais antiga da

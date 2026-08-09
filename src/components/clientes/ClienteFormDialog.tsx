@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Crown, Heart, Loader2, UserCheck } from 'lucide-react';
+import { AlertTriangle, Loader2, UserCheck } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -40,7 +40,6 @@ import {
   telefoneIdentifica,
   soDigitos,
 } from '@/lib/documento';
-import { CLIENTE_TAGS } from '@/lib/constants';
 
 /**
  * Cadastro de cliente — a ficha completa.
@@ -60,12 +59,6 @@ import { CLIENTE_TAGS } from '@/lib/constants';
  */
 
 const GENEROS = ['Masculino', 'Feminino', 'Outro', 'Prefiro não informar'];
-
-const ICONE_TAG: Record<string, typeof Crown> = {
-  vip: Crown,
-  fiel: Heart,
-  problema: AlertTriangle,
-};
 
 interface Props {
   open: boolean;
@@ -89,10 +82,12 @@ export function ClienteFormDialog({
 }: Props) {
   const { toast } = useToast();
   const { criar, atualizar } = useClientes();
+  // Os três catálogos que a ficha do cliente consome. Criar item novo em
+  // Cadastros > Listas do Sistema faz ele aparecer aqui sozinho — nenhum
+  // deles é lista fixa no código.
   const origens = useCatalogo('origem_cliente');
   const motivos = useCatalogo('motivo_compra');
-  const listaOrigens = (origens.data ?? []).filter((o) => o.ativo);
-  const listaMotivos = (motivos.data ?? []).filter((m) => m.ativo);
+  const marcacoes = useCatalogo('tag_cliente');
 
   const [form, setForm] = useState<ClienteFormData>(CLIENTE_FORM_VAZIO);
   const [semelhantes, setSemelhantes] = useState<ClienteSemelhante[]>([]);
@@ -106,11 +101,37 @@ export function ClienteFormDialog({
   const impedimentos = semelhantes.filter((s) => s.motivo !== 'nome');
   const avisosDeNome = semelhantes.filter((s) => s.motivo === 'nome');
 
+  /**
+   * Opções de um catálogo para um campo.
+   *
+   * Inclui o item já escolhido mesmo que ele tenha sido DESATIVADO depois. Sem
+   * isso, editar o telefone de um cliente cuja origem foi desativada apagaria a
+   * origem dele em silêncio — o Select viria vazio e o vazio seria salvo.
+   */
+  const opcoes = (todos: typeof origens.data, escolhidos: string[]) =>
+    (todos ?? []).filter((i) => i.ativo || escolhidos.includes(i.id));
+
+  const listaOrigens = opcoes(origens.data, [form.origem_id]);
+  const listaMotivos = opcoes(motivos.data, [form.motivo_compra_id]);
+  const listaMarcacoes = opcoes(marcacoes.data, form.tags);
+
   useEffect(() => {
     if (!open) return;
     setForm(cliente ? bancoParaFormData(cliente) : { ...CLIENTE_FORM_VAZIO, nome: nomeInicial });
     setSemelhantes([]);
   }, [open, cliente, nomeInicial]);
+
+  /**
+   * Cadastro novo começa com a origem marcada como padrão em Listas do
+   * Sistema. Roda num efeito à parte porque o catálogo costuma chegar do banco
+   * depois de o formulário já ter aberto.
+   */
+  useEffect(() => {
+    if (!open || cliente) return;
+    const padrao = (origens.data ?? []).find((o) => o.padrao && o.ativo);
+    if (!padrao) return;
+    setForm((f) => (f.origem_id ? f : { ...f, origem_id: padrao.id }));
+  }, [open, cliente, origens.data]);
 
   const alterar = <C extends keyof ClienteFormData>(campo: C, valor: ClienteFormData[C]) =>
     setForm((f) => ({ ...f, [campo]: valor }));
@@ -578,24 +599,30 @@ export function ClienteFormDialog({
 
             <div className="space-y-2">
               <Label>Marcações</Label>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(CLIENTE_TAGS).map(([chave, config]) => {
-                  const Icone = ICONE_TAG[chave];
-                  const marcada = form.tags.includes(chave);
-                  return (
-                    <Button
-                      key={chave}
-                      type="button"
-                      size="sm"
-                      variant={marcada ? 'default' : 'outline'}
-                      onClick={() => alternarTag(chave)}
-                    >
-                      {Icone && <Icone className="mr-2 h-3.5 w-3.5" />}
-                      {config.label}
-                    </Button>
-                  );
-                })}
-              </div>
+              {listaMarcacoes.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Nenhuma marcação cadastrada. Crie em Cadastros &gt; Listas do Sistema &gt; Tags
+                  de Cliente e elas aparecem aqui.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {listaMarcacoes.map((tag) => {
+                    const marcada = form.tags.includes(tag.id);
+                    return (
+                      <Button
+                        key={tag.id}
+                        type="button"
+                        size="sm"
+                        variant={marcada ? 'default' : 'outline'}
+                        onClick={() => alternarTag(tag.id)}
+                      >
+                        {tag.descricao}
+                        {!tag.ativo && ' (desativada)'}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="flex items-start justify-between gap-4 rounded-lg border p-3">
