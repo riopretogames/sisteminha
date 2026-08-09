@@ -57,6 +57,7 @@ export function TrocarEtapaOS({ osId, statusAtual, onMudou }: Props) {
     .sort((a, b) => a.ordem - b.ordem);
 
   const indiceAtual = etapas.findIndex((s) => s.key === statusAtual);
+  const atual = indiceAtual >= 0 ? etapas[indiceAtual] : undefined;
   const proxima = indiceAtual >= 0 ? etapas[indiceAtual + 1] : undefined;
 
   const mudar = async (novoStatus: string) => {
@@ -107,23 +108,35 @@ export function TrocarEtapaOS({ osId, statusAtual, onMudou }: Props) {
         </Button>
       )}
 
+      {/* Cada etapa aparece com a cor dela, aqui e no quadro. A cor é a mesma
+          coisa que o Kanban usa, então a pessoa reconhece a etapa pelo tom
+          antes de ler o nome — que é o ponto de ter cor. */}
       <Select value={statusAtual} onValueChange={mudar} disabled={salvando}>
         <SelectTrigger className="w-[230px]">
-          <SelectValue />
+          <SelectValue>
+            {atual ? (
+              <Badge className={`${atual.color} border-0`}>{atual.label}</Badge>
+            ) : (
+              statusAtual
+            )}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {etapas.map((s) => (
             <SelectItem key={s.key} value={s.key}>
               <span className="flex items-center gap-2">
-                {s.key === statusAtual && <Check className="h-3.5 w-3.5" />}
-                {s.label}
+                <Check
+                  className={`h-3.5 w-3.5 ${s.key === statusAtual ? '' : 'opacity-0'}`}
+                />
+                <Badge className={`${s.color} border-0`}>{s.label}</Badge>
               </span>
             </SelectItem>
           ))}
           <SelectItem value={OS_CANCELADO}>
-            <Badge variant="destructive" className="text-[10px]">
-              Cancelar OS
-            </Badge>
+            <span className="flex items-center gap-2">
+              <Check className="h-3.5 w-3.5 opacity-0" />
+              <Badge variant="destructive">Cancelar OS</Badge>
+            </span>
           </SelectItem>
         </SelectContent>
       </Select>
