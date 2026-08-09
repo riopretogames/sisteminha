@@ -61,17 +61,17 @@ export type TipoAcao = keyof typeof VARIANTE_POR_ACAO;
  */
 export const TOM_SITUACAO = {
   /** Terminou bem: entregue, pago, aprovado, concluído. */
-  positivo: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  positivo: 'bg-emerald-500 text-white',
   /** Terminou mal ou foi desfeito: cancelado, recusado, bloqueado. */
-  negativo: 'bg-red-500/10 text-red-600 dark:text-red-400',
+  negativo: 'bg-red-500 text-white',
   /** Parado esperando alguém: aguardando peça, aguardando aprovação. */
-  espera: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  espera: 'bg-amber-500 text-white',
   /** Andando: em reparo, em diagnóstico. */
-  andamento: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+  andamento: 'bg-blue-500 text-white',
   /** Acabou de entrar, ninguém tocou ainda. */
-  novo: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
+  novo: 'bg-violet-500 text-white',
   /** Sem significado especial. */
-  neutro: 'bg-gray-500/10 text-gray-600 dark:text-gray-400',
+  neutro: 'bg-slate-500 text-white',
 } as const;
 
 export type TomSituacao = keyof typeof TOM_SITUACAO;

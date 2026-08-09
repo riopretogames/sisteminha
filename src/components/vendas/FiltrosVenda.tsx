@@ -49,21 +49,20 @@ export function FiltrosVenda({ valores, onChange, vendedores = [], resultados }:
   const temFiltro = Object.values(valores).some((v) => v !== '');
 
   return (
-    <Card className="mb-6">
-      <CardContent className="space-y-4 p-4">
-        <div className="flex items-center justify-between gap-2">
-          <p className="flex items-center gap-2 text-sm font-medium">
+    <Card className="mb-6 overflow-hidden">
+      <div className="flex items-center justify-between gap-2 bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2.5 text-white">
+          <p className="flex items-center gap-2 text-sm font-semibold">
             <Filter className="h-4 w-4" />
             Filtros
           </p>
           <div className="flex items-center gap-3">
             {resultados !== undefined && (
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm text-white/90">
                 {resultados} {resultados === 1 ? 'venda' : 'vendas'}
               </span>
             )}
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               disabled={!temFiltro}
               onClick={() => onChange(FILTROS_VENDA_VAZIO)}
@@ -71,9 +70,10 @@ export function FiltrosVenda({ valores, onChange, vendedores = [], resultados }:
               <X className="mr-2 h-4 w-4" />
               Limpar filtros
             </Button>
-          </div>
         </div>
+      </div>
 
+      <CardContent className="p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="fv-busca" className="text-xs">

@@ -11,11 +11,19 @@ export const OS_STATUS = {
 } as const;
 
 // OS Priority configuration
+/**
+ * Prioridade da OS.
+ *
+ * Alta e urgente com cor cheia; baixa e normal discretas — de propósito. Se
+ * TODA linha tiver etiqueta forte, a cor deixa de avisar e vira decoração, e a
+ * urgente some no meio do carnaval. Cor forte é para o que precisa ser visto
+ * antes de ser lido.
+ */
 export const OS_PRIORITY = {
-  baixa: { label: 'Baixa', color: 'bg-slate-100 text-slate-600' },
-  normal: { label: 'Normal', color: 'bg-blue-100 text-blue-600' },
-  alta: { label: 'Alta', color: 'bg-orange-100 text-orange-600' },
-  urgente: { label: 'Urgente', color: 'bg-red-100 text-red-600' },
+  baixa: { label: 'Baixa', color: 'bg-slate-100 text-slate-600 border-slate-300' },
+  normal: { label: 'Normal', color: 'bg-slate-100 text-slate-700 border-slate-300' },
+  alta: { label: 'Alta', color: 'bg-orange-500 text-white border-orange-500' },
+  urgente: { label: 'Urgente', color: 'bg-red-600 text-white border-red-600' },
 } as const;
 
 // As marcações de cliente saíram daqui em 08/08: eram 3 fixas no código e
@@ -50,9 +58,9 @@ export const PRODUTO_LOCALIZACOES = {
 
 // Tipos de movimentação de estoque
 export const MOVIMENTO_TIPOS = {
-  entrada: { label: 'Entrada', cor: 'bg-emerald-100 text-emerald-700' },
-  saida: { label: 'Saída', cor: 'bg-red-100 text-red-700' },
-  ajuste: { label: 'Ajuste', cor: 'bg-blue-100 text-blue-700' },
+  entrada: { label: 'Entrada', cor: 'bg-emerald-500 text-white' },
+  saida: { label: 'Saída', cor: 'bg-red-500 text-white' },
+  ajuste: { label: 'Ajuste', cor: 'bg-blue-500 text-white' },
   inventario: { label: 'Inventário', cor: 'bg-slate-100 text-slate-600' },
 } as const;
 

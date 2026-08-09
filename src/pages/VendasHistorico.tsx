@@ -57,11 +57,13 @@ interface PagamentoVenda {
   parcelas: number;
 }
 
+// Segue os tons de `lib/acoes.ts`: verde terminou bem, vermelho foi desfeito,
+// azul está andando, cinza ainda não é nada.
 const STATUS_COR: Record<string, string> = {
-  pago: 'bg-emerald-100 text-emerald-700',
-  faturado: 'bg-blue-100 text-blue-700',
-  rascunho: 'bg-slate-100 text-slate-600',
-  cancelado: 'bg-red-100 text-red-700',
+  pago: 'bg-emerald-500 text-white',
+  faturado: 'bg-blue-500 text-white',
+  rascunho: 'bg-slate-400 text-white',
+  cancelado: 'bg-red-500 text-white',
 };
 
 export default function VendasHistorico() {

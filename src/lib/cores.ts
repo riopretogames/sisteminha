@@ -8,17 +8,17 @@
  */
 
 export const CORES_ETIQUETA: { value: string; label: string }[] = [
-  { value: 'bg-blue-500/10 text-blue-600', label: 'Azul' },
-  { value: 'bg-purple-500/10 text-purple-600', label: 'Roxo' },
-  { value: 'bg-amber-500/10 text-amber-600', label: 'Âmbar' },
-  { value: 'bg-orange-500/10 text-orange-600', label: 'Laranja' },
-  { value: 'bg-violet-500/10 text-violet-600', label: 'Violeta' },
-  { value: 'bg-emerald-500/10 text-emerald-600', label: 'Esmeralda' },
-  { value: 'bg-green-500/10 text-green-600', label: 'Verde' },
-  { value: 'bg-red-500/10 text-red-600', label: 'Vermelho' },
-  { value: 'bg-pink-500/10 text-pink-600', label: 'Rosa' },
-  { value: 'bg-cyan-500/10 text-cyan-600', label: 'Ciano' },
-  { value: 'bg-gray-500/10 text-gray-600', label: 'Cinza' },
+  { value: 'bg-blue-500 text-white', label: 'Azul' },
+  { value: 'bg-purple-500 text-white', label: 'Roxo' },
+  { value: 'bg-amber-500 text-white', label: 'Âmbar' },
+  { value: 'bg-orange-500 text-white', label: 'Laranja' },
+  { value: 'bg-violet-500 text-white', label: 'Violeta' },
+  { value: 'bg-emerald-500 text-white', label: 'Esmeralda' },
+  { value: 'bg-green-600 text-white', label: 'Verde' },
+  { value: 'bg-red-500 text-white', label: 'Vermelho' },
+  { value: 'bg-pink-500 text-white', label: 'Rosa' },
+  { value: 'bg-cyan-500 text-white', label: 'Ciano' },
+  { value: 'bg-slate-500 text-white', label: 'Cinza' },
 ];
 
 /**
