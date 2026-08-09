@@ -376,6 +376,17 @@ o arquivo antes de assumir.
   Efeito colateral bom: `clienteSearch` agora é limpo ao selecionar
   cliente, ao escolher "sem cliente" e ao fechar a venda — antes sobrava
   filtro velho entre vendas.
+- [x] ✅ **08/08 — O cadastro rápido virou o cadastro completo.** O Felipe
+  testou no app e reprovou o corte de escopo: *"não adianta ter uma
+  informação de um lado e não ter do outro"*. Tinha razão — cadastro pela
+  metade é cadastro que ninguém volta pra completar, e a ficha do cliente
+  nasceria capenga justamente pelo caminho mais usado (o balcão).
+  Em vez de copiar os campos pro dialog do PDV, o PDV passou a abrir **o
+  mesmo componente** de Cadastros > Clientes. Impossível divergirem: é um
+  arquivo só. Como apenas o nome é obrigatório, quem está com fila salva
+  em dois segundos do mesmo jeito.
+  Efeito colateral: `PDV.tsx` perdeu 190 linhas (o formulário duplicado, a
+  busca de duplicados repetida e a tradução de erro própria).
 - [x] ✅ **08/08 — Duplicidade de cliente, resolvida nas duas pontas.**
   Decisão do Felipe: **não vai ser permitido dois cadastros**; se o
   cliente já tem cadastro, a equipe seleciona o que existe e continua a

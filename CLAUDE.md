@@ -90,6 +90,12 @@ O que isso significa para código novo:
 - Toda porta que cria cliente tem que **procurar antes de gravar**, com
   `buscar_clientes_semelhantes`, e oferecer o cadastro encontrado. Recusar sem
   oferecer saída é tela quebrada para quem está atendendo.
+- **O formulário de cliente é um só** (`components/clientes/ClienteFormDialog`).
+  O PDV abre exatamente o mesmo — não existe "versão reduzida do balcão".
+  Decisão do Felipe em 08/08: *"não adianta ter uma informação de um lado e
+  não ter do outro"*. Duas telas parecidas divergem com o tempo, e o cadastro
+  feito às pressas nunca é completado depois. Só o nome é obrigatório, então
+  quem está com fila continua salvando em dois segundos.
 - Cuidado com **gravação em lote**: lote é tudo-ou-nada, então um repetido
   derruba a planilha inteira. `ClientesImportar.tsx` refaz linha a linha quando
   o lote falha — qualquer importação nova precisa do mesmo cuidado.

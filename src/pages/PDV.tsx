@@ -8,9 +8,7 @@ import {
   Trash2,
   User,
   UserPlus,
-  UserCheck,
   Ban,
-  AlertTriangle,
   CreditCard,
   Banknote,
   QrCode,
@@ -19,7 +17,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -42,12 +39,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
-import {
-  buscarClientesSemelhantes,
-  traduzirErroCliente,
-  type ClienteSemelhante,
-} from '@/hooks/useClientes';
-import { mascaraTelefone, soDigitos } from '@/lib/documento';
+import { ClienteFormDialog } from '@/components/clientes/ClienteFormDialog';
+import type { Cliente as ClienteCompleto } from '@/hooks/useClientes';
+import { soDigitos } from '@/lib/documento';
 import { FORMAS_PAGAMENTO } from '@/lib/constants';
 import { moeda as formatCurrency } from '@/lib/format';
 
@@ -71,27 +65,6 @@ interface Cliente {
   telefones: string[] | null;
   /** Falso = a loja bloqueou este cliente. O banco recusa a venda também. */
   liberado_venda: boolean | null;
-}
-
-/**
- * Cadastro rápido de cliente — só o que o balcão consegue perguntar com
- * a fila andando. O cadastro completo (CPF, e-mail, origem, endereço)
- * continua sendo o de Cadastros > Clientes; aqui a prioridade é não
- * fazer o vendedor abandonar a venda pra registrar um nome novo.
- */
-interface NovoClienteFormData {
-  nome: string;
-  telefone: string;
-}
-
-const NOVO_CLIENTE_VAZIO: NovoClienteFormData = { nome: '', telefone: '' };
-
-/** Mensagem de RLS é críptica; traduz pro que de fato aconteceu. */
-function traduzirErro(error: unknown): string {
-  const msg = error instanceof Error ? error.message : 'Tente novamente.';
-  return /row-level security|policy/i.test(msg)
-    ? 'Seu perfil de acesso não permite fazer isso.'
-    : msg;
 }
 
 /**
@@ -139,11 +112,6 @@ export default function PDV() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [showClienteDialog, setShowClienteDialog] = useState(false);
   const [showNovoClienteDialog, setShowNovoClienteDialog] = useState(false);
-  const [novoCliente, setNovoCliente] = useState<NovoClienteFormData>(NOVO_CLIENTE_VAZIO);
-  const [salvandoCliente, setSalvandoCliente] = useState(false);
-  // Cadastros parecidos encontrados antes de criar mais um. Decisão de 08/08:
-  // um cliente, um cadastro — quando já existe, a venda segue com o que existe.
-  const [clientesSemelhantes, setClientesSemelhantes] = useState<ClienteSemelhante[]>([]);
   const [processing, setProcessing] = useState(false);
   const [novoPagamento, setNovoPagamento] = useState<{ formaPagamentoId: string; parcelas: string; valor: string }>({
     formaPagamentoId: '',
@@ -194,13 +162,7 @@ export default function PDV() {
     setFormasPagamento((data ?? []) as FormaPagamentoCadastro[]);
   };
 
-  const abrirNovoClienteDialog = () => {
-    // Aproveita o que já foi digitado na busca: quem procurou "Marcos" e não
-    // achou quase sempre quer cadastrar exatamente esse nome.
-    setNovoCliente({ ...NOVO_CLIENTE_VAZIO, nome: clienteSearch.trim() });
-    setClientesSemelhantes([]);
-    setShowNovoClienteDialog(true);
-  };
+  const abrirNovoClienteDialog = () => setShowNovoClienteDialog(true);
 
   /**
    * Vincula o cliente à venda.
@@ -226,127 +188,47 @@ export default function PDV() {
     setShowClienteDialog(false);
   };
 
-  /** Procura cadastro que já exista, enquanto o vendedor digita. */
-  const procurarClienteSemelhante = async () => {
-    const achados = await buscarClientesSemelhantes({
-      telefone: novoCliente.telefone,
-      nome: novoCliente.nome,
-    });
-    setClientesSemelhantes(achados);
-    return achados;
-  };
-
-  /** Fecha o cadastro rápido e segue a venda com o cadastro que já existia. */
-  const usarClienteExistente = (id: string) => {
-    const jaCarregado = clientes.find((c) => c.id === id);
-
-    if (jaCarregado) {
-      selecionarCliente(jaCarregado);
-    } else {
-      // Cliente que existe no banco mas não está na lista em memória (foi
-      // cadastrado em outro terminal depois desta tela abrir).
-      void fetchClientes();
-      const semelhante = clientesSemelhantes.find((c) => c.id === id);
-      if (semelhante) {
-        selecionarCliente({
-          id: semelhante.id,
-          nome: semelhante.nome,
-          telefones: semelhante.telefones,
-          liberado_venda: semelhante.liberado_venda,
-        });
-      }
-    }
-
-    setShowNovoClienteDialog(false);
-    setClientesSemelhantes([]);
+  /**
+   * Cliente recém-cadastrado no meio da venda: entra na lista em memória (na
+   * ordem certa, sem nova ida ao banco) e já fica vinculado à venda.
+   */
+  const aoCadastrarCliente = (salvo: ClienteCompleto) => {
+    const novo: Cliente = {
+      id: salvo.id,
+      nome: salvo.nome,
+      telefones: salvo.telefones,
+      liberado_venda: salvo.liberado_venda,
+    };
+    setClientes((atuais) =>
+      [...atuais, novo].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+    );
+    selecionarCliente(novo);
   };
 
   /**
-   * Cadastro rápido: grava o cliente e já o deixa vinculado à venda em
-   * andamento. Nada aqui toca em `cart`, `pagamentos` ou `desconto` — o
-   * ponto da tela é justamente não perder a venda pra cadastrar alguém.
+   * O formulário achou um cadastro que já existia e o vendedor escolheu usá-lo.
+   * Decisão de 08/08: um cliente, um cadastro — a venda segue com o que existe.
    */
-  const salvarNovoCliente = async () => {
-    const nome = novoCliente.nome.trim();
-    if (!nome) {
-      toast({
-        title: 'Nome obrigatório',
-        description: 'Informe o nome do cliente.',
-        variant: 'destructive',
-      });
+  const aoUsarClienteExistente = async (id: string) => {
+    const jaCarregado = clientes.find((c) => c.id === id);
+    if (jaCarregado) {
+      selecionarCliente(jaCarregado);
       return;
     }
 
-    // Perfil vem de useAuth() (mesmo caminho do checkout). Sem tenant o RLS
-    // recusaria o INSERT com mensagem de policy — melhor avisar antes.
-    const tenantId = user?.profile?.tenant_id ?? null;
-    if (!tenantId) {
-      toast({
-        title: 'Usuário sem loja vinculada',
-        description: 'Peça ao administrador para vincular seu usuário à loja.',
-        variant: 'destructive',
-      });
-      return;
-    }
+    // Cadastrado em outro terminal depois desta tela abrir: busca a ficha
+    // antes de vincular, senão não dá pra saber se está bloqueado.
+    const { data } = await supabase
+      .from('clientes')
+      .select('id, nome, telefones, liberado_venda')
+      .eq('id', id)
+      .single();
 
-    setSalvandoCliente(true);
-
-    try {
-      // Um cliente, um cadastro. Procura antes de criar: se já existe, o
-      // vendedor usa o que existe e a venda segue — sem erro na cara dele.
-      const achados = await procurarClienteSemelhante();
-      if (achados.some((c) => c.motivo !== 'nome')) {
-        toast({
-          title: 'Este cliente já tem cadastro',
-          description: 'Use o cadastro que já existe, logo acima do formulário.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      const telefone = novoCliente.telefone.trim();
-      // `telefones` é TEXT[] no banco, alimentado por um campo só — mesmo
-      // corte que Cadastros > Clientes já faz. Os demais campos ficam no
-      // DEFAULT (origem 'loja', ativo true), que é o certo pra balcão.
-      const { data, error } = await supabase
-        .from('clientes')
-        .insert({
-          tenant_id: tenantId,
-          nome,
-          telefones: telefone ? [telefone] : [],
-        })
-        .select('id, nome, telefones, liberado_venda')
-        .single();
-
-      if (error) throw error;
-
-      // Insere na lista em memória em vez de refazer fetchClientes(): o
-      // vendedor não pode esperar uma segunda ida ao banco, e a lista é
-      // ordenada por nome — respeita essa ordem pra não parecer bagunçada.
-      const criado: Cliente = data;
+    if (data) {
       setClientes((atuais) =>
-        [...atuais, criado].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+        [...atuais, data].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
       );
-      setSelectedCliente(criado);
-      setClienteSearch('');
-
-      toast({
-        title: 'Cliente cadastrado!',
-        description: `${criado.nome} já está vinculado a esta venda.`,
-      });
-
-      setShowNovoClienteDialog(false);
-      setClientesSemelhantes([]);
-    } catch (error) {
-      console.error('Error saving cliente:', error);
-      toast({
-        title: 'Erro ao cadastrar cliente',
-        // Traduz também a recusa da trava de duplicidade (banco), não só RLS.
-        description: traduzirErroCliente(error),
-        variant: 'destructive',
-      });
-    } finally {
-      setSalvandoCliente(false);
+      selecionarCliente(data);
     }
   };
 
@@ -833,91 +715,19 @@ export default function PDV() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog de cadastro rápido de cliente */}
-      <Dialog open={showNovoClienteDialog} onOpenChange={setShowNovoClienteDialog}>
-        <DialogContent className="sm:max-w-[420px]">
-          <DialogHeader>
-            <DialogTitle>Cadastro rápido de cliente</DialogTitle>
-            <DialogDescription>
-              Só o essencial pra não travar a fila. O cadastro completo fica em
-              Cadastros &gt; Clientes e pode ser preenchido depois.
-            </DialogDescription>
-          </DialogHeader>
-          {/* Cadastro que já existe. Aparece antes do formulário porque a
-              decisão certa quase sempre é usar este, não criar outro. */}
-          {clientesSemelhantes.length > 0 && (
-            <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3">
-              <p className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-500">
-                <AlertTriangle className="h-4 w-4" />
-                {clientesSemelhantes.some((c) => c.motivo !== 'nome')
-                  ? 'Este cliente já está cadastrado'
-                  : 'Já existe alguém com esse nome'}
-              </p>
-              <div className="mt-2 space-y-2">
-                {clientesSemelhantes.map((c) => (
-                  <div key={c.id} className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-sm">
-                      <strong>{c.nome}</strong>
-                      {c.telefones?.[0] && (
-                        <span className="text-muted-foreground"> — {c.telefones[0]}</span>
-                      )}
-                      {!c.liberado_venda && (
-                        <Badge variant="destructive" className="ml-2 text-[10px]">
-                          Bloqueado
-                        </Badge>
-                      )}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={!c.liberado_venda}
-                      onClick={() => usarClienteExistente(c.id)}
-                    >
-                      <UserCheck className="mr-2 h-4 w-4" />
-                      Usar na venda
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="grid gap-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="novo-cliente-nome">Nome *</Label>
-              <Input
-                id="novo-cliente-nome"
-                value={novoCliente.nome}
-                onChange={e => setNovoCliente({ ...novoCliente, nome: e.target.value })}
-                onBlur={procurarClienteSemelhante}
-                placeholder="Nome do cliente"
-                autoFocus
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="novo-cliente-telefone">Telefone (opcional)</Label>
-              <Input
-                id="novo-cliente-telefone"
-                value={novoCliente.telefone}
-                onChange={e =>
-                  setNovoCliente({ ...novoCliente, telefone: mascaraTelefone(e.target.value) })
-                }
-                onBlur={procurarClienteSemelhante}
-                placeholder="(17) 99999-9999"
-                inputMode="numeric"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNovoClienteDialog(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={salvarNovoCliente} disabled={salvandoCliente}>
-              {salvandoCliente ? 'Salvando...' : 'Cadastrar e usar na venda'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Cadastro de cliente — o MESMO formulário de Cadastros > Clientes.
+          Decisão do Felipe em 08/08: "não adianta ter uma informação de um
+          lado e não ter do outro". Em vez de duas telas parecidas que vão
+          divergir com o tempo, o PDV abre a de verdade. Só o nome é
+          obrigatório, então quem está com fila continua salvando em dois
+          segundos. */}
+      <ClienteFormDialog
+        open={showNovoClienteDialog}
+        onOpenChange={setShowNovoClienteDialog}
+        nomeInicial={clienteSearch.trim()}
+        onSalvo={aoCadastrarCliente}
+        onUsarExistente={aoUsarClienteExistente}
+      />
 
       {/* Checkout Dialog */}
       <Dialog open={showCheckout} onOpenChange={setShowCheckout}>
