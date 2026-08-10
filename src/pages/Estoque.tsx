@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -66,7 +67,10 @@ interface Produto {
   estoque_atual: number;
   estoque_minimo: number;
   localizacao: ProdutoLocalizacao;
+  ativo: boolean;
 }
+
+type StatusFiltro = 'ativos' | 'inativos' | 'todos';
 
 export default function Estoque() {
   const navigate = useNavigate();
@@ -75,6 +79,11 @@ export default function Estoque() {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  // "Ativos" é o padrão pra não mudar o que todo mundo já está acostumado a
+  // ver. "Aguardando revisão" existe pra achar produto que entrou inativo de
+  // propósito (ex.: recebido em troca no PDV) e precisa de preço antes de
+  // aparecer pra venda.
+  const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>('ativos');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduto, setEditingProduto] = useState<Produto | null>(null);
   const [formData, setFormData] = useState({
@@ -89,6 +98,7 @@ export default function Estoque() {
     estoque_atual: '',
     estoque_minimo: '1',
     localizacao: 'deposito' as ProdutoLocalizacao,
+    ativo: true,
   });
   const [saving, setSaving] = useState(false);
 
@@ -98,10 +108,12 @@ export default function Estoque() {
 
   const fetchProdutos = async () => {
     try {
+      // Busca ativos e inativos numa chamada só — quem decide o que mostrar
+      // é o filtro de status na tela (mesmo padrão do CampoCatalogo com
+      // itens desativados: não esconder de quem precisa achar).
       const { data, error } = await supabase
         .from('vw_produtos')
         .select('*')
-        .eq('ativo', true)
         .order('nome');
 
       if (error) throw error;
@@ -133,6 +145,7 @@ export default function Estoque() {
         estoque_atual: String(produto.estoque_atual),
         estoque_minimo: String(produto.estoque_minimo),
         localizacao: produto.localizacao,
+        ativo: produto.ativo,
       });
     } else {
       setEditingProduto(null);
@@ -148,6 +161,7 @@ export default function Estoque() {
         estoque_atual: '',
         estoque_minimo: '1',
         localizacao: 'deposito',
+        ativo: true,
       });
     }
     setDialogOpen(true);
@@ -208,6 +222,7 @@ export default function Estoque() {
             preco: produtoData.preco,
             estoque_minimo: produtoData.estoque_minimo,
             localizacao: produtoData.localizacao,
+            ativo: formData.ativo,
           })
           .eq('id', editingProduto.id);
 
@@ -287,6 +302,9 @@ export default function Estoque() {
   };
 
   const filteredProdutos = produtos.filter(produto => {
+    if (statusFiltro === 'ativos' && !produto.ativo) return false;
+    if (statusFiltro === 'inativos' && produto.ativo) return false;
+
     const searchLower = search.toLowerCase();
     return (
       produto.nome.toLowerCase().includes(searchLower) ||
@@ -297,7 +315,8 @@ export default function Estoque() {
     );
   });
 
-  const criticalStock = produtos.filter(p => p.estoque_atual <= p.estoque_minimo).length;
+  const criticalStock = produtos.filter(p => p.ativo && p.estoque_atual <= p.estoque_minimo).length;
+  const aguardandoRevisao = produtos.filter(p => !p.ativo).length;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -330,6 +349,27 @@ export default function Estoque() {
         </Card>
       )}
 
+      {/* Produto que entrou inativo (ex.: recebido em troca no PDV) e ainda
+          não foi revisado/precificado — some da lista padrão de propósito,
+          então precisa de um aviso que leve direto pra ele, senão fica
+          "perdido" no banco sem ninguém saber onde procurar. */}
+      {aguardandoRevisao > 0 && statusFiltro !== 'inativos' && (
+        <Card
+          className="border-primary/40 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors"
+          onClick={() => setStatusFiltro('inativos')}
+        >
+          <CardContent className="flex items-center gap-3 p-4">
+            <Package className="h-5 w-5 text-primary" />
+            <div>
+              <p className="font-medium text-primary">Aguardando revisão</p>
+              <p className="text-sm text-muted-foreground">
+                {aguardandoRevisao} produto(s) inativo(s) — provavelmente recebido(s) em troca no PDV. Clique pra ver e definir o preço.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Search */}
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-sm">
@@ -341,6 +381,16 @@ export default function Estoque() {
             className="pl-9"
           />
         </div>
+        <Select value={statusFiltro} onValueChange={value => setStatusFiltro(value as StatusFiltro)}>
+          <SelectTrigger className="w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ativos">Ativos (disponíveis pra venda)</SelectItem>
+            <SelectItem value="inativos">Aguardando revisão</SelectItem>
+            <SelectItem value="todos">Todos</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
@@ -387,7 +437,14 @@ export default function Estoque() {
                     <TableRow key={produto.id}>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{produto.nome}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{produto.nome}</p>
+                            {!produto.ativo && (
+                              <Badge variant="outline" className="text-[10px] text-primary border-primary/40">
+                                Aguardando revisão
+                              </Badge>
+                            )}
+                          </div>
                           {(produto.marca || produto.modelo) && (
                             <p className="text-sm text-muted-foreground">
                               {[produto.marca, produto.modelo].filter(Boolean).join(' ')}
@@ -613,6 +670,25 @@ export default function Estoque() {
                 />
               </div>
             </div>
+            {/* Só aparece editando — produto novo cadastrado aqui já nasce
+                ativo. Existe pra reativar produto que entrou inativo de
+                propósito (ex.: recebido em troca no PDV) depois de revisado
+                e precificado. */}
+            {editingProduto && !editingProduto.ativo && (
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <Label htmlFor="ativo">Disponível pra venda</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Desligado = não aparece no PDV nem na lista padrão do Estoque.
+                  </p>
+                </div>
+                <Switch
+                  id="ativo"
+                  checked={formData.ativo}
+                  onCheckedChange={checked => setFormData({ ...formData, ativo: checked })}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
