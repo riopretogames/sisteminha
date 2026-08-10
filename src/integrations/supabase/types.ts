@@ -670,6 +670,78 @@ export type Database = {
           },
         ]
       }
+      entradas_produto: {
+        Row: {
+          created_at: string | null
+          id: string
+          observacoes: string | null
+          pagamento_venda_id: string | null
+          produto_id: string
+          tenant_id: string
+          usuario_id: string
+          valor_entrada: number
+          venda_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          observacoes?: string | null
+          pagamento_venda_id?: string | null
+          produto_id: string
+          tenant_id: string
+          usuario_id: string
+          valor_entrada: number
+          venda_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          observacoes?: string | null
+          pagamento_venda_id?: string | null
+          produto_id?: string
+          tenant_id?: string
+          usuario_id?: string
+          valor_entrada?: number
+          venda_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entradas_produto_pagamento_venda_id_fkey"
+            columns: ["pagamento_venda_id"]
+            isOneToOne: false
+            referencedRelation: "pagamentos_venda"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entradas_produto_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entradas_produto_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_produtos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entradas_produto_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entradas_produto_venda_id_fkey"
+            columns: ["venda_id"]
+            isOneToOne: false
+            referencedRelation: "vendas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       formas_pagamento: {
         Row: {
           ativo: boolean
@@ -1187,6 +1259,8 @@ export type Database = {
           ativo: boolean | null
           categoria: Database["public"]["Enums"]["produto_categoria"] | null
           codigo_barra: string | null
+          condicao_id: string | null
+          cor_id: string | null
           created_at: string | null
           custo: number | null
           estoque_atual: number | null
@@ -1194,12 +1268,16 @@ export type Database = {
           estoque_minimo: number | null
           foto_url: string | null
           garantia_meses: number | null
+          grupo_produto_id: string | null
           id: string
           imei_serial: string | null
           localizacao: Database["public"]["Enums"]["produto_localizacao"] | null
           marca: string | null
+          marca_id: string | null
           margem_percent: number | null
+          memoria_id: string | null
           modelo: string | null
+          modelo_id: string | null
           nome: string
           preco: number | null
           tenant_id: string
@@ -1209,6 +1287,8 @@ export type Database = {
           ativo?: boolean | null
           categoria?: Database["public"]["Enums"]["produto_categoria"] | null
           codigo_barra?: string | null
+          condicao_id?: string | null
+          cor_id?: string | null
           created_at?: string | null
           custo?: number | null
           estoque_atual?: number | null
@@ -1216,14 +1296,18 @@ export type Database = {
           estoque_minimo?: number | null
           foto_url?: string | null
           garantia_meses?: number | null
+          grupo_produto_id?: string | null
           id?: string
           imei_serial?: string | null
           localizacao?:
             | Database["public"]["Enums"]["produto_localizacao"]
             | null
           marca?: string | null
+          marca_id?: string | null
           margem_percent?: number | null
+          memoria_id?: string | null
           modelo?: string | null
+          modelo_id?: string | null
           nome: string
           preco?: number | null
           tenant_id: string
@@ -1233,6 +1317,8 @@ export type Database = {
           ativo?: boolean | null
           categoria?: Database["public"]["Enums"]["produto_categoria"] | null
           codigo_barra?: string | null
+          condicao_id?: string | null
+          cor_id?: string | null
           created_at?: string | null
           custo?: number | null
           estoque_atual?: number | null
@@ -1240,20 +1326,66 @@ export type Database = {
           estoque_minimo?: number | null
           foto_url?: string | null
           garantia_meses?: number | null
+          grupo_produto_id?: string | null
           id?: string
           imei_serial?: string | null
           localizacao?:
             | Database["public"]["Enums"]["produto_localizacao"]
             | null
           marca?: string | null
+          marca_id?: string | null
           margem_percent?: number | null
+          memoria_id?: string | null
           modelo?: string | null
+          modelo_id?: string | null
           nome?: string
           preco?: number | null
           tenant_id?: string
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "produtos_condicao_id_fkey"
+            columns: ["condicao_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "produtos_cor_id_fkey"
+            columns: ["cor_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "produtos_grupo_produto_id_fkey"
+            columns: ["grupo_produto_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "produtos_marca_id_fkey"
+            columns: ["marca_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "produtos_memoria_id_fkey"
+            columns: ["memoria_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "produtos_modelo_id_fkey"
+            columns: ["modelo_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "produtos_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -2422,6 +2554,22 @@ export type Database = {
       minhas_permissoes: { Args: never; Returns: string[] }
       proximo_numero_documento: {
         Args: { _documento: string; _tenant: string }
+        Returns: string
+      }
+      registrar_entrada_produto_troca: {
+        Args: {
+          _condicao_id: string
+          _cor_id: string
+          _grupo_produto_id: string
+          _imei_serial: string
+          _marca_id: string
+          _memoria_id: string
+          _modelo_id: string
+          _nome: string
+          _observacoes?: string
+          _valor_entrada: number
+          _venda_id: string
+        }
         Returns: string
       }
       somente_digitos: { Args: { _texto: string }; Returns: string }

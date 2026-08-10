@@ -14,6 +14,7 @@ import {
   QrCode,
   Check,
   X,
+  Repeat,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +41,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
 import { ClienteFormDialog } from '@/components/clientes/ClienteFormDialog';
+import { CampoCatalogo } from '@/components/CampoCatalogo';
 import type { Cliente as ClienteCompleto } from '@/hooks/useClientes';
 import { soDigitos } from '@/lib/documento';
 import { FORMAS_PAGAMENTO } from '@/lib/constants';
@@ -91,6 +93,38 @@ interface Pagamento {
   valor: number;
 }
 
+/**
+ * Produto usado recebido como parte do pagamento (ex.: cliente dá o PS4 dele
+ * na troca por um PS5 novo). Fica só em memória até o checkout de fato —
+ * mesmo padrão do carrinho e dos pagamentos. No checkout, a RPC
+ * `registrar_entrada_produto_troca` cria o produto (inativo, até alguém
+ * revisar e precificar), grava o valor como pagamento (forma `vale_troca`) e
+ * guarda o rastreio até esta venda e o cliente dela.
+ */
+interface EntradaProdutoTroca {
+  nome: string;
+  grupoProdutoId: string;
+  marcaId: string;
+  modeloId: string;
+  corId: string;
+  condicaoId: string;
+  memoriaId: string;
+  imeiSerial: string;
+  valorEntrada: number;
+}
+
+const ENTRADA_PRODUTO_VAZIA = {
+  nome: '',
+  grupoProdutoId: '',
+  marcaId: '',
+  modeloId: '',
+  corId: '',
+  condicaoId: '',
+  memoriaId: '',
+  imeiSerial: '',
+  valorEntrada: '',
+};
+
 export default function PDV() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -108,6 +142,9 @@ export default function PDV() {
   const [search, setSearch] = useState('');
   const [clienteSearch, setClienteSearch] = useState('');
   const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
+  const [entradasProduto, setEntradasProduto] = useState<EntradaProdutoTroca[]>([]);
+  const [novaEntrada, setNovaEntrada] = useState(ENTRADA_PRODUTO_VAZIA);
+  const [showEntradaProduto, setShowEntradaProduto] = useState(false);
   const [desconto, setDesconto] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
   const [showClienteDialog, setShowClienteDialog] = useState(false);
@@ -296,7 +333,11 @@ export default function PDV() {
     : 0;
   const total = subtotalBruto - descontoValor;
 
-  const totalPago = pagamentos.reduce((acc, p) => acc + p.valor, 0);
+  const totalEntradaProdutos = entradasProduto.reduce((acc, e) => acc + e.valorEntrada, 0);
+  // Produto recebido em troca conta como pagamento (mesma ideia do vale_troca
+  // que a venda vai gravar) — por isso soma aqui, na mesma conta de "quanto já
+  // foi pago", em vez de abater do total como se fosse desconto.
+  const totalPago = pagamentos.reduce((acc, p) => acc + p.valor, 0) + totalEntradaProdutos;
   const troco = totalPago - total;
 
   const selecionarFormaPagamento = (formaPagamentoId: string) => {
@@ -346,6 +387,25 @@ export default function PDV() {
 
   const removePagamento = (index: number) => {
     setPagamentos(pagamentos.filter((_, i) => i !== index));
+  };
+
+  const addEntradaProduto = () => {
+    if (!novaEntrada.nome.trim()) {
+      toast({ title: 'Descreva o produto recebido', variant: 'destructive' });
+      return;
+    }
+    const valor = parseFloat(novaEntrada.valorEntrada);
+    if (!valor || valor <= 0) {
+      toast({ title: 'Informe o valor de entrada', variant: 'destructive' });
+      return;
+    }
+    setEntradasProduto([...entradasProduto, { ...novaEntrada, nome: novaEntrada.nome.trim(), valorEntrada: valor }]);
+    setNovaEntrada(ENTRADA_PRODUTO_VAZIA);
+    setShowEntradaProduto(false);
+  };
+
+  const removeEntradaProduto = (index: number) => {
+    setEntradasProduto(entradasProduto.filter((_, i) => i !== index));
   };
 
   const handleCheckout = async () => {
@@ -430,6 +490,34 @@ export default function PDV() {
           .insert(pagamentosVenda);
 
         if (pagamentosError) throw pagamentosError;
+
+        // Produto(s) recebido(s) em troca: a RPC cria o produto (inativo),
+        // grava o valor como pagamento (forma vale_troca) e o rastreio até
+        // esta venda, numa chamada só. SECURITY DEFINER porque o vendedor
+        // não tem `inventory.create` — um INSERT direto em `produtos` pelo
+        // front seria recusado pela RLS.
+        for (const entrada of entradasProduto) {
+          const { error: entradaError } = await supabase.rpc('registrar_entrada_produto_troca', {
+            _venda_id: venda.id,
+            _nome: entrada.nome,
+            // Os campos de catálogo são opcionais (o vendedor pode não saber
+            // marca/modelo/cor na hora) — a função no banco já trata NULL
+            // como válido (catalogo_e_do_tipo). O tipo gerado marca esses
+            // parâmetros como string obrigatória só porque a RPC não tem
+            // DEFAULT neles, não porque não aceitem NULL — por isso o cast
+            // pontual em cada campo opcional, em vez de `any` no objeto todo.
+            _grupo_produto_id: (entrada.grupoProdutoId || null) as unknown as string,
+            _marca_id: (entrada.marcaId || null) as unknown as string,
+            _modelo_id: (entrada.modeloId || null) as unknown as string,
+            _cor_id: (entrada.corId || null) as unknown as string,
+            _condicao_id: (entrada.condicaoId || null) as unknown as string,
+            _memoria_id: (entrada.memoriaId || null) as unknown as string,
+            _imei_serial: (entrada.imeiSerial.trim() || null) as unknown as string,
+            _valor_entrada: entrada.valorEntrada,
+          });
+
+          if (entradaError) throw entradaError;
+        }
       } catch (innerError) {
         // A venda já foi criada (é outra linha, outra transação). Se itens
         // ou pagamento falharem depois — por exemplo, estoque insuficiente
@@ -450,6 +538,9 @@ export default function PDV() {
       // Reset
       setCart([]);
       setPagamentos([]);
+      setEntradasProduto([]);
+      setNovaEntrada(ENTRADA_PRODUTO_VAZIA);
+      setShowEntradaProduto(false);
       setDesconto('');
       setSelectedCliente(null);
       setClienteSearch('');
@@ -848,12 +939,128 @@ export default function PDV() {
 
             <Separator />
 
+            {/* Produto recebido em troca — cliente dá um usado como parte
+                do pagamento (ex.: PS4 na troca por um PS5). Fica só em
+                memória até "Confirmar Venda"; a RPC no checkout cria o
+                produto, o pagamento e o rastreio numa chamada só. */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Produto recebido em troca</label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowEntradaProduto((v) => !v)}
+                >
+                  <Repeat className="mr-2 h-4 w-4" />
+                  {showEntradaProduto ? 'Cancelar' : 'Adicionar'}
+                </Button>
+              </div>
+
+              {entradasProduto.length > 0 && (
+                <div className="space-y-2">
+                  {entradasProduto.map((e, i) => (
+                    <div key={i} className="flex items-center justify-between p-2 rounded bg-muted">
+                      <span className="truncate">{e.nome}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{formatCurrency(e.valorEntrada)}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => removeEntradaProduto(i)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {showEntradaProduto && (
+                <div className="space-y-2 p-3 rounded-lg border">
+                  <Input
+                    placeholder="Descrição (ex.: PlayStation 4 Slim 500GB)"
+                    value={novaEntrada.nome}
+                    onChange={(e) => setNovaEntrada({ ...novaEntrada, nome: e.target.value })}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <CampoCatalogo
+                      tipo="grupo_produto"
+                      label="Tipo"
+                      valor={novaEntrada.grupoProdutoId}
+                      onChange={(v) => setNovaEntrada({ ...novaEntrada, grupoProdutoId: v })}
+                    />
+                    <CampoCatalogo
+                      tipo="condicao"
+                      label="Condição"
+                      valor={novaEntrada.condicaoId}
+                      onChange={(v) => setNovaEntrada({ ...novaEntrada, condicaoId: v })}
+                    />
+                    <CampoCatalogo
+                      tipo="marca"
+                      label="Marca"
+                      valor={novaEntrada.marcaId}
+                      onChange={(v) => setNovaEntrada({ ...novaEntrada, marcaId: v })}
+                    />
+                    <CampoCatalogo
+                      tipo="modelo"
+                      label="Modelo"
+                      valor={novaEntrada.modeloId}
+                      onChange={(v) => setNovaEntrada({ ...novaEntrada, modeloId: v })}
+                    />
+                    <CampoCatalogo
+                      tipo="cor"
+                      label="Cor"
+                      valor={novaEntrada.corId}
+                      onChange={(v) => setNovaEntrada({ ...novaEntrada, corId: v })}
+                    />
+                    <CampoCatalogo
+                      tipo="memoria"
+                      label="Memória"
+                      valor={novaEntrada.memoriaId}
+                      onChange={(v) => setNovaEntrada({ ...novaEntrada, memoriaId: v })}
+                    />
+                  </div>
+                  <Input
+                    placeholder="Nº de série / IMEI (opcional)"
+                    value={novaEntrada.imeiSerial}
+                    onChange={(e) => setNovaEntrada({ ...novaEntrada, imeiSerial: e.target.value })}
+                  />
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Valor de entrada (R$)"
+                      value={novaEntrada.valorEntrada}
+                      onChange={(e) => setNovaEntrada({ ...novaEntrada, valorEntrada: e.target.value })}
+                      className="flex-1"
+                    />
+                    <Button onClick={addEntradaProduto}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Entra no estoque como inativo — alguém precisa revisar e definir o preço de revenda antes dele aparecer pra venda.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
             {/* Summary */}
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span>Total da venda</span>
                 <span className="font-medium">{formatCurrency(total)}</span>
               </div>
+              {totalEntradaProdutos > 0 && (
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Entrada de produto</span>
+                  <span>{formatCurrency(totalEntradaProdutos)}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span>Total pago</span>
                 <span className="font-medium">{formatCurrency(totalPago)}</span>
