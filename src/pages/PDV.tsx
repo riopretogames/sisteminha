@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
@@ -428,6 +429,7 @@ export default function PDV() {
     }
 
     setProcessing(true);
+    const produtosDeTroca: string[] = [];
 
     try {
       // Perfil vem de useAuth() (já carregado no login, do usuário certo) —
@@ -497,7 +499,7 @@ export default function PDV() {
         // não tem `inventory.create` — um INSERT direto em `produtos` pelo
         // front seria recusado pela RLS.
         for (const entrada of entradasProduto) {
-          const { error: entradaError } = await supabase.rpc('registrar_entrada_produto_troca', {
+          const { data: produtoIdCriado, error: entradaError } = await supabase.rpc('registrar_entrada_produto_troca', {
             _venda_id: venda.id,
             _nome: entrada.nome,
             // Os campos de catálogo são opcionais (o vendedor pode não saber
@@ -517,6 +519,7 @@ export default function PDV() {
           });
 
           if (entradaError) throw entradaError;
+          if (produtoIdCriado) produtosDeTroca.push(produtoIdCriado as unknown as string);
         }
       } catch (innerError) {
         // A venda já foi criada (é outra linha, outra transação). Se itens
@@ -533,6 +536,17 @@ export default function PDV() {
       toast({
         title: 'Venda finalizada!',
         description: `Venda ${venda.numero_venda} registrada com sucesso.`,
+        // Produto recebido em troca entra inativo, esperando alguém revisar
+        // e definir o preço — sem este atalho, o único jeito de achar era
+        // saber que existe o aviso "Aguardando revisão" em Estoque.
+        action: produtosDeTroca.length > 0 ? (
+          <ToastAction
+            altText="Revisar produto recebido em troca"
+            onClick={() => navigate(`/estoque/${produtosDeTroca[0]}`)}
+          >
+            Revisar produto
+          </ToastAction>
+        ) : undefined,
       });
 
       // Reset

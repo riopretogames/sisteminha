@@ -19,6 +19,7 @@ import { lazy } from 'react';
 
 const OSDetalhe = lazy(() => import('./pages/OSDetalhe'));
 const ClienteFicha = lazy(() => import('./pages/ClienteFicha'));
+const EstoqueDetalhe = lazy(() => import('./pages/EstoqueDetalhe'));
 
 /**
  * As rotas protegidas NÃO são escritas à mão — são derivadas de
@@ -73,6 +74,19 @@ const App = () => (
                   <RequirePermission permission={PERMISSIONS.REGISTRY_CUSTOMERS_MANAGE}>
                     <Suspense fallback={<CarregandoPagina />}>
                       <ClienteFicha />
+                    </Suspense>
+                  </RequirePermission>
+                }
+              />
+              {/* Ficha do produto: mesmo caso do drill-down de OS e da ficha
+                  de cliente acima — rota com parâmetro, fora do que menu.ts
+                  modela. Substitui o Dialog pequeno de edição do Estoque. */}
+              <Route
+                path="/estoque/:id"
+                element={
+                  <RequirePermission permission={PERMISSIONS.INVENTORY_VIEW}>
+                    <Suspense fallback={<CarregandoPagina />}>
+                      <EstoqueDetalhe />
                     </Suspense>
                   </RequirePermission>
                 }

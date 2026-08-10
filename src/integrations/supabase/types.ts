@@ -1279,6 +1279,7 @@ export type Database = {
           modelo: string | null
           modelo_id: string | null
           nome: string
+          observacoes: string | null
           preco: number | null
           tenant_id: string
           updated_at: string | null
@@ -1309,6 +1310,7 @@ export type Database = {
           modelo?: string | null
           modelo_id?: string | null
           nome: string
+          observacoes?: string | null
           preco?: number | null
           tenant_id: string
           updated_at?: string | null
@@ -1339,6 +1341,7 @@ export type Database = {
           modelo?: string | null
           modelo_id?: string | null
           nome?: string
+          observacoes?: string | null
           preco?: number | null
           tenant_id?: string
           updated_at?: string | null
@@ -2375,6 +2378,8 @@ export type Database = {
           ativo: boolean | null
           categoria: Database["public"]["Enums"]["produto_categoria"] | null
           codigo_barra: string | null
+          condicao_id: string | null
+          cor_id: string | null
           created_at: string | null
           custo: number | null
           estoque_atual: number | null
@@ -2382,13 +2387,18 @@ export type Database = {
           estoque_minimo: number | null
           foto_url: string | null
           garantia_meses: number | null
+          grupo_produto_id: string | null
           id: string | null
           imei_serial: string | null
           localizacao: Database["public"]["Enums"]["produto_localizacao"] | null
           marca: string | null
+          marca_id: string | null
           margem_percent: number | null
+          memoria_id: string | null
           modelo: string | null
+          modelo_id: string | null
           nome: string | null
+          observacoes: string | null
           preco: number | null
           tenant_id: string | null
           updated_at: string | null
@@ -2397,6 +2407,8 @@ export type Database = {
           ativo?: boolean | null
           categoria?: Database["public"]["Enums"]["produto_categoria"] | null
           codigo_barra?: string | null
+          condicao_id?: string | null
+          cor_id?: string | null
           created_at?: string | null
           custo?: never
           estoque_atual?: number | null
@@ -2404,15 +2416,20 @@ export type Database = {
           estoque_minimo?: number | null
           foto_url?: string | null
           garantia_meses?: number | null
+          grupo_produto_id?: string | null
           id?: string | null
           imei_serial?: string | null
           localizacao?:
             | Database["public"]["Enums"]["produto_localizacao"]
             | null
           marca?: string | null
+          marca_id?: string | null
           margem_percent?: never
+          memoria_id?: string | null
           modelo?: string | null
+          modelo_id?: string | null
           nome?: string | null
+          observacoes?: string | null
           preco?: number | null
           tenant_id?: string | null
           updated_at?: string | null
@@ -2421,6 +2438,8 @@ export type Database = {
           ativo?: boolean | null
           categoria?: Database["public"]["Enums"]["produto_categoria"] | null
           codigo_barra?: string | null
+          condicao_id?: string | null
+          cor_id?: string | null
           created_at?: string | null
           custo?: never
           estoque_atual?: number | null
@@ -2428,20 +2447,67 @@ export type Database = {
           estoque_minimo?: number | null
           foto_url?: string | null
           garantia_meses?: number | null
+          grupo_produto_id?: string | null
           id?: string | null
           imei_serial?: string | null
           localizacao?:
             | Database["public"]["Enums"]["produto_localizacao"]
             | null
           marca?: string | null
+          marca_id?: string | null
           margem_percent?: never
+          memoria_id?: string | null
           modelo?: string | null
+          modelo_id?: string | null
           nome?: string | null
+          observacoes?: string | null
           preco?: number | null
           tenant_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "produtos_condicao_id_fkey"
+            columns: ["condicao_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "produtos_cor_id_fkey"
+            columns: ["cor_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "produtos_grupo_produto_id_fkey"
+            columns: ["grupo_produto_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "produtos_marca_id_fkey"
+            columns: ["marca_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "produtos_memoria_id_fkey"
+            columns: ["memoria_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "produtos_modelo_id_fkey"
+            columns: ["modelo_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "produtos_tenant_id_fkey"
             columns: ["tenant_id"]

@@ -2,13 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus,
-  Search,
   MoreHorizontal,
   Package,
-  Edit,
+  Eye,
   Trash2,
   AlertTriangle,
-  ArrowUpDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,7 +35,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -49,6 +46,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { PRODUTO_CATEGORIAS, PRODUTO_LOCALIZACOES } from '@/lib/constants';
+import { FiltrosProdutos } from '@/components/produtos/FiltrosProdutos';
+import { FILTROS_PRODUTOS_VAZIO, aplicarFiltrosProdutos, type FiltrosProdutosValores } from '@/lib/filtrosProdutos';
 
 type ProdutoCategoria = "celular" | "acessorio" | "peca" | "servico";
 type ProdutoLocalizacao = "vitrine" | "deposito" | "bancada" | "sucata";
@@ -60,6 +59,12 @@ interface Produto {
   imei_serial: string | null;
   marca: string | null;
   modelo: string | null;
+  grupo_produto_id: string | null;
+  marca_id: string | null;
+  modelo_id: string | null;
+  cor_id: string | null;
+  condicao_id: string | null;
+  memoria_id: string | null;
   categoria: ProdutoCategoria;
   custo: number;
   preco: number;
@@ -68,24 +73,31 @@ interface Produto {
   estoque_minimo: number;
   localizacao: ProdutoLocalizacao;
   ativo: boolean;
+  created_at: string;
 }
 
-type StatusFiltro = 'ativos' | 'inativos' | 'todos';
-
+/**
+ * Lista de produtos. Editar (todas as informações, catálogo, movimentações)
+ * mora em `/estoque/:id` (`EstoqueDetalhe.tsx`) desde 10/08 — pedido do
+ * Felipe, com o sistema antigo como referência: "editar produto" precisa de
+ * uma tela própria, não um Dialog pequeno. O Dialog aqui só cadastra produto
+ * novo do zero (corte de escopo deliberado — a reclamação era sobre editar).
+ */
 export default function Estoque() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  // "Ativos" é o padrão pra não mudar o que todo mundo já está acostumado a
-  // ver. "Aguardando revisão" existe pra achar produto que entrou inativo de
-  // propósito (ex.: recebido em troca no PDV) e precisa de preço antes de
-  // aparecer pra venda.
-  const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>('ativos');
+  // Padrão continua "Apto à Venda: Sim" — não muda o que todo mundo já está
+  // acostumado a ver ao abrir a tela. FILTROS_PRODUTOS_VAZIO (o que "Limpar
+  // filtros" restaura) fica com 'todos' de propósito: limpar filtro tem que
+  // mostrar TUDO, senão "limpar" continuaria sendo um filtro escondido.
+  const [filtros, setFiltros] = useState<FiltrosProdutosValores>({
+    ...FILTROS_PRODUTOS_VAZIO,
+    aptoVenda: 'sim',
+  });
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingProduto, setEditingProduto] = useState<Produto | null>(null);
   const [formData, setFormData] = useState({
     nome: '',
     codigo_barra: '',
@@ -98,7 +110,6 @@ export default function Estoque() {
     estoque_atual: '',
     estoque_minimo: '1',
     localizacao: 'deposito' as ProdutoLocalizacao,
-    ativo: true,
   });
   const [saving, setSaving] = useState(false);
 
@@ -109,8 +120,8 @@ export default function Estoque() {
   const fetchProdutos = async () => {
     try {
       // Busca ativos e inativos numa chamada só — quem decide o que mostrar
-      // é o filtro de status na tela (mesmo padrão do CampoCatalogo com
-      // itens desativados: não esconder de quem precisa achar).
+      // é o filtro "Apto à Venda" no painel (mesmo padrão do CampoCatalogo
+      // com itens desativados: não esconder de quem precisa achar).
       const { data, error } = await supabase
         .from('vw_produtos')
         .select('*')
@@ -130,40 +141,20 @@ export default function Estoque() {
     }
   };
 
-  const handleOpenDialog = (produto?: Produto) => {
-    if (produto) {
-      setEditingProduto(produto);
-      setFormData({
-        nome: produto.nome,
-        codigo_barra: produto.codigo_barra || '',
-        imei_serial: produto.imei_serial || '',
-        marca: produto.marca || '',
-        modelo: produto.modelo || '',
-        categoria: produto.categoria,
-        custo: String(produto.custo),
-        preco: String(produto.preco),
-        estoque_atual: String(produto.estoque_atual),
-        estoque_minimo: String(produto.estoque_minimo),
-        localizacao: produto.localizacao,
-        ativo: produto.ativo,
-      });
-    } else {
-      setEditingProduto(null);
-      setFormData({
-        nome: '',
-        codigo_barra: '',
-        imei_serial: '',
-        marca: '',
-        modelo: '',
-        categoria: 'acessorio',
-        custo: '',
-        preco: '',
-        estoque_atual: '',
-        estoque_minimo: '1',
-        localizacao: 'deposito',
-        ativo: true,
-      });
-    }
+  const handleOpenDialog = () => {
+    setFormData({
+      nome: '',
+      codigo_barra: '',
+      imei_serial: '',
+      marca: '',
+      modelo: '',
+      categoria: 'acessorio',
+      custo: '',
+      preco: '',
+      estoque_atual: '',
+      estoque_minimo: '1',
+      localizacao: 'deposito',
+    });
     setDialogOpen(true);
   };
 
@@ -189,7 +180,7 @@ export default function Estoque() {
         throw new Error('Tenant não encontrado');
       }
 
-      const produtoData = {
+      const { error } = await supabase.from('produtos').insert({
         nome: formData.nome.trim(),
         codigo_barra: formData.codigo_barra.trim() || null,
         imei_serial: formData.imei_serial.trim() || null,
@@ -202,65 +193,22 @@ export default function Estoque() {
         estoque_minimo: parseInt(formData.estoque_minimo) || 1,
         localizacao: formData.localizacao,
         tenant_id: tenantId,
-      };
+      });
 
-      if (editingProduto) {
-        // estoque_atual sai do UPDATE genérico e vai pela função
-        // `ajustar_estoque_produto`, que grava a auditoria em
-        // movimentos_estoque (motivo "Ajuste manual") — sem isso, mudar a
-        // quantidade aqui não deixava nenhum rastro.
-        const { error } = await supabase
-          .from('produtos')
-          .update({
-            nome: produtoData.nome,
-            codigo_barra: produtoData.codigo_barra,
-            imei_serial: produtoData.imei_serial,
-            marca: produtoData.marca,
-            modelo: produtoData.modelo,
-            categoria: produtoData.categoria,
-            custo: produtoData.custo,
-            preco: produtoData.preco,
-            estoque_minimo: produtoData.estoque_minimo,
-            localizacao: produtoData.localizacao,
-            ativo: formData.ativo,
-          })
-          .eq('id', editingProduto.id);
+      if (error) throw error;
 
-        if (error) throw error;
-
-        if (produtoData.estoque_atual !== editingProduto.estoque_atual) {
-          const { error: ajusteError } = await supabase.rpc('ajustar_estoque_produto', {
-            _produto_id: editingProduto.id,
-            _nova_quantidade: produtoData.estoque_atual,
-          });
-
-          if (ajusteError) throw ajusteError;
-        }
-
-        toast({
-          title: 'Produto atualizado!',
-          description: 'Os dados foram salvos com sucesso.',
-        });
-      } else {
-        const { error } = await supabase
-          .from('produtos')
-          .insert(produtoData);
-
-        if (error) throw error;
-
-        toast({
-          title: 'Produto cadastrado!',
-          description: 'O produto foi adicionado com sucesso.',
-        });
-      }
+      toast({
+        title: 'Produto cadastrado!',
+        description: 'O produto foi adicionado com sucesso. Marca, modelo e demais catálogos podem ser completados na ficha do produto.',
+      });
 
       setDialogOpen(false);
       fetchProdutos();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving produto:', error);
       toast({
         title: 'Erro ao salvar',
-        description: error.message || 'Tente novamente.',
+        description: error instanceof Error ? error.message : 'Tente novamente.',
         variant: 'destructive',
       });
     } finally {
@@ -285,10 +233,10 @@ export default function Estoque() {
       });
 
       fetchProdutos();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Erro ao excluir',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Tente novamente.',
         variant: 'destructive',
       });
     }
@@ -301,19 +249,7 @@ export default function Estoque() {
     }).format(value);
   };
 
-  const filteredProdutos = produtos.filter(produto => {
-    if (statusFiltro === 'ativos' && !produto.ativo) return false;
-    if (statusFiltro === 'inativos' && produto.ativo) return false;
-
-    const searchLower = search.toLowerCase();
-    return (
-      produto.nome.toLowerCase().includes(searchLower) ||
-      produto.codigo_barra?.toLowerCase().includes(searchLower) ||
-      produto.imei_serial?.toLowerCase().includes(searchLower) ||
-      produto.marca?.toLowerCase().includes(searchLower) ||
-      produto.modelo?.toLowerCase().includes(searchLower)
-    );
-  });
+  const filteredProdutos = aplicarFiltrosProdutos(produtos, filtros);
 
   const criticalStock = produtos.filter(p => p.ativo && p.estoque_atual <= p.estoque_minimo).length;
   // Inativo + sem preço é a marca de quem entrou por troca no PDV e ainda não
@@ -331,7 +267,7 @@ export default function Estoque() {
             Gerencie seus produtos e peças
           </p>
         </div>
-        <Button onClick={() => handleOpenDialog()}>
+        <Button onClick={handleOpenDialog}>
           <Plus className="mr-2 h-4 w-4" />
           Novo Produto
         </Button>
@@ -356,10 +292,10 @@ export default function Estoque() {
           não foi revisado/precificado — some da lista padrão de propósito,
           então precisa de um aviso que leve direto pra ele, senão fica
           "perdido" no banco sem ninguém saber onde procurar. */}
-      {aguardandoRevisao > 0 && statusFiltro !== 'inativos' && (
+      {aguardandoRevisao > 0 && filtros.aptoVenda !== 'nao' && (
         <Card
           className="border-primary/40 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors"
-          onClick={() => setStatusFiltro('inativos')}
+          onClick={() => setFiltros({ ...filtros, aptoVenda: 'nao' })}
         >
           <CardContent className="flex items-center gap-3 p-4">
             <Package className="h-5 w-5 text-primary" />
@@ -373,28 +309,7 @@ export default function Estoque() {
         </Card>
       )}
 
-      {/* Search */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nome, código, IMEI..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <Select value={statusFiltro} onValueChange={value => setStatusFiltro(value as StatusFiltro)}>
-          <SelectTrigger className="w-56">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ativos">Ativos (disponíveis pra venda)</SelectItem>
-            <SelectItem value="inativos">Inativos (excluídos ou aguardando revisão)</SelectItem>
-            <SelectItem value="todos">Todos</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <FiltrosProdutos valores={filtros} onChange={setFiltros} resultados={filteredProdutos.length} />
 
       {/* Table */}
       <Card>
@@ -409,15 +324,7 @@ export default function Estoque() {
                 <Package className="h-8 w-8 text-muted-foreground" />
               </div>
               <p className="mt-4 text-lg font-medium">Nenhum produto encontrado</p>
-              <p className="text-muted-foreground">
-                {search ? 'Tente outra busca' : 'Cadastre seu primeiro produto'}
-              </p>
-              {!search && (
-                <Button className="mt-4" onClick={() => handleOpenDialog()}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Cadastrar Produto
-                </Button>
-              )}
+              <p className="text-muted-foreground">Tente ajustar os filtros</p>
             </div>
           ) : (
             <Table>
@@ -437,7 +344,11 @@ export default function Estoque() {
                 {filteredProdutos.map(produto => {
                   const isLowStock = produto.estoque_atual <= produto.estoque_minimo;
                   return (
-                    <TableRow key={produto.id}>
+                    <TableRow
+                      key={produto.id}
+                      className="cursor-pointer"
+                      onClick={() => navigate(`/estoque/${produto.id}`)}
+                    >
                       <TableCell>
                         <div>
                           <div className="flex items-center gap-2">
@@ -485,7 +396,7 @@ export default function Estoque() {
                       <TableCell>
                         {PRODUTO_LOCALIZACOES[produto.localizacao]?.label || produto.localizacao}
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
@@ -493,9 +404,9 @@ export default function Estoque() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleOpenDialog(produto)}>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Editar
+                            <DropdownMenuItem onClick={() => navigate(`/estoque/${produto.id}`)}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              Ver ficha completa
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-destructive"
@@ -516,17 +427,14 @@ export default function Estoque() {
         </CardContent>
       </Card>
 
-      {/* Dialog */}
+      {/* Dialog — só cadastro do zero. Editar (catálogo, apto à venda,
+          observações, movimentações) é a ficha em /estoque/:id. */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>
-              {editingProduto ? 'Editar Produto' : 'Novo Produto'}
-            </DialogTitle>
+            <DialogTitle>Novo Produto</DialogTitle>
             <DialogDescription>
-              {editingProduto
-                ? 'Atualize os dados do produto'
-                : 'Preencha os dados para cadastrar um novo produto'}
+              Preencha os dados para cadastrar um novo produto. Marca, modelo, cor, condição e memória do catálogo podem ser completados depois, na ficha do produto.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -678,32 +586,13 @@ export default function Estoque() {
                 />
               </div>
             </div>
-            {/* Só aparece editando — produto novo cadastrado aqui já nasce
-                ativo. Existe pra reativar produto que entrou inativo de
-                propósito (ex.: recebido em troca no PDV) depois de revisado
-                e precificado. */}
-            {editingProduto && !editingProduto.ativo && (
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div>
-                  <Label htmlFor="ativo">Disponível pra venda</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Desligado = não aparece no PDV nem na lista padrão do Estoque.
-                  </p>
-                </div>
-                <Switch
-                  id="ativo"
-                  checked={formData.ativo}
-                  onCheckedChange={checked => setFormData({ ...formData, ativo: checked })}
-                />
-              </div>
-            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Cancelar
             </Button>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? 'Salvando...' : editingProduto ? 'Salvar' : 'Cadastrar'}
+              {saving ? 'Salvando...' : 'Cadastrar'}
             </Button>
           </DialogFooter>
         </DialogContent>
