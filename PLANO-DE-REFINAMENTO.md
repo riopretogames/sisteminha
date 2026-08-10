@@ -236,11 +236,30 @@ comentado nas 3.
   consultando a API direto — a prova final, do lado de quem tentaria
   burlar. Vale fazer quando existir um segundo usuário de verdade (hoje
   todas as contas são administrador).
-- [ ] **Risco a vigiar depois de trancar:** um
-  `GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated` — coisa que
-  ferramenta de plataforma às vezes gera sozinha — desfaz a tranca em
-  silêncio, sem erro nenhum. Vale reconferir os privilégios depois de
-  qualquer migration gerada fora daqui.
+- [x] ⚠️ **CONFIRMADO E CORRIGIDO EM 09/08 — o risco abaixo não era mais
+  hipotético, já tinha acontecido.** Retomando a revisão numa sessão que
+  precisou sincronizar um worktree defasado, conferi
+  `information_schema.column_privileges` direto em produção (não confiei no
+  registro deste plano) e achei `authenticated` **e** `anon` de volta com
+  `SELECT` nas 6 colunas de custo. Causa mais provável: o Lovable só foi
+  desconectado do projeto em 08/08 22:37 (commit `804a761`) — mais de um dia
+  **depois** da tranca original (07/08 10:39, commit `babd1bd`); algum
+  rebuild automático da plataforma nesse intervalo deve ter restaurado os
+  GRANTs padrão dela. Reaplicado com a migration
+  `20260809210000_retrava_colunas_de_custo.sql` (mesma lógica da
+  `20260808140000`) e **reconferido no banco depois de aplicar**: nenhuma
+  coluna de custo tem mais `SELECT` para `authenticated`/`anon`. **Lição:**
+  todo "✅ aplicado em produção" deste documento é a memória de quem
+  escreveu, não prova — reconferir contra o banco de tempos em tempos,
+  principalmente depois de qualquer ferramenta externa (Lovable, dashboard)
+  ter tocado no projeto.
+- [ ] **Risco a vigiar depois de trancar (ainda vale, já se provou real
+  uma vez):** um `GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated`
+  — coisa que ferramenta de plataforma às vezes gera sozinha — desfaz a
+  tranca em silêncio, sem erro nenhum. Vale reconferir os privilégios depois
+  de qualquer migration gerada fora daqui. Como o Lovable já foi removido do
+  projeto (08/08), o vetor mais provável fechou — mas o item continua de
+  vigilância, não de confiança.
 
 **O que muda pro usuário na tela: nada.** Quem já via custo continua
 vendo; quem não via continua não vendo. A diferença é que agora a trava
