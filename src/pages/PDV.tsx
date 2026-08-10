@@ -949,7 +949,13 @@ export default function PDV() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setShowEntradaProduto((v) => !v)}
+                  onClick={() => {
+                    // Fechar sem cadastrar não pode deixar rascunho pra
+                    // trás — senão "Adicionar" de novo reabre com os campos
+                    // da tentativa anterior ainda preenchidos.
+                    if (showEntradaProduto) setNovaEntrada(ENTRADA_PRODUTO_VAZIA);
+                    setShowEntradaProduto((v) => !v);
+                  }}
                 >
                   <Repeat className="mr-2 h-4 w-4" />
                   {showEntradaProduto ? 'Cancelar' : 'Adicionar'}

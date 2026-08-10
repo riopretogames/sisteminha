@@ -316,7 +316,10 @@ export default function Estoque() {
   });
 
   const criticalStock = produtos.filter(p => p.ativo && p.estoque_atual <= p.estoque_minimo).length;
-  const aguardandoRevisao = produtos.filter(p => !p.ativo).length;
+  // Inativo + sem preço é a marca de quem entrou por troca no PDV e ainda não
+  // foi revisado. Inativo sozinho não basta: "Excluir" também zera `ativo`,
+  // e produto excluído de propósito não devia contar como "esperando alguém".
+  const aguardandoRevisao = produtos.filter(p => !p.ativo && p.preco === 0).length;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -387,7 +390,7 @@ export default function Estoque() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ativos">Ativos (disponíveis pra venda)</SelectItem>
-            <SelectItem value="inativos">Aguardando revisão</SelectItem>
+            <SelectItem value="inativos">Inativos (excluídos ou aguardando revisão)</SelectItem>
             <SelectItem value="todos">Todos</SelectItem>
           </SelectContent>
         </Select>
@@ -439,9 +442,14 @@ export default function Estoque() {
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="font-medium">{produto.nome}</p>
-                            {!produto.ativo && (
+                            {!produto.ativo && produto.preco === 0 && (
                               <Badge variant="outline" className="text-[10px] text-primary border-primary/40">
                                 Aguardando revisão
+                              </Badge>
+                            )}
+                            {!produto.ativo && produto.preco > 0 && (
+                              <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                Inativo
                               </Badge>
                             )}
                           </div>
