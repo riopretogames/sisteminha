@@ -223,7 +223,13 @@ export default function EstoqueDetalhe() {
           condicao_id: formData.condicaoId || null,
           memoria_id: formData.memoriaId || null,
           categoria: formData.categoria,
-          custo: parseFloat(formData.custo) || 0,
+          // Quem não tem inventory.cost.view nunca recebeu o custo real (a
+          // view devolve null pra esse perfil) — `formData.custo` pra essa
+          // pessoa é sempre '0', não o valor de verdade. Gravar esse campo
+          // aqui zeraria o custo real do produto ao salvar QUALQUER outra
+          // coisa (até só uma observação). Só entra no UPDATE quem pode ver
+          // o valor de verdade antes de decidir mudá-lo.
+          ...(veCusto ? { custo: parseFloat(formData.custo) || 0 } : {}),
           preco: parseFloat(formData.preco) || 0,
           estoque_minimo: parseInt(formData.estoqueMinimo, 10) || 1,
           estoque_maximo: parseInt(formData.estoqueMaximo, 10) || 100,
