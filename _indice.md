@@ -15,8 +15,9 @@ O sistema próprio da loja, feito pra substituir o sistema atual.
   falta ser feito.
 - [[sisteminha/PLANO-DE-REFINAMENTO|Plano de refinamento]] — o que existe
   mas precisa melhorar.
-- [[sisteminha/ESCOPO-REVISAO-09-08|Escopo da revisão de 09/08/2026]] — o
-  trabalho mais recente.
+- [[sisteminha/ESCOPO-REVISAO-09-08|Escopo da revisão de 09/08/2026]]
+- [[sisteminha/REVISAO-11-08|Revisão de 11/08/2026]] — o trabalho mais
+  recente.
 
 ## Diagnóstico
 

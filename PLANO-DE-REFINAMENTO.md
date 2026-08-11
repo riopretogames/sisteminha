@@ -253,6 +253,17 @@ comentado nas 3.
   escreveu, não prova — reconferir contra o banco de tempos em tempos,
   principalmente depois de qualquer ferramenta externa (Lovable, dashboard)
   ter tocado no projeto.
+- [x] ✅ **RECONFIRMADO EM 11/08, do zero, direto no banco.** Rodada nova
+  consulta (não reaproveitando nenhum resultado anterior) em
+  `information_schema.column_privileges`: nenhuma das 6 colunas de custo
+  tem `SELECT` para `authenticated`/`anon` — segue trancado. Também
+  conferidas, direto na definição instalada no banco (não só no arquivo de
+  migration), as 5 views que precisam rodar com privilégio elevado para
+  esconder custo (`vw_produtos`, `vw_servicos`, `vw_movimentos_estoque`,
+  `vw_os_itens` e a nova `vw_os_aguardando_retirada`, da tela de "OS pronta
+  que o cliente não busca") — todas as 5 repetem o filtro de tenant no
+  `WHERE`, então nenhuma mistura dado de uma loja com outra. Ver
+  `REVISAO-11-08.md`.
 - [ ] **Risco a vigiar depois de trancar (ainda vale, já se provou real
   uma vez):** um `GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated`
   — coisa que ferramenta de plataforma às vezes gera sozinha — desfaz a
@@ -331,6 +342,13 @@ o arquivo antes de assumir.
   tenant, permissão trava só a tela — igual `produtos`/`servicos`/etc.).
   Faz parte da [decisão pendente](#decisão-que-só-você-pode-tomar), não
   precisa de tratamento separado.
+
+**🟠 Média — achado em 11/08**
+- [ ] O botão "Cancelar" do fechamento de venda no PDV não limpa os
+  pagamentos nem o produto de troca já lançados na tentativa anterior
+  (`PDV.tsx:838,1102-1105`) — o reset só acontece dentro do caminho de
+  sucesso (`PDV.tsx:553-555`). Reabrir "Finalizar Venda", inclusive pra
+  outro cliente, traz o que sobrou de antes. Ver `REVISAO-11-08.md`.
 
 **🔵 Simplificação — feito em 07/08**
 - [x] `formatCurrency` local duplicava `lib/format.ts::moeda()` — trocado.
@@ -448,7 +466,8 @@ o arquivo antes de assumir.
   Financeiro:**
   1. Dinheiro devolvido ainda não entra na conferência de Caixa (mesma
      família do achado já existente de Caixa não refletir venda/OS).
-  2. Faturamento reportado (`VendasHistorico`, `DashboardVenda`) conta o
+  2. Faturamento reportado (`VendasHistorico`, `DashboardVenda` **e,
+     confirmado em 11/08, também `RelatorioVendas.tsx:85,101`**) conta o
      valor do produto trocado **duas vezes** (venda original + venda
      nova da troca) — a venda nova grava o preço cheio do produto (pra
      não perder a contagem de vendas por produto), mas só a diferença é
@@ -464,13 +483,29 @@ o arquivo antes de assumir.
 ## Estoque
 
 **🔴 Alta**
-- [ ] `Estoque.tsx` mostra custo/margem pra qualquer usuário com
-  `inventory.view`, ignorando `inventory.cost.view` — é a única tela
-  irmã que vaza (EstoqueMovimentacoes/OSDetalhe já fazem certo). Parte
-  da [decisão pendente](#decisão-que-só-você-pode-tomar) acima.
-- [ ] Botão "Repor" em EstoqueCritico chama `ajustar_estoque_produto`
-  (RPC) que não checa permissão nem tenant no banco — proteção é só
-  cosmética na tela.
+- [x] ✅ **CORRIGIDO EM 11/08.** A descrição original era "`Estoque.tsx`
+  mostra custo/margem pra qualquer usuário com `inventory.view`,
+  ignorando `inventory.cost.view`" — não era mais exato: a trava de
+  custo (Opção B) já fecha esse vazamento, devolvendo `null` pra quem
+  não tem a permissão. O bug real era outro: a tela declarava esses
+  campos como se nunca fossem vazios e chamava
+  `produto.margem_percent.toFixed(1)` direto — quando vinha vazio, a
+  tela quebrava (confirmado contra os papéis reais: Vendedor e Técnico
+  não conseguiam abrir a tela). Corrigido escondendo as colunas Custo e
+  Margem por completo pra quem não tem `inventory.cost.view` — mesmo
+  padrão já usado em `RelatorioEstoque.tsx` — em vez de tentar mostrar
+  um valor vazio. `tsc`/`eslint` limpos.
+- [x] ✅ **CORRIGIDO EM 11/08.** A ficha completa do produto
+  (`EstoqueDetalhe.tsx`) podia **apagar o custo real do produto** ao
+  salvar: quem edita sem ter permissão de ver custo recebia o campo
+  vazio, o formulário transformava esse vazio em "0", e salvar qualquer
+  coisa (mesmo só "Apto à Venda") gravava esse "0" de volta no banco,
+  sem aviso. Corrigido: o campo `custo` só entra no `UPDATE` quando
+  `veCusto` é verdadeiro — quem não vê custo não grava por cima dele.
+  `tsc`/`eslint` limpos.
+- [x] ✅ **RECONFIRMADO EM 11/08 — segue exatamente igual.** Botão "Repor"
+  em EstoqueCritico chama `ajustar_estoque_produto` (RPC) que não checa
+  permissão nem tenant no banco — proteção é só cosmética na tela.
 
 **🟠 Média**
 - [ ] `Estoque.tsx` não esconde os botões de Novo/Editar/Excluir por
@@ -481,11 +516,29 @@ o arquivo antes de assumir.
   RelatorioEstoque ×2) — vira um helper `isEstoqueCritico(produto)`.
 - [ ] `inventory.delete` é permissão morta — "Excluir" já é soft-delete
   via UPDATE, na prática usa `inventory.edit`.
+- [ ] **Achado novo em 11/08** — o rótulo de custo no Estoque Crítico
+  decide pelo valor calculado (`custoReposicao > 0`, `EstoqueCritico.tsx:97`),
+  não pela permissão (como `RelatorioEstoque.tsx:25` já faz certo). Quem
+  tem permissão de ver custo mas ainda não cadastrou preço de compra num
+  produto em alerta vê o rótulo errado ("Valor em venda" em vez de "Custo
+  para repor tudo") — não vaza dado, é a etiqueta errada pra pessoa certa.
 
 **🔵 Simplificação**
 - [ ] Preview de margem no dialog de cadastro não aplica o mesmo clamp
   ±9999,99% da coluna gerada no banco.
 - [ ] `Estoque.tsx` sem hook compartilhado (`useProdutos()` não existe).
+- [ ] **Achado novo em 11/08** — Localização do produto continua com
+  lista fixa no código (Vitrine/Depósito/Bancada/Sucata, em
+  `FiltrosProdutos.tsx` e `EstoqueDetalhe.tsx`) em vez do catálogo
+  "localizacao" já cadastrado em Listas do Sistema. Correção completa
+  precisa trocar o tipo da coluna no banco (hoje é enum fixo do
+  Postgres), não só a tela.
+- [ ] **Achado novo em 11/08** — a lixeira da ficha completa do produto
+  (`EstoqueDetalhe.tsx:266-274`) não confere o preço antes de excluir; o
+  aviso "Aguardando revisão" (`Estoque.tsx:258`) usa "inativo + preço
+  zero" pra distinguir produto de troca sem preço de produto excluído de
+  propósito — se algum dia alguém excluir um produto que já estava a
+  R$ 0,00, ele reaparece com o rótulo errado.
 
 ---
 
@@ -495,7 +548,7 @@ o arquivo antes de assumir.
 - [ ] Aprovar/recusar orçamento usa `orders.edit`, não a permissão
   dedicada `orders.approve` (cadastrada, atribuída a papéis, checada em
   **nenhum lugar**) — técnico aprova orçamento apesar do RBAC dizer que
-  não deveria. ✅ *confirmado.*
+  não deveria. ✅ *confirmado.* ✅ *reconfirmado em 11/08, sem mudança.*
 
 **🟠 Média**
 - [ ] Laudo técnico ainda não bate com o padrão da empresa (ver
@@ -535,7 +588,18 @@ o arquivo antes de assumir.
   títulos de OS pagos — a "conferência cega" que a tela existe pra
   fazer compara a gaveta contra um número que ignora quase todo o
   dinheiro do dia. ✅ *confirmado com verificação de 7 pontos* (o achado
-  mais completo desta revisão).
+  mais completo desta revisão). ⚠️ **Continua exatamente assim em 11/08**
+  — a tela nova Vendas > Pagamentos (KPIs de conferência, 09/08) é um
+  relatório à parte que ajuda a conferir quanto entrou por forma de
+  pagamento, mas não lança nada em `caixa_movimentos`: não resolve este
+  item.
+- [ ] **Achado novo em 11/08** — os indicadores "Total recebido", "Ticket
+  médio" e "Média por dia" de Vendas > Pagamentos
+  (`VendasPagamentos.tsx:170-176,204-232`) somam boleto, crediário e
+  vale-troca junto com dinheiro/cartão/PIX — formas que o próprio código
+  já reconhece, em comentário, como "não caem na gaveta hoje". Quem
+  fecha o caixa olhando esse número vê um valor maior do que o dinheiro
+  disponível de verdade.
 
 **🟠 Média**
 - [ ] Fluxo de Caixa classifica "Realizado" pelo **vencimento**, não pela
@@ -560,6 +624,16 @@ o arquivo antes de assumir.
 ## Cadastros de Apoio
 
 **🔴 Alta**
+- [ ] ⚠️ **Reclassificado de 🟠 Média para 🔴 Alta em 11/08.** Cliente
+  bloqueado (`liberado_venda = false`) ainda consegue abrir Ordem de
+  Serviço — a trava de 08/08 vale só para venda (`vendas`), não para
+  `service_orders` (`NovaOS.tsx:177-184`). Ficou mais grave desde 09/08:
+  o vendedor passou a operar a OS inteira, inclusive a entrega, e
+  entregar uma OS gera automaticamente um título já **pago**. Ou seja,
+  um cliente bloqueado por golpe ou cheque sem fundo hoje consegue
+  percorrer o fluxo inteiro da assistência até um título "pago" ser
+  gerado em nome dele, sem passar por trava nenhuma. Ver
+  `REVISAO-11-08.md`.
 - [ ] Cadastro "pronto mas isolado" — nada do resto do sistema consome.
   **3 "Passos" marcados como ✅ no PLANO-DE-CONSTRUCAO.md são, na prática,
   vitrine de CRUD sem ligação com o resto do sistema.** Estado por
@@ -607,11 +681,6 @@ o arquivo antes de assumir.
   nova, com regra de quem pode ver e apagar. Decisão do Felipe: fica
   para uma etapa própria, junto das fotos de antes/depois da OS, que
   usam o mesmo mecanismo e valem mais para a assistência.
-- [ ] **Cliente bloqueado ainda abre OS.** A trava de 08/08 vale para
-  venda (`vendas`), não para `service_orders` — aparelho que já está na
-  bancada precisa ser devolvido de algum jeito. Falta pelo menos um
-  aviso visível em Nova OS, senão o bloqueio parece valer para tudo e
-  não vale.
 - [ ] **O cadastro rápido do PDV não pede CPF**, só nome e telefone. Quem
   cadastrar sem telefone escapa da trava de duplicidade — é o furo
   conhecido e aceito da porta rápida. Avaliar depois se vale exigir
@@ -623,14 +692,22 @@ o arquivo antes de assumir.
   mesmo nome) só pra não sair cinza no meio das coloridas. O seletor de
   cor de verdade — igual ao que "Gerenciar Status" já tem pras OS —
   continua faltando.
-- [ ] **Varredura pendente: procurar o mesmo padrão nas outras telas.**
-  A revisão inteira não tinha achado o furo das marcações; quem achou
-  foi o Felipe, perguntando. São 16 tipos de catálogo cadastrados e
-  vale conferir um por um quem está de fato ligado na tela que deveria
-  usar — em especial `condicao`, `memoria`, `grade`, `tipo_peca` e
-  `localizacao` no Estoque, e `checklist_defeito`, `acessorio_entrada` e
-  `condicao_entrada` na OS. `origem_venda` já se sabe que é órfão
-  (`vendas` não tem coluna pra guardar).
+- [x] ✅ **Varredura feita em 11/08** (era pendência aberta desde a
+  revisão original). Resultado, catálogo por catálogo do grupo Produto:
+  `condicao` e `memoria` **deixaram de ser órfãos** — a ficha completa do
+  produto e o painel de filtros novos (10/08) já leem os dois de verdade
+  via `useCatalogo`. `localizacao` **continua órfã** (ver item em
+  Estoque acima — a correção completa exige trocar o tipo da coluna no
+  banco, hoje é enum fixo). `grade` e `tipo_peca` **continuam órfãs, mas
+  por decisão já registrada** na migration `20260809220000` ("não são
+  necessários agora") — não é esquecimento. Do lado da OS,
+  `checklist_defeito`, `acessorio_entrada` e `condicao_entrada` seguem
+  ligados, como já estava. `origem_venda` segue confirmado órfão.
+  **Achado novo nesta varredura:** a tela de Listas do Sistema
+  (`CatalogosHub.tsx`) não tem campo de cor no editor — a coluna
+  `catalogos.cor` existe no banco mas nenhuma mutation grava nela, então
+  o item já conhecido "Listas do Sistema não deixa escolher a cor" tem
+  agora a causa exata: falta o campo na tela, não é limitação do banco.
 
 **🔵 Simplificação**
 - [x] ✅ **08/08 — `Clientes.tsx` deixou de ser a tela mais antiga da
@@ -708,10 +785,14 @@ o arquivo antes de assumir.
 **🔴 Alta**
 - [ ] Sem proteção contra o único administrador se autodemover ou se
   desativar — sem caminho de volta dentro do app, trava o sistema pra
-  todo mundo.
+  todo mundo. ✅ *reconfirmado em 11/08*: o Select de Perfil e o Switch
+  de Ativo em `Usuarios.tsx` disparam a troca assim que o valor muda,
+  sem diálogo de confirmação, e a lista não esconde nem avisa quando a
+  linha é o próprio usuário logado.
 - [ ] Exceções de permissão por usuário não geram auditoria nem
   preenchem `motivo`/`definida_por` — a funcionalidade mais sensível da
-  tela de Usuários é a única sem rastro. ✅ *confirmado.*
+  tela de Usuários é a única sem rastro. ✅ *confirmado.* ✅ *reconfirmado
+  em 11/08, sem mudança.*
 
 **🟠 Média**
 - [ ] Página gated por `users.manage`, mas escrever papel/exceção exige
@@ -799,12 +880,18 @@ o arquivo antes de assumir.
   coexistem.
 
 **🔵 Simplificação**
-- [ ] `untyped.ts` descreve um estado do banco que não existe mais — o
-  comentário diz que `catalogos`/`role_permissions`/`formas_pagamento`
-  "ainda não existem" em `types.ts`, mas já estão lá. Falta só trocar
-  `db` por `supabase` em `useCatalogos.ts`, `useTitulos.ts`,
-  `ConfigLogs.tsx`, `ConfigPerfis.tsx`, `ConfigPreferencias.tsx` e
-  `RelatorioFinanceiro.tsx`, e apagar o arquivo. Zero risco.
+- [ ] ⚠️ **Piorou em vez de melhorar — reconferido em 11/08.** `untyped.ts`
+  descreve um estado do banco que não existe mais — o comentário diz que
+  `catalogos`/`role_permissions`/`formas_pagamento` "ainda não existem"
+  em `types.ts`, mas já estão lá. Em vez de ser desligado, o número de
+  arquivos que dependem dele **cresceu de 6 para 9**: `useCatalogos.ts`,
+  `useTitulos.ts`, `ConfigLogs.tsx`, `ConfigPerfis.tsx`,
+  `ConfigPreferencias.tsx`, `RelatorioFinanceiro.tsx` e agora também
+  `useAuth.tsx` (import morto — nem chega a ser usado),
+  `FinanceiroCaixa.tsx` e `FluxoCaixa.tsx`. Todas as 8 tabelas que esses
+  arquivos leem por essa ponte já são reconhecidas pelo gerador de tipos
+  oficial — trocar `db` por `supabase` nos 9 lugares e apagar o arquivo
+  continua sendo risco zero.
 
 ---
 
@@ -828,9 +915,27 @@ Não quebram nada hoje — limpar enquanto a mão está na área correspondente:
   deixasse passar.
 - [ ] Migrar `PDV.tsx` pro padrão react-query do resto do projeto.
 - [ ] Consolidar as 3 cópias do fallback de status de OS.
-- [ ] Bundle principal (`index-*.js`) em ~600kB, acima do limite
-  recomendado do Vite — avaliar code-splitting mais agressivo (a loja
-  pode ter internet ruim).
+- [ ] Bundle principal (`index-*.js`) em ~600kB (613kB, reconferido em
+  11/08 rodando o build de verdade), acima do limite recomendado do Vite
+  — avaliar code-splitting mais agressivo (a loja pode ter internet
+  ruim).
+- [ ] **Achado novo em 11/08** — os três painéis de filtro (Vendas, OS,
+  Estoque: `FiltrosVenda.tsx`, `FiltrosOS.tsx`, `FiltrosProdutos.tsx`)
+  repetem a mesma moldura, a mesma função de limpar filtro e o mesmo
+  cabeçalho — o bloco "campo + lista suspensa" aparece copiado 9 vezes
+  ao todo entre os três. Nasceram em 3 dias diferentes; um ajuste comum
+  aos três (cor, formato do contador) hoje precisa ser feito nos 3
+  arquivos manualmente.
+- [ ] **Achado novo em 11/08** — PDV (`PDV.tsx`, 8 consultas diretas) e a
+  ficha completa do produto (`EstoqueDetalhe.tsx`, mais 4) não capturam
+  o erro de nenhuma consulta ao banco — se uma busca de cliente, forma
+  de pagamento ou produto falhar por um instante, a lista fica vazia em
+  silêncio, sem avisar ninguém.
+- [ ] **Achado novo em 11/08** — o cálculo de "quantos dias tem o
+  período" está copiado, linha por linha, em `VendasPagamentos.tsx:184-189`
+  e `RelatorioVendas.tsx:93-97`. Baixo risco, mas os dois arquivos já
+  compartilham corretamente o componente de indicador e a formatação de
+  moeda — só esse pedaço ficou de fora.
 
 ---
 

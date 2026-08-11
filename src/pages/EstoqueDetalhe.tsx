@@ -223,7 +223,11 @@ export default function EstoqueDetalhe() {
           condicao_id: formData.condicaoId || null,
           memoria_id: formData.memoriaId || null,
           categoria: formData.categoria,
-          custo: parseFloat(formData.custo) || 0,
+          // Só grava custo se o formulário realmente mostrou o campo (veCusto).
+          // Quem não tem inventory.cost.view recebe null da view e o form
+          // preenche com '0' só pra ter um valor — enviar isso de volta
+          // apagaria o custo real do produto no banco.
+          ...(veCusto ? { custo: parseFloat(formData.custo) || 0 } : {}),
           preco: parseFloat(formData.preco) || 0,
           estoque_minimo: parseInt(formData.estoqueMinimo, 10) || 1,
           estoque_maximo: parseInt(formData.estoqueMaximo, 10) || 100,
