@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -43,6 +43,7 @@ import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
 import { ClienteFormDialog } from '@/components/clientes/ClienteFormDialog';
 import { CampoCatalogo } from '@/components/CampoCatalogo';
+import { useCatalogo } from '@/hooks/useCatalogos';
 import type { Cliente as ClienteCompleto } from '@/hooks/useClientes';
 import { soDigitos } from '@/lib/documento';
 import { FORMAS_PAGAMENTO } from '@/lib/constants';
@@ -147,6 +148,13 @@ export default function PDV() {
   const [novaEntrada, setNovaEntrada] = useState(ENTRADA_PRODUTO_VAZIA);
   const [showEntradaProduto, setShowEntradaProduto] = useState(false);
   const [desconto, setDesconto] = useState('');
+  // De onde a venda veio (Balcão/Site/WhatsApp/...) — catálogo "origem_venda"
+  // em Listas do Sistema, órfão desde que foi criado (existia cadastro, mas
+  // `vendas` nunca teve coluna pra guardar). Pré-seleciona o item marcado como
+  // padrão (Balcão) assim que o catálogo carrega — quem vende no balcão não
+  // deveria precisar escolher nada na maioria das vezes.
+  const catalogoOrigemVenda = useCatalogo('origem_venda');
+  const [origemVendaId, setOrigemVendaId] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
   const [showClienteDialog, setShowClienteDialog] = useState(false);
   const [showNovoClienteDialog, setShowNovoClienteDialog] = useState(false);
@@ -170,6 +178,26 @@ export default function PDV() {
       setNovoPagamento((f) => ({ ...f, formaPagamentoId: formasPagamento[0].id }));
     }
   }, [formasPagamento, novoPagamento.formaPagamentoId]);
+
+  // Idem pra Origem da Venda: pré-seleciona o item marcado como padrão
+  // (Balcão) assim que o catálogo carrega.
+  //
+  // Só dispara UMA vez (guardado pela ref, não reage a `origemVendaId`).
+  // Reagir a `origemVendaId` faria o efeito brigar com "Limpar seleção" do
+  // próprio CampoCatalogo: o vendedor limpa, o campo fica vazio, o efeito vê
+  // o vazio e repõe o padrão na mesma renderização — a limpeza nunca
+  // aconteceria de verdade. O reset pós-venda (abaixo) já cuida de repor o
+  // padrão a cada venda nova, sem depender deste efeito rodar de novo.
+  const origemVendaPreSelecionada = useRef(false);
+  useEffect(() => {
+    if (origemVendaPreSelecionada.current) return;
+    if (!catalogoOrigemVenda.data?.length) return;
+    const padrao = catalogoOrigemVenda.data.find((i) => i.padrao) ?? catalogoOrigemVenda.data[0];
+    if (padrao) {
+      setOrigemVendaId(padrao.id);
+      origemVendaPreSelecionada.current = true;
+    }
+  }, [catalogoOrigemVenda.data]);
 
   const fetchProdutos = async () => {
     const { data } = await supabase
@@ -452,6 +480,7 @@ export default function PDV() {
           subtotal: subtotalBruto,
           descontos: descontoValor,
           total,
+          origem_venda_id: origemVendaId || null,
         })
         .select()
         .single();
@@ -549,7 +578,8 @@ export default function PDV() {
         ) : undefined,
       });
 
-      // Reset
+      // Reset — origemVendaId NÃO reseta pro vazio, e sim de volta pro padrão
+      // (Balcão): a próxima venda tem a mesma chance de ser balcão que esta.
       setCart([]);
       setPagamentos([]);
       setEntradasProduto([]);
@@ -559,6 +589,8 @@ export default function PDV() {
       setSelectedCliente(null);
       setClienteSearch('');
       setShowCheckout(false);
+      const padrao = catalogoOrigemVenda.data?.find((i) => i.padrao);
+      setOrigemVendaId(padrao?.id ?? '');
       fetchProdutos();
     } catch (error) {
       console.error('Error:', error);
@@ -844,6 +876,18 @@ export default function PDV() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {/* Origem da venda — catálogo de Listas do Sistema, pré-marcado
+                em "Balcão" (a maioria dos casos). Só precisa trocar quando o
+                pedido veio de fora (Site, WhatsApp, Instagram, Shopee...). */}
+            <CampoCatalogo
+              tipo="origem_venda"
+              label="Origem da venda"
+              valor={origemVendaId}
+              onChange={setOrigemVendaId}
+              placeholder="Balcão"
+              permiteCriar={false}
+            />
+
             {/* Payment methods — vem do cadastro de Formas de Pagamento
                 (Cadastros > Formas de Pagamento), não de uma lista fixa. */}
             <div className="space-y-2">

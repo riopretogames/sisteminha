@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -2138,6 +2138,7 @@ export type Database = {
           id: string
           numero_venda: string | null
           observacoes: string | null
+          origem_venda_id: string | null
           status: Database["public"]["Enums"]["venda_status"] | null
           subtotal: number | null
           tenant_id: string
@@ -2153,6 +2154,7 @@ export type Database = {
           id?: string
           numero_venda?: string | null
           observacoes?: string | null
+          origem_venda_id?: string | null
           status?: Database["public"]["Enums"]["venda_status"] | null
           subtotal?: number | null
           tenant_id: string
@@ -2168,6 +2170,7 @@ export type Database = {
           id?: string
           numero_venda?: string | null
           observacoes?: string | null
+          origem_venda_id?: string | null
           status?: Database["public"]["Enums"]["venda_status"] | null
           subtotal?: number | null
           tenant_id?: string
@@ -2181,6 +2184,13 @@ export type Database = {
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendas_origem_venda_id_fkey"
+            columns: ["origem_venda_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
             referencedColumns: ["id"]
           },
           {
