@@ -19,6 +19,14 @@ não é mais adicionar tela nova, é **lapidar o que já existe** — achar o qu
 está pela metade, inconsistente ou arriscado, e corrigir/completar uma área
 de cada vez.
 
+**Verificação geral em 17/08:** com tanta coisa corrigida entre 07/08 e
+10/08 sem que este documento fosse sempre atualizado no mesmo instante, rodei
+uma checagem item a item de tudo que ainda estava marcado como aberto,
+contra o código de verdade (não contra a memória de quando cada achado foi
+escrito). Todo item que mudou de status ganhou uma nota datada "17/08" logo
+onde ele está, com o motivo. Os itens sem nota nova foram conferidos e
+continuam válidos exatamente como estavam descritos.
+
 ---
 
 ## Já corrigido antes de começar o plano (06-07/08)
@@ -558,30 +566,50 @@ o arquivo antes de assumir.
   não deveria. ✅ *confirmado.*
 
 **🟠 Média**
-- [ ] Laudo técnico ainda não bate com o padrão da empresa (ver
-  CLAUDE.md raiz, seção "Padrão de atendimento"): faltam campos de
-  Diagnóstico, Prazo prometido, Garantia da OS e Técnico Responsável na
-  tela — 7 colunas do banco sem UI nenhuma.
-- [ ] "Técnico Responsável" no card do Kanban é campo morto: nunca é
-  atribuído a nenhuma OS.
-- [ ] "Status customizável por loja" depende de 6 chaves fixas
-  espalhadas pelo código (NovaOS, OrdensServico, OSFinalizadas,
-  OSOrcamentos, o gatilho de título) — excluir a chave errada em
-  "Gerenciar Status" quebra um fluxo inteiro silenciosamente (ex.: fila
-  de orçamentos suja pra sempre).
-- [ ] Mudança de status no Kanban/tabela não checa permissão no front
-  (RLS ainda bloqueia no banco, mas a UX é "arrasta, falha, erro cru").
+- [x] ⚠️ **Rebaixado em 17/08 — parcialmente resolvido em 09/08, não
+  totalmente.** Conferido contra o código atual: "Prazo prometido"
+  (`prazo_previsto`) e uma "Garantia" (`garantia_dias`, a coluna que já
+  existia antes) já aparecem em NovaOS.tsx e OSDetalhe.tsx.
+  **Continuam faltando de verdade**: Diagnóstico (as colunas
+  `diagnostico_tecnico`/`suspeita_tecnica`/`constatacao_tecnica`
+  continuam sem nenhuma tela) e Técnico Responsável **na ficha de
+  detalhe** (`OSDetalhe.tsx` não busca nem mostra `tecnico_id`, mesmo
+  já sendo atribuível na abertura — ver item resolvido logo abaixo).
+  A contagem "7 colunas sem UI" caiu, mas o problema central (laudo
+  incompleto frente ao padrão do CLAUDE.md raiz) continua de pé.
+- [x] ✅ **09/08 — "Técnico Responsável" deixou de ser campo morto**
+  (commit `85e6b54`, migration `20260809140000`). NovaOS.tsx ganhou um
+  campo de atribuição na abertura da OS, e a FK que antes apontava pro
+  lugar errado (por isso o nome nunca aparecia) foi corrigida — hoje
+  aparece no card do Kanban quando essa opção está ligada na
+  configuração do cartão.
+- [x] ✅ **09/08 — Status customizável parou de depender de chaves
+  soltas.** `src/config/osStatus.ts` centralizou o que antes eram 6
+  cópias espalhadas em 7 telas, e a migration `20260809130000` passou a
+  **proibir no banco** excluir ou renomear a *chave* de um status
+  marcado como "de sistema" (só rótulo/cor podem mudar) — "Gerenciar
+  Status" já respeita isso na tela também.
+- [x] ✅ **09/08 — Kanban/tabela checam permissão antes de mexer, não
+  depois** (commit `85e6b54`). Arrastar e o controle de troca de etapa
+  na ficha da OS agora conferem `orders.edit` antes de qualquer chamada
+  ao banco.
 - [ ] Regra "peça não pode ser excluída" (Passo 6) só existe na UI — a
   policy do banco permite DELETE de qualquer item via `orders.edit`,
-  sem distinguir peça de serviço avulso.
+  sem distinguir peça de serviço avulso. **Conferido em 17/08, ainda
+  vale** — quem tem `orders.edit` consegue excluir uma peça via API
+  direta e reverter a baixa de estoque sem deixar rastro, mesmo sem o
+  botão na tela.
 
 **🔵 Simplificação**
-- [ ] OS com status órfão pode sumir do Kanban sem aviso (continua na
-  Tabela).
+- [x] ✅ **09/08 — OS com status órfão não some mais do Kanban**
+  (commit `85e6b54`). Ganhou uma coluna própria "Sem etapa válida" (cor
+  vermelha) em vez de desaparecer silenciosamente.
 - [ ] É possível lançar peça (com baixa real de estoque) numa OS já
-  cancelada — só "entregue" bloqueia hoje.
+  cancelada — só "entregue" bloqueia hoje. **Conferido em 17/08, ainda
+  vale**, sem mudança.
 - [ ] `total_pecas`/`total_mao_obra` e `service_order_history` (timeline)
   nunca são lidos por nenhuma tela — dado gravado, nunca mostrado.
+  **Conferido em 17/08, ainda vale.**
 - [ ] 3 cópias do fallback de status e 2 de formatação de moeda/data
   entre telas antigas (Kanban/Tabela) e novas (Detalhe/Finalizadas/
   Orçamentos).
@@ -628,7 +656,12 @@ o arquivo antes de assumir.
     consulta o cadastro de verdade (migration `20260807060000`, commit
     `23292e8` — ver [Vendas/PDV](#vendas--pdv)). **Falta ainda**
     Vendas>Pagamentos e Caixa, que continuam no enum fixo antigo.
+    **Conferido em 17/08, ainda vale exatamente assim** — "Vendas >
+    Pagamentos" (a tela de conferência de caixa por forma de pagamento)
+    nunca foi atualizada pra usar o cadastro novo.
   - **Fornecedores** — não alimenta compra/entrada de estoque.
+    **Conferido em 17/08, ainda vale** — não existe hoje nenhuma tela de
+    compra/recebimento de mercadoria no sistema.
   - **Tags de Cliente** — ✅ *resolvido em 08/08, achado pelo Felipe*: o
     catálogo `tag_cliente` tinha 4 marcações editáveis (VIP, Fiel,
     Atacado, Atenção) e a ficha do cliente oferecia **3 fixas no
@@ -650,6 +683,7 @@ o arquivo antes de assumir.
 **🟠 Média**
 - [ ] `tempo_estimado_horas` em Cadastro de Serviços tem o mesmo risco de
   overflow já corrigido 2x no projeto (margem, taxa/juros) — sem clamp.
+  **Conferido em 17/08, ainda vale.**
 - [x] ✅ **08/08 — "Ver detalhes" não dá mais tela branca.** A rota
   passou a existir (`/cadastros/clientes/:id`, montada em `App.tsx` do
   mesmo jeito que o drill-down de OS) e virou a **ficha do cliente**:
@@ -658,8 +692,13 @@ o arquivo antes de assumir.
   cancelada de propósito, senão devolução viraria faturamento na ficha.
   As abas de compra e de OS respeitam `sales.view` e `orders.view` — a
   ficha não conta dinheiro pra quem o RBAC diz que não vê venda.
-- [ ] `custo_estimado` de Serviços lido pela API por qualquer usuário do
-  tenant — mesma família da [decisão pendente](#decisão-que-só-você-pode-tomar).
+- [x] ✅ **Rebaixado/resolvido em 17/08 — fechado pela Opção B, igual
+  produtos.** `custo_estimado` de Serviços já lê de `vw_servicos`
+  (custo condicional a `inventory.cost.view`, vira `null` pra quem não
+  tem) e a tabela `servicos` já está com a mesma tranca de
+  `REVOKE SELECT` coluna a coluna que `produtos` recebeu — mesmo quem
+  chamar a API direto pedindo a tabela crua não consegue mais ler o
+  custo. Vazamento fechado tanto na tela quanto no banco.
 - [ ] **Foto do cliente e Galeria de Arquivos — adiado de propósito
   (08/08).** As colunas `foto_url` existem, mas o projeto **não tem
   nenhum armazenamento de arquivo configurado** (nenhum bucket, nenhuma
@@ -671,26 +710,38 @@ o arquivo antes de assumir.
   venda (`vendas`), não para `service_orders` — aparelho que já está na
   bancada precisa ser devolvido de algum jeito. Falta pelo menos um
   aviso visível em Nova OS, senão o bloqueio parece valer para tudo e
-  não vale.
-- [ ] **O cadastro rápido do PDV não pede CPF**, só nome e telefone. Quem
-  cadastrar sem telefone escapa da trava de duplicidade — é o furo
-  conhecido e aceito da porta rápida. Avaliar depois se vale exigir
-  telefone no balcão.
-- [ ] **Listas do Sistema não deixa escolher a cor do item**, apesar de a
-  coluna `catalogos.cor` existir e de o próprio texto de ajuda prometer
-  "etiqueta colorida". Marcação criada pela loja hoje chega sem cor, e
-  `corDaEtiqueta` sorteia uma da paleta pelo nome (sempre a mesma pro
-  mesmo nome) só pra não sair cinza no meio das coloridas. O seletor de
-  cor de verdade — igual ao que "Gerenciar Status" já tem pras OS —
-  continua faltando.
-- [ ] **Varredura pendente: procurar o mesmo padrão nas outras telas.**
-  A revisão inteira não tinha achado o furo das marcações; quem achou
-  foi o Felipe, perguntando. São 16 tipos de catálogo cadastrados e
-  vale conferir um por um quem está de fato ligado na tela que deveria
-  usar — em especial `condicao`, `memoria`, `grade`, `tipo_peca` e
-  `localizacao` no Estoque, e `checklist_defeito`, `acessorio_entrada` e
-  `condicao_entrada` na OS. `origem_venda` já se sabe que é órfão
-  (`vendas` não tem coluna pra guardar).
+  não vale. **Conferido em 17/08, ainda vale.**
+- [x] ✅ ⚠️ **Reformulado em 17/08 — a premissa mudou.** Não existe mais
+  um "cadastro rápido" separado no PDV: desde 08/08 o botão de novo
+  cliente do PDV abre o mesmo cadastro completo de Cadastros > Clientes
+  (CPF/CNPJ, RG/IE, dois telefones, endereço — só o nome é obrigatório).
+  O que sobra não é mais "furo do PDV": é uma regra de negócio
+  deliberada e **igual em qualquer tela** do sistema — a própria
+  migration de trava de duplicidade (`20260808150000`) registra por
+  escrito que cliente sem CPF **e** sem telefone passa batido de
+  propósito, porque exigir documento pra cadastrar empurraria a equipe
+  a vender sem cliente nenhum, que é pior.
+- [x] ⚠️ **Rebaixado em 17/08 — a etiqueta não sai sem cor, só não é a
+  cor escolhida à mão.** Confirmado que "Listas do Sistema" ainda não
+  tem seletor de cor (a promessa de customizar continua não cumprida),
+  mas existe uma mitigação já em produção: `corDaEtiqueta()` sorteia,
+  de forma sempre igual pro mesmo nome, uma cor de uma paleta fixa
+  quando o catálogo não tem cor definida — toda etiqueta hoje **aparece
+  colorida** de verdade (Clientes.tsx, ClienteFicha.tsx). O gap real é
+  mais estreito do que "promessa quebrada": não dá pra *escolher* a cor
+  de um item específico (ex.: forçar "VIP" a ser dourado), mas o
+  resultado visual já é o prometido.
+- [x] ⚠️ **Rebaixado em 17/08 — varredura feita, resultado misto.** Dos
+  5 pontos citados como "em especial": **3 já foram ligados**
+  (`condicao`/`memoria` no Estoque, via migration `20260809220000`;
+  `checklist_defeito`/`acessorio_entrada`/`condicao_entrada` na OS, já
+  em `NovaOS.tsx`). **2 continuam órfãos de verdade**: `localizacao` no
+  Estoque ainda usa o enum fixo antigo (não o catálogo editável), e os
+  catálogos `grade`/`tipo_peca` não aparecem em nenhuma tela do sistema
+  — a própria migration que ligou condição/memória registrou por
+  escrito que esses dois ficaram de fora "de propósito, por não serem
+  necessários agora". O item que sobra é bem mais estreito do que a
+  varredura ampla original temia.
 
 **🔵 Simplificação**
 - [x] ✅ **08/08 — `Clientes.tsx` deixou de ser a tela mais antiga da
@@ -714,40 +765,68 @@ o arquivo antes de assumir.
 ## Dashboards e Inteligência Empresarial
 
 **🟠 Média**
-- [ ] Dashboard (Home) usa a lista fixa `OS_STATUS` em vez de
-  `useOsStatuses()` — o plano já sabia do problema de rótulo/cor, mas
-  **também erra a contagem dos KPIs** se a loja renomear/remover um
-  status. ✅ *confirmado.*
-- [ ] Custo do produto é buscado do banco mesmo pra quem não tem
-  `inventory.cost.view` (só a exibição é escondida) — hoje é "falha
-  latente" (nenhum papel atual combina acesso ao dashboard sem a
-  permissão de custo), mas vira real no dia em que um papel novo for
-  criado.
+- [x] ⚠️ **Atualizado em 17/08 — pior num ponto, melhor em outro.**
+  Conferido contra o código atual: `OS_STATUS` (a lista fixa) é uma
+  lista de chaves **diferente e desatualizada** da que o sistema usa
+  de verdade pra criar OS hoje — na prática, quase toda OS mostrada no
+  Dashboard Home cai no rótulo cinza genérico, não só em caso de a
+  loja renomear algo (o problema de exibição é mais amplo do que a
+  descrição original). Por outro lado, o risco de "também erra a
+  contagem dos KPIs" **diminuiu**: uma migration posterior
+  (`20260809130000`) passou a proibir excluir/renomear a *chave* de um
+  status de sistema no banco, e as contagens de KPI já filtram por essa
+  chave protegida, não pelo rótulo — renomear um status hoje não quebra
+  mais a contagem.
+- [x] ✅ **Rebaixado/resolvido em 17/08 — mesma correção da Opção B.**
+  O padrão de código (buscar custo sempre, esconder só na exibição)
+  continua existindo nos 3 dashboards, mas deixou de importar: o banco
+  já devolve `null` pra quem não tem `inventory.cost.view` (mesma
+  tranca que fechou o vazamento em Estoque/Serviços). Não é mais uma
+  "falha latente esperando um papel novo" — já está fechada na origem.
 - [ ] IE Comercial/IE Estoque usam custo ATUAL do produto, não o custo
   no momento da venda — já virou padrão em 2+ telas, vale resolver de
   vez gravando `custo_unitario` em `itens_venda` no momento da venda.
+  **Conferido em 17/08, ainda vale** — e já está documentado no próprio
+  código como limitação assumida (não é falha escondida).
 
 **🔵 Simplificação**
-- [ ] Redundância real entre o card "Vendas Hoje" do Dashboard Home e o
-  DashboardVenda novo — avaliar consolidar.
+- [x] ⚠️ **Atualizado em 17/08 — é decisão, não acidente, mas achei uma
+  inconsistência nova.** O comentário em `DashboardVenda.tsx` já
+  explica que a tela é complementar de propósito ao Dashboard Home
+  (visão "agora, em tempo real" vs. o card resumido) — não é
+  sobreposição não percebida. **Achado novo**: as duas telas usam
+  filtros ligeiramente diferentes pra "venda válida" (`status='pago'`
+  vs. `status!='cancelado'`) — hoje não diverge na prática porque o PDV
+  sempre grava direto como `'pago'`, mas é uma inconsistência latente
+  se algum fluxo futuro deixar uma venda em rascunho/faturado.
 - [ ] Agregação "vendas do período por produto" reimplementada quase
-  igual em 3 telas (DashboardVenda, IeComercial, IeEstoque).
+  igual em 3 telas (DashboardVenda, IeComercial, IeEstoque). **Conferido
+  em 17/08, ainda vale.**
 - [ ] Dashboard Home não checa erro de nenhuma das 6-7 chamadas Supabase
-  — falha silenciosa mostra "0" em vez de indicar problema.
+  — falha silenciosa mostra "0" em vez de indicar problema. **Conferido
+  em 17/08, ainda vale** — vale notar que `DashboardMetas` e
+  `DashboardEstoque` já corrigiram esse mesmo padrão, só o Dashboard
+  Home (o alvo original do achado) ficou pra trás.
 - [ ] Filtro de período em IE Comercial/IE Estoque compara string de
   data pura contra timestamp sem ajuste de fuso — pode deslocar até 3h
   o corte do dia (herdado do `RelatorioShell`, não é regressão nova).
+  **Conferido em 17/08, ainda vale.**
 
 ---
 
 ## Relatórios
 
 **🟠 Média**
-- [ ] `RelatorioEstoque` busca `custo` do banco mesmo sem
-  `inventory.cost.view` — mesma família da decisão pendente.
+- [x] ✅ **Rebaixado/resolvido em 17/08 — mesma correção da Opção B.**
+  `RelatorioEstoque` continua pedindo `custo` no `select`, mas lê de
+  `vw_produtos` — quem não tem `inventory.cost.view` recebe `null` de
+  verdade do banco, e a tela nem chega a renderizar a coluna pra esse
+  caso. Vazamento fechado.
 - [ ] Relatório Financeiro é liberado por `finance.view`, mas a RLS da
   tabela que ele lê exige outra permissão — não quebra com os papéis
   padrão, mas o gate confere a permissão errada pros dados reais.
+  **Conferido em 17/08, ainda vale** — só vira um problema real se
+  `finance.view` for concedido sozinho como exceção a alguém.
 - [ ] `RelatorioOS` mostra a chave crua do status (`em_reparo` → "em
   reparo") em vez do rótulo/cor customizável — nem usa `useOsStatuses`
   nem o fallback fixo, é `.replace()` puro.
