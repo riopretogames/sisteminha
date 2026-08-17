@@ -34,6 +34,10 @@ interface Venda {
   created_at: string;
   status: string;
   total: number;
+  /** NULL em toda venda comum (usa `total`). Só a venda nova de uma troca
+   *  preenche — quanto entrou de dinheiro novo de verdade, pra não contar
+   *  o produto trocado duas vezes no faturamento. Ver TrocaDevolucao.tsx. */
+  valor_faturamento_real: number | null;
   vendedor_id: string | null;
   clientes: { nome: string } | null;
   vendedor: { nome: string } | null;
@@ -82,7 +86,7 @@ export default function VendasHistorico() {
         // por `vw_produtos` (regra de custo protegido), com apelido para o JSON
         // manter a chave `produtos`.
         .select(
-          `id, numero_venda, created_at, status, total, vendedor_id,
+          `id, numero_venda, created_at, status, total, valor_faturamento_real, vendedor_id,
            clientes(nome),
            vendedor:profiles!vendas_vendedor_id_fkey(nome),
            itens_venda(produtos:vw_produtos(nome, imei_serial)),
@@ -134,7 +138,14 @@ export default function VendasHistorico() {
   const filtradas = aplicarFiltrosVenda(vendas, filtros);
 
   const validas = filtradas.filter((v) => v.status !== 'cancelado');
-  const faturamento = validas.reduce((acc, v) => acc + Number(v.total), 0);
+  // COALESCE, não `total` sozinho: a venda nova de uma troca grava o preço
+  // cheio do produto em `total` (pra não perder a contagem de vendas por
+  // produto), mas só `valor_faturamento_real` reflete o dinheiro novo de
+  // verdade — ver TrocaDevolucao.tsx.
+  const faturamento = validas.reduce(
+    (acc, v) => acc + Number(v.valor_faturamento_real ?? v.total),
+    0
+  );
 
   return (
     <div className="mx-auto max-w-5xl">

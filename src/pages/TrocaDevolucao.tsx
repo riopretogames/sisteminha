@@ -47,19 +47,22 @@ import {
  * (nenhuma tela usava). Troca/devolução é exatamente o tipo de ação que
  * essa permissão deveria gatear.
  *
- * Duas limitações conhecidas, achadas na revisão adversarial de 08/08,
- * registradas no PLANO-DE-REFINAMENTO.md pra resolver junto do Financeiro:
+ * As 2 pendências abaixo (achadas na revisão adversarial de 08/08,
+ * registradas no PLANO-DE-REFINAMENTO.md) foram corrigidas em 17/08:
  *
- * 1. O dinheiro devolvido ainda não entra na conferência de Caixa (achado
- *    antigo — Caixa não reflete venda/OS real).
- * 2. Numa troca, a venda nova grava o preço CHEIO do produto novo em
+ * 1. ✅ O dinheiro devolvido agora entra na conferência de Caixa: o
+ *    gatilho `registrar_devolucao_no_caixa` (migration `20260817120000`)
+ *    lança `devolucoes.valor_devolvido_cliente` como saída no caixa
+ *    aberto do momento. Sem caixa aberto, não lança nada (mesma limitação
+ *    que venda/OS pagas ainda têm — não é regressão desta correção).
+ * 2. ✅ A venda nova continua gravando o preço CHEIO do produto novo em
  *    `vendas.total` (precisa disso pra contagem de vendas por produto nos
- *    dashboards), mas só a DIFERENÇA é cobrada de verdade em
- *    `pagamentos_venda` — quem soma `vendas.total` pra "faturamento"
- *    (VendasHistorico, DashboardVenda) conta o valor do produto trocado
- *    duas vezes (uma na venda original, outra na venda nova da troca).
- *    Corrigir isso direito exige decidir como relatório de faturamento
- *    deve tratar troca — fora do escopo desta tela sozinha.
+ *    dashboards), mas agora também grava `valor_faturamento_real` — quanto
+ *    entrou de dinheiro NOVO de verdade (a diferença cobrada do cliente,
+ *    ou 0). Quem soma `vendas.total` pra "faturamento" (VendasHistorico,
+ *    DashboardVenda, Dashboard Home, RelatorioVendas) passou a somar
+ *    `COALESCE(valor_faturamento_real, total)` em vez de `total` sozinho —
+ *    não conta mais o produto trocado duas vezes.
  *
  * Sem trava no banco (só client-side) contra devolver mais unidades do
  * que foi vendido em devoluções parciais simultâneas — risco baixo com
@@ -295,6 +298,10 @@ export default function TrocaDevolucao() {
             subtotal: valorNovosItens,
             descontos: 0,
             total: valorNovosItens,
+            // Preço cheio em `total` (contagem de vendas por produto), mas
+            // só a diferença cobrada do cliente conta como faturamento
+            // novo de verdade — ver comentário no topo do arquivo.
+            valor_faturamento_real: diferenca < 0 ? Math.abs(diferenca) : 0,
             observacoes: `Produto(s) novo(s) de troca — devolução da venda ${vendaSelecionada.numero_venda ?? vendaSelecionada.id}.`,
           })
           .select()

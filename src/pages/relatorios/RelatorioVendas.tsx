@@ -12,8 +12,20 @@ interface LinhaVenda {
   subtotal: number;
   descontos: number;
   total: number;
+  /** NULL em toda venda comum. Só a venda nova de uma troca preenche — ver
+   *  TrocaDevolucao.tsx e VendasHistorico.tsx. */
+  valor_faturamento_real: number | null;
   clientes: { nome: string } | null;
 }
+
+/** Dinheiro novo que essa venda representou de verdade. Igual a `total` pra
+ *  qualquer venda comum; só a venda nova de uma troca diverge (grava o
+ *  preço cheio em `total`, mas só a diferença cobrada é faturamento real).
+ *  Usada nos indicadores agregados (Faturamento, Maior venda, Cancelamento
+ *  perdido) — a coluna "Total" da tabela linha a linha continua mostrando
+ *  `total` puro, porque ali o que interessa é "o que essa venda registrou",
+ *  não "quanto entrou de novo". */
+const faturamentoReal = (v: LinhaVenda) => Number(v.valor_faturamento_real ?? v.total);
 
 const COLUNAS: Coluna<LinhaVenda>[] = [
   {
@@ -68,7 +80,7 @@ export default function RelatorioVendas() {
     queryFn: async (): Promise<LinhaVenda[]> => {
       const { data, error } = await supabase
         .from('vendas')
-        .select('id, numero_venda, created_at, status, subtotal, descontos, total, clientes(nome)')
+        .select('id, numero_venda, created_at, status, subtotal, descontos, total, valor_faturamento_real, clientes(nome)')
         .gte('created_at', periodo.de)
         // O `ate` é uma data pura; sem o T23:59:59 o último dia ficaria de fora.
         .lte('created_at', `${periodo.ate}T23:59:59`)
@@ -82,11 +94,11 @@ export default function RelatorioVendas() {
   const vendasValidas = linhas.filter((v) => v.status !== 'cancelado');
   const canceladas = linhas.filter((v) => v.status === 'cancelado');
 
-  const faturamento = vendasValidas.reduce((acc, v) => acc + Number(v.total), 0);
+  const faturamento = vendasValidas.reduce((acc, v) => acc + faturamentoReal(v), 0);
   const validas = vendasValidas.length;
   const descontoTotal = vendasValidas.reduce((acc, v) => acc + Number(v.descontos ?? 0), 0);
   const brutoTotal = vendasValidas.reduce((acc, v) => acc + Number(v.subtotal ?? 0), 0);
-  const perdidoEmCancelamento = canceladas.reduce((acc, v) => acc + Number(v.total), 0);
+  const perdidoEmCancelamento = canceladas.reduce((acc, v) => acc + faturamentoReal(v), 0);
 
   // Dias do PERÍODO, não dias com venda: dividir só pelos dias que venderam
   // esconde justamente os dias parados, que é o que a média deveria revelar.
@@ -98,7 +110,7 @@ export default function RelatorioVendas() {
   );
   const diasComVenda = new Set(vendasValidas.map((v) => v.created_at.slice(0, 10))).size;
 
-  const maiorVenda = vendasValidas.reduce((maior, v) => Math.max(maior, Number(v.total)), 0);
+  const maiorVenda = vendasValidas.reduce((maior, v) => Math.max(maior, faturamentoReal(v)), 0);
 
   return (
     <RelatorioShell

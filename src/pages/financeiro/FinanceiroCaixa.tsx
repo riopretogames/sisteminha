@@ -58,6 +58,10 @@ const TIPO_LABEL: Record<string, string> = {
   sangria: 'Sangria',
   suprimento: 'Suprimento',
   ajuste: 'Ajuste',
+  // Lançado sozinho pelo gatilho `registrar_devolucao_no_caixa` quando uma
+  // troca/devolução devolve dinheiro ao cliente — não aparece nos botões de
+  // "Lançar movimento" (esse é sempre manual, este é sempre automático).
+  devolucao: 'Devolução',
 };
 
 export default function FinanceiroCaixa() {

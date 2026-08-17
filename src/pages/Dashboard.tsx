@@ -94,11 +94,19 @@ export default function Dashboard() {
       // Fetch today's revenue
       const { data: vendasHojeData } = await supabase
         .from('vendas')
-        .select('total')
+        .select('total, valor_faturamento_real')
         .gte('created_at', today.toISOString())
         .eq('status', 'pago');
 
-      const caixaHoje = vendasHojeData?.reduce((acc, v) => acc + Number(v.total), 0) || 0;
+      // COALESCE, não `total` sozinho: a venda nova de uma troca grava o
+      // preço cheio do produto em `total` (pra não perder a contagem de
+      // vendas por produto), mas só `valor_faturamento_real` reflete o
+      // dinheiro novo de verdade — ver TrocaDevolucao.tsx.
+      const caixaHoje =
+        vendasHojeData?.reduce(
+          (acc, v) => acc + Number(v.valor_faturamento_real ?? v.total),
+          0
+        ) || 0;
 
       // Fetch critical stock — o PostgREST não compara duas colunas da
       // mesma linha direto no filtro (`.lte('estoque_atual', 'estoque_minimo')`

@@ -38,8 +38,15 @@ interface VendaRow {
   id: string;
   created_at: string;
   total: number | null;
+  /** NULL em toda venda comum (usa `total`). Só a venda nova de uma troca
+   *  preenche — ver TrocaDevolucao.tsx e VendasHistorico.tsx. */
+  valor_faturamento_real: number | null;
   itens_venda: ItemVendaRow[] | null;
 }
+
+/** Dinheiro novo que essa venda representou de verdade — ver
+ *  RelatorioVendas.tsx, mesma lógica. */
+const faturamentoReal = (v: VendaRow) => Number(v.valor_faturamento_real ?? v.total ?? 0);
 
 interface ProdutoAgregado {
   produtoId: string;
@@ -99,7 +106,7 @@ export default function DashboardVenda() {
     queryFn: async (): Promise<VendaRow[]> => {
       const { data, error } = await supabase
         .from('vendas')
-        .select('id, created_at, total, itens_venda(produto_id, quantidade, total, produtos:vw_produtos(nome))')
+        .select('id, created_at, total, valor_faturamento_real, itens_venda(produto_id, quantidade, total, produtos:vw_produtos(nome))')
         .gte('created_at', limites.inicioBusca.toISOString())
         .neq('status', 'cancelado');
       if (error) throw error;
@@ -115,8 +122,8 @@ export default function DashboardVenda() {
   );
   const vendasSemana = vendas.filter((v) => new Date(v.created_at) >= limites.inicioSemana);
 
-  const caixaHoje = vendasHoje.reduce((acc, v) => acc + Number(v.total ?? 0), 0);
-  const caixaSemana = vendasSemana.reduce((acc, v) => acc + Number(v.total ?? 0), 0);
+  const caixaHoje = vendasHoje.reduce((acc, v) => acc + faturamentoReal(v), 0);
+  const caixaSemana = vendasSemana.reduce((acc, v) => acc + faturamentoReal(v), 0);
 
   // Mesma lógica de "vendasTrend" do Dashboard.tsx: diferença de quantidade
   // de vendas hoje vs ontem.
@@ -127,7 +134,7 @@ export default function DashboardVenda() {
   const totalPorDia = limites.diasSemana.map(({ nome, chave }) => {
     const total = vendasSemana
       .filter((v) => chaveDiaLocal(new Date(v.created_at)) === chave)
-      .reduce((acc, v) => acc + Number(v.total ?? 0), 0);
+      .reduce((acc, v) => acc + faturamentoReal(v), 0);
     return { nome, total };
   });
   const melhorDia = totalPorDia.reduce(

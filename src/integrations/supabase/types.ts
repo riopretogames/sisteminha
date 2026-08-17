@@ -149,6 +149,7 @@ export type Database = {
         Row: {
           created_at: string
           descricao: string
+          devolucao_id: string | null
           forma_pagamento_id: string | null
           id: string
           sessao_id: string
@@ -161,6 +162,7 @@ export type Database = {
         Insert: {
           created_at?: string
           descricao: string
+          devolucao_id?: string | null
           forma_pagamento_id?: string | null
           id?: string
           sessao_id: string
@@ -173,6 +175,7 @@ export type Database = {
         Update: {
           created_at?: string
           descricao?: string
+          devolucao_id?: string | null
           forma_pagamento_id?: string | null
           id?: string
           sessao_id?: string
@@ -183,6 +186,13 @@ export type Database = {
           venda_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "caixa_movimentos_devolucao_id_fkey"
+            columns: ["devolucao_id"]
+            isOneToOne: false
+            referencedRelation: "devolucoes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "caixa_movimentos_forma_pagamento_id_fkey"
             columns: ["forma_pagamento_id"]
@@ -2147,6 +2157,7 @@ export type Database = {
           tenant_id: string
           total: number | null
           updated_at: string | null
+          valor_faturamento_real: number | null
           vendedor_id: string | null
         }
         Insert: {
@@ -2163,6 +2174,7 @@ export type Database = {
           tenant_id: string
           total?: number | null
           updated_at?: string | null
+          valor_faturamento_real?: number | null
           vendedor_id?: string | null
         }
         Update: {
@@ -2179,6 +2191,7 @@ export type Database = {
           tenant_id?: string
           total?: number | null
           updated_at?: string | null
+          valor_faturamento_real?: number | null
           vendedor_id?: string | null
         }
         Relationships: [
@@ -2710,6 +2723,7 @@ export type Database = {
         | "sangria"
         | "suprimento"
         | "ajuste"
+        | "devolucao"
       venda_status: "rascunho" | "pago" | "faturado" | "cancelado"
     }
     CompositeTypes: {
@@ -2897,6 +2911,7 @@ export const Constants = {
         "sangria",
         "suprimento",
         "ajuste",
+        "devolucao",
       ],
       venda_status: ["rascunho", "pago", "faturado", "cancelado"],
     },
