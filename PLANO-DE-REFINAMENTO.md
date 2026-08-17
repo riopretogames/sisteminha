@@ -445,11 +445,15 @@ o arquivo antes de assumir.
   vez. **Pendência anotada pelo revisor**: relatórios de venda
   (RelatorioVendas, VendasHistorico) ainda não mostram a origem — fica
   pro backlog se quiser ver isso lá.
-- [ ] Orçamento de venda antes de fechar — **decidido em 10/08: fica só
-  simulação** (calcular e mostrar o total na tela, sem gravar nada no
-  banco nem virar fluxo de aprovação). Ainda não construído — não é
-  mais bloqueado por comprovante (esse já saiu, ver item abaixo), só
-  falta desenhar a telinha em si quando for a vez.
+- [x] ✅ **17/08 — Orçamento de venda: construído como simulação, igual
+  decidido em 10/08.** Rota `/vendas/orcamento`
+  (`src/pages/OrcamentoVenda.tsx`), permissão `sales.create` (mesma
+  família do PDV). Carrinho igual ao PDV (mesma fonte de preço,
+  `vw_produtos`), desconto gateado por `sales.discount`, botão Imprimir
+  — mas **nenhum insert/update no banco**, confirmado na revisão
+  adversarial. Sem seleção de cliente vinculado (só um campo de texto
+  solto pro papel, não referencia `clientes` de verdade) — fechar de
+  verdade continua exclusivamente no PDV.
 - [x] ✅ **10/08 — Comprovante de venda: folha/PDF e térmica 80mm,
   Imprimir e envio por WhatsApp.** Pedido em 10/08 com exemplos reais
   (print da tela antiga de Gestão de Vendas + PDF "Nota de Venda
@@ -503,17 +507,30 @@ o arquivo antes de assumir.
   troca criasse a venda nova com sucesso mas o registro da devolução
   falhasse depois, a venda nova ficava órfã (paga, estoque baixado, sem
   devolução atrelada). Corrigido cancelando a venda nova nesse cenário.
-- [ ] **2 pendências novas, documentadas no código e ligadas ao
-  Financeiro:**
-  1. Dinheiro devolvido ainda não entra na conferência de Caixa (mesma
-     família do achado já existente de Caixa não refletir venda/OS).
-  2. Faturamento reportado (`VendasHistorico`, `DashboardVenda`) conta o
-     valor do produto trocado **duas vezes** (venda original + venda
-     nova da troca) — a venda nova grava o preço cheio do produto (pra
-     não perder a contagem de vendas por produto), mas só a diferença é
-     cobrada de verdade. Resolver exige decidir como relatório de
-     faturamento deve tratar troca — via nesta rodada, corrigir junto do
-     Financeiro.
+- [x] ✅ **17/08 — as 2 pendências acima, corrigidas.**
+  1. Dinheiro devolvido agora lança saída automática no Caixa —
+     gatilho `registrar_devolucao_no_caixa` (migration
+     `20260817120000`), tipo novo `devolucao` em `tipo_mov_caixa`. Sem
+     caixa aberto no momento, não lança nada (mesma limitação que
+     venda/OS ainda têm hoje — cliente pagando a mais numa troca
+     continua fora do escopo, vira pagamento de venda normal, e
+     pagamento de venda ainda não entra no Caixa pra nenhuma venda —
+     achado maior, separado, ligado ao Financeiro).
+  2. Faturamento reportado não conta mais o produto trocado duas
+     vezes — `vendas.valor_faturamento_real` (migration
+     `20260817100000`, NULL em toda venda comum) guarda quanto entrou
+     de dinheiro novo de verdade na venda nova de uma troca.
+     `VendasHistorico`, `RelatorioVendas`, `Dashboard` (Home) e
+     `DashboardVenda` agora somam `COALESCE(valor_faturamento_real,
+     total)` nos indicadores agregados — as colunas linha-a-linha das
+     tabelas continuam mostrando `total` puro, de propósito.
+  - **Bug pego na revisão adversarial, corrigido com migration nova
+    antes de subir**: `devolucoes` nunca teve policy de DELETE — o
+    rollback que a tela tenta fazer quando o registro falha no meio
+    não fazia nada de verdade, podia deixar uma saída de Caixa órfã
+    (ou lançar o mesmo estorno duas vezes numa nova tentativa).
+    Corrigido com a policy que faltava + `ON DELETE CASCADE` de
+    `caixa_movimentos.devolucao_id` (migration `20260817130000`).
 - [ ] Sem trava no banco (só client-side) contra devolver mais unidades
   do que foi vendido em devoluções parciais simultâneas — risco baixo
   com terminal único, lacuna real se um dia tiver mais de um PDV.
