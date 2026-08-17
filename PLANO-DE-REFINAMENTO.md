@@ -469,18 +469,19 @@ o arquivo antes de assumir.
     simplificação já assumida em `FormasPagamento.tsx`, não é gap novo.
   - Revisado por agente adversarial contra `types.ts`/RLS/padrões já em
     produção — nenhum bug encontrado.
-  - **🟠 Pendência: envio por WhatsApp ainda não está ligado de
-    verdade.** A tela já monta o texto e formata o telefone do
-    cliente, mas falta criar o workflow n8n que recebe o POST e manda
+  - **⏸️ Adiado de propósito (decisão do Felipe em 10/08): envio por
+    WhatsApp fica para uma etapa futura, não é pendência urgente.** A
+    tela já monta o texto e formata o telefone do cliente, mas o envio
+    de verdade depende de um workflow n8n que recebe o POST e manda
     pelo WuzAPI (mesmo mecanismo do fluxo de Laudos — `WUZAPI_URL`/
     credencial Header Auth já existem, reaproveitáveis). Tentei criar
     esse workflow nesta rodada, mas a ferramenta de referência do SDK
-    do n8n (`get_sdk_reference`) estava fora do ar — fica para a
-    próxima vez que eu mexer nisso, ou pra alguém montar direto no
-    n8n copiando o padrão do node "Enviar WhatsApp (WuzAPI)" do
-    workflow de Laudos. Botão fica visível mas desabilitado com aviso
-    claro até isso ser ligado (constante `N8N_WEBHOOK_COMPROVANTE`
-    vazia no topo do arquivo).
+    do n8n (`get_sdk_reference`) estava fora do ar — combinado que
+    isso fica para quando o Felipe quiser retomar, seja eu tentando de
+    novo, seja alguém montando direto no n8n copiando o padrão do node
+    "Enviar WhatsApp (WuzAPI)" do workflow de Laudos. Botão fica
+    visível mas desabilitado com aviso claro até isso ser ligado
+    (constante `N8N_WEBHOOK_COMPROVANTE` vazia no topo do arquivo).
 
 **✅ Feature nova — Troca/Devolução de produto (08/08)**
 - [x] Construída: `/vendas/troca-devolucao`. Devolução sempre em dinheiro
