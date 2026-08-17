@@ -16,6 +16,7 @@ import {
   X,
   Repeat,
   AlertTriangle,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,6 +58,16 @@ interface Produto {
   nome: string;
   preco: number;
   estoque_atual: number;
+  imei_serial: string | null;
+  codigo_barra: string | null;
+  // Ids de catálogo — servem só pra filtrar a busca (Categoria/Marca/Cor/
+  // Condição/Memória), a mesma "ficha completa" que EstoqueDetalhe.tsx usa
+  // pra cadastrar o produto.
+  grupo_produto_id: string | null;
+  marca_id: string | null;
+  cor_id: string | null;
+  condicao_id: string | null;
+  memoria_id: string | null;
 }
 
 interface CartItem {
@@ -160,6 +171,25 @@ export default function PDV() {
   // deveria precisar escolher nada na maioria das vezes.
   const catalogoOrigemVenda = useCatalogo('origem_venda');
   const [origemVendaId, setOrigemVendaId] = useState('');
+
+  // Filtros de busca de produto — "Categoria" usa o catálogo grupo_produto
+  // (Console/Jogo/Controle/Celular/...), que é o que a loja de verdade
+  // enxerga como categoria; a coluna categoria (enum fixo) é mais genérica
+  // e não aparece aqui. Pedido do Felipe (17/08), testando o PDV: achar
+  // produto só pelo nome não bastava quando a vitrine cresce.
+  const catalogoCategoria = useCatalogo('grupo_produto');
+  const catalogoMarcaProduto = useCatalogo('marca');
+  const catalogoCorProduto = useCatalogo('cor');
+  const catalogoCondicaoProduto = useCatalogo('condicao');
+  const catalogoMemoriaProduto = useCatalogo('memoria');
+  const [showFiltros, setShowFiltros] = useState(false);
+  const [filtroCategoria, setFiltroCategoria] = useState('');
+  const [filtroMarca, setFiltroMarca] = useState('');
+  const [filtroCor, setFiltroCor] = useState('');
+  const [filtroCondicao, setFiltroCondicao] = useState('');
+  const [filtroMemoria, setFiltroMemoria] = useState('');
+  const [precoMin, setPrecoMin] = useState('');
+  const [precoMax, setPrecoMax] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
   const [showClienteDialog, setShowClienteDialog] = useState(false);
   const [showNovoClienteDialog, setShowNovoClienteDialog] = useState(false);
@@ -207,7 +237,9 @@ export default function PDV() {
   const fetchProdutos = async () => {
     const { data } = await supabase
       .from('vw_produtos')
-      .select('id, nome, preco, estoque_atual')
+      .select(
+        'id, nome, preco, estoque_atual, imei_serial, codigo_barra, grupo_produto_id, marca_id, cor_id, condicao_id, memoria_id'
+      )
       .eq('ativo', true)
       .gt('estoque_atual', 0)
       .order('nome');
@@ -621,9 +653,48 @@ export default function PDV() {
     }
   };
 
-  const filteredProdutos = produtos.filter(p =>
-    p.nome.toLowerCase().includes(search.toLowerCase())
-  );
+  // Busca por nome, IMEI/série ou código de barras — assim um leitor de
+  // código de barras (que só "digita" no campo focado e aperta Enter)
+  // encontra o produto igual a digitar o nome, sem precisar trocar de
+  // campo. `soDigitos` nos dois lados: código de barras com ou sem
+  // espaço/traço bate igual.
+  const buscaLower = search.trim().toLowerCase();
+  const buscaDigitos = soDigitos(search);
+  const filteredProdutos = produtos.filter((p) => {
+    const bateBusca =
+      !buscaLower ||
+      p.nome.toLowerCase().includes(buscaLower) ||
+      (p.imei_serial ?? '').toLowerCase().includes(buscaLower) ||
+      (buscaDigitos.length > 0 && soDigitos(p.codigo_barra).includes(buscaDigitos));
+    if (!bateBusca) return false;
+
+    if (filtroCategoria && p.grupo_produto_id !== filtroCategoria) return false;
+    if (filtroMarca && p.marca_id !== filtroMarca) return false;
+    if (filtroCor && p.cor_id !== filtroCor) return false;
+    if (filtroCondicao && p.condicao_id !== filtroCondicao) return false;
+    if (filtroMemoria && p.memoria_id !== filtroMemoria) return false;
+
+    const min = parseFloat(precoMin);
+    if (!Number.isNaN(min) && p.preco < min) return false;
+    const max = parseFloat(precoMax);
+    if (!Number.isNaN(max) && p.preco > max) return false;
+
+    return true;
+  });
+
+  const filtrosAtivos = [
+    filtroCategoria, filtroMarca, filtroCor, filtroCondicao, filtroMemoria, precoMin, precoMax,
+  ].filter(Boolean).length;
+
+  const limparFiltros = () => {
+    setFiltroCategoria('');
+    setFiltroMarca('');
+    setFiltroCor('');
+    setFiltroCondicao('');
+    setFiltroMemoria('');
+    setPrecoMin('');
+    setPrecoMax('');
+  };
 
   // Busca por nome OU telefone: no balcão, o que a pessoa informa primeiro
   // costuma ser o número, não o nome completo. Ignora pontuação dos dois lados.
@@ -645,16 +716,87 @@ export default function PDV() {
           <h1 className="text-2xl font-bold">PDV</h1>
         </div>
 
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar produto por nome..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-9"
-            autoFocus
-          />
+        <div className="mb-4 flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nome, IMEI ou código de barras..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9"
+              autoFocus
+            />
+          </div>
+          <Button
+            variant="outline"
+            className="shrink-0"
+            onClick={() => setShowFiltros((v) => !v)}
+          >
+            <SlidersHorizontal className="mr-2 h-4 w-4" />
+            Filtros
+            {filtrosAtivos > 0 && (
+              <Badge variant="secondary" className="ml-2">{filtrosAtivos}</Badge>
+            )}
+          </Button>
         </div>
+
+        {showFiltros && (
+          <div className="mb-4 rounded-lg border p-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+              <FiltroCatalogo
+                label="Categoria"
+                valor={filtroCategoria}
+                onChange={setFiltroCategoria}
+                opcoes={catalogoCategoria.data ?? []}
+              />
+              <FiltroCatalogo
+                label="Marca"
+                valor={filtroMarca}
+                onChange={setFiltroMarca}
+                opcoes={catalogoMarcaProduto.data ?? []}
+              />
+              <FiltroCatalogo
+                label="Cor"
+                valor={filtroCor}
+                onChange={setFiltroCor}
+                opcoes={catalogoCorProduto.data ?? []}
+              />
+              <FiltroCatalogo
+                label="Condição"
+                valor={filtroCondicao}
+                onChange={setFiltroCondicao}
+                opcoes={catalogoCondicaoProduto.data ?? []}
+              />
+              <FiltroCatalogo
+                label="Memória"
+                valor={filtroMemoria}
+                onChange={setFiltroMemoria}
+                opcoes={catalogoMemoriaProduto.data ?? []}
+              />
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Preço</label>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number" min={0} step="0.01" placeholder="De"
+                    value={precoMin} onChange={(e) => setPrecoMin(e.target.value)}
+                    className="h-9"
+                  />
+                  <Input
+                    type="number" min={0} step="0.01" placeholder="Até"
+                    value={precoMax} onChange={(e) => setPrecoMax(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
+              </div>
+            </div>
+            {filtrosAtivos > 0 && (
+              <Button variant="ghost" size="sm" className="mt-2" onClick={limparFiltros}>
+                <X className="mr-2 h-4 w-4" />
+                Limpar filtros
+              </Button>
+            )}
+          </div>
+        )}
 
         <div className="flex-1 overflow-auto">
           <div className="grid grid-cols-3 gap-3">
@@ -1195,6 +1337,46 @@ export default function PDV() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/**
+ * Um `<Select>` de filtro por catálogo — Categoria/Marca/Cor/Condição/
+ * Memória do painel de Filtros compartilham a mesma estrutura ("Todos" +
+ * lista de itens ativos do catálogo). Diferente de `CampoCatalogo`: aqui não
+ * dá pra cadastrar item novo (é só pra filtrar o que já existe) e o valor
+ * vazio é um estado de verdade ("Todos"), não "nada selecionado ainda".
+ */
+function FiltroCatalogo({
+  label,
+  valor,
+  onChange,
+  opcoes,
+}: {
+  label: string;
+  valor: string;
+  onChange: (v: string) => void;
+  opcoes: { id: string; descricao: string; ativo: boolean }[];
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-xs text-muted-foreground">{label}</label>
+      <Select value={valor || 'todos'} onValueChange={(v) => onChange(v === 'todos' ? '' : v)}>
+        <SelectTrigger className="h-9">
+          <SelectValue placeholder="Todos" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="todos">Todos</SelectItem>
+          {opcoes
+            .filter((o) => o.ativo)
+            .map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {o.descricao}
+              </SelectItem>
+            ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
