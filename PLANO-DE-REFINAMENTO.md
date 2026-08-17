@@ -426,11 +426,24 @@ o arquivo antes de assumir.
   mundo e deixava a RLS recusar com erro cru. Usa
   `registry.customers.manage`, a mesma chave que a policy do banco
   exige.
-- [ ] Catálogo "Origens da Venda" (Listas do Sistema) existe, mas `vendas`
-  não tem coluna pra guardar isso — órfão. (Não escolhido na rodada de
-  07/08.)
-- [ ] Orçamento de venda antes de fechar (feature nova, sem desenho ainda
-  — venda fiada saiu de vez da lista, loja não trabalha com crediário).
+- [x] ✅ **Ligado.** Catálogo "Origem da Venda" (Balcão/Site/WhatsApp/
+  Instagram/Shopee) — existia desde 01/08, órfão porque `vendas` nunca
+  teve coluna pra guardar. Migration nova adiciona
+  `vendas.origem_venda_id` (mesmo padrão de `clientes.origem_id`), PDV
+  usa `CampoCatalogo` (mesmo componente da Entrada de Produto por Troca)
+  pré-selecionado em "Balcão". **Bug pego na revisão adversarial**: o
+  efeito de pré-seleção brigava com "Limpar seleção" do próprio
+  `CampoCatalogo` — corrigido com uma `ref` que só pré-seleciona uma
+  vez. **Pendência anotada pelo revisor**: relatórios de venda
+  (RelatorioVendas, VendasHistorico) ainda não mostram a origem — fica
+  pro backlog se quiser ver isso lá.
+- [ ] Orçamento de venda antes de fechar — decisão do Felipe: pode ser só
+  uma simulação (não precisa virar registro no banco nem fluxo de
+  aprovação). Provavelmente usa o mesmo mecanismo dos comprovantes (ver
+  item abaixo) — aguardando exemplos de comprovante pra desenhar os
+  dois juntos.
+- [ ] **Comprovantes de venda — feature nova, aguardando exemplos do
+  Felipe** (pedido em 10/08, ainda não desenhada).
 
 **✅ Feature nova — Troca/Devolução de produto (08/08)**
 - [x] Construída: `/vendas/troca-devolucao`. Devolução sempre em dinheiro
