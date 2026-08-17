@@ -15,6 +15,7 @@ import {
   Check,
   X,
   Repeat,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,6 +62,10 @@ interface Produto {
 interface CartItem {
   produto: Produto;
   quantidade: number;
+  /** Vendedor avisou o cliente que ESTE item tem defeito conhecido — vira a
+   * coluna "Defeito?" do comprovante. Falso por padrão: a maioria dos itens
+   * não tem ressalva nenhuma. */
+  defeitoDeclarado: boolean;
 }
 
 interface Cliente {
@@ -318,7 +323,7 @@ export default function PDV() {
         )
       );
     } else {
-      setCart([...cart, { produto, quantidade: 1 }]);
+      setCart([...cart, { produto, quantidade: 1, defeitoDeclarado: false }]);
     }
   };
 
@@ -346,6 +351,16 @@ export default function PDV() {
 
   const removeFromCart = (produtoId: string) => {
     setCart(cart.filter(item => item.produto.id !== produtoId));
+  };
+
+  const toggleDefeitoDeclarado = (produtoId: string) => {
+    setCart(
+      cart.map((item) =>
+        item.produto.id === produtoId
+          ? { ...item, defeitoDeclarado: !item.defeitoDeclarado }
+          : item
+      )
+    );
   };
 
   const subtotalBruto = cart.reduce(
@@ -499,6 +514,7 @@ export default function PDV() {
           quantidade: item.quantidade,
           preco_unitario: item.produto.preco,
           total: item.produto.preco * item.quantidade,
+          defeito_declarado: item.defeitoDeclarado,
         }));
 
         const { error: itensError } = await supabase
@@ -713,6 +729,22 @@ export default function PDV() {
                     <p className="text-sm text-muted-foreground">
                       {formatCurrency(item.produto.preco)} x {item.quantidade}
                     </p>
+                    {/* Vira a coluna "Defeito?" do comprovante — desligado
+                        por padrão, o vendedor liga quando avisa o cliente de
+                        um defeito conhecido naquele item específico. */}
+                    <button
+                      type="button"
+                      onClick={() => toggleDefeitoDeclarado(item.produto.id)}
+                      className={
+                        'mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs ' +
+                        (item.defeitoDeclarado
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'text-muted-foreground hover:bg-muted')
+                      }
+                    >
+                      <AlertTriangle className="h-3 w-3" />
+                      {item.defeitoDeclarado ? 'Com defeito declarado' : 'Sem defeito'}
+                    </button>
                   </div>
                   <div className="flex items-center gap-1">
                     <Button

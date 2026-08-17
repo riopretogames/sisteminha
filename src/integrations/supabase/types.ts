@@ -919,6 +919,7 @@ export type Database = {
       itens_venda: {
         Row: {
           created_at: string | null
+          defeito_declarado: boolean
           desconto: number | null
           id: string
           preco_unitario: number
@@ -929,6 +930,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          defeito_declarado?: boolean
           desconto?: number | null
           id?: string
           preco_unitario: number
@@ -939,6 +941,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          defeito_declarado?: boolean
           desconto?: number | null
           id?: string
           preco_unitario?: number
