@@ -132,6 +132,7 @@ export const MENU: MenuRoot[] = [
     permission: PERMISSIONS.SALES_VIEW,
     children: [
       { kind: 'link', id: 'venda-pdv', label: 'Nova Venda (PDV)', path: '/pdv', element: 'PDV', permission: PERMISSIONS.SALES_CREATE },
+      { kind: 'link', id: 'venda-orcamento', label: 'Orçamento (Simulação)', path: '/vendas/orcamento', element: 'OrcamentoVenda', permission: PERMISSIONS.SALES_CREATE, hint: 'Calcula o valor pro cliente sem gravar nada — pra fechar de verdade, use o PDV' },
       { kind: 'link', id: 'venda-hist', label: 'Histórico de Vendas', path: '/vendas/historico', element: 'VendasHistorico', permission: PERMISSIONS.SALES_VIEW },
       { kind: 'link', id: 'venda-pag', label: 'Pagamentos', path: '/vendas/pagamentos', element: 'VendasPagamentos', permission: PERMISSIONS.SALES_VIEW },
       { kind: 'link', id: 'venda-troca', label: 'Troca / Devolução', path: '/vendas/troca-devolucao', element: 'TrocaDevolucao', permission: PERMISSIONS.SALES_CANCEL, hint: 'Devolver ou trocar produto de uma venda já fechada' },

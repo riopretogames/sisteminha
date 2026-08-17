@@ -29,6 +29,7 @@ export const PAGES: Record<string, Page> = {
   EstoqueCritico: lazy(() => import('@/pages/EstoqueCritico')),
   EstoqueMovimentacoes: lazy(() => import('@/pages/EstoqueMovimentacoes')),
   PDV: lazy(() => import('@/pages/PDV')),
+  OrcamentoVenda: lazy(() => import('@/pages/OrcamentoVenda')),
   VendasHistorico: lazy(() => import('@/pages/VendasHistorico')),
   VendasPagamentos: lazy(() => import('@/pages/VendasPagamentos')),
   TrocaDevolucao: lazy(() => import('@/pages/TrocaDevolucao')),
