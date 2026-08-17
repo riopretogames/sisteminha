@@ -515,15 +515,24 @@ o arquivo antes de assumir.
 ## Estoque
 
 **🔴 Alta**
-- [ ] `Estoque.tsx` mostra custo/margem pra qualquer usuário com
-  `inventory.view`, ignorando `inventory.cost.view` — é a única tela
-  irmã que vaza (EstoqueMovimentacoes/OSDetalhe já fazem certo). Parte
-  da [decisão pendente](#decisão-que-só-você-pode-tomar) acima.
 - [ ] Botão "Repor" em EstoqueCritico chama `ajustar_estoque_produto`
   (RPC) que não checa permissão nem tenant no banco — proteção é só
   cosmética na tela.
 
 **🟠 Média**
+- [x] ⚠️ **Rebaixado em 10/08 — não é mais vazamento de dado, é
+  inconsistência de tela.** O achado original ("`Estoque.tsx` mostra
+  custo/margem pra qualquer usuário, ignorando `inventory.cost.view`")
+  é de **antes** da Opção B fechar. Conferido agora: `Estoque.tsx` já
+  lê de `vw_produtos` (linha 126) desde "Ligar as telas de leitura nas
+  views" (07/08) — quem não tem a permissão já recebe `custo`/
+  `margem_percent` como `null` direto do banco, o valor de verdade
+  nunca chega no navegador. **O que sobra é só isto**: a tela renderiza
+  `formatCurrency(produto.custo)` sem checar a permissão antes (linha
+  380), então quem não tem `inventory.cost.view` vê "R$0,00" na coluna
+  Custo em vez de a coluna simplesmente não aparecer — passa a
+  impressão de que o produto não teve custo, quando na real é a
+  permissão escondendo. Enganoso, mas não é mais vazamento.
 - [ ] `Estoque.tsx` não esconde os botões de Novo/Editar/Excluir por
   permissão — usuário sem acesso recebe erro cru de RLS em vez de não
   ver o botão (inconsistente com Fornecedores/Transportadoras/Serviços).
