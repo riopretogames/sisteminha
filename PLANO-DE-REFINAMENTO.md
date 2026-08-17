@@ -437,13 +437,50 @@ o arquivo antes de assumir.
   vez. **Pendência anotada pelo revisor**: relatórios de venda
   (RelatorioVendas, VendasHistorico) ainda não mostram a origem — fica
   pro backlog se quiser ver isso lá.
-- [ ] Orçamento de venda antes de fechar — decisão do Felipe: pode ser só
-  uma simulação (não precisa virar registro no banco nem fluxo de
-  aprovação). Provavelmente usa o mesmo mecanismo dos comprovantes (ver
-  item abaixo) — aguardando exemplos de comprovante pra desenhar os
-  dois juntos.
-- [ ] **Comprovantes de venda — feature nova, aguardando exemplos do
-  Felipe** (pedido em 10/08, ainda não desenhada).
+- [ ] Orçamento de venda antes de fechar — **decidido em 10/08: fica só
+  simulação** (calcular e mostrar o total na tela, sem gravar nada no
+  banco nem virar fluxo de aprovação). Ainda não construído — não é
+  mais bloqueado por comprovante (esse já saiu, ver item abaixo), só
+  falta desenhar a telinha em si quando for a vez.
+- [x] ✅ **10/08 — Comprovante de venda: folha/PDF e térmica 80mm,
+  Imprimir e envio por WhatsApp.** Pedido em 10/08 com exemplos reais
+  (print da tela antiga de Gestão de Vendas + PDF "Nota de Venda
+  Nº 5579"). Rota `/vendas/:id/comprovante`
+  (`src/pages/ComprovanteVenda.tsx`).
+  - Via de folha reproduz campo a campo o PDF de exemplo: cabeçalho da
+    loja, dados da venda/cliente/vendedor, tabela de produtos (IMEI,
+    descrição via catálogo — marca/cor/condição, coluna Defeito?,
+    valores), tabela de pagamentos com taxa calculada por forma, linha
+    de totais e os 8 parágrafos de garantia verbatim.
+  - Via térmica 80mm é desenho próprio (sem exemplo dado, pedido
+    explícito do Felipe pra eu desenhar um padrão): mesma informação
+    essencial, condensada, sem os parágrafos de garantia por extenso.
+  - **Dado novo que não existia**: "Defeito?" por item — em vez de
+    fingir "Não" pra todo mundo (afirmação falsa de disclosure que a
+    loja nunca fez), criei `itens_venda.defeito_declarado` (boolean,
+    default false) com um switch no carrinho do PDV, desligado por
+    padrão.
+  - Histórico de Vendas ganhou botão Imprimir de verdade por linha (o
+    ícone antigo era só decorativo).
+  - Vendas canceladas mostram aviso em tela e marca "VENDA CANCELADA"
+    nas duas vias, pra ninguém imprimir/mandar como se fosse válida.
+  - **Simplificação assumida**: taxa por forma de pagamento é flat
+    (`taxa_percent`), sem olhar taxa por parcela individual — mesma
+    simplificação já assumida em `FormasPagamento.tsx`, não é gap novo.
+  - Revisado por agente adversarial contra `types.ts`/RLS/padrões já em
+    produção — nenhum bug encontrado.
+  - **🟠 Pendência: envio por WhatsApp ainda não está ligado de
+    verdade.** A tela já monta o texto e formata o telefone do
+    cliente, mas falta criar o workflow n8n que recebe o POST e manda
+    pelo WuzAPI (mesmo mecanismo do fluxo de Laudos — `WUZAPI_URL`/
+    credencial Header Auth já existem, reaproveitáveis). Tentei criar
+    esse workflow nesta rodada, mas a ferramenta de referência do SDK
+    do n8n (`get_sdk_reference`) estava fora do ar — fica para a
+    próxima vez que eu mexer nisso, ou pra alguém montar direto no
+    n8n copiando o padrão do node "Enviar WhatsApp (WuzAPI)" do
+    workflow de Laudos. Botão fica visível mas desabilitado com aviso
+    claro até isso ser ligado (constante `N8N_WEBHOOK_COMPROVANTE`
+    vazia no topo do arquivo).
 
 **✅ Feature nova — Troca/Devolução de produto (08/08)**
 - [x] Construída: `/vendas/troca-devolucao`. Devolução sempre em dinheiro
