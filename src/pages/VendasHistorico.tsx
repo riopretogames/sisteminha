@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Receipt } from 'lucide-react';
+import { Printer } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { moeda, dataHora } from '@/lib/format';
 import { FORMAS_PAGAMENTO } from '@/lib/constants';
@@ -67,6 +68,7 @@ const STATUS_COR: Record<string, string> = {
 };
 
 export default function VendasHistorico() {
+  const navigate = useNavigate();
   const [filtros, setFiltros] = useState<FiltrosVendaValores>(FILTROS_VENDA_VAZIO);
   const [vendaAberta, setVendaAberta] = useState<Venda | null>(null);
 
@@ -200,8 +202,21 @@ export default function VendasHistorico() {
                     {moeda(Number(v.total))}
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="icon">
-                      <Receipt className="h-4 w-4" />
+                    {/* Pedido do Felipe (10/08): sempre ter um botão
+                        Imprimir na gestão de vendas, igual ao sistema
+                        antigo. stopPropagation pra não abrir também o
+                        Dialog de detalhe da linha (o clique nele já navega
+                        pra outro lugar). */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Imprimir comprovante"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/vendas/${v.id}/comprovante`);
+                      }}
+                    >
+                      <Printer className="h-4 w-4" />
                     </Button>
                   </TableCell>
                 </TableRow>

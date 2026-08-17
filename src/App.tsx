@@ -20,6 +20,7 @@ import { lazy } from 'react';
 const OSDetalhe = lazy(() => import('./pages/OSDetalhe'));
 const ClienteFicha = lazy(() => import('./pages/ClienteFicha'));
 const EstoqueDetalhe = lazy(() => import('./pages/EstoqueDetalhe'));
+const ComprovanteVenda = lazy(() => import('./pages/ComprovanteVenda'));
 
 /**
  * As rotas protegidas NÃO são escritas à mão — são derivadas de
@@ -87,6 +88,20 @@ const App = () => (
                   <RequirePermission permission={PERMISSIONS.INVENTORY_VIEW}>
                     <Suspense fallback={<CarregandoPagina />}>
                       <EstoqueDetalhe />
+                    </Suspense>
+                  </RequirePermission>
+                }
+              />
+              {/* Comprovante de venda: mesmo caso das rotas de drill-down
+                  acima — path com parâmetro, fora do que menu.ts modela.
+                  Mesma permissão de Histórico de Vendas (é de lá que se
+                  chega aqui). */}
+              <Route
+                path="/vendas/:id/comprovante"
+                element={
+                  <RequirePermission permission={PERMISSIONS.SALES_VIEW}>
+                    <Suspense fallback={<CarregandoPagina />}>
+                      <ComprovanteVenda />
                     </Suspense>
                   </RequirePermission>
                 }
