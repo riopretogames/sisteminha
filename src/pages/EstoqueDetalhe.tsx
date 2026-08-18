@@ -123,6 +123,16 @@ export default function EstoqueDetalhe() {
   const podeEditar = can(PERMISSIONS.INVENTORY_EDIT);
   const podeExcluir = can(PERMISSIONS.INVENTORY_DELETE);
   const veCusto = can(PERMISSIONS.INVENTORY_COST_VIEW);
+  // Achado na revisão de 18/08: a migration 20260818110000 passou a exigir
+  // `inventory.adjust` dentro do próprio `ajustar_estoque_produto` (antes não
+  // exigia nada). Esta tela sempre liberou o campo "Estoque Atual" só com
+  // `inventory.edit` — hoje todo papel com inventory.edit também tem
+  // inventory.adjust (ver role_permissions), então nenhum papel quebra, mas
+  // uma EXCEÇÃO por usuário (tela de Usuários) que desse inventory.edit sem
+  // inventory.adjust deixaria o campo editável na tela e a gravação falharia
+  // só nesse pedaço, depois do resto do formulário já ter salvo. Trava aqui
+  // também, pra bater com o que o banco realmente exige.
+  const podeAjustarEstoque = can(PERMISSIONS.INVENTORY_ADJUST);
 
   const marcas = useCatalogo('marca');
   const modelos = useCatalogo('modelo');
@@ -257,7 +267,10 @@ export default function EstoqueDetalhe() {
       // movimentos_estoque (motivo "Ajuste manual") — mesma regra que
       // Estoque.tsx já seguia.
       const novoEstoque = parseInt(formData.estoqueAtual, 10) || 0;
-      if (novoEstoque !== produto.estoque_atual) {
+      // O campo já vem desabilitado sem `inventory.adjust` (não deveria mudar
+      // de valor), mas a trava aqui é defensiva: o banco exige a permissão de
+      // qualquer forma, então nem tenta chamar a função sem ela.
+      if (podeAjustarEstoque && novoEstoque !== produto.estoque_atual) {
         const { error: ajusteError } = await supabase.rpc('ajustar_estoque_produto', {
           _produto_id: produto.id,
           _nova_quantidade: novoEstoque,
@@ -514,9 +527,14 @@ export default function EstoqueDetalhe() {
                 id="estoque_atual"
                 type="number"
                 value={formData.estoqueAtual}
-                disabled={!podeEditar}
+                disabled={!podeEditar || !podeAjustarEstoque}
                 onChange={(e) => setFormData({ ...formData, estoqueAtual: e.target.value })}
               />
+              {podeEditar && !podeAjustarEstoque && (
+                <p className="text-xs text-muted-foreground">
+                  Seu acesso não inclui ajustar estoque — os demais campos podem ser salvos normalmente.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="estoque_minimo">Estoque Mínimo</Label>

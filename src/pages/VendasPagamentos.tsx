@@ -31,6 +31,7 @@ interface VendaComPagamentos {
   pagamentos_venda: Array<{
     id: string;
     forma: FormaPagamento;
+    forma_pagamento_id: string | null;
     parcelas: number | null;
     valor: number;
     gateway_id: string | null;
@@ -43,6 +44,12 @@ interface LinhaPagamento {
   data: string;
   cliente: string;
   forma: FormaPagamento;
+  // Achado na revisão de 18/08: "Detalhe por forma" só agrupava pela
+  // categoria ampla do enum (7 valores), então "Cartão Crédito", "Cartão
+  // Crédito - Taxa", "Link de Pagamento" e "Shopee" — 4 formas cadastradas
+  // diferentes — apareciam somadas numa linha só ("Cartão Crédito"). Guarda
+  // o id da forma cadastrada específica pra poder desagrupar por ela.
+  formaPagamentoId: string | null;
   parcelas: number | null;
   valor: number;
   // Guardado para uma futura tela de conciliação com o gateway (bandeira,
@@ -101,7 +108,7 @@ export default function VendasPagamentos() {
       const { data, error } = await supabase
         .from('vendas')
         .select(
-          'id, numero_venda, created_at, status, clientes(nome), pagamentos_venda(id, forma, parcelas, valor, gateway_id)',
+          'id, numero_venda, created_at, status, clientes(nome), pagamentos_venda(id, forma, forma_pagamento_id, parcelas, valor, gateway_id)',
         )
         .gte('created_at', periodo.de)
         // O `ate` é uma data pura; sem o T23:59:59 o último dia ficaria de fora.
@@ -123,6 +130,7 @@ export default function VendasPagamentos() {
             data: venda.created_at,
             cliente: venda.clientes?.nome ?? 'Consumidor final',
             forma: pagamento.forma,
+            formaPagamentoId: pagamento.forma_pagamento_id,
             parcelas: pagamento.parcelas,
             valor: Number(pagamento.valor),
             gatewayId: pagamento.gateway_id,
@@ -141,6 +149,22 @@ export default function VendasPagamentos() {
 
   const linhas = data ?? [];
 
+  // Nomes das formas cadastradas (Cadastros > Formas de Pagamento) — só pra
+  // rotular o "Detalhe por forma" pela forma específica usada, não pela
+  // categoria ampla do enum. Nulo quando o pagamento é de antes da migration
+  // que ligou pagamentos_venda ao cadastro (07/08) — nesse caso cai no
+  // fallback do rótulo do enum, mais abaixo.
+  const { data: formasCadastro } = useQuery({
+    queryKey: ['formas-pagamento-cadastro'],
+    queryFn: async (): Promise<Array<{ id: string; descricao: string }>> => {
+      const { data, error } = await supabase.from('formas_pagamento').select('id, descricao');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const nomeFormaCadastro = new Map((formasCadastro ?? []).map((f) => [f.id, f.descricao]));
+
   // Resumo por forma de pagamento — o que ajuda a bater com o extrato da
   // maquininha (por bandeira/tipo) e do PIX.
   const totaisPorForma = new Map<FormaPagamento, number>();
@@ -148,11 +172,25 @@ export default function VendasPagamentos() {
     totaisPorForma.set(linha.forma, (totaisPorForma.get(linha.forma) ?? 0) + linha.valor);
   }
 
-  const formasComMovimento = (Object.keys(FORMAS_PAGAMENTO) as FormaPagamento[]).filter((forma) =>
-    totaisPorForma.has(forma),
-  );
-
   const de = (forma: FormaPagamento) => totaisPorForma.get(forma) ?? 0;
+
+  // "Detalhe por forma" — igual ao de cima, mas pela forma CADASTRADA
+  // específica (Cartão Crédito, Cartão Crédito - Taxa, Link de Pagamento,
+  // Shopee etc.), não pela categoria ampla do enum. Pagamento sem
+  // `formaPagamentoId` (de antes da migration que ligou pagamentos_venda ao
+  // cadastro) cai agrupado pelo enum mesmo, como fallback.
+  const totaisPorFormaCadastro = new Map<string, { rotulo: string; total: number }>();
+  for (const linha of linhas) {
+    const chave = linha.formaPagamentoId ?? `enum:${linha.forma}`;
+    const rotulo = linha.formaPagamentoId
+      ? (nomeFormaCadastro.get(linha.formaPagamentoId) ?? FORMAS_PAGAMENTO[linha.forma]?.label ?? linha.forma)
+      : (FORMAS_PAGAMENTO[linha.forma]?.label ?? linha.forma);
+    const atual = totaisPorFormaCadastro.get(chave);
+    totaisPorFormaCadastro.set(chave, { rotulo, total: (atual?.total ?? 0) + linha.valor });
+  }
+  const detalheFormaCadastro = [...totaisPorFormaCadastro.entries()].sort((a, b) =>
+    a[1].rotulo.localeCompare(b[1].rotulo),
+  );
 
   /**
    * Os números que a conferência de caixa realmente usa.
@@ -244,13 +282,12 @@ export default function VendasPagamentos() {
             />
           )}
 
-          {/* Detalhe por forma: é o que bate linha a linha com cada extrato. */}
-          {formasComMovimento.map((forma) => (
-            <Indicador
-              key={forma}
-              rotulo={FORMAS_PAGAMENTO[forma].label}
-              valor={moeda(totaisPorForma.get(forma) ?? 0)}
-            />
+          {/* Detalhe por forma CADASTRADA: é o que bate linha a linha com
+              cada extrato específico (ex.: Shopee separado de Cartão
+              Crédito normal, mesmo os dois sendo "cartão de crédito" no
+              enum amplo). */}
+          {detalheFormaCadastro.map(([chave, { rotulo, total }]) => (
+            <Indicador key={chave} rotulo={rotulo} valor={moeda(total)} />
           ))}
         </>
       }

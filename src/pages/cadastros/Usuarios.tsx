@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, Search, ShieldCheck, UserCog, Info, RotateCcw } from 'lucide-react';
+import { Loader2, Search, ShieldCheck, UserCog, Info, RotateCcw, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { ROLES, ROLE_LABELS, type Role, type Permission } from '@/config/permissions';
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -19,6 +20,9 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from '@/components/ui/popover';
 
 /**
  * Cadastro de Usuários.
@@ -163,7 +167,7 @@ function DialogUsuario({
   const [papel, setPapel] = useState<Role | null>(usuario.role);
   const [ativo, setAtivo] = useState(usuario.ativo);
 
-  const { data: excecoes, aplicar } = useExcecoes(usuario.id);
+  const { data: excecoes, aplicar, definirMotivo } = useExcecoes(usuario.id);
 
   const { data: catalogo } = useQuery({
     queryKey: ['permissions-catalogo'],
@@ -190,8 +194,8 @@ function DialogUsuario({
   }, [doPerfil, papel]);
 
   const excecaoDe = useMemo(() => {
-    const m = new Map<string, boolean>();
-    for (const e of excecoes ?? []) m.set(e.permission_key, e.concedida);
+    const m = new Map<string, { concedida: boolean; motivo: string | null }>();
+    for (const e of excecoes ?? []) m.set(e.permission_key, { concedida: e.concedida, motivo: e.motivo });
     return m;
   }, [excecoes]);
 
@@ -307,7 +311,7 @@ function DialogUsuario({
                         {itens.map((p) => {
                           const perfilConcede = concedidasPeloPerfil.has(p.key);
                           const excecao = excecaoDe.get(p.key);
-                          const efetivo = excecao ?? perfilConcede;
+                          const efetivo = excecao?.concedida ?? perfilConcede;
                           const temExcecao = excecao !== undefined;
 
                           return (
@@ -337,8 +341,15 @@ function DialogUsuario({
                                     variant="secondary"
                                     className="bg-amber-500/10 text-[10px] text-amber-600"
                                   >
-                                    {excecao ? 'concedido à parte' : 'removido'}
+                                    {excecao?.concedida ? 'concedido à parte' : 'removido'}
                                   </Badge>
+                                  <MotivoExcecao
+                                    motivoAtual={excecao?.motivo ?? null}
+                                    salvando={definirMotivo.isPending}
+                                    onSalvar={(motivo) =>
+                                      definirMotivo.mutate({ permissao: p.key as Permission, motivo })
+                                    }
+                                  />
                                   <button
                                     type="button"
                                     title="Voltar ao que o perfil define"
@@ -369,5 +380,86 @@ function DialogUsuario({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Motivo (opcional) de uma exceção de permissão — separado do clique do
+ * checkbox de propósito (achado de 18/08: exceção nunca deixava rastro do
+ * "por quê"). Preencher não é obrigatório, senão criar/tirar uma exceção
+ * rápida no balcão viraria um formulário — mas quem quiser documentar tem
+ * onde, e fica salvo junto com quem decidiu (`definida_por`, gravado
+ * sozinho por `useExcecoes`).
+ */
+function MotivoExcecao({
+  motivoAtual,
+  salvando,
+  onSalvar,
+}: {
+  motivoAtual: string | null;
+  salvando: boolean;
+  onSalvar: (motivo: string) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [rascunho, setRascunho] = useState(motivoAtual ?? '');
+
+  return (
+    <Popover
+      open={aberto}
+      onOpenChange={(v) => {
+        setAberto(v);
+        if (v) setRascunho(motivoAtual ?? '');
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          title={motivoAtual ? 'Ver/editar motivo desta exceção' : 'Registrar motivo (opcional)'}
+          onClick={(e) => {
+            // Só stopPropagation — o botão está dentro do <label> do Checkbox,
+            // e sem isso o clique "vazaria" e alternaria a exceção por baixo.
+            // NÃO chamar preventDefault aqui: o Radix PopoverTrigger compõe o
+            // onClick com o próprio onOpenToggle via composeEventHandlers, que
+            // só dispara quando o evento NÃO está com defaultPrevented — um
+            // preventDefault() neste handler (que roda antes, por causa de como
+            // o Slot do Radix mescla os dois onClick) cancelava silenciosamente
+            // a abertura do Popover. Achado na revisão de 18/08.
+            e.stopPropagation();
+          }}
+          className={cn(
+            'text-muted-foreground hover:text-foreground',
+            motivoAtual && 'text-amber-600',
+          )}
+        >
+          <MessageSquare className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-72 space-y-2"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Label className="text-xs">Motivo desta exceção (opcional)</Label>
+        <Textarea
+          rows={3}
+          value={rascunho}
+          onChange={(e) => setRascunho(e.target.value)}
+          placeholder="Ex.: cobre férias do gerente até 30/09"
+          className="text-sm"
+        />
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            disabled={salvando}
+            onClick={() => {
+              onSalvar(rascunho);
+              setAberto(false);
+            }}
+          >
+            {salvando && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
+            Salvar
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

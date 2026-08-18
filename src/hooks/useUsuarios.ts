@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import type { Role, Permission } from '@/config/permissions';
 
@@ -27,6 +28,8 @@ export interface UsuarioLinha {
 export interface ExcecaoUsuario {
   permission_key: string;
   concedida: boolean;
+  motivo: string | null;
+  definida_por: string | null;
 }
 
 export function useUsuarios() {
@@ -111,6 +114,7 @@ export function useUsuarios() {
 
 /** Exceções de permissão de UMA pessoa. */
 export function useExcecoes(userId: string | null) {
+  const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const chave = ['excecoes', userId];
@@ -121,7 +125,7 @@ export function useExcecoes(userId: string | null) {
     queryFn: async (): Promise<ExcecaoUsuario[]> => {
       const { data, error } = await supabase
         .from('user_permissions')
-        .select('permission_key, concedida')
+        .select('permission_key, concedida, motivo, definida_por')
         .eq('user_id', userId!);
       if (error) throw error;
       return data ?? [];
@@ -135,6 +139,13 @@ export function useExcecoes(userId: string | null) {
    * usuário volta a bater com o perfil, a exceção é apagada em vez de virar
    * "exceção que não muda nada" — senão a lista de exceções cresce com ruído e
    * ninguém consegue ver o que realmente foi customizado.
+   *
+   * Achado na revisão de 18/08: a tabela já tinha colunas `motivo`/
+   * `definida_por` desde o início, mas esta mutation nunca as preenchia — a
+   * exceção mais sensível da tela de Usuários não deixava rastro de quem
+   * decidiu nem por quê. `definida_por` agora é gravado sempre (quem está
+   * logado, aqui e agora); `motivo` é opcional (ver `definirMotivo` abaixo,
+   * chamado à parte pela tela, sem travar o clique rápido do checkbox).
    */
   const aplicar = useMutation({
     mutationFn: async ({
@@ -159,7 +170,12 @@ export function useExcecoes(userId: string | null) {
       }
 
       const { error } = await supabase.from('user_permissions').upsert(
-        { user_id: userId, permission_key: permissao, concedida: desejado },
+        {
+          user_id: userId,
+          permission_key: permissao,
+          concedida: desejado,
+          definida_por: user?.id ?? null,
+        },
         { onConflict: 'user_id,permission_key' },
       );
       if (error) throw error;
@@ -177,5 +193,28 @@ export function useExcecoes(userId: string | null) {
     },
   });
 
-  return { ...query, aplicar };
+  /** Grava (ou limpa) só o motivo de uma exceção já existente — separado de
+   * `aplicar` pra editar a justificativa não exigir remarcar o checkbox. */
+  const definirMotivo = useMutation({
+    mutationFn: async ({ permissao, motivo }: { permissao: Permission; motivo: string }) => {
+      if (!userId) throw new Error('Usuário não selecionado.');
+      const { error } = await supabase
+        .from('user_permissions')
+        .update({ motivo: motivo.trim() || null, definida_por: user?.id ?? null })
+        .eq('user_id', userId)
+        .eq('permission_key', permissao);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: chave }),
+    onError: (error) => {
+      const msg = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast({
+        title: 'Não foi possível salvar o motivo',
+        description: msg,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  return { ...query, aplicar, definirMotivo };
 }
