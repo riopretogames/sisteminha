@@ -16,7 +16,6 @@ import {
   X,
   Repeat,
   AlertTriangle,
-  SlidersHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -182,7 +181,6 @@ export default function PDV() {
   const catalogoCorProduto = useCatalogo('cor');
   const catalogoCondicaoProduto = useCatalogo('condicao');
   const catalogoMemoriaProduto = useCatalogo('memoria');
-  const [showFiltros, setShowFiltros] = useState(false);
   const [filtroCategoria, setFiltroCategoria] = useState('');
   const [filtroMarca, setFiltroMarca] = useState('');
   const [filtroCor, setFiltroCor] = useState('');
@@ -716,87 +714,81 @@ export default function PDV() {
           <h1 className="text-2xl font-bold">PDV</h1>
         </div>
 
-        <div className="mb-4 flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nome, IMEI ou código de barras..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-9"
-              autoFocus
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome, IMEI ou código de barras..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-9"
+            autoFocus
+          />
+        </div>
+
+        {/* Sempre visível — pedido do Felipe (17/08): não esconder atrás de
+            botão nenhum, é pra narrowing rápido enquanto atende no balcão. */}
+        <div className="mb-4 rounded-lg border p-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            <FiltroCatalogo
+              label="Categoria"
+              valor={filtroCategoria}
+              onChange={setFiltroCategoria}
+              opcoes={catalogoCategoria.data ?? []}
             />
+            <FiltroCatalogo
+              label="Marca"
+              valor={filtroMarca}
+              onChange={setFiltroMarca}
+              opcoes={catalogoMarcaProduto.data ?? []}
+            />
+            <FiltroCatalogo
+              label="Cor"
+              valor={filtroCor}
+              onChange={setFiltroCor}
+              opcoes={catalogoCorProduto.data ?? []}
+            />
+            <FiltroCatalogo
+              label="Condição"
+              valor={filtroCondicao}
+              onChange={setFiltroCondicao}
+              opcoes={catalogoCondicaoProduto.data ?? []}
+            />
+            <FiltroCatalogo
+              label="Memória"
+              valor={filtroMemoria}
+              onChange={setFiltroMemoria}
+              opcoes={catalogoMemoriaProduto.data ?? []}
+            />
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Preço</label>
+              <div className="flex items-center gap-1">
+                <Input
+                  type="number" min={0} step="0.01" placeholder="De"
+                  value={precoMin} onChange={(e) => setPrecoMin(e.target.value)}
+                  className="h-9"
+                />
+                <Input
+                  type="number" min={0} step="0.01" placeholder="Até"
+                  value={precoMax} onChange={(e) => setPrecoMax(e.target.value)}
+                  className="h-9"
+                />
+              </div>
+            </div>
           </div>
           <Button
-            variant="outline"
-            className="shrink-0"
-            onClick={() => setShowFiltros((v) => !v)}
+            variant="ghost"
+            size="sm"
+            className="mt-2"
+            disabled={filtrosAtivos === 0}
+            onClick={limparFiltros}
           >
-            <SlidersHorizontal className="mr-2 h-4 w-4" />
-            Filtros
+            <X className="mr-2 h-4 w-4" />
+            Limpar filtros
             {filtrosAtivos > 0 && (
               <Badge variant="secondary" className="ml-2">{filtrosAtivos}</Badge>
             )}
           </Button>
         </div>
-
-        {showFiltros && (
-          <div className="mb-4 rounded-lg border p-3">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-              <FiltroCatalogo
-                label="Categoria"
-                valor={filtroCategoria}
-                onChange={setFiltroCategoria}
-                opcoes={catalogoCategoria.data ?? []}
-              />
-              <FiltroCatalogo
-                label="Marca"
-                valor={filtroMarca}
-                onChange={setFiltroMarca}
-                opcoes={catalogoMarcaProduto.data ?? []}
-              />
-              <FiltroCatalogo
-                label="Cor"
-                valor={filtroCor}
-                onChange={setFiltroCor}
-                opcoes={catalogoCorProduto.data ?? []}
-              />
-              <FiltroCatalogo
-                label="Condição"
-                valor={filtroCondicao}
-                onChange={setFiltroCondicao}
-                opcoes={catalogoCondicaoProduto.data ?? []}
-              />
-              <FiltroCatalogo
-                label="Memória"
-                valor={filtroMemoria}
-                onChange={setFiltroMemoria}
-                opcoes={catalogoMemoriaProduto.data ?? []}
-              />
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Preço</label>
-                <div className="flex items-center gap-1">
-                  <Input
-                    type="number" min={0} step="0.01" placeholder="De"
-                    value={precoMin} onChange={(e) => setPrecoMin(e.target.value)}
-                    className="h-9"
-                  />
-                  <Input
-                    type="number" min={0} step="0.01" placeholder="Até"
-                    value={precoMax} onChange={(e) => setPrecoMax(e.target.value)}
-                    className="h-9"
-                  />
-                </div>
-              </div>
-            </div>
-            {filtrosAtivos > 0 && (
-              <Button variant="ghost" size="sm" className="mt-2" onClick={limparFiltros}>
-                <X className="mr-2 h-4 w-4" />
-                Limpar filtros
-              </Button>
-            )}
-          </div>
-        )}
 
         <div className="flex-1 overflow-auto">
           <div className="grid grid-cols-3 gap-3">
