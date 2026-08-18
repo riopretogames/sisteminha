@@ -734,21 +734,26 @@ o arquivo antes de assumir.
   histórico.
 
 **🟠 Média**
-- [ ] 🆕 **18/08 — Nada impede reabrir uma OS já entregue (e já
-  faturada) pelo seletor da ficha.** O seletor de etapa continua
-  oferecendo voltar uma OS "entregue" pro meio do fluxo, sem
-  confirmação nem aviso de que ela já gerou título pago. Se a OS for
-  entregue de novo, o gatilho de título não duplica a cobrança (bom),
-  mas o valor do orçamento pode ter sido editado nesse meio-tempo — daí
-  a ficha mostra um valor e o título já lançado mostra outro, sem
-  nenhum aviso da divergência.
-- [ ] 🆕 **18/08 — "Valor do orçamento" continua editável numa OS
-  cancelada, diferente do resto da ficha.** O campo só trava quando a
-  OS está "entregue" — a seção "Peças e serviços" logo abaixo já trava
-  pra entregue E cancelada (`osEncerrada`). O próprio comentário do
-  código já registra essa assimetria sem corrigir. Risco financeiro
-  direto é baixo (OS cancelada não gera título), mas é confuso durante
-  o preenchimento do laudo.
+- [x] ✅ **Resolvido em 18/08 (terceira leva) — e eram DOIS caminhos, não
+  um.** Reabrir uma OS já entregue passava calado. O item original citava
+  só o seletor da ficha; conferindo o código, o Kanban (card arrastado e
+  seletor da grade, `OrdensServico.tsx`) tinha exatamente o mesmo buraco.
+  Não dava pra simplesmente proibir — reabrir é legítimo com frequência
+  (cliente volta com o mesmo defeito, entrega marcada por engano) — mas
+  também não podia passar sem aviso: entregar já gerou o título no
+  financeiro, reabrir não desfaz esse título, e com a OS reaberta o
+  orçamento volta a ficar editável. Se alguém mexer no valor, a ficha
+  mostra um número e o título lançado outro, sem nada denunciando. Agora
+  os dois caminhos confirmam antes, dizendo o valor que continua lançado.
+  O texto e o motivo ficam em `src/lib/reabrirOS.ts` — um lugar só, porque
+  texto duplicado em duas telas envelhece diferente em cada uma.
+  **Falta testar na tela** (precisa de sessão logada e uma OS entregue).
+- [x] ✅ **Resolvido em 18/08 (terceira leva).** "Valor do orçamento"
+  ficava editável em OS cancelada: o campo olhava só `jaFoiEntregue`,
+  enquanto a seção de peças logo abaixo já travava para entregue E
+  cancelada (`osEncerrada`) — mesma ficha, duas regras, e o próprio
+  comentário do código registrava a assimetria sem corrigir. Agora as duas
+  partes seguem a mesma régua, com aviso próprio para a cancelada.
 - [x] ✅ **17/08 — Laudo completo, os 3 níveis de certeza na ficha.**
   `OSDetalhe.tsx` ganhou o card "Diagnóstico técnico": Técnico
   responsável (Select, salva na hora — antes só era atribuível na
@@ -1347,9 +1352,24 @@ o arquivo antes de assumir.
   técnico/vendedor" (4 papéis antigos) — o código já usa 5 papéis
   renomeados. Só o texto do plano antigo ficou desatualizado (não vale
   reescrever histórico, mas bom saber ao ler).
-- [ ] Cabeçalho das migrations chama o sistema de "RPG System.IO",
-  divergindo de "Sisteminha (RP System.IO)" usado no resto da
-  documentação.
+- [ ] ⚠️ **Atualizado em 18/08 — é bem maior do que "cabeçalho de
+  migration", e precisa de decisão do Felipe.** O nome "RPG System.IO"
+  não está só em comentário: está em **9 lugares**, e os três primeiros
+  são o que o cliente e a equipe veem na cara da tela — o título da aba
+  do navegador e a prévia de link compartilhado (`index.html:6,13`), a
+  marca na tela de login (`Login.tsx:70`) e a marca na barra lateral
+  (`Sidebar.tsx:210`). Os outros são comentários de cabeçalho
+  (`Sidebar.tsx:19`, `menu.ts:5`, `permissions.ts:2`, `useAuth.tsx:9`,
+  `Login.tsx:19`).
+
+  **A decisão não é técnica, é de marca, e é do Felipe.** As duas grafias
+  se defendem: "RPG" são as iniciais de **R**io **P**reto **G**ames e
+  ainda cai como trocadilho com RPG de videogame, o que é ótimo pra uma
+  loja de games; "RP System.IO" é o que o `CLAUDE.md` e toda a
+  documentação usam hoje. Pode muito bem ser que o certo seja "RPG" e a
+  documentação é que esteja errada — por isso ninguém deve sair
+  renomeando por conta própria. Definido o nome, é achar-e-substituir
+  nos 9 lugares (mais o `CLAUDE.md`, se a escolha for "RPG").
 
 ---
 
@@ -1569,6 +1589,19 @@ Corrigir o item 2 revelou dois pontos novos, registrados acima em vez de
 ficarem no ar: `IeComercial`/`IeEstoque` (receita por produto) e o rodapé
 do `VendasHistorico` continuam sem descontar devolução, cada um por um
 motivo técnico diferente.
+
+Na sequência, os dois itens 🟠 da assistência:
+
+3. ✅ **Reabrir OS entregue agora avisa** o que continua cobrado — e o
+   buraco era em dois caminhos, não um: o Kanban tinha o mesmo problema
+   do seletor da ficha.
+4. ✅ **OS cancelada trava o valor do orçamento**, igual à seção de peças
+   que já travava.
+
+E uma divergência de marca apareceu ao abrir o sistema no navegador: a
+tela mostra "RPG System.IO" e a documentação toda diz "RP System.IO" — o
+item na seção de arquitetura foi atualizado, porque é decisão do Felipe e
+não ajuste técnico.
 
 **Pra continuar a partir daqui:**
 
