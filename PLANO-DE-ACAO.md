@@ -1045,11 +1045,16 @@ o arquivo antes de assumir.
   nova, com regra de quem pode ver e apagar. Decisão do Felipe: fica
   para uma etapa própria, junto das fotos de antes/depois da OS, que
   usam o mesmo mecanismo e valem mais para a assistência.
-- [ ] **Cliente bloqueado ainda abre OS.** A trava de 08/08 vale para
-  venda (`vendas`), não para `service_orders` — aparelho que já está na
-  bancada precisa ser devolvido de algum jeito. Falta pelo menos um
-  aviso visível em Nova OS, senão o bloqueio parece valer para tudo e
-  não vale. **Conferido em 17/08, ainda vale.**
+- [x] ✅ **Resolvido em 18/08 (quinta leva) — com aviso, não com trava.**
+  Cliente bloqueado continua podendo abrir OS, e isso é de propósito:
+  aparelho que já está na bancada precisa ser devolvido de algum jeito, e
+  recusar a abertura deixaria o aparelho sem registro nenhum. O problema
+  era o silêncio — o balcão abria a OS achando que estava tudo certo e só
+  descobria o bloqueio lá na frente, na hora de cobrar, com o conserto já
+  feito. Agora o cliente bloqueado aparece **marcado na própria lista** de
+  seleção, e ao escolhê-lo um aviso explica que a OS pode ser aberta mas a
+  cobrança na entrega vai ser recusada enquanto o bloqueio existir — em
+  tempo de resolver com o cliente antes de começar o reparo.
 - [x] ✅ ⚠️ **Reformulado em 17/08 — a premissa mudou.** Não existe mais
   um "cadastro rápido" separado no PDV: desde 08/08 o botão de novo
   cliente do PDV abre o mesmo cadastro completo de Cadastros > Clientes
@@ -1323,21 +1328,25 @@ o arquivo antes de assumir.
 - [ ] `MinhaEmpresa` edita cor/logo, mas nada no app consome esses
   campos ainda (nem branding, nem um laudo em PDF, que não existe).
   ✅ *confirmado.*
-- [ ] 🆕 **18/08 — Tela de Logs/Auditoria nunca mostra QUEM fez a
-  alteração, apesar do próprio texto da tela prometer isso** ("Quem
-  mexeu em quê, e quando"). O dado de quem fez a ação está gravado e
-  disponível, mas a tabela mostrada na tela só tem colunas Ação /
-  Registro / Quando / Mudanças — a metade mais importante da promessa
-  (quem) nunca é entregue, pra nenhum registro.
-- [ ] 🆕 **18/08 — Upload da logo da loja exige uma permissão
-  diferente da que libera editar a tela Minha Empresa.** Editar os
-  dados da empresa usa uma permissão; trocar o arquivo da logo usa
-  outra, de um módulo diferente (Configurações, não Empresa). Hoje só
-  o Administrador tem as duas juntas, mas o sistema permite conceder
-  as duas de forma independente — no dia em que alguém receber só uma
-  das duas, o botão "Trocar logo" aparece habilitado e a operação
-  falha, mesmo a pessoa tendo, pela tela, a permissão que deveria
-  bastar.
+- [x] ✅ **Resolvido em 18/08 (quinta leva).** A tela de Logs/Auditoria
+  prometia "Quem mexeu em quê, e quando" e nunca entregava o *quem* —
+  `usuario_id` vinha na consulta e simplesmente não era usado. Agora tem
+  coluna "Quem", com o nome vindo de `profiles` (busca à parte e junção
+  por id no cliente, porque não há FK declarada — mesmo padrão dos
+  dashboards). Registro sem usuário aparece como **"Sistema"**, que é o
+  caso legítimo de gatilho disparado por rotina do próprio banco, e não
+  célula vazia dando impressão de dado faltando; usuário apagado aparece
+  como "Usuário removido".
+- [x] ✅ **Resolvido em 18/08 (quinta leva).** Trocar a logo exigia
+  `settings.edit` enquanto a tela Minha Empresa exige `company.edit` —
+  permissões de módulos diferentes. Só o Administrador tem as duas hoje,
+  mas dá pra conceder separado por exceção de usuário, e aí o campo de
+  logo apareceria habilitado e o envio falharia: botão habilitado que não
+  funciona é pior do que botão escondido, porque quem está usando não tem
+  como saber que o problema é de acesso. O bucket passou a exigir
+  `company.edit` (migration `20260818140000`) — a logo é dado da empresa,
+  mora em `tenants.logo_url` ao lado de nome e CNPJ, não é configuração
+  de sistema. A leitura continua pública, sem mudança.
 
 **🔵 Simplificação**
 - [ ] Cliente não tipado (`db`) ainda em `ConfigLogs`/`ConfigPerfis`/
@@ -1417,22 +1426,33 @@ o arquivo antes de assumir.
 - [ ] `taxa_percent`/`juros_percent` de Formas de Pagamento têm o mesmo
   risco de overflow já corrigido em `margem_percent` — mitigado só no
   front, sem CHECK/alargamento no banco.
-- [ ] 🆕 **18/08 — Colunas novas de `produtos` ficaram sem permissão de
-  leitura na tabela crua depois da tranca de custo (armadilha, não
-  vazamento).** A tranca de custo (Opção B) revoga o SELECT da tabela
-  inteira e reconcede só as colunas que existiam no momento exato de
-  aplicar essa migration. Como colunas novas (`grupo_produto_id`,
-  `marca_id`, `modelo_id`, `cor_id`, `condicao_id`, `memoria_id`,
-  `observacoes`) foram criadas DEPOIS, sem re-executar o GRANT, hoje
-  elas não têm SELECT liberado direto na tabela `produtos` — só através
-  de `vw_produtos` (que já as inclui e ignora a trava por rodar com
-  privilégio de dono). Não quebra nada hoje por sorte de desenho (toda
-  leitura de produto já passa pela view), mas é uma armadilha real: a
-  PRÓXIMA coluna nova em `produtos`/`servicos`/`service_order_items`/
-  `movimentos_estoque` (as 4 tabelas trancadas), se alguém emendar um
-  `.select()` direto na tabela depois de um insert/update, vai quebrar
-  em produção com erro de permissão que ninguém vai associar à tranca
-  de custo — todo mundo pensa em RLS primeiro, não em GRANT de coluna.
+- [x] ✅ **Resolvido em 18/08 (quinta leva) — e virou ferramenta, não
+  remendo.** Colunas novas nas 4 tabelas trancadas nasciam sem permissão
+  de leitura na tabela crua. A trava de custo funciona revogando o SELECT
+  da tabela e reconcedendo coluna a coluna, o que congela a lista de
+  colunas no instante em que a migration roda. Conferido na API de
+  produção antes de corrigir: **7 colunas de `produtos` estavam nesse
+  estado** (`grupo_produto_id`, `marca_id`, `modelo_id`, `cor_id`,
+  `condicao_id`, `memoria_id`, `observacoes`).
+
+  Não quebrava nada por sorte de desenho — toda leitura de produto passa
+  pela view, que roda com privilégio de dono. Mas era armadilha cara de
+  diagnosticar: o erro seria "permission denied" e ninguém associaria à
+  trava de custo, porque todo mundo procura RLS primeiro, não GRANT de
+  coluna.
+
+  Em vez de mais um bloco de uso único, a lógica virou **função
+  reaplicável** (migration `20260818130000`):
+
+  ```sql
+  SELECT public.aplicar_trava_de_custo();
+  ```
+
+  Ela descobre as colunas do catálogo em vez de usar lista digitada, então
+  coluna nova é coberta sozinha — basta chamar a função no fim da migration
+  que criou a coluna. A regra entrou no `CLAUDE.md`, junto das outras de
+  custo protegido. Testado no banco: as 7 foram liberadas **e** as 6
+  colunas de custo continuam trancadas nas 4 tabelas.
 - [ ] ⚠️ **Atualizado em 18/08 — confirmado, e os dois casos divergiram.**
   `vendas.comissao_calculada` é confirmada órfã de verdade: nenhuma
   tela lê, nenhum código de venda grava, nenhum gatilho calcula — fica
@@ -1650,7 +1670,20 @@ aconteceu":**
 9. ✅ **Rodapé de Vendas e Financeiro parou de somar linha cancelada**, e
    o rótulo agora diz o critério.
 
-Um padrão se repetiu nas quatro levas e vale registrar: **o achado
+**Quinta leva, ainda em 18/08 — "armadilhas e rastro":**
+
+10. ✅ **A trava de custo virou função reaplicável.** 7 colunas de
+    `produtos` estavam sem permissão de leitura na tabela crua; agora
+    qualquer migration que criar coluna nessas 4 tabelas termina com uma
+    chamada e a trava se reajusta sozinha.
+11. ✅ **Logs/Auditoria mostra QUEM fez** — a metade da promessa que a
+    tela nunca tinha entregue.
+12. ✅ **A logo segue a permissão de Minha Empresa**, não a de
+    Configurações.
+13. ✅ **Cliente bloqueado avisa na Nova OS** — sem travar, porque o
+    aparelho precisa voltar de qualquer jeito.
+
+Um padrão se repetiu nas cinco levas e vale registrar: **o achado
 anotado quase sempre era menor do que o problema real.** "Reabrir OS
 entregue" eram dois caminhos, não um. "Saída em verde" eram duas telas e
 dois bugs. "Título pago vira cancelado" também deixava apagar o título
