@@ -16,6 +16,8 @@ import { TrocarEtapaOS } from '@/components/os/TrocarEtapaOS';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -41,7 +43,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { OS_ETAPAS } from '@/config/osStatus';
+import { OS_ETAPAS, OS_CANCELADO } from '@/config/osStatus';
 
 /**
  * Detalhe de uma OS.
@@ -64,12 +66,19 @@ import { OS_ETAPAS } from '@/config/osStatus';
  *
  * Corte de escopo deliberado: item já lançado não tem edição — só
  * exclusão, e só de item SEM peça vinculada. Excluir um item de peça
- * reverteria a baixa de estoque sem deixar rastro (o gatilho só cobre
- * INSERT, não DELETE) — pra corrigir um lançamento errado de peça, o
- * caminho é o ajuste manual de estoque já existente (auditado). Mesma
- * permissão que já gateia o campo de orçamento (`orders.edit` — é a que a
- * política de segurança do banco em `service_order_items` de fato exige,
- * conferido na migration antes de escrever esta tela).
+ * reverteria a baixa de estoque sem deixar rastro — pra corrigir um
+ * lançamento errado de peça, o caminho é o ajuste manual de estoque já
+ * existente (auditado). Mesma permissão que já gateia o campo de
+ * orçamento (`orders.edit`).
+ *
+ * ✅ 17/08 — as duas travas abaixo, que só existiam nesta tela, agora
+ * também existem no banco (migration `20260817150000`), fechando o
+ * mesmo tipo de furo que o resto do projeto já vinha fechando ("Opção
+ * B"): a policy de DELETE em `service_order_items` recusa excluir item
+ * com `produto_id` preenchido, e um gatilho novo recusa lançar
+ * qualquer item (peça ou serviço) numa OS já entregue ou cancelada —
+ * antes, só "entregue" tinha alguma barreira, e mesmo essa só existia
+ * aqui (`jaFoiEntregue`/`osEncerrada`), nunca no banco.
  *
  * Diagnóstico técnico, constatação e demais campos do laudo completo
  * continuam fora desta versão.
@@ -128,6 +137,19 @@ interface OSCompleta {
   clientes: { nome: string; telefones: string[] } | null;
   /** Marcações do check-in, com o item de catálogo que cada uma representa. */
   os_checklist: { catalogo_id: string; catalogos: { descricao: string; tipo: string } | null }[];
+  // Laudo completo (padrão da casa, ver CLAUDE.md raiz — "Padrão de
+  // atendimento"): 3 níveis de certeza, nunca misturados. Nível 1
+  // (defeito_cliente) já existia na tela; os 3 campos abaixo faltavam.
+  tecnico_id: string | null;
+  tecnico: { nome: string } | null;
+  /** Nível 2 — hipótese a partir do sintoma, SEM confirmação física. */
+  suspeita_tecnica: string | null;
+  /** Nível 3 — confirmado em bancada. */
+  constatacao_tecnica: string | null;
+  /** Quando o cliente foi avisado do risco em reparo avançado. NULL = ainda não avisado. */
+  risco_informado_em: string | null;
+  /** Placa com dano severo: laudo declara inviabilidade em vez de orçamento. */
+  reparo_inviavel: boolean;
 }
 
 export default function OSDetalhe() {
@@ -142,6 +164,12 @@ export default function OSDetalhe() {
 
   const [orcamento, setOrcamento] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
+
+  // ── Diagnóstico técnico (laudo completo) ────────────────────────────────
+  const [suspeitaEdit, setSuspeitaEdit] = useState<string | null>(null);
+  const [constatacaoEdit, setConstatacaoEdit] = useState<string | null>(null);
+  const [reparoInviavelEdit, setReparoInviavelEdit] = useState<boolean | null>(null);
+  const [salvandoDiagnostico, setSalvandoDiagnostico] = useState(false);
 
   // ── Peças e serviços ─────────────────────────────────────────────────────
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
@@ -357,7 +385,13 @@ export default function OSDetalhe() {
       const { data, error } = await supabase
         .from('service_orders')
         .select(
-          'id, numero_os, status, tipo, prioridade, marca, modelo, cor, memoria, numero_serie, defeito_cliente, observacoes, anotacoes_checkin, senha_aparelho, senha_padrao, prazo_previsto, garantia_dias, total_orcamento, valor_final_pago, data_finalizacao, created_at, clientes(nome, telefones), os_checklist(catalogo_id, catalogos(descricao, tipo))'
+          `id, numero_os, status, tipo, prioridade, marca, modelo, cor, memoria, numero_serie,
+           defeito_cliente, observacoes, anotacoes_checkin, senha_aparelho, senha_padrao,
+           prazo_previsto, garantia_dias, total_orcamento, valor_final_pago, data_finalizacao,
+           created_at, clientes(nome, telefones),
+           os_checklist(catalogo_id, catalogos(descricao, tipo)),
+           tecnico_id, tecnico:profiles!service_orders_tecnico_id_fkey(nome),
+           suspeita_tecnica, constatacao_tecnica, risco_informado_em, reparo_inviavel`
         )
         .eq('id', id)
         .maybeSingle();
@@ -365,6 +399,19 @@ export default function OSDetalhe() {
       return data as unknown as OSCompleta | null;
     },
     enabled: !!id,
+  });
+
+  // Mesma query de OSOrcamentos.tsx (queryKey igual, cache reaproveitado).
+  const { data: tecnicos } = useQuery({
+    queryKey: ['profiles-ativos'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, nome')
+        .eq('ativo', true)
+        .order('nome');
+      return data ?? [];
+    },
   });
 
   const valorAtual = orcamento ?? (os ? String(os.total_orcamento) : '');
@@ -400,6 +447,88 @@ export default function OSDetalhe() {
     }
   };
 
+  // ── Diagnóstico técnico (laudo completo) ────────────────────────────────
+  // Mesmo padrão de rascunho local do orçamento acima: o campo mostra o
+  // valor editado até salvar, sem gravar a cada tecla.
+  const suspeitaAtual = suspeitaEdit ?? os?.suspeita_tecnica ?? '';
+  const constatacaoAtual = constatacaoEdit ?? os?.constatacao_tecnica ?? '';
+  const reparoInviavelAtual = reparoInviavelEdit ?? os?.reparo_inviavel ?? false;
+  const mudouDiagnostico =
+    !!os &&
+    (suspeitaAtual !== (os.suspeita_tecnica ?? '') ||
+      constatacaoAtual !== (os.constatacao_tecnica ?? '') ||
+      reparoInviavelAtual !== os.reparo_inviavel);
+
+  const salvarDiagnostico = async () => {
+    if (!os) return;
+    setSalvandoDiagnostico(true);
+    try {
+      const { error } = await supabase
+        .from('service_orders')
+        .update({
+          suspeita_tecnica: suspeitaAtual.trim() || null,
+          constatacao_tecnica: constatacaoAtual.trim() || null,
+          reparo_inviavel: reparoInviavelAtual,
+        })
+        .eq('id', os.id);
+      if (error) throw error;
+
+      toast({ title: 'Diagnóstico salvo!' });
+      setSuspeitaEdit(null);
+      setConstatacaoEdit(null);
+      setReparoInviavelEdit(null);
+      queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] });
+    } catch (error) {
+      toast({
+        title: 'Erro ao salvar',
+        description: error instanceof Error ? error.message : 'Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSalvandoDiagnostico(false);
+    }
+  };
+
+  // Técnico e risco informado são ações diretas (salvam na hora), não
+  // rascunho — diferente do orçamento e do diagnóstico acima, que são texto
+  // longo e se beneficiam de um botão Salvar explícito.
+  const atribuirTecnico = async (tecnicoId: string) => {
+    if (!os) return;
+    try {
+      const { error } = await supabase
+        .from('service_orders')
+        .update({ tecnico_id: tecnicoId || null })
+        .eq('id', os.id);
+      if (error) throw error;
+      toast({ title: 'Técnico responsável atualizado!' });
+      queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] });
+    } catch (error) {
+      toast({
+        title: 'Erro ao atualizar',
+        description: error instanceof Error ? error.message : 'Tente novamente.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const marcarRiscoInformado = async (informado: boolean) => {
+    if (!os) return;
+    try {
+      const { error } = await supabase
+        .from('service_orders')
+        .update({ risco_informado_em: informado ? new Date().toISOString() : null })
+        .eq('id', os.id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] });
+    } catch (error) {
+      toast({
+        title: 'Erro ao atualizar',
+        description: error instanceof Error ? error.message : 'Tente novamente.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-16">
@@ -414,6 +543,12 @@ export default function OSDetalhe() {
 
   const statusCfg = getStatusConfig(os.status);
   const jaFoiEntregue = os.status === OS_ETAPAS.ENTREGUE;
+  // Pra peças e serviços especificamente: "entregue" OU "cancelado" travam
+  // lançamento novo — o banco já recusa os dois (gatilho
+  // impedir_item_em_os_encerrada, migration 20260817150000), esta tela só
+  // esconde o botão pra não deixar tentar à toa. O trancamento do "Valor do
+  // orçamento" acima continua só olhando jaFoiEntregue, sem mudança.
+  const osEncerrada = jaFoiEntregue || os.status === OS_CANCELADO;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -428,7 +563,7 @@ export default function OSDetalhe() {
               osId={os.id}
               statusAtual={os.status}
               onMudou={() => {
-                queryClient.invalidateQueries({ queryKey: ['os', id] });
+                queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] });
                 queryClient.invalidateQueries({ queryKey: ['os-itens', id] });
               }}
             />
@@ -514,6 +649,111 @@ export default function OSDetalhe() {
                 {os.observacoes}
               </p>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Padrão de laudo da casa (CLAUDE.md raiz): 3 níveis de certeza,
+            nunca misturados. Nível 1 (o que o cliente relatou) é o card
+            "Defeito relatado" acima — este é o Nível 2 (suspeita, sem
+            confirmação física) e Nível 3 (constatado em bancada). */}
+        <Card className="sm:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">Diagnóstico técnico</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <div className="space-y-1.5">
+              <Label htmlFor="tecnico">Técnico responsável</Label>
+              <Select
+                value={os.tecnico_id ?? 'nenhum'}
+                onValueChange={(v) => atribuirTecnico(v === 'nenhum' ? '' : v)}
+                disabled={!podeEditar}
+              >
+                <SelectTrigger id="tecnico" className="max-w-xs">
+                  <SelectValue placeholder="Nenhum" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nenhum">Nenhum</SelectItem>
+                  {(tecnicos ?? []).map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="suspeita">
+                Suspeita técnica{' '}
+                <span className="font-normal text-muted-foreground">
+                  — hipótese a partir do sintoma, sem confirmação física. Não apresentar ao cliente como certeza.
+                </span>
+              </Label>
+              <Textarea
+                id="suspeita"
+                rows={2}
+                value={suspeitaAtual}
+                onChange={(e) => setSuspeitaEdit(e.target.value)}
+                disabled={!podeEditar}
+                placeholder="Ex.: possível oxidação por líquido, a confirmar em bancada"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="constatacao">
+                Constatação técnica{' '}
+                <span className="font-normal text-muted-foreground">
+                  — só o que foi confirmado em bancada.
+                </span>
+              </Label>
+              <Textarea
+                id="constatacao"
+                rows={2}
+                value={constatacaoAtual}
+                onChange={(e) => setConstatacaoEdit(e.target.value)}
+                disabled={!podeEditar}
+                placeholder="Ex.: confirmado curto na trilha X após abertura"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+              <div>
+                <p className="font-medium">Reparo inviável</p>
+                <p className="text-xs text-muted-foreground">
+                  Placa com dano severo — o laudo declara inviabilidade em vez de emitir orçamento.
+                </p>
+              </div>
+              <Switch
+                checked={reparoInviavelAtual}
+                onCheckedChange={(v) => setReparoInviavelEdit(v)}
+                disabled={!podeEditar}
+              />
+            </div>
+
+            {podeEditar && (
+              <Button onClick={salvarDiagnostico} disabled={salvandoDiagnostico || !mudouDiagnostico}>
+                <Save className="mr-2 h-4 w-4" />
+                {salvandoDiagnostico ? 'Salvando…' : 'Salvar diagnóstico'}
+              </Button>
+            )}
+
+            <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+              <div>
+                <p className="font-medium">Risco informado ao cliente</p>
+                <p className="text-xs text-muted-foreground">
+                  {os.risco_informado_em
+                    ? `Avisado em ${dataHora(os.risco_informado_em)}.`
+                    : 'Ainda não avisado — marque antes de reparos avançados (reballing, reflow, banho químico, oxidação).'}
+                </p>
+              </div>
+              {podeEditar && (
+                <Button
+                  variant={os.risco_informado_em ? 'outline' : 'default'}
+                  size="sm"
+                  onClick={() => marcarRiscoInformado(!os.risco_informado_em)}
+                >
+                  {os.risco_informado_em ? 'Desmarcar' : 'Marcar como informado'}
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -607,7 +847,7 @@ export default function OSDetalhe() {
         <Card className="sm:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">Peças e serviços</CardTitle>
-            {podeEditar && !jaFoiEntregue && (
+            {podeEditar && !osEncerrada && (
               <Button size="sm" onClick={abrirDialogItem}>
                 <Plus className="mr-2 h-4 w-4" />
                 Adicionar item
@@ -662,7 +902,7 @@ export default function OSDetalhe() {
                           {moeda(Number(item.preco_cobrado) * qtd)}
                         </TableCell>
                         <TableCell>
-                          {podeEditar && !jaFoiEntregue && !ehPeca && (
+                          {podeEditar && !osEncerrada && !ehPeca && (
                             <Button
                               variant="ghost"
                               size="icon"
