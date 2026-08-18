@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { PERMISSIONS } from '@/config/permissions';
 import { OS_ETAPAS, OS_CANCELADO } from '@/config/osStatus';
+import { confirmarReaberturaDeOSEntregue } from '@/lib/reabrirOS';
 import { EntregarOSDialog } from '@/components/os/EntregarOSDialog';
 
 /**
@@ -121,12 +122,27 @@ export function TrocarEtapaOS({ osId, numeroOs, statusAtual, tipo, totalOrcament
   };
 
   /**
-   * Ponto único de decisão antes de mudar de etapa: entregar uma OS paga
-   * (com orçamento > 0) precisa do diálogo de pagamento primeiro — qualquer
-   * outra transição (inclusive "entregue" de garantia/cortesia/orçamento
-   * zerado) segue direto pro `mudar` de sempre.
+   * Ponto único de decisão antes de mudar de etapa:
+   *
+   *   - Entregar uma OS paga (com orçamento > 0) precisa do diálogo de
+   *     pagamento primeiro.
+   *   - REABRIR uma OS já entregue precisa de confirmação — ver abaixo.
+   *
+   * Qualquer outra transição segue direto pro `mudar` de sempre.
    */
   const irPara = (novoStatus: string) => {
+    // Reabrir OS entregue: avisa o que continua lançado no financeiro antes
+    // de deixar seguir. O porquê está em `lib/reabrirOS.ts`, junto do texto.
+    if (statusAtual === OS_ETAPAS.ENTREGUE && novoStatus !== OS_ETAPAS.ENTREGUE) {
+      const seguir = confirmarReaberturaDeOSEntregue({
+        numeroOs,
+        destino: statuses.find((s) => s.key === novoStatus)?.label ?? novoStatus,
+        tipo,
+        totalOrcamento,
+      });
+      if (!seguir) return;
+    }
+
     if (novoStatus === OS_ETAPAS.ENTREGUE && tipo === 'paga' && totalOrcamento > 0) {
       setDialogEntregaAberto(true);
       return;

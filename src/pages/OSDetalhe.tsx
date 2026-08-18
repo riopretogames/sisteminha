@@ -603,11 +603,16 @@ export default function OSDetalhe() {
 
   const statusCfg = getStatusConfig(os.status);
   const jaFoiEntregue = os.status === OS_ETAPAS.ENTREGUE;
-  // Pra peças e serviços especificamente: "entregue" OU "cancelado" travam
-  // lançamento novo — o banco já recusa os dois (gatilho
-  // impedir_item_em_os_encerrada, migration 20260817150000), esta tela só
-  // esconde o botão pra não deixar tentar à toa. O trancamento do "Valor do
-  // orçamento" acima continua só olhando jaFoiEntregue, sem mudança.
+  // "Entregue" OU "cancelado" travam a ficha: nada de lançar peça/serviço
+  // nem mexer no valor do orçamento. O banco já recusa item novo nos dois
+  // casos (gatilho impedir_item_em_os_encerrada, migration 20260817150000);
+  // esta tela só esconde o botão pra não deixar tentar à toa.
+  //
+  // Até 18/08 o "Valor do orçamento" olhava só `jaFoiEntregue`, então uma OS
+  // CANCELADA tinha o campo de valor liberado enquanto a seção de peças logo
+  // abaixo estava travada — mesma ficha, duas regras. Não dava prejuízo
+  // direto (OS cancelada não gera título), mas confundia quem estava
+  // preenchendo o laudo. Agora as duas partes seguem a mesma régua.
   const osEncerrada = jaFoiEntregue || os.status === OS_CANCELADO;
 
   return (
@@ -877,16 +882,16 @@ export default function OSDetalhe() {
                   className="w-40"
                   value={valorAtual}
                   onChange={(e) => setOrcamento(e.target.value)}
-                  disabled={!podeEditar || jaFoiEntregue}
+                  disabled={!podeEditar || osEncerrada}
                 />
               </div>
-              {podeEditar && !jaFoiEntregue && (
+              {podeEditar && !osEncerrada && (
                 <Button onClick={salvarOrcamento} disabled={salvando || !mudou}>
                   <Save className="mr-2 h-4 w-4" />
                   {salvando ? 'Salvando…' : 'Salvar'}
                 </Button>
               )}
-              {podeEditar && !jaFoiEntregue && (itens?.length ?? 0) > 0 && (
+              {podeEditar && !osEncerrada && (itens?.length ?? 0) > 0 && (
                 <Button
                   variant="outline"
                   onClick={() => setOrcamento(somaItens.toFixed(2))}
@@ -902,6 +907,11 @@ export default function OSDetalhe() {
                 {os.data_finalizacao ? ` em ${dataHora(os.data_finalizacao)}` : ''} — valor
                 travado
                 {os.valor_final_pago != null ? `: ${moeda(Number(os.valor_final_pago))}` : ''}.
+              </p>
+            )}
+            {!jaFoiEntregue && osEncerrada && (
+              <p className="mt-3 text-sm text-muted-foreground">
+                Esta OS foi cancelada — valor travado.
               </p>
             )}
           </CardContent>

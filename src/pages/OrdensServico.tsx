@@ -33,6 +33,7 @@ import { EntregarOSDialog } from '@/components/os/EntregarOSDialog';
 import type { ServiceOrder, StatusConfig, OsPrioridade } from '@/types/os';
 import { OS_ETAPAS, OS_ETAPAS_EM_ORDEM, OS_STATUS_INICIAL, OS_CANCELADO } from '@/config/osStatus';
 import { ordenarOS } from '@/lib/ordenarOS';
+import { confirmarReaberturaDeOSEntregue } from '@/lib/reabrirOS';
 
 export default function OrdensServico() {
   const navigate = useNavigate();
@@ -175,6 +176,20 @@ export default function OrdensServico() {
         variant: 'destructive',
       });
       return;
+    }
+
+    // Tirar do "entregue" pelo card arrastado ou pelo seletor da grade tem
+    // o mesmo risco do seletor da ficha: o título já lançado não é desfeito
+    // e o orçamento volta a ficar editável. Mesma confirmação dos dois
+    // lados — o porquê está em `lib/reabrirOS.ts`.
+    if (ordemAtual?.status === OS_ETAPAS.ENTREGUE && newStatus !== OS_ETAPAS.ENTREGUE) {
+      const seguir = confirmarReaberturaDeOSEntregue({
+        numeroOs: ordemAtual.numero_os,
+        destino: statuses.find((s) => s.key === newStatus)?.label ?? newStatus,
+        tipo: ordemAtual.tipo,
+        totalOrcamento: ordemAtual.total_orcamento ?? 0,
+      });
+      if (!seguir) return;
     }
 
     // OS paga com orçamento > 0 indo pra "entregue": abre o diálogo de
