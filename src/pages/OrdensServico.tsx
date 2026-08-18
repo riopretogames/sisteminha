@@ -30,7 +30,7 @@ import { OSKanbanView } from '@/components/os/OSKanbanView';
 import { CardConfigDialog } from '@/components/os/CardConfigDialog';
 import { StatusManagerDialog } from '@/components/os/StatusManagerDialog';
 import type { ServiceOrder, StatusConfig, OsPrioridade } from '@/types/os';
-import { OS_ETAPAS_EM_ORDEM, OS_STATUS_INICIAL } from '@/config/osStatus';
+import { OS_ETAPAS, OS_ETAPAS_EM_ORDEM, OS_STATUS_INICIAL, OS_CANCELADO } from '@/config/osStatus';
 import { ordenarOS } from '@/lib/ordenarOS';
 
 export default function OrdensServico() {
@@ -39,6 +39,15 @@ export default function OrdensServico() {
   const { can } = useAuth();
   const { viewMode, setViewMode } = useViewMode();
   const podeEditar = can(PERMISSIONS.ORDERS_EDIT);
+  // orders.approve, não orders.edit — mesma regra de OSOrcamentos.tsx e
+  // TrocarEtapaOS.tsx: só quem fala com o cliente decide orçamento. Achado
+  // em 17/08: esta tela (quadro Kanban E grade) tinha um TERCEIRO caminho
+  // pra sair de aguardando_aprovacao direto pra aprovado/cancelado que só
+  // conferia orders.edit — o técnico conseguia arrastar o cartão (ou usar o
+  // seletor da grade) e só levava um erro técnico do banco quando o gatilho
+  // barrava (migration 20260817140000). Agora bloqueia antes, com aviso
+  // claro, igual às outras duas telas.
+  const podeAprovar = can(PERMISSIONS.ORDERS_APPROVE);
 
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [statuses, setStatuses] = useState<StatusConfig[]>([]);
@@ -135,6 +144,27 @@ export default function OrdensServico() {
       toast({
         title: 'Sem permissão',
         description: 'Seu perfil de acesso não permite mudar a etapa da OS.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Sair de "aguardando aprovação" pra "aprovado" ou "cancelado" é decidir
+    // o orçamento — exige orders.approve, não só orders.edit (ver
+    // OSOrcamentos.tsx e TrocarEtapaOS.tsx). Sem esta trava, o card do
+    // Kanban arrastado (ou o seletor da grade) chegava a chamar o banco e
+    // só voltava sozinho com o erro cru do gatilho.
+    const ordemAtual = orders.find((o) => o.id === orderId);
+    const decisaoDeOrcamentoBloqueada =
+      ordemAtual?.status === OS_ETAPAS.AGUARDANDO_APROVACAO &&
+      (newStatus === OS_ETAPAS.APROVADO || newStatus === OS_CANCELADO) &&
+      !podeAprovar;
+
+    if (decisaoDeOrcamentoBloqueada) {
+      toast({
+        title: 'Sem permissão',
+        description:
+          'Aprovar ou recusar orçamento é decisão de quem fala com o cliente — peça pra um vendedor ou gerente.',
         variant: 'destructive',
       });
       return;
@@ -327,6 +357,7 @@ export default function OrdensServico() {
             statuses={statuses}
             loading={loading}
             onStatusChange={handleStatusChange}
+            podeAprovar={podeAprovar}
           />
         ) : (
           <OSKanbanView

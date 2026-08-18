@@ -50,7 +50,12 @@ export default function OSOrcamentos() {
   const { toast } = useToast();
   const { can } = useAuth();
   const queryClient = useQueryClient();
-  const podeEditar = can(PERMISSIONS.ORDERS_EDIT);
+  // orders.approve, não orders.edit — aprovar/recusar orçamento é decisão de
+  // negócio (quem fala com o cliente), separada de editar a OS. O técnico
+  // tem orders.edit mas não orders.approve; antes desta correção (17/08) via
+  // esses botões do mesmo jeito que vendedor/gerente. A trava real também
+  // está no banco (migration 20260817140000), não só aqui na tela.
+  const podeAprovar = can(PERMISSIONS.ORDERS_APPROVE);
   const [filtros, setFiltros] = useState<FiltrosOSValores>(FILTROS_OS_VAZIO);
 
   const { data, isLoading } = useQuery({
@@ -146,7 +151,7 @@ export default function OSOrcamentos() {
                 <TableHead>Prioridade</TableHead>
                 <TableHead className="text-right">Orçamento</TableHead>
                 <TableHead>Esperando há</TableHead>
-                {podeEditar && <TableHead className="w-[1%]"></TableHead>}
+                {podeAprovar && <TableHead className="w-[1%]"></TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -176,7 +181,7 @@ export default function OSOrcamentos() {
                         {dias === 0 ? 'hoje' : `${dias} dia(s)`}
                       </span>
                     </TableCell>
-                    {podeEditar && (
+                    {podeAprovar && (
                       <TableCell>
                         {/* Cor por tipo de ação (ver `lib/acoes.ts`): aprovar
                             é sempre verde, recusar é sempre vermelho. Botão

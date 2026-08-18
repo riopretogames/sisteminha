@@ -48,8 +48,20 @@ export function TrocarEtapaOS({ osId, statusAtual, onMudou }: Props) {
   const [salvando, setSalvando] = useState(false);
 
   const podeEditar = can(PERMISSIONS.ORDERS_EDIT);
+  const podeAprovar = can(PERMISSIONS.ORDERS_APPROVE);
 
   if (!podeEditar) return null;
+
+  // Sair de "aguardando aprovação" pra "aprovado" ou "cancelado" é decidir o
+  // orçamento (aprovar ou recusar) — mesma regra de OSOrcamentos.tsx e do
+  // gatilho `validar_aprovacao_orcamento_os` no banco (migration
+  // 20260817140000): exige orders.approve, não só orders.edit. Quem não tem
+  // não vê esses dois destinos aqui — sem isso, o botão "Avançar" e o
+  // seletor deixavam qualquer um com orders.edit (inclusive técnico)
+  // aprovar/recusar por este caminho, o mesmo problema que a correção na
+  // fila de Orçamentos fechou por lá.
+  const decisaoDeOrcamentoBloqueada =
+    statusAtual === OS_ETAPAS.AGUARDANDO_APROVACAO && !podeAprovar;
 
   // Etapas na ordem do quadro. Cancelado fica fora da esteira e entra à parte.
   const etapas = statuses
@@ -58,7 +70,19 @@ export function TrocarEtapaOS({ osId, statusAtual, onMudou }: Props) {
 
   const indiceAtual = etapas.findIndex((s) => s.key === statusAtual);
   const atual = indiceAtual >= 0 ? etapas[indiceAtual] : undefined;
-  const proxima = indiceAtual >= 0 ? etapas[indiceAtual + 1] : undefined;
+  const proximaBruta = indiceAtual >= 0 ? etapas[indiceAtual + 1] : undefined;
+  // Some o atalho de avançar quando o próximo passo seria justamente a
+  // decisão bloqueada (aguardando_aprovacao → aprovado).
+  const proxima =
+    decisaoDeOrcamentoBloqueada && proximaBruta?.key === OS_ETAPAS.APROVADO
+      ? undefined
+      : proximaBruta;
+  // Idem pro seletor: sem permissão de aprovar, "Aprovado" e "Cancelar OS"
+  // somem da lista quando a OS está esperando decisão — as outras etapas
+  // (voltar pro diagnóstico, por exemplo) continuam alcançáveis.
+  const etapasSelecionaveis = decisaoDeOrcamentoBloqueada
+    ? etapas.filter((s) => s.key !== OS_ETAPAS.APROVADO)
+    : etapas;
 
   const mudar = async (novoStatus: string) => {
     setSalvando(true);
@@ -122,7 +146,7 @@ export function TrocarEtapaOS({ osId, statusAtual, onMudou }: Props) {
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {etapas.map((s) => (
+          {etapasSelecionaveis.map((s) => (
             <SelectItem key={s.key} value={s.key}>
               <span className="flex items-center gap-2">
                 <Check
@@ -132,14 +156,23 @@ export function TrocarEtapaOS({ osId, statusAtual, onMudou }: Props) {
               </span>
             </SelectItem>
           ))}
-          <SelectItem value={OS_CANCELADO}>
-            <span className="flex items-center gap-2">
-              <Check className="h-3.5 w-3.5 opacity-0" />
-              <Badge variant="destructive">Cancelar OS</Badge>
-            </span>
-          </SelectItem>
+          {!decisaoDeOrcamentoBloqueada && (
+            <SelectItem value={OS_CANCELADO}>
+              <span className="flex items-center gap-2">
+                <Check className="h-3.5 w-3.5 opacity-0" />
+                <Badge variant="destructive">Cancelar OS</Badge>
+              </span>
+            </SelectItem>
+          )}
         </SelectContent>
       </Select>
+
+      {decisaoDeOrcamentoBloqueada && (
+        <p className="w-full text-xs text-muted-foreground">
+          Aprovar ou recusar orçamento é decisão de quem fala com o cliente —
+          peça pra um vendedor ou gerente decidir esta.
+        </p>
+      )}
     </div>
   );
 }

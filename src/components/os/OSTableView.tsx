@@ -35,15 +35,22 @@ import {
 import { OS_PRIORITY } from '@/lib/constants';
 import type { ServiceOrder, StatusConfig } from '@/types/os';
 import { osAtrasada, diasDeAtraso } from '@/lib/ordenarOS';
+import { OS_ETAPAS, OS_CANCELADO } from '@/config/osStatus';
 
 interface OSTableViewProps {
   orders: ServiceOrder[];
   statuses: StatusConfig[];
   loading: boolean;
   onStatusChange: (orderId: string, newStatus: string) => void;
+  /** Sem orders.approve, some "Aprovado" e "Cancelado" do seletor de quem
+   *  está aguardando aprovação — aprovar/recusar orçamento não é decisão de
+   *  quem só tem orders.edit. Mesma regra de OSOrcamentos.tsx e
+   *  TrocarEtapaOS.tsx; sem isso, o seletor desta grade era um terceiro
+   *  caminho pra tentar a mesma transição sem a mesma trava de tela. */
+  podeAprovar: boolean;
 }
 
-export function OSTableView({ orders, statuses, loading, onStatusChange }: OSTableViewProps) {
+export function OSTableView({ orders, statuses, loading, onStatusChange, podeAprovar }: OSTableViewProps) {
   const navigate = useNavigate();
 
   const formatCurrency = (value: number) => {
@@ -128,6 +135,13 @@ export function OSTableView({ orders, statuses, loading, onStatusChange }: OSTab
               const prioridadeConfig = OS_PRIORITY[order.prioridade];
               const atrasada = osAtrasada(order);
               const diasAtraso = diasDeAtraso(order);
+              const decisaoDeOrcamentoBloqueada =
+                order.status === OS_ETAPAS.AGUARDANDO_APROVACAO && !podeAprovar;
+              const opcoesDeStatus = decisaoDeOrcamentoBloqueada
+                ? statuses.filter(
+                    (s) => s.ativo && s.key !== OS_ETAPAS.APROVADO && s.key !== OS_CANCELADO
+                  )
+                : statuses.filter((s) => s.ativo);
               return (
                 <TableRow key={order.id} className={atrasada ? 'bg-red-500/5' : undefined}>
                   <TableCell>
@@ -178,7 +192,7 @@ export function OSTableView({ orders, statuses, loading, onStatusChange }: OSTab
                         </Badge>
                       </SelectTrigger>
                       <SelectContent>
-                        {statuses.filter(s => s.ativo).map((config) => (
+                        {opcoesDeStatus.map((config) => (
                           <SelectItem key={config.key} value={config.key}>
                             <Badge className={config.color}>{config.label}</Badge>
                           </SelectItem>
