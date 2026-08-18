@@ -454,6 +454,18 @@ o arquivo antes de assumir.
   adversarial. Sem seleção de cliente vinculado (só um campo de texto
   solto pro papel, não referencia `clientes` de verdade) — fechar de
   verdade continua exclusivamente no PDV.
+- [x] ✅ **17/08 — PDV ganhou filtros de busca de produto.** Achado pelo
+  Felipe testando o app: achar produto só pelo nome não bastava com a
+  vitrine maior. Painel sempre visível (não escondido atrás de botão)
+  com Categoria (catálogo `grupo_produto` — Console/Jogo/Controle/
+  Celular/..., não o enum genérico), Marca, Cor, Condição, Memória e
+  faixa de preço — todos os catálogos que a loja já cadastra em Listas
+  do Sistema, sem lista fixa duplicada. Busca por texto passou a também
+  casar por IMEI/série e código de barras, não só nome. Botão "Limpar
+  filtros" fixo, desabilitado quando nenhum filtro está ativo. Mudança
+  100% aditiva — carrinho, checkout, pagamento, cliente e troca ficaram
+  intocados, conferido por diff na revisão adversarial. Testado e
+  aprovado pelo Felipe no app rodando localmente.
 - [x] ✅ **10/08 — Comprovante de venda: folha/PDF e térmica 80mm,
   Imprimir e envio por WhatsApp.** Pedido em 10/08 com exemplos reais
   (print da tela antiga de Gestão de Vendas + PDF "Nota de Venda
