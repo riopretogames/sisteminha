@@ -48,6 +48,7 @@ const TABELA_LABEL: Record<string, string> = {
   titulos_financeiros: 'Título financeiro',
   user_roles: 'Perfil de usuário',
   caixa_sessoes: 'Caixa',
+  caixa_movimentos: 'Movimento de caixa',
 };
 
 const TABELAS = ['todas', ...Object.keys(TABELA_LABEL)];

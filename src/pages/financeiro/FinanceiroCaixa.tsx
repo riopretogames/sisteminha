@@ -4,7 +4,7 @@ import { Loader2, LockOpen, Lock, ArrowDownCircle, ArrowUpCircle } from 'lucide-
 import { db } from '@/integrations/supabase/untyped';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { moeda, dataHora } from '@/lib/format';
+import { moeda, dataHora, paraNumero } from '@/lib/format';
 import { PageHeader, Indicador, Vazio } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -126,10 +126,21 @@ export default function FinanceiroCaixa() {
   const abrir = useMutation({
     mutationFn: async () => {
       if (!tenantId) throw new Error('Usuário sem loja vinculada.');
+      // Campo vazio = 0 de propósito (troco zerado é um caso real). Mas se
+      // a pessoa digitou algo e não deu pra entender, avisa em vez de abrir
+      // o caixa com um valor errado em silêncio — era exatamente esse o
+      // bug: "1.500,00" virava R$0,00 sem nenhum aviso.
+      const valor = valorAbertura.trim() ? paraNumero(valorAbertura) : 0;
+      // `paraNumero` interpreta "-150,00" normalmente (não é NaN), mas troco
+      // negativo não existe na vida real — sem essa checagem, o caixa abria
+      // com um valor_abertura negativo em silêncio.
+      if (Number.isNaN(valor) || valor < 0) {
+        throw new Error('Valor de abertura inválido — confira o que foi digitado.');
+      }
       const { error } = await db.from('caixa_sessoes').insert({
         tenant_id: tenantId,
         aberto_por: user?.id,
-        valor_abertura: Number(valorAbertura.replace(',', '.')) || 0,
+        valor_abertura: valor,
       });
       if (error) throw error;
     },
@@ -143,8 +154,11 @@ export default function FinanceiroCaixa() {
 
   const lancar = useMutation({
     mutationFn: async () => {
-      const bruto = Number(mov.valor.replace(',', '.'));
-      if (!bruto || !mov.descricao.trim()) throw new Error('Preencha descrição e valor.');
+      if (!mov.descricao.trim()) throw new Error('Preencha a descrição.');
+      const bruto = paraNumero(mov.valor);
+      if (!bruto || Number.isNaN(bruto)) {
+        throw new Error('Informe um valor válido, maior que zero.');
+      }
 
       // Sangria e pagamento saem do caixa: gravados como negativo.
       const sai = mov.tipo === 'sangria' || mov.tipo === 'pagamento';
@@ -168,8 +182,12 @@ export default function FinanceiroCaixa() {
 
   const fechar = useMutation({
     mutationFn: async () => {
-      const informado = Number(valorContado.replace(',', '.'));
-      if (Number.isNaN(informado)) throw new Error('Informe o valor contado.');
+      const informado = paraNumero(valorContado);
+      // Mesmo cuidado do `abrir`: "-50,00" digitado por engano não é NaN,
+      // mas dinheiro contado na gaveta nunca é negativo.
+      if (Number.isNaN(informado) || informado < 0) {
+        throw new Error('Valor contado inválido — confira o que foi digitado.');
+      }
 
       const { error } = await db
         .from('caixa_sessoes')

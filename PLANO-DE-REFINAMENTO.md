@@ -37,7 +37,13 @@ ganharam a marca 🆕 **18/08**; achados que continuavam válidos ganharam
 "Conferido/Reconfirmado em 18/08"; achados que mudaram de gravidade ou de
 alcance ganharam ⚠️ com a explicação. **7 achados críticos novos foram
 confirmados por dupla checagem nesta rodada** — nenhum tinha sido pego
-pelas revisões anteriores.
+pelas revisões anteriores. **Todos os 7 foram corrigidos no mesmo dia**
+(Financeiro teve 2 dos 7; PDV, Estoque, Configurações, Dashboards e OS um
+cada), cada correção com sua migration própria quando mexeu em banco,
+verificação de tsc/eslint/build, e uma segunda revisão adversarial
+independente antes do commit — ver os itens marcados ✅ **Resolvido em
+18/08** em cada seção, e o resumo em [Ordem sugerida pra
+continuar](#ordem-sugerida-pra-continuar-atualizada-em-1808).
 
 ---
 
@@ -351,20 +357,19 @@ o arquivo antes de assumir.
   tenant, permissão trava só a tela — igual `produtos`/`servicos`/etc.).
   Faz parte da [decisão pendente](#decisão-que-só-você-pode-tomar), não
   precisa de tratamento separado.
-- [ ] 🆕 **18/08 — Achado na revisão completa, confirmado por dupla
-  checagem: os botões de pagamento rápido do PDV apagam pagamento já
-  lançado na mesma venda.** Em `PDV.tsx`, `addPagamento` (o formulário
-  manual "Adicionar Pagamento") ACRESCENTA ao carrinho de pagamentos —
-  certo. Mas os atalhos "PIX Total"/"Dinheiro"/"Cartão" (`pagarComForma`)
-  SUBSTITUEM o array inteiro por uma única linha com o valor CHEIO da
-  venda, sem checar se já existia pagamento lançado. Cenário real de
-  balcão: vendedor lança R$100 em dinheiro pelo formulário manual, vê a
-  linha aparecer, e clica "PIX Total" pensando em cobrir só o restante —
-  o clique apaga o pagamento em dinheiro sem aviso e grava uma única
-  linha de PIX pelo valor total. "Total pago" fecha certinho (não avisa
-  nada), mas o que fica gravado em `pagamentos_venda` não bate com o que
-  aconteceu no caixa de verdade — estraga direto a conferência por forma
-  de pagamento em Vendas &gt; Pagamentos.
+- [x] ✅ **Resolvido em 18/08 — 🆕 achado do dia, corrigido no mesmo dia.**
+  Os botões de pagamento rápido do PDV apagavam pagamento já lançado na
+  mesma venda. Em `PDV.tsx`, `addPagamento` (o formulário manual
+  "Adicionar Pagamento") ACRESCENTA ao carrinho de pagamentos — certo.
+  Mas os atalhos "PIX Total"/"Dinheiro"/"Cartão" (`pagarComForma`)
+  SUBSTITUÍAM o array inteiro por uma única linha com o valor CHEIO da
+  venda, sem checar se já existia pagamento lançado — clicar no atalho
+  depois de já ter lançado parte manualmente apagava esse pagamento sem
+  aviso. Corrigido: `pagarComForma` agora calcula o que falta (total
+  menos o que já foi pago, incluindo produto de entrada em troca) e
+  ACRESCENTA um pagamento só desse valor restante, igual o formulário
+  manual já fazia — clicar duas vezes não duplica nada, porque na
+  segunda vez já não sobra valor pra cobrir.
 
 **🔵 Simplificação — feito em 07/08**
 - [x] `formatCurrency` local duplicava `lib/format.ts::moeda()` — trocado.
@@ -616,20 +621,20 @@ o arquivo antes de assumir.
   pertence à mesma loja de quem chama — qualquer autenticado, de
   qualquer loja cadastrada no sistema, pode mudar o estoque de um
   produto de OUTRA loja passando o ID direto pela API.
-- [ ] 🆕 **18/08 — Achado novo, confirmado por dupla checagem: salvar a
-  ficha do produto zera o custo real de quem não tem permissão de ver
-  custo.** Quem tem `inventory.edit` mas não `inventory.cost.view`
-  recebe `custo = null` da view protegida (exibição correta, o campo
-  nem aparece na tela) — mas o formulário guarda isso como texto "0",
-  e o botão Salvar manda esse "0" de volta pro banco incondicionalmente,
-  mesmo que a pessoa só quisesse mudar o estoque mínimo ou a
-  localização. A policy do banco só confere `inventory.edit`, não
-  `inventory.cost.view`, então o UPDATE passa e apaga o custo real —
-  e a margem (calculada a partir do custo) some junto. **Hoje nenhum
-  papel padrão tem essa combinação exata** (editar sem ver custo), mas
-  Configurações &gt; Perfis permite montar isso — no primeiro dia em
-  que alguém receber essa combinação, o primeiro "Salvar" que essa
-  pessoa der em qualquer produto apaga o custo dele de vez.
+- [x] ✅ **Resolvido em 18/08 — 🆕 achado do dia, corrigido no mesmo dia.**
+  Salvar a ficha do produto zerava o custo real de quem não tem
+  permissão de ver custo. Quem tem `inventory.edit` mas não
+  `inventory.cost.view` recebia `custo = null` da view protegida
+  (exibição correta, o campo nem aparece na tela) — mas o formulário
+  guardava isso como texto "0", e o botão Salvar mandava esse "0" de
+  volta pro banco incondicionalmente, mesmo que a pessoa só quisesse
+  mudar o estoque mínimo ou a localização. Corrigido em
+  `EstoqueDetalhe.tsx`: o campo `custo` só entra no payload do UPDATE
+  quando a pessoa tem `inventory.cost.view` — quem não tem, ao salvar
+  qualquer outra coisa, simplesmente não manda essa chave, e o banco
+  mantém o valor que já estava lá (a escrita de custo continua livre no
+  banco de propósito, pra não travar quem cadastra produto novo sem ver
+  custo alheio — por isso a trava tinha que ser na tela, não no banco).
 
 **🟠 Média**
 - [ ] 🆕 **18/08 — Saída de estoque (venda ou peça usada em OS) aparece
@@ -705,22 +710,18 @@ o arquivo antes de assumir.
     compara só a etapa *imediatamente* anterior). Não acontece hoje
     com a ordem padrão — fica pra decidir depois se vale fechar essa
     brecha e como.
-- [ ] 🆕 **18/08 — Achado novo, confirmado por dupla checagem: o relógio
-  de "Aguardando Retirada" reseta a zero com qualquer edição
-  cosmética na OS, escondendo aparelho realmente abandonado.** A view
-  que alimenta essa tela mede há quantos dias a OS está parada usando
-  `updated_at` (porque a data real de "ficou pronto" nunca é
-  preenchida — só a de "foi entregue"). Só que `updated_at` muda com
-  QUALQUER edição, mesmo sem trocar de etapa: reatribuir o técnico,
-  editar o diagnóstico, marcar "Risco informado" — nada disso trava
-  numa OS já pronta. Ou seja, corrigir uma anotação numa OS esquecida
-  há 5 meses reseta o contador pra "hoje", escondendo do aviso de
-  abandono (a política dos 6 meses = descartar/vender o aparelho) um
-  aparelho que está parado há muito mais tempo do que a tela mostra. O
-  dado certo já existe — `service_order_history` grava exatamente
-  quando a OS entrou em cada etapa, e a própria ficha já lê essa
-  tabela pro card "Histórico da OS" — só a view de abandono não usa
-  essa fonte.
+- [x] ✅ **Resolvido em 18/08 — 🆕 achado do dia, corrigido no mesmo dia.**
+  O relógio de "Aguardando Retirada" resetava a zero com qualquer
+  edição cosmética na OS, escondendo aparelho realmente abandonado. A
+  view que alimenta essa tela media há quantos dias a OS está parada
+  usando `updated_at` (porque a data real de "ficou pronto" nunca é
+  preenchida — só a de "foi entregue"), e `updated_at` muda com
+  QUALQUER edição, mesmo sem trocar de etapa. Corrigido: a view
+  `vw_os_aguardando_retirada` agora busca em `service_order_history` a
+  última vez que a OS ENTROU em "finalizado" (o mesmo dado que já
+  alimenta o card "Histórico da OS" na ficha), com fallback pro
+  comportamento antigo só no caso raro de não haver nenhum registro de
+  histórico.
 
 **🟠 Média**
 - [ ] 🆕 **18/08 — Nada impede reabrir uma OS já entregue (e já
@@ -827,31 +828,37 @@ o arquivo antes de assumir.
   mais completo desta revisão). **Conferido de novo em 18/08, ainda
   vale exatamente assim** — só a devolução (17/08) entra no Caixa hoje;
   venda do PDV e título de OS pago continuam de fora.
-- [ ] 🆕 **18/08 — Achado novo, confirmado por dupla checagem: digitar
-  valor com separador de milhar (ex.: "1.500,00") quebra silenciosamente
-  em 4 pontos do Financeiro.** A conversão de texto pra número troca só
-  a PRIMEIRA vírgula por ponto — "1.500,00" vira "1.500.00" (dois
-  pontos), que não é um número válido. **Abrir o caixa**: o valor
-  inválido é engolido e o caixa abre com R$0,00 de troco, sem nenhum
-  aviso — o valor de abertura fica errado o expediente inteiro sem
-  ninguém perceber. **Lançar novo título financeiro**: o botão Salvar
-  simplesmente não faz nada, sem nenhuma mensagem — pro tipo de conta
-  (aluguel, folha) que costuma passar de R$1.000. Lançar movimento e
-  fechar caixa pelo menos mostram um erro (só que a mensagem não
-  explica a causa real). Só o caso da abertura de caixa já estava
-  anotado à parte (MAPA-FINANCEIRO.md); os outros 3 pontos são achado
-  novo.
-- [ ] 🆕 **18/08 — Achado novo, confirmado por dupla checagem: sessão
-  de caixa já fechada pode ser alterada ou apagada depois, sem nenhum
-  rastro.** A permissão que abre/fecha o caixa também permite editar ou
-  apagar uma sessão JÁ FECHADA via API direta — reescrever o resultado
-  de uma conferência que já foi feita, ou apagar o expediente inteiro
-  (o que leva junto, sem log nenhum, todas as sangrias/suprimentos
-  daquele dia — `caixa_movimentos` é a única tabela financeira sem
-  gatilho de auditoria). O mesmo vale pra devolução: qualquer devolução
-  antiga pode ser apagada, levando junto o lançamento de caixa que ela
-  gerou. Isso mina exatamente o controle que a tela de Caixa existe
-  pra fazer.
+- [x] ✅ **Resolvido em 18/08 — 🆕 achado do dia, corrigido no mesmo dia.**
+  Digitar valor com separador de milhar (ex.: "1.500,00") quebrava
+  silenciosamente em 4 pontos do Financeiro. A conversão de texto pra
+  número trocava só a PRIMEIRA vírgula por ponto — "1.500,00" virava
+  "1.500.00" (dois pontos), que não é um número válido. **Abrir o
+  caixa**: o valor inválido era engolido e o caixa abria com R$0,00 de
+  troco, sem nenhum aviso. **Lançar novo título financeiro**: o botão
+  Salvar simplesmente não fazia nada, sem nenhuma mensagem — pro tipo de
+  conta (aluguel, folha) que costuma passar de R$1.000. Corrigido com
+  uma função central nova, `paraNumero()` em `lib/format.ts` (remove
+  ponto de milhar antes de trocar vírgula por ponto), usada nos 4
+  pontos (`FinanceiroCaixa.tsx` × 3, `TitulosPage.tsx` × 1), cada um
+  agora com uma mensagem de erro explícita quando o valor não faz
+  sentido — em vez do silêncio de antes. Revisão adversarial encontrou e
+  fechou mais uma brecha da mesma família: valor NEGATIVO também não era
+  barrado em abrir/fechar caixa (ex.: "-150,00" digitado por engano) —
+  adicionada a checagem `valor < 0` nos dois pontos.
+- [x] ✅ **Resolvido em 18/08 — 🆕 achado do dia, corrigido no mesmo dia.**
+  Sessão de caixa já fechada podia ser alterada ou apagada depois, sem
+  nenhum rastro, e qualquer devolução antiga podia ser apagada levando
+  junto o lançamento de caixa que ela gerou. Três correções via migration
+  (`20260817160000`, `20260817190000`): (1) a policy única de
+  `caixa_sessoes` virou duas — abrir (livre) e fechar (só permite mudar
+  uma sessão que ESTÁ aberta no momento, o que trava qualquer edição
+  depois de fechada) — e sem policy de DELETE nenhuma, apagar sessão de
+  caixa passou a ser impossível pela API; (2) `caixa_movimentos` (a
+  única tabela financeira sem gatilho de auditoria) ganhou o gatilho que
+  faltava; (3) a policy de apagar devolução foi restrita a devolução
+  ÓRFÃ (sem nenhum item associado) — é o único caso real de rollback
+  (`TrocaDevolucao.tsx`); uma devolução completa sempre tem pelo menos 1
+  item, então não pode mais ser apagada por engano ou de propósito.
 
 **🟠 Média**
 - [ ] Fluxo de Caixa classifica "Realizado" pelo **vencimento**, não pela
@@ -1021,19 +1028,16 @@ o arquivo antes de assumir.
 ## Dashboards e Inteligência Empresarial
 
 **🔴 Alta**
-- [ ] 🆕 **18/08 — Achado novo, confirmado por dupla checagem:
+- [x] ✅ **Resolvido em 18/08 — 🆕 achado do dia, corrigido no mesmo dia.**
   `DashboardMetas.tsx` (o painel de premiação Bronze/Prata/Ouro/
-  Diamante) conta o produto de uma troca pelo preço cheio no
-  faturamento do mês.** A correção de 17/08 (não contar o produto
-  trocado duas vezes) alcançou VendasHistorico, RelatorioVendas,
-  Dashboard Home e DashboardVenda — mas não esta tela, que continua
+  Diamante) contava o produto de uma troca pelo preço cheio no
+  faturamento do mês. A correção de 17/08 (não contar o produto
+  trocado duas vezes) tinha alcançado VendasHistorico, RelatorioVendas,
+  Dashboard Home e DashboardVenda — mas não esta tela, que continuava
   somando `vendas.total` puro tanto no "Faturado no Mês" quanto no
-  "Faturamento por Vendedor". Se houver uma troca no mês, o número
-  desta tela fica inflado pelo valor cheio do produto novo — podendo
-  indicar uma faixa de premiação batida (ou um vendedor com mais
-  venda) do que o dinheiro novo que realmente entrou. Como premiação é
-  processo com dinheiro real por trás, é o tipo de número que pode ser
-  usado pra acompanhar meta "batendo" antes da hora.
+  "Faturamento por Vendedor". Corrigido com o mesmo padrão das outras
+  telas: `COALESCE(valor_faturamento_real, total)` nos dois cálculos, e
+  a busca de vendas passou a trazer `valor_faturamento_real` junto.
 
 **🟠 Média**
 - [ ] 🆕 **18/08 — Devolução pura (sem troca) nunca reduz o faturamento
@@ -1146,17 +1150,20 @@ o arquivo antes de assumir.
 - [ ] Exceções de permissão por usuário não geram auditoria nem
   preenchem `motivo`/`definida_por` — a funcionalidade mais sensível da
   tela de Usuários é a única sem rastro. ✅ *confirmado.*
-- [ ] 🆕 **18/08 — Achado novo, confirmado por dupla checagem: troca de
-  perfil de usuário nunca aparece em Logs/Auditoria, apesar de ser
-  gravada.** A tabela de usuários/papéis (`user_roles`) é a única das 6
-  tabelas auditadas que não guarda a loja (`tenant_id`) na própria
-  linha — o gatilho genérico de auditoria grava a mudança mesmo assim,
-  mas com `tenant_id` vazio. A regra de leitura da tela de Logs exige
-  bater a loja de quem está olhando, e "vazio" nunca bate com nada —
-  então essas linhas ficam gravadas pra sempre, mas **nunca aparecem
-  pra ninguém**, nem pro Administrador. É exatamente a mudança mais
-  sensível (quem virou admin, quem perdeu acesso) que fica sem rastro
-  nenhum na única tela criada pra mostrar rastro.
+- [x] ✅ **Resolvido em 18/08 — 🆕 achado do dia, corrigido no mesmo dia.**
+  Troca de perfil de usuário nunca aparecia em Logs/Auditoria, apesar de
+  ser gravada. A tabela de usuários/papéis (`user_roles`) é a única das
+  6 tabelas auditadas que não guarda a loja (`tenant_id`) na própria
+  linha — o gatilho genérico de auditoria gravava a mudança mesmo
+  assim, mas com `tenant_id` vazio, e a regra de leitura da tela de
+  Logs exige bater a loja de quem está olhando ("vazio" nunca bate com
+  nada). Corrigido com um gatilho de auditoria próprio pra essa tabela
+  (`registrar_auditoria_user_roles`), que busca a loja em `profiles`
+  (via `user_id`) em vez de tentar ler da própria linha — o sistema já
+  é "um login = uma loja só", então o dado existe, só não estava na
+  tabela certa. A migration também consertou o histórico já perdido:
+  linha antiga com `tenant_id` vazio foi recalculada, não só as trocas
+  daqui pra frente.
 
 **🟠 Média**
 - [ ] Página gated por `users.manage`, mas escrever papel/exceção exige
@@ -1394,37 +1401,38 @@ de assumir que "não foi achado" significa "não existe":
 
 ## Ordem sugerida pra continuar (atualizada em 18/08)
 
-Muito do que estava aqui já foi resolvido — Vendas/PDV, OS e boa parte de
-Cadastros já passaram por uma rodada completa. A revisão de 18/08 achou uma
-leva nova de itens críticos espalhada por várias áreas ao mesmo tempo, então
-a ordem agora é mais por **gravidade do achado individual** do que por área
-inteira:
+Os 6 achados críticos novos da revisão completa de 18/08 (a leva espalhada
+por Financeiro, PDV, Estoque, Configurações, Dashboards e OS) **foram todos
+corrigidos no mesmo dia**, na ordem de gravidade combinada com o Felipe, cada
+um com migration própria (quando mexeu em banco), verificação de
+tsc/eslint/build, e revisão adversarial por um segundo processo antes do
+commit:
 
-1. **Financeiro, o mais urgente de todos** — 3 itens críticos juntos:
-   o Caixa continua não refletindo venda/OS real (achado mais antigo,
-   ainda o mais completo), digitar valor com separador de milhar
-   engole o dinheiro em silêncio em 4 telas, e sessão de caixa já
-   fechada pode ser alterada/apagada sem rastro. Os três minam
-   diretamente a confiança no fechamento diário.
-2. **PDV — botões de pagamento rápido apagam pagamento já lançado.**
-   É uma tela que roda dezenas de vezes por dia; o erro é silencioso
-   (fecha certinho na hora) e só aparece depois, na conferência de
-   caixa por forma de pagamento.
-3. **Estoque — salvar a ficha do produto pode zerar o custo real**
-   pra quem não tem permissão de ver custo. Ainda não acontece com os
-   papéis de hoje, mas é rápido de fechar antes que aconteça.
-4. **Configurações — troca de perfil de usuário nunca aparece em
-   Logs/Auditoria.** É a mudança mais sensível do sistema (quem virou
-   admin, quem perdeu acesso) ficando sem rastro nenhum.
-5. **DashboardMetas conta produto de troca pelo valor cheio** — afeta
-   direto o painel de premiação (Bronze/Prata/Ouro/Diamante), que é
-   dinheiro de verdade pra equipe.
-6. **OS — o relógio de "Aguardando Retirada" reseta com qualquer
-   edição cosmética**, escondendo aparelho parado há mais tempo do que
-   a tela mostra (a política dos 6 meses depende desse número estar
-   certo).
-7. **O restante dos achados 🟠/🔵** de cada área, na ordem que fizer
-   mais sentido pro seu dia a dia — nenhum quebra o uso diário sozinho.
-8. **🔴 O banco continuar sem backup** segue sendo o risco maior que
+1. ✅ **Financeiro** — os 2 itens críticos novos (valor com separador de
+   milhar quebrando em silêncio; sessão de caixa fechada alterável/apagável
+   sem rastro, incluindo a mesma brecha em devolução antiga). O item mais
+   antigo (Caixa não refletir venda/OS) segue em aberto — não fazia parte
+   do escopo de hoje, é uma mudança maior.
+2. ✅ **PDV** — botão de pagamento rápido não apaga mais pagamento já
+   lançado na mesma venda.
+3. ✅ **Estoque** — salvar a ficha do produto não zera mais o custo real de
+   quem não tem permissão de ver custo.
+4. ✅ **Configurações** — troca de perfil de usuário agora aparece em
+   Logs/Auditoria (inclusive o histórico já perdido foi recuperado).
+5. ✅ **Dashboards** — `DashboardMetas` não conta mais produto de troca
+   pelo valor cheio no painel de premiação.
+6. ✅ **OS** — o relógio de "Aguardando Retirada" não reseta mais com
+   edição cosmética.
+
+**Pra continuar a partir daqui:**
+
+1. **O restante dos achados 🟠/🔵** de cada área, na ordem que fizer mais
+   sentido pro seu dia a dia — nenhum quebra o uso diário sozinho.
+2. **O item mais antigo do Financeiro** (Caixa não refletir venda do PDV
+   nem título de OS pago) — é o achado mais completo desta revisão e
+   ainda o maior buraco de confiança na conferência diária, mas exige uma
+   mudança de desenho maior (gravar o dinheiro de venda/OS no Caixa em
+   tempo real), não um ajuste pontual — vale uma sessão própria.
+3. **🔴 O banco continuar sem backup** segue sendo o risco maior que
    qualquer item desta lista, em paralelo com tudo acima — ver seção
    própria no início deste documento.

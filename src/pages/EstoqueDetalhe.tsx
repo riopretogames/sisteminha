@@ -208,30 +208,46 @@ export default function EstoqueDetalhe() {
       const marcaTexto = marcas.data?.find((m) => m.id === formData.marcaId)?.descricao ?? null;
       const modeloTexto = modelos.data?.find((m) => m.id === formData.modeloId)?.descricao ?? null;
 
+      // Achado na revisão de 18/08: quem NÃO tem inventory.cost.view nunca vê
+      // o campo Custo (fica escondido lá embaixo, `{veCusto && (...)}`), mas
+      // `formData.custo` pra essa pessoa foi inicializado como "0" (o
+      // `produto.custo ?? 0` de vw_produtos, que devolve null de propósito
+      // pra quem não tem a permissão). Antes o UPDATE mandava `custo` sempre,
+      // então salvar QUALQUER outra coisa na ficha — corrigir o nome, ajustar
+      // estoque — zerava o custo real do produto no banco, sem essa pessoa
+      // nunca ter tocado no campo. A tabela permite escrever custo (a trava
+      // da migration 20260808140000 protege só leitura, de propósito, pra
+      // não travar o cadastro inicial de quem lança produto sem ver custo
+      // alheio) — então quem tem que impedir mandar um valor que a pessoa
+      // nunca viu é a tela, não o banco.
+      const payload: Record<string, unknown> = {
+        nome: formData.nome.trim(),
+        codigo_barra: formData.codigoBarra.trim() || null,
+        imei_serial: formData.imeiSerial.trim() || null,
+        marca: marcaTexto,
+        modelo: modeloTexto,
+        grupo_produto_id: formData.grupoProdutoId || null,
+        marca_id: formData.marcaId || null,
+        modelo_id: formData.modeloId || null,
+        cor_id: formData.corId || null,
+        condicao_id: formData.condicaoId || null,
+        memoria_id: formData.memoriaId || null,
+        categoria: formData.categoria,
+        preco: parseFloat(formData.preco) || 0,
+        estoque_minimo: parseInt(formData.estoqueMinimo, 10) || 1,
+        estoque_maximo: parseInt(formData.estoqueMaximo, 10) || 100,
+        localizacao: formData.localizacao,
+        garantia_meses: parseInt(formData.garantiaMeses, 10) || 0,
+        observacoes: formData.observacoes.trim() || null,
+        ativo: formData.ativo,
+      };
+      if (veCusto) {
+        payload.custo = parseFloat(formData.custo) || 0;
+      }
+
       const { error } = await supabase
         .from('produtos')
-        .update({
-          nome: formData.nome.trim(),
-          codigo_barra: formData.codigoBarra.trim() || null,
-          imei_serial: formData.imeiSerial.trim() || null,
-          marca: marcaTexto,
-          modelo: modeloTexto,
-          grupo_produto_id: formData.grupoProdutoId || null,
-          marca_id: formData.marcaId || null,
-          modelo_id: formData.modeloId || null,
-          cor_id: formData.corId || null,
-          condicao_id: formData.condicaoId || null,
-          memoria_id: formData.memoriaId || null,
-          categoria: formData.categoria,
-          custo: parseFloat(formData.custo) || 0,
-          preco: parseFloat(formData.preco) || 0,
-          estoque_minimo: parseInt(formData.estoqueMinimo, 10) || 1,
-          estoque_maximo: parseInt(formData.estoqueMaximo, 10) || 100,
-          localizacao: formData.localizacao,
-          garantia_meses: parseInt(formData.garantiaMeses, 10) || 0,
-          observacoes: formData.observacoes.trim() || null,
-          ativo: formData.ativo,
-        })
+        .update(payload)
         .eq('id', produto.id);
 
       if (error) throw error;

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Plus, Check, Undo2, Ban, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { moeda, data as fmtData, hojeISO } from '@/lib/format';
+import { moeda, data as fmtData, hojeISO, paraNumero } from '@/lib/format';
+import { useToast } from '@/hooks/use-toast';
 import { PageHeader, Indicador, Vazio } from '@/components/PageHeader';
 import {
   useTitulos,
@@ -43,6 +44,7 @@ const FILTROS: Array<{ valor: SituacaoTitulo | 'todos'; label: string }> = [
 
 export function TitulosPage({ natureza }: { natureza: NaturezaTitulo }) {
   const ehPagar = natureza === 'pagar';
+  const { toast } = useToast();
   const { data: titulos, isLoading, criar, baixar, reabrir, cancelar } = useTitulos(natureza);
   const { data: categorias } = useCategoriasFinanceiras(ehPagar ? 'despesa' : 'receita');
 
@@ -77,8 +79,24 @@ export function TitulosPage({ natureza }: { natureza: NaturezaTitulo }) {
   }, [comSituacao]);
 
   const salvar = () => {
-    const valor = Number(form.valor.replace(',', '.'));
-    if (!form.descricao.trim() || !valor || valor <= 0) return;
+    // Antes: `Number(form.valor.replace(',', '.'))` quebrava em silêncio pra
+    // valor com separador de milhar ("1.500,00" virava NaN) e o botão
+    // simplesmente não fazia nada, sem nenhum aviso — justamente pro tipo de
+    // conta (aluguel, folha) que costuma passar de R$1.000. Agora avisa o
+    // motivo real em vez de falhar calado.
+    if (!form.descricao.trim()) {
+      toast({ title: 'Descreva o título', variant: 'destructive' });
+      return;
+    }
+    const valor = paraNumero(form.valor);
+    if (!valor || Number.isNaN(valor) || valor <= 0) {
+      toast({
+        title: 'Valor inválido',
+        description: 'Informe um valor maior que zero.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     criar.mutate(
       {

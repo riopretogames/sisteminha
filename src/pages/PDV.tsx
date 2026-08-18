@@ -454,8 +454,18 @@ export default function PDV() {
   const pagarComForma = (nome: string) => {
     const forma = acharFormaPorNome(nome);
     if (!forma) return;
+    // Achado na revisão de 18/08: antes isto fazia `setPagamentos([{ valor: total }])` —
+    // trocava a lista INTEIRA por um pagamento só do valor cheio, apagando
+    // qualquer pagamento que já tivesse sido lançado à mão (ex.: cliente pagou
+    // metade em dinheiro e o resto no cartão — clicar no atalho "PIX Total"
+    // apagava o dinheiro já lançado e registrava a venda inteira como PIX).
+    // Agora soma ao que já foi pago (dinheiro lançado + produto de entrada em
+    // troca) e lança só o que falta, igual o botão manual "Adicionar" já faz.
+    const restante = total - totalPago;
+    if (restante <= 0) return;
     setPagamentos([
-      { formaPagamentoId: forma.id, descricao: forma.descricao, forma: forma.forma_enum, parcelas: 1, valor: total },
+      ...pagamentos,
+      { formaPagamentoId: forma.id, descricao: forma.descricao, forma: forma.forma_enum, parcelas: 1, valor: restante },
     ]);
   };
 

@@ -19,6 +19,23 @@ export function moeda(valor: number | null | undefined): string {
 }
 
 /**
+ * Converte texto digitado em formato brasileiro ("1.500,00", "150,50",
+ * "150") pra número.
+ *
+ * Achado na revisão de 18/08: 4 telas do Financeiro faziam só
+ * `Number(valor.replace(',', '.'))` — funciona pra "150,50", mas quebra em
+ * silêncio pra qualquer valor com separador de milhar. "1.500,00" vira
+ * "1.500.00" (dois pontos), que `Number()` não interpreta e devolve NaN —
+ * e um `|| 0` logo depois engolia isso sem erro nenhum (abrir caixa
+ * gravava R$0,00 de troco mesmo digitando R$1.500,00). Aqui os pontos de
+ * milhar são removidos ANTES de trocar a vírgula decimal por ponto.
+ */
+export function paraNumero(valor: string): number {
+  const limpo = valor.trim().replace(/\./g, '').replace(',', '.');
+  return Number(limpo);
+}
+
+/**
  * Formata uma data.
  *
  * Cuidado sutil: uma coluna DATE do Postgres chega como '2026-08-01'. Passar

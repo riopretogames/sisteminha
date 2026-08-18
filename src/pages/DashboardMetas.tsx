@@ -52,6 +52,7 @@ interface MetaFaixaRow {
 
 interface VendaMesRow {
   total: number | null;
+  valor_faturamento_real: number | null;
   vendedor_id: string | null;
 }
 
@@ -93,7 +94,7 @@ export default function DashboardMetas() {
           .eq('mes', limites.mes),
         supabase
           .from('vendas')
-          .select('total, vendedor_id')
+          .select('total, valor_faturamento_real, vendedor_id')
           .gte('created_at', limites.inicioMes.toISOString())
           .lt('created_at', limites.inicioProximoMes.toISOString())
           .neq('status', 'cancelado'),
@@ -120,7 +121,16 @@ export default function DashboardMetas() {
 
   const semMetaCadastrada = !isLoading && metas.length === 0;
 
-  const realizado = vendas.reduce((acc, v) => acc + Number(v.total ?? 0), 0);
+  // COALESCE, não `total` sozinho: a venda de uma troca grava o preço cheio
+  // do produto em `total` (pra não perder a contagem de vendas por
+  // produto), mas só `valor_faturamento_real` reflete o dinheiro novo de
+  // verdade — mesma regra de Dashboard.tsx/DashboardVenda.tsx. Achado na
+  // revisão de 18/08: aqui ainda usava `total` puro, contando troca de
+  // produto pelo valor cheio na meta e na comissão por vendedor.
+  const realizado = vendas.reduce(
+    (acc, v) => acc + Number(v.valor_faturamento_real ?? v.total ?? 0),
+    0,
+  );
 
   // Ordenado por valor_meta crescente — não assume a ordem do enum
   // (bronze/prata/ouro/diamante é o esperado, mas quem manda é o valor).
@@ -148,7 +158,10 @@ export default function DashboardMetas() {
   const totalPorVendedor = new Map<string, number>();
   for (const v of vendas) {
     if (!v.vendedor_id) continue;
-    totalPorVendedor.set(v.vendedor_id, (totalPorVendedor.get(v.vendedor_id) ?? 0) + Number(v.total ?? 0));
+    totalPorVendedor.set(
+      v.vendedor_id,
+      (totalPorVendedor.get(v.vendedor_id) ?? 0) + Number(v.valor_faturamento_real ?? v.total ?? 0),
+    );
   }
   const porVendedor = Array.from(totalPorVendedor.entries())
     .map(([vendedorId, totalVendido]) => ({
