@@ -612,15 +612,25 @@ o arquivo antes de assumir.
 ## Estoque
 
 **🔴 Alta**
-- [ ] Botão "Repor" em EstoqueCritico chama `ajustar_estoque_produto`
-  (RPC) que não checa permissão nem tenant no banco — proteção é só
-  cosmética na tela. **Ampliado em 18/08**: o mesmo buraco é alcançado
-  também pela ficha do produto (`EstoqueDetalhe.tsx`, ajuste de
-  estoque atual usa a mesma RPC) — não é só uma tela. E o alcance é
-  maior do que "falta permissão": a função nem confere se o produto
-  pertence à mesma loja de quem chama — qualquer autenticado, de
-  qualquer loja cadastrada no sistema, pode mudar o estoque de um
-  produto de OUTRA loja passando o ID direto pela API.
+- [x] ✅ **Resolvido em 18/08.** Botão "Repor" em EstoqueCritico chamava
+  `ajustar_estoque_produto` (RPC) sem checar permissão nem tenant no
+  banco — proteção era só cosmética na tela, e o mesmo buraco alcançava
+  também a ficha do produto (`EstoqueDetalhe.tsx`). O alcance era maior
+  do que "falta permissão": a função nem conferia se o produto pertence
+  à mesma loja de quem chama — qualquer autenticado, de qualquer loja
+  cadastrada no sistema, podia mudar o estoque de um produto de OUTRA
+  loja passando o ID direto pela API. Corrigido: a função agora exige
+  `tenant_id` igual e `inventory.adjust` antes de qualquer efeito.
+  Testado com uma transação real no banco (revertida sem deixar
+  rastro): bloqueia produto de outra loja, bloqueia por permissão, e
+  libera normalmente pra quem tem acesso na própria loja. Revisão
+  adversarial achou e fechou um efeito colateral real: `EstoqueDetalhe.tsx`
+  sempre liberava o campo "Estoque Atual" com `inventory.edit`, uma
+  permissão diferente da que o banco passou a exigir — quem tivesse
+  editar produto sem ajustar estoque (combinação possível via exceção
+  de usuário) veria o campo liberado e a gravação falharia só nesse
+  pedaço, depois do resto da ficha já ter salvo. Corrigido pra exigir
+  as duas permissões, com aviso visível de qual falta.
 - [x] ✅ **Resolvido em 18/08 — 🆕 achado do dia, corrigido no mesmo dia.**
   Salvar a ficha do produto zerava o custo real de quem não tem
   permissão de ver custo. Quem tem `inventory.edit` mas não
@@ -924,16 +934,24 @@ o arquivo antes de assumir.
   **3 "Passos" marcados como ✅ no PLANO-DE-CONSTRUCAO.md são, na prática,
   vitrine de CRUD sem ligação com o resto do sistema.** Estado por
   cadastro:
-  - **Formas de Pagamento** — *parcialmente resolvido em 07/08*: o PDV já
-    consulta o cadastro de verdade (migration `20260807060000`, commit
-    `23292e8` — ver [Vendas/PDV](#vendas--pdv)). **Falta ainda**
-    Vendas>Pagamentos e Caixa, que continuam no enum fixo antigo.
-    **Conferido em 17/08, ainda vale exatamente assim** — "Vendas >
-    Pagamentos" (a tela de conferência de caixa por forma de pagamento)
-    nunca foi atualizada pra usar o cadastro novo.
-  - **Fornecedores** — não alimenta compra/entrada de estoque.
-    **Conferido em 17/08, ainda vale** — não existe hoje nenhuma tela de
-    compra/recebimento de mercadoria no sistema.
+  - [x] ✅ **Formas de Pagamento — resolvido de vez em 18/08.** O PDV já
+    consultava o cadastro de verdade desde 07/08 (migration
+    `20260807060000`, commit `23292e8`). Faltavam Vendas>Pagamentos e
+    Caixa, que continuavam no enum fixo antigo — os dois corrigidos em
+    18/08: o Caixa agora lança venda/OS respeitando `entra_no_caixa` de
+    cada forma cadastrada (ver seção Financeiro), e "Vendas > Pagamentos"
+    ganhou uma seção "Detalhe por forma" que agrupa pela forma cadastrada
+    específica (Cartão Crédito, Cartão Crédito - Taxa, Link de Pagamento,
+    Shopee etc.), não mais só pela categoria ampla do enum que misturava
+    as quatro numa linha só.
+  - [ ] **Fornecedores** — não alimenta compra/entrada de estoque.
+    **Conferido em 18/08, ainda vale** — não existe hoje nenhuma tela de
+    compra/recebimento de mercadoria no sistema. **Nota**: diferente dos
+    outros achados desta rodada, este não é um ajuste pontual — é uma
+    funcionalidade inteira que nunca foi construída (fluxo de "chegou
+    mercadoria do fornecedor X, dá entrada no estoque"). Fica registrado
+    como pendente de escopo, não como algo pra corrigir sem conversar
+    antes sobre como esse fluxo deveria funcionar na prática da loja.
   - **Tags de Cliente** — ✅ *resolvido em 08/08, achado pelo Felipe*: o
     catálogo `tag_cliente` tinha 4 marcações editáveis (VIP, Fiel,
     Atacado, Atenção) e a ficha do cliente oferecia **3 fixas no
@@ -1172,12 +1190,29 @@ o arquivo antes de assumir.
 ## Configurações, Permissões e Minha Empresa
 
 **🔴 Alta**
-- [ ] Sem proteção contra o único administrador se autodemover ou se
-  desativar — sem caminho de volta dentro do app, trava o sistema pra
-  todo mundo. **Reconfirmado em 18/08, sem mitigação nova.**
-- [ ] Exceções de permissão por usuário não geram auditoria nem
-  preenchem `motivo`/`definida_por` — a funcionalidade mais sensível da
-  tela de Usuários é a única sem rastro. ✅ *confirmado.*
+- [x] ✅ **Resolvido em 18/08.** Não havia proteção contra o único
+  administrador se autodemover ou se desativar — sem caminho de volta
+  dentro do app, isso travaria o sistema pra todo mundo da loja.
+  Corrigido com dois gatilhos no banco (bloqueiam tirar o papel ou
+  desativar a conta do único administrador ATIVO restante da loja —
+  vale tanto pra alguém se auto-rebaixar quanto pra mexer no último
+  outro administrador). Testado com uma transação real revertida:
+  bloqueia as duas operações quando é o último, libera as duas quando
+  existe um segundo administrador ativo. Confirmado que editar
+  qualquer outro campo do perfil (nome etc.) continua funcionando
+  normalmente pro administrador único — só a transição pra inativo é
+  travada.
+- [x] ✅ **Resolvido em 18/08.** Exceções de permissão por usuário não
+  geravam auditoria nem preenchiam `motivo`/`definida_por` — a
+  funcionalidade mais sensível da tela de Usuários era a única sem
+  rastro. Corrigido: gatilho de auditoria próprio pra `user_permissions`
+  (mesmo padrão de `user_roles`/`os_pagamentos`, tenant derivado via
+  `user_id` → `profiles`); `definida_por` agora é gravado sozinho a cada
+  exceção criada/alterada; e a tela ganhou um campo de motivo opcional
+  (balão/popover ao lado da exceção, sem exigir preencher pra não
+  travar o clique rápido do checkbox). Revisão adversarial achou e
+  corrigiu um bug real: o botão do motivo nunca abria o balão (um
+  `preventDefault()` a mais brigava com a biblioteca de UI).
 - [x] ✅ **Resolvido em 18/08 — 🆕 achado do dia, corrigido no mesmo dia.**
   Troca de perfil de usuário nunca aparecia em Logs/Auditoria, apesar de
   ser gravada. A tabela de usuários/papéis (`user_roles`) é a única das
@@ -1275,14 +1310,14 @@ o arquivo antes de assumir.
 ## Segurança e RLS (transversal — banco de dados)
 
 **🔴 Alta**
-- [ ] `ajustar_estoque_produto` (RPC, SECURITY DEFINER) não checa
-  permissão nem tenant — chamável direto via API, ignorando a tela.
-  ✅ *confirmado.* **Ampliado em 18/08**: o alcance é maior do que
-  descrito — a função nem confere se o produto pertence à MESMA loja
-  de quem chama, então qualquer autenticado de qualquer loja cadastrada
-  no sistema pode mudar estoque de produto de OUTRA loja.
-- [ ] `proximo_numero_documento` (RPC) não valida que `_tenant` pertence
-  a quem chama. ✅ *confirmado.* **Reconfirmado em 18/08.**
+- [x] ✅ **Resolvido em 18/08 — ver detalhe na seção Estoque.**
+  `ajustar_estoque_produto` (RPC, SECURITY DEFINER) agora exige tenant
+  igual e `inventory.adjust` antes de qualquer efeito.
+- [x] ✅ **Resolvido em 18/08.** `proximo_numero_documento` (RPC) agora
+  exige que `_tenant` recebido seja o do próprio usuário chamando —
+  confirmado que os 3 gatilhos internos que usam essa função (OS,
+  venda, devolução) sempre passavam o tenant certo, então a trava não
+  quebra nenhum fluxo real.
 
 **🟠 Média**
 - [ ] `taxa_percent`/`juros_percent` de Formas de Pagamento têm o mesmo
@@ -1452,12 +1487,31 @@ commit:
 6. ✅ **OS** — o relógio de "Aguardando Retirada" não reseta mais com
    edição cosmética.
 
+**Segunda leva, também resolvida em 18/08** — depois de fechar os 6 acima, uma
+varredura pelos 🔴 restantes (mais antigos, de 07-08/08, nunca corrigidos até
+então) achou mais 5 pontos abertos. Todos corrigidos no mesmo dia, mesma
+disciplina (migration própria, tsc/eslint/build, revisão adversarial):
+
+1. ✅ **O item mais antigo do Financeiro** — Caixa agora reflete venda do
+   PDV e OS entregue e paga (só a parte em dinheiro físico, por decisão do
+   Felipe — ver o item na seção Financeiro pra todo o detalhe).
+2. ✅ **`ajustar_estoque_produto`/`proximo_numero_documento`** — as duas
+   funções do banco que qualquer autenticado conseguia chamar direto pela
+   API, ignorando tela e loja, agora conferem tenant e permissão de
+   verdade.
+3. ✅ **Proteção do último administrador** — não dá mais pra tirar o papel
+   ou desativar a única conta de administrador ativa de uma loja.
+4. ✅ **Auditoria de exceção de permissão** — a tabela mais sensível de
+   Configurações sem rastro agora tem, e a tela ganhou campo de motivo.
+5. ✅ **Vendas > Pagamentos** — "Detalhe por forma" agrupa pela forma
+   cadastrada específica, não mais só pela categoria ampla do enum.
+
 **Pra continuar a partir daqui:**
 
-1. ✅ **O item mais antigo do Financeiro, resolvido em 18/08** — Caixa
-   agora reflete venda do PDV e OS entregue e paga (só a parte em
-   dinheiro físico, por decisão do Felipe — ver o item na seção
-   Financeiro pra todo o detalhe).
+1. **Fornecedores não alimentar compra/entrada de estoque** — o único
+   achado 🔴 restante que não é ajuste pontual, é feature nova (não existe
+   fluxo de recebimento de mercadoria hoje). Precisa de conversa sobre como
+   esse fluxo deveria funcionar antes de qualquer código.
 2. **O restante dos achados 🟠/🔵** de cada área, na ordem que fizer mais
    sentido pro seu dia a dia — nenhum quebra o uso diário sozinho.
 3. **🔴 O banco continuar sem backup** segue sendo o risco maior que
