@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, Plus, Save, Trash2, Wrench, Package } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Clock, Loader2, Plus, Save, Trash2, Wrench, Package } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
@@ -83,6 +83,21 @@ import { OS_ETAPAS, OS_CANCELADO } from '@/config/osStatus';
  * Diagnóstico técnico, constatação e demais campos do laudo completo
  * continuam fora desta versão.
  */
+
+/**
+ * Uma mudança de etapa, gravada sozinha pelo gatilho `track_os_status_change`
+ * (existe desde a criação do schema) sempre que `service_orders.status`
+ * muda — mas até 17/08 nenhuma tela lia esta tabela. `usuario_id` referencia
+ * `auth.users`, não `public.profiles`, então não dá pra pedir o nome junto
+ * num embed do PostgREST — resolvido à parte contra a lista de perfis.
+ */
+interface HistoricoOS {
+  id: string;
+  usuario_id: string | null;
+  status_anterior: string | null;
+  status_novo: string;
+  created_at: string;
+}
 
 interface ItemOS {
   id: string;
@@ -379,6 +394,21 @@ export default function OSDetalhe() {
     0
   );
 
+  // Achado no plano de refinamento (17/08): service_orders.total_pecas/
+  // total_mao_obra existem desde a criação do schema, mas NENHUM gatilho ou
+  // tela nunca gravou nelas — não são "dado escondido", são colunas mortas
+  // de verdade (confirmado: nenhuma migration faz UPDATE nelas). Em vez de
+  // ressuscitar duas colunas denormalizadas com um gatilho novo pra manter
+  // sincronizado, o valor de verdade já está em service_order_items — o
+  // breakdown abaixo computa ao vivo, direto da fonte. As duas colunas
+  // continuam no schema, intencionalmente não usadas.
+  const totalPecasValor = (itens ?? [])
+    .filter((item) => item.produto_id != null)
+    .reduce((acc, item) => acc + Number(item.preco_cobrado) * (item.quantidade ?? 1), 0);
+  const totalMaoObraValor = (itens ?? [])
+    .filter((item) => item.produto_id == null)
+    .reduce((acc, item) => acc + Number(item.preco_cobrado) * (item.quantidade ?? 1), 0);
+
   const { data: os, isLoading } = useQuery({
     queryKey: ['os-detalhe', id],
     queryFn: async (): Promise<OSCompleta | null> => {
@@ -413,6 +443,36 @@ export default function OSDetalhe() {
       return data ?? [];
     },
   });
+
+  // Timeline de mudança de etapa — dado gravado desde a criação do schema
+  // (gatilho track_os_status_change), nenhuma tela lia até 17/08.
+  const { data: historico } = useQuery({
+    queryKey: ['os-historico', id],
+    queryFn: async (): Promise<HistoricoOS[]> => {
+      const { data, error } = await supabase
+        .from('service_order_history')
+        .select('id, usuario_id, status_anterior, status_novo, created_at')
+        .eq('os_id', id!)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as HistoricoOS[];
+    },
+    enabled: !!id,
+  });
+
+  // Pra resolver o nome de quem mudou cada etapa — TODOS os perfis, não só
+  // ativos: alguém que mudou uma etapa no passado pode ter sido desativado
+  // depois, e a timeline não deveria "esquecer" quem fez o quê.
+  const { data: perfisTodos } = useQuery({
+    queryKey: ['profiles-todos'],
+    queryFn: async () => {
+      const { data } = await supabase.from('profiles').select('id, nome');
+      return data ?? [];
+    },
+  });
+
+  const nomeUsuario = (usuarioId: string | null) =>
+    (usuarioId && (perfisTodos ?? []).find((p) => p.id === usuarioId)?.nome) || '—';
 
   const valorAtual = orcamento ?? (os ? String(os.total_orcamento) : '');
   const mudou = os && parseFloat(valorAtual || '0') !== Number(os.total_orcamento);
@@ -919,11 +979,63 @@ export default function OSDetalhe() {
                 </TableBody>
               </Table>
             )}
+            {(itens?.length ?? 0) > 0 && (
+              <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                <span className="text-muted-foreground">
+                  Peças: <span className="font-medium text-foreground">{moeda(totalPecasValor)}</span>
+                </span>
+                <span className="text-muted-foreground">
+                  Mão de obra:{' '}
+                  <span className="font-medium text-foreground">{moeda(totalMaoObraValor)}</span>
+                </span>
+              </div>
+            )}
             <p className="mt-3 text-xs text-muted-foreground">
               Peça do estoque desconta automaticamente e não pode ser excluída por aqui — se foi
               lançada errada, corrija pelo ajuste manual de estoque. Serviço avulso pode ser
               removido normalmente.
             </p>
+          </CardContent>
+        </Card>
+
+        {/* Histórico da OS — timeline de mudança de etapa. Achado no plano de
+            refinamento (17/08): o gatilho track_os_status_change grava isso
+            desde a criação do schema, nenhuma tela lia até agora. */}
+        <Card className="sm:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">Histórico da OS</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!historico?.length ? (
+              <p className="py-2 text-sm text-muted-foreground">
+                Nenhuma mudança de etapa registrada ainda.
+              </p>
+            ) : (
+              <div className="space-y-2.5">
+                {historico.map((h) => {
+                  const de = h.status_anterior ? getStatusConfig(h.status_anterior) : null;
+                  const para = getStatusConfig(h.status_novo);
+                  return (
+                    <div key={h.id} className="flex flex-wrap items-center gap-2 text-sm">
+                      <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span className="whitespace-nowrap text-muted-foreground">
+                        {dataHora(h.created_at)}
+                      </span>
+                      {de && (
+                        <>
+                          <Badge className={`${de.color} border-0`}>{de.label}</Badge>
+                          <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        </>
+                      )}
+                      <Badge className={`${para?.color ?? ''} border-0`}>
+                        {para?.label ?? h.status_novo}
+                      </Badge>
+                      <span className="text-muted-foreground">— {nomeUsuario(h.usuario_id)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
