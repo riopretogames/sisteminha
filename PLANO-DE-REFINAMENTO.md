@@ -622,17 +622,16 @@ o arquivo antes de assumir.
     brecha e como.
 
 **🟠 Média**
-- [x] ⚠️ **Rebaixado em 17/08 — parcialmente resolvido em 09/08, não
-  totalmente.** Conferido contra o código atual: "Prazo prometido"
-  (`prazo_previsto`) e uma "Garantia" (`garantia_dias`, a coluna que já
-  existia antes) já aparecem em NovaOS.tsx e OSDetalhe.tsx.
-  **Continuam faltando de verdade**: Diagnóstico (as colunas
-  `diagnostico_tecnico`/`suspeita_tecnica`/`constatacao_tecnica`
-  continuam sem nenhuma tela) e Técnico Responsável **na ficha de
-  detalhe** (`OSDetalhe.tsx` não busca nem mostra `tecnico_id`, mesmo
-  já sendo atribuível na abertura — ver item resolvido logo abaixo).
-  A contagem "7 colunas sem UI" caiu, mas o problema central (laudo
-  incompleto frente ao padrão do CLAUDE.md raiz) continua de pé.
+- [x] ✅ **17/08 — Laudo completo, os 3 níveis de certeza na ficha.**
+  `OSDetalhe.tsx` ganhou o card "Diagnóstico técnico": Técnico
+  responsável (Select, salva na hora — antes só era atribuível na
+  abertura da OS, não aparecia nem podia ser trocado na ficha), Suspeita
+  técnica e Constatação técnica (rascunho local até "Salvar
+  diagnóstico", mesmo padrão do campo de orçamento que já existia),
+  Reparo inviável (switch) e Risco informado ao cliente (botão de ação
+  direta, grava o horário). Fecha o padrão de atendimento do CLAUDE.md
+  raiz (3 níveis de certeza no laudo, nunca misturados) sem precisar de
+  migration nova — as colunas já existiam desde 01/08, só faltava tela.
 - [x] ✅ **09/08 — "Técnico Responsável" deixou de ser campo morto**
   (commit `85e6b54`, migration `20260809140000`). NovaOS.tsx ganhou um
   campo de atribuição na abertura da OS, e a FK que antes apontava pro
@@ -649,20 +648,36 @@ o arquivo antes de assumir.
   depois** (commit `85e6b54`). Arrastar e o controle de troca de etapa
   na ficha da OS agora conferem `orders.edit` antes de qualquer chamada
   ao banco.
-- [ ] Regra "peça não pode ser excluída" (Passo 6) só existe na UI — a
-  policy do banco permite DELETE de qualquer item via `orders.edit`,
-  sem distinguir peça de serviço avulso. **Conferido em 17/08, ainda
-  vale** — quem tem `orders.edit` consegue excluir uma peça via API
-  direta e reverter a baixa de estoque sem deixar rastro, mesmo sem o
-  botão na tela.
+- [x] ✅ **17/08 — Regra "peça não pode ser excluída" fechada de
+  verdade no banco.** Migration `20260817150000`: a policy única "FOR
+  ALL" de `service_order_items` (SELECT/INSERT/UPDATE/DELETE todas com
+  `orders.edit`) virou 4 policies separadas — as 3 primeiras idênticas
+  à antiga, a de DELETE ganhou `produto_id IS NULL` a mais. Quem tem
+  `orders.edit` não consegue mais excluir peça via API direta, só
+  serviço avulso.
+  - **🔵 Observação registrada, não corrigida**: a mesma trava não
+    cobre excluir um item de **serviço** (sem peça) de uma OS já
+    encerrada — isso continua permitido via API direta, só a tela
+    esconde o botão. Mesma família do item logo abaixo.
+  - **🔵 Achado na revisão, pré-existente, não é regressão desta
+    rodada**: uma policy SELECT antiga e mais permissiva em
+    `service_order_items` (da migration inicial, nunca removida) já
+    deixava qualquer autenticado do tenant ler itens de OS mesmo sem
+    `orders.edit` — a leitura efetiva sempre foi mais ampla do que a
+    policy nova sozinha sugere.
 
 **🔵 Simplificação**
 - [x] ✅ **09/08 — OS com status órfão não some mais do Kanban**
   (commit `85e6b54`). Ganhou uma coluna própria "Sem etapa válida" (cor
   vermelha) em vez de desaparecer silenciosamente.
-- [ ] É possível lançar peça (com baixa real de estoque) numa OS já
-  cancelada — só "entregue" bloqueia hoje. **Conferido em 17/08, ainda
-  vale**, sem mudança.
+- [x] ✅ **17/08 — Não é mais possível lançar item numa OS encerrada.**
+  Migration `20260817150000`: gatilho `impedir_item_em_os_encerrada`
+  (BEFORE INSERT em `service_order_items`, dispara antes do gatilho de
+  baixa de estoque) recusa lançar qualquer item — peça ou serviço —
+  numa OS já `entregue` ou `cancelado`. Achado mais amplo que o
+  esperado ao investigar: nem "entregue" travava de verdade no banco
+  antes, só a tela escondia o botão (`jaFoiEntregue`) — os dois casos
+  ficaram cobertos juntos (`osEncerrada` em `OSDetalhe.tsx`).
 - [ ] `total_pecas`/`total_mao_obra` e `service_order_history` (timeline)
   nunca são lidos por nenhuma tela — dado gravado, nunca mostrado.
   **Conferido em 17/08, ainda vale.**
