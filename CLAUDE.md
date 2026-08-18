@@ -72,7 +72,25 @@ Consequência concreta, que vale para todo código novo:
   não um bug.
 - Cuidado: um `GRANT ALL ON ALL TABLES IN SCHEMA public` desfaz essa
   proteção **em silêncio**. Se alguma ferramenta gerar uma migration assim,
-  reconferir os privilégios.
+  reconferir os privilégios. Já aconteceu de verdade uma vez (o Lovable
+  restaurou os GRANTs padrão dele num rebuild, e a trava ficou caída por
+  mais de um dia sem ninguém notar).
+- **Coluna nova numa dessas 4 tabelas exige uma linha a mais na migration:**
+
+  ```sql
+  SELECT public.aplicar_trava_de_custo();
+  ```
+
+  A trava funciona revogando o SELECT da tabela e reconcedendo coluna a
+  coluna — ou seja, ela congela a lista de colunas no instante em que roda.
+  Coluna criada depois nasce **sem** permissão de leitura na tabela crua.
+  Isso não quebra nada enquanto todo mundo lê pela view (e a regra acima
+  manda ler pela view), mas o dia em que alguém emendar um `.select()`
+  direto na tabela, o erro vai ser "permission denied" e ninguém vai
+  associar a causa — todo mundo procura RLS primeiro, não GRANT de coluna.
+  Aconteceu com 7 colunas de `produtos` entre 09 e 18/08. A função
+  (migration `20260818130000`) descobre as colunas do catálogo em vez de
+  usar lista digitada, então basta chamá-la: ela se reajusta sozinha.
 
 ## Regra de cliente único (08/08)
 

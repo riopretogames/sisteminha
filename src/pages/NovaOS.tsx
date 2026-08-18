@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, ChevronsUpDown, Loader2, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -57,6 +58,14 @@ interface Cliente {
   id: string;
   nome: string;
   telefones: string[] | null;
+  /**
+   * Desligado = o banco RECUSA venda pra esse cliente (gatilho
+   * `trg_venda_cliente_bloqueado`, migration 20260808160000). Mas OS a trava
+   * não alcança de propósito: aparelho que já está na bancada precisa ser
+   * devolvido de algum jeito, e recusar a abertura da OS deixaria o aparelho
+   * sem registro nenhum. Serve pra avisar, não pra impedir.
+   */
+  liberado_venda: boolean | null;
 }
 
 interface Pessoa {
@@ -177,7 +186,7 @@ export default function NovaOS() {
   const fetchClientes = async () => {
     const { data } = await supabase
       .from('clientes')
-      .select('id, nome, telefones')
+      .select('id, nome, telefones, liberado_venda')
       .eq('ativo', true)
       .order('nome');
     setClientes(data ?? []);
@@ -416,6 +425,14 @@ export default function NovaOS() {
                               )}
                             />
                             <span className="truncate">{cliente.nome}</span>
+                            {cliente.liberado_venda === false && (
+                              <Badge
+                                variant="secondary"
+                                className="ml-2 shrink-0 bg-amber-500/10 text-amber-700"
+                              >
+                                Bloqueado
+                              </Badge>
+                            )}
                             {cliente.telefones?.[0] && (
                               <span className="ml-2 text-xs text-muted-foreground">
                                 {cliente.telefones[0]}
@@ -435,6 +452,29 @@ export default function NovaOS() {
                 <UserPlus className="mr-2 h-4 w-4" />
                 Novo Cliente
               </Button>
+            )}
+
+            {/*
+              Achado na revisão de 18/08: a trava de cliente bloqueado vale
+              pra venda, não pra OS — e isso é de propósito, porque aparelho
+              que já está na bancada precisa ser devolvido. O problema era
+              não avisar: o balcão abria a OS achando que estava tudo certo e
+              só descobria o bloqueio lá na frente, na hora de cobrar, com o
+              conserto já feito. Agora o aviso aparece no começo.
+            */}
+            {selectedCliente?.liberado_venda === false && (
+              <div className="w-full rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+                <p className="text-sm font-medium text-amber-800">
+                  {selectedCliente.nome} está bloqueado para venda.
+                </p>
+                <p className="mt-1 text-sm text-amber-700">
+                  A OS pode ser aberta normalmente — o aparelho precisa ser
+                  registrado de qualquer forma. Mas o sistema vai{' '}
+                  <strong>recusar a cobrança na entrega</strong> enquanto o
+                  bloqueio existir. Resolva a pendência com o cliente antes de
+                  começar o reparo.
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>

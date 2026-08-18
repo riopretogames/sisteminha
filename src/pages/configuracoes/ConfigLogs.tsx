@@ -69,7 +69,7 @@ export default function ConfigLogs() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['auditoria', tabela],
-    queryFn: async (): Promise<Registro[]> => {
+    queryFn: async (): Promise<{ registros: Registro[]; nomes: Map<string, string> }> => {
       let q = db
         .from('auditoria')
         .select('*')
@@ -78,13 +78,41 @@ export default function ConfigLogs() {
 
       if (tabela !== 'todas') q = q.eq('tabela', tabela);
 
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as Registro[];
+      // Achado na revisão de 18/08: esta tela prometia "quem mexeu em quê" no
+      // texto de apoio e nunca entregava o "quem" — `usuario_id` vinha na
+      // consulta e simplesmente não era usado. Não existe FK declarada entre
+      // `auditoria.usuario_id` e `profiles`, então o nome vem numa busca à
+      // parte e é juntado por id aqui no cliente (mesmo padrão de
+      // DashboardMetas.tsx e DashboardVenda.tsx).
+      const [res, perfis] = await Promise.all([
+        q,
+        db.from('profiles').select('id, nome'),
+      ]);
+      if (res.error) throw res.error;
+      if (perfis.error) throw perfis.error;
+
+      const nomes = new Map<string, string>(
+        ((perfis.data ?? []) as Array<{ id: string; nome: string }>).map((p) => [p.id, p.nome]),
+      );
+
+      return { registros: (res.data ?? []) as Registro[], nomes };
     },
   });
 
-  const registros = data ?? [];
+  const registros = data?.registros ?? [];
+  const nomes = data?.nomes ?? new Map<string, string>();
+
+  /**
+   * Nome de quem fez a alteração.
+   *
+   * `usuario_id` nulo é esperado e não é erro: gatilho disparado por rotina
+   * do próprio banco não tem usuário logado por trás. Dizer isso é mais útil
+   * do que deixar a célula vazia, que passa impressão de dado faltando.
+   */
+  const quemFez = (usuarioId: string | null): string => {
+    if (!usuarioId) return 'Sistema';
+    return nomes.get(usuarioId) ?? 'Usuário removido';
+  };
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -123,6 +151,7 @@ export default function ConfigLogs() {
                 <TableRow>
                   <TableHead className="w-[110px]">Ação</TableHead>
                   <TableHead>Registro</TableHead>
+                  <TableHead>Quem</TableHead>
                   <TableHead>Quando</TableHead>
                   <TableHead>Mudanças</TableHead>
                 </TableRow>
@@ -142,6 +171,9 @@ export default function ConfigLogs() {
                       </TableCell>
                       <TableCell className="font-medium">
                         {TABELA_LABEL[r.tabela] ?? r.tabela}
+                      </TableCell>
+                      <TableCell className={r.usuario_id ? '' : 'text-muted-foreground'}>
+                        {quemFez(r.usuario_id)}
                       </TableCell>
                       <TableCell className="tabular-nums text-muted-foreground">
                         {dataHora(r.created_at)}
