@@ -27,6 +27,18 @@ escrito). Todo item que mudou de status ganhou uma nota datada "17/08" logo
 onde ele está, com o motivo. Os itens sem nota nova foram conferidos e
 continuam válidos exatamente como estavam descritos.
 
+**Revisão completa em 18/08:** com o "Passo 6" bem distante e a maior parte
+das áreas já lapidadas pelo menos uma vez, rodei uma auditoria nova do
+projeto inteiro — 11 agentes, um por área (as mesmas seções deste
+documento), cada um lendo o código de verdade sem confiar só no que já
+estava escrito aqui, e verificação adversarial ativa em todo achado novo
+marcado crítico (alguém tentando refutar, não só confirmar). Achados novos
+ganharam a marca 🆕 **18/08**; achados que continuavam válidos ganharam
+"Conferido/Reconfirmado em 18/08"; achados que mudaram de gravidade ou de
+alcance ganharam ⚠️ com a explicação. **7 achados críticos novos foram
+confirmados por dupla checagem nesta rodada** — nenhum tinha sido pego
+pelas revisões anteriores.
+
 ---
 
 ## Já corrigido antes de começar o plano (06-07/08)
@@ -339,6 +351,20 @@ o arquivo antes de assumir.
   tenant, permissão trava só a tela — igual `produtos`/`servicos`/etc.).
   Faz parte da [decisão pendente](#decisão-que-só-você-pode-tomar), não
   precisa de tratamento separado.
+- [ ] 🆕 **18/08 — Achado na revisão completa, confirmado por dupla
+  checagem: os botões de pagamento rápido do PDV apagam pagamento já
+  lançado na mesma venda.** Em `PDV.tsx`, `addPagamento` (o formulário
+  manual "Adicionar Pagamento") ACRESCENTA ao carrinho de pagamentos —
+  certo. Mas os atalhos "PIX Total"/"Dinheiro"/"Cartão" (`pagarComForma`)
+  SUBSTITUEM o array inteiro por uma única linha com o valor CHEIO da
+  venda, sem checar se já existia pagamento lançado. Cenário real de
+  balcão: vendedor lança R$100 em dinheiro pelo formulário manual, vê a
+  linha aparecer, e clica "PIX Total" pensando em cobrir só o restante —
+  o clique apaga o pagamento em dinheiro sem aviso e grava uma única
+  linha de PIX pelo valor total. "Total pago" fecha certinho (não avisa
+  nada), mas o que fica gravado em `pagamentos_venda` não bate com o que
+  aconteceu no caixa de verdade — estraga direto a conferência por forma
+  de pagamento em Vendas &gt; Pagamentos.
 
 **🔵 Simplificação — feito em 07/08**
 - [x] `formatCurrency` local duplicava `lib/format.ts::moeda()` — trocado.
@@ -546,6 +572,35 @@ o arquivo antes de assumir.
 - [ ] Sem trava no banco (só client-side) contra devolver mais unidades
   do que foi vendido em devoluções parciais simultâneas — risco baixo
   com terminal único, lacuna real se um dia tiver mais de um PDV.
+  **Conferido em 18/08, ainda vale.**
+
+**🆕 Achados novos da revisão completa de 18/08**
+- [ ] 🟠 **Falha parcial no recebimento de produto por troca (dentro do
+  próprio PDV) deixa produto e pagamento `vale_troca` órfãos numa venda
+  cancelada.** No checkout do PDV, cada produto recebido em troca chama
+  a RPC `registrar_entrada_produto_troca` numa chamada separada (já
+  efetiva sozinha: cria o produto, o pagamento e o rastro). Se o
+  carrinho tiver 2+ produtos de troca e o segundo falhar depois do
+  primeiro já ter sido gravado, a venda inteira é cancelada — mas o
+  gatilho de estorno só devolve o estoque dos itens normais, não desfaz
+  o que a RPC já tinha efetivado. É o mesmo tipo de "venda órfã" que
+  `TrocaDevolucao.tsx` já corrige, mas esse caminho paralelo dentro do
+  PDV não tem a mesma proteção.
+- [ ] 🟠 **Histórico de Vendas pode devolver resultado incompleto num
+  filtro de período, sem avisar.** A consulta traz só as últimas 500
+  vendas (sem filtro de data no banco); os filtros de "Data de/até" são
+  aplicados só em memória sobre essas 500 já carregadas. Passando de
+  500 vendas no intervalo pesquisado, vendas mais antigas dentro do
+  período somem sem aviso — diferente de Relatório de Vendas e Vendas
+  &gt; Pagamentos, que filtram por período direto no banco. A mesma
+  pergunta ("quanto o vendedor X vendeu esse mês") pode dar números
+  diferentes dependendo da tela usada.
+- [ ] 🔵 **Coluna "Desconto" por item no comprovante de venda sempre
+  mostra R$0,00.** O desconto do PDV é gravado só a nível da venda
+  inteira (`vendas.descontos`), nunca por item (`itens_venda.desconto`
+  nunca é preenchido) — mas o comprovante (folha e térmica) tem uma
+  coluna "Desconto" por produto que sempre aparece zerada, mesmo numa
+  venda com desconto real. O total geral do comprovante continua certo.
 
 ---
 
@@ -554,9 +609,39 @@ o arquivo antes de assumir.
 **🔴 Alta**
 - [ ] Botão "Repor" em EstoqueCritico chama `ajustar_estoque_produto`
   (RPC) que não checa permissão nem tenant no banco — proteção é só
-  cosmética na tela.
+  cosmética na tela. **Ampliado em 18/08**: o mesmo buraco é alcançado
+  também pela ficha do produto (`EstoqueDetalhe.tsx`, ajuste de
+  estoque atual usa a mesma RPC) — não é só uma tela. E o alcance é
+  maior do que "falta permissão": a função nem confere se o produto
+  pertence à mesma loja de quem chama — qualquer autenticado, de
+  qualquer loja cadastrada no sistema, pode mudar o estoque de um
+  produto de OUTRA loja passando o ID direto pela API.
+- [ ] 🆕 **18/08 — Achado novo, confirmado por dupla checagem: salvar a
+  ficha do produto zera o custo real de quem não tem permissão de ver
+  custo.** Quem tem `inventory.edit` mas não `inventory.cost.view`
+  recebe `custo = null` da view protegida (exibição correta, o campo
+  nem aparece na tela) — mas o formulário guarda isso como texto "0",
+  e o botão Salvar manda esse "0" de volta pro banco incondicionalmente,
+  mesmo que a pessoa só quisesse mudar o estoque mínimo ou a
+  localização. A policy do banco só confere `inventory.edit`, não
+  `inventory.cost.view`, então o UPDATE passa e apaga o custo real —
+  e a margem (calculada a partir do custo) some junto. **Hoje nenhum
+  papel padrão tem essa combinação exata** (editar sem ver custo), mas
+  Configurações &gt; Perfis permite montar isso — no primeiro dia em
+  que alguém receber essa combinação, o primeiro "Salvar" que essa
+  pessoa der em qualquer produto apaga o custo dele de vez.
 
 **🟠 Média**
+- [ ] 🆕 **18/08 — Saída de estoque (venda ou peça usada em OS) aparece
+  em verde com "+" na tela de Movimentações, igual a uma entrada de
+  mercadoria.** Os gatilhos de venda/OS sempre gravam a quantidade como
+  número positivo (é o campo `tipo = 'saida'` que diferencia, não o
+  sinal) — só o ajuste manual usa número negativo pra saída. A tela
+  decide cor/sinal só pelo número, então o caso mais comum do dia a dia
+  (vender ou usar peça) aparece com a cor de entrada. Dá pra perceber
+  comparando a coluna de saldo ao lado, mas a tela existe justamente
+  pra ser "a auditoria" do que mexeu no estoque, e mostra o sinal
+  errado no caso mais frequente.
 - [x] ⚠️ **Rebaixado em 10/08 — não é mais vazamento de dado, é
   inconsistência de tela.** O achado original ("`Estoque.tsx` mostra
   custo/margem pra qualquer usuário, ignorando `inventory.cost.view`")
@@ -620,8 +705,39 @@ o arquivo antes de assumir.
     compara só a etapa *imediatamente* anterior). Não acontece hoje
     com a ordem padrão — fica pra decidir depois se vale fechar essa
     brecha e como.
+- [ ] 🆕 **18/08 — Achado novo, confirmado por dupla checagem: o relógio
+  de "Aguardando Retirada" reseta a zero com qualquer edição
+  cosmética na OS, escondendo aparelho realmente abandonado.** A view
+  que alimenta essa tela mede há quantos dias a OS está parada usando
+  `updated_at` (porque a data real de "ficou pronto" nunca é
+  preenchida — só a de "foi entregue"). Só que `updated_at` muda com
+  QUALQUER edição, mesmo sem trocar de etapa: reatribuir o técnico,
+  editar o diagnóstico, marcar "Risco informado" — nada disso trava
+  numa OS já pronta. Ou seja, corrigir uma anotação numa OS esquecida
+  há 5 meses reseta o contador pra "hoje", escondendo do aviso de
+  abandono (a política dos 6 meses = descartar/vender o aparelho) um
+  aparelho que está parado há muito mais tempo do que a tela mostra. O
+  dado certo já existe — `service_order_history` grava exatamente
+  quando a OS entrou em cada etapa, e a própria ficha já lê essa
+  tabela pro card "Histórico da OS" — só a view de abandono não usa
+  essa fonte.
 
 **🟠 Média**
+- [ ] 🆕 **18/08 — Nada impede reabrir uma OS já entregue (e já
+  faturada) pelo seletor da ficha.** O seletor de etapa continua
+  oferecendo voltar uma OS "entregue" pro meio do fluxo, sem
+  confirmação nem aviso de que ela já gerou título pago. Se a OS for
+  entregue de novo, o gatilho de título não duplica a cobrança (bom),
+  mas o valor do orçamento pode ter sido editado nesse meio-tempo — daí
+  a ficha mostra um valor e o título já lançado mostra outro, sem
+  nenhum aviso da divergência.
+- [ ] 🆕 **18/08 — "Valor do orçamento" continua editável numa OS
+  cancelada, diferente do resto da ficha.** O campo só trava quando a
+  OS está "entregue" — a seção "Peças e serviços" logo abaixo já trava
+  pra entregue E cancelada (`osEncerrada`). O próprio comentário do
+  código já registra essa assimetria sem corrigir. Risco financeiro
+  direto é baixo (OS cancelada não gera título), mas é confuso durante
+  o preenchimento do laudo.
 - [x] ✅ **17/08 — Laudo completo, os 3 níveis de certeza na ficha.**
   `OSDetalhe.tsx` ganhou o card "Diagnóstico técnico": Técnico
   responsável (Select, salva na hora — antes só era atribuível na
@@ -708,25 +824,61 @@ o arquivo antes de assumir.
   títulos de OS pagos — a "conferência cega" que a tela existe pra
   fazer compara a gaveta contra um número que ignora quase todo o
   dinheiro do dia. ✅ *confirmado com verificação de 7 pontos* (o achado
-  mais completo desta revisão).
+  mais completo desta revisão). **Conferido de novo em 18/08, ainda
+  vale exatamente assim** — só a devolução (17/08) entra no Caixa hoje;
+  venda do PDV e título de OS pago continuam de fora.
+- [ ] 🆕 **18/08 — Achado novo, confirmado por dupla checagem: digitar
+  valor com separador de milhar (ex.: "1.500,00") quebra silenciosamente
+  em 4 pontos do Financeiro.** A conversão de texto pra número troca só
+  a PRIMEIRA vírgula por ponto — "1.500,00" vira "1.500.00" (dois
+  pontos), que não é um número válido. **Abrir o caixa**: o valor
+  inválido é engolido e o caixa abre com R$0,00 de troco, sem nenhum
+  aviso — o valor de abertura fica errado o expediente inteiro sem
+  ninguém perceber. **Lançar novo título financeiro**: o botão Salvar
+  simplesmente não faz nada, sem nenhuma mensagem — pro tipo de conta
+  (aluguel, folha) que costuma passar de R$1.000. Lançar movimento e
+  fechar caixa pelo menos mostram um erro (só que a mensagem não
+  explica a causa real). Só o caso da abertura de caixa já estava
+  anotado à parte (MAPA-FINANCEIRO.md); os outros 3 pontos são achado
+  novo.
+- [ ] 🆕 **18/08 — Achado novo, confirmado por dupla checagem: sessão
+  de caixa já fechada pode ser alterada ou apagada depois, sem nenhum
+  rastro.** A permissão que abre/fecha o caixa também permite editar ou
+  apagar uma sessão JÁ FECHADA via API direta — reescrever o resultado
+  de uma conferência que já foi feita, ou apagar o expediente inteiro
+  (o que leva junto, sem log nenhum, todas as sangrias/suprimentos
+  daquele dia — `caixa_movimentos` é a única tabela financeira sem
+  gatilho de auditoria). O mesmo vale pra devolução: qualquer devolução
+  antiga pode ser apagada, levando junto o lançamento de caixa que ela
+  gerou. Isso mina exatamente o controle que a tela de Caixa existe
+  pra fazer.
 
 **🟠 Média**
 - [ ] Fluxo de Caixa classifica "Realizado" pelo **vencimento**, não pela
   data real de pagamento (`pago_em`) — o próprio comentário do arquivo
   avisa que esse é o erro mais comum em relatório de fluxo de caixa, e
   reproduz ele mesmo. Afeta título manual pago fora do mês do
-  vencimento.
+  vencimento. **Conferido em 18/08, ainda vale.**
 - [ ] Formulário de título manual não vincula fornecedor/cliente, apesar
   das colunas e cadastros já existirem — não dá pra consultar "quanto o
-  cliente X me deve" pelo Financeiro.
+  cliente X me deve" pelo Financeiro. **Conferido em 18/08, ainda vale.**
 - [ ] Assimetria: abrir/lançar no Caixa exige `finance.cashier.close`,
   ler os movimentos exige só `finance.view` — quebra pra qualquer
-  exceção individual que receba só a primeira.
+  exceção individual que receba só a primeira. **Conferido em 18/08,
+  ainda vale.**
+- [ ] 🆕 **18/08 — Título já pago pode virar "cancelado" via API sem
+  trava nenhuma, apagando o rastro do pagamento.** A tela esconde
+  certinho os botões errados (Cancelar só aparece pra título "aberto"),
+  mas nada no banco impede uma chamada direta mudar um título "pago"
+  direto pra "cancelado" — ele sumiria do total "Já pago/recebido" em
+  Contas a Pagar/Receber e do Fluxo de Caixa, sem nenhum indício de que
+  o dinheiro já tinha entrado ou saído.
 
 **🔵 Simplificação**
 - [ ] `FinanceiroCaixa.tsx` sem hook dedicado.
 - [ ] Baixa de título sempre paga o valor total — `valor_pago` sugere
-  pagamento parcial que a UI não expõe.
+  pagamento parcial que a UI não expõe. **Conferido em 18/08, ainda
+  vale.**
 
 ---
 
@@ -845,11 +997,52 @@ o arquivo antes de assumir.
 - [ ] `useCatalogos.ts` ainda usa o cliente não tipado `db` (ver
   [Apagar untyped.ts](#backlog-de-simplificação-transversal) abaixo).
 
+**🆕 Achados novos da revisão completa de 18/08**
+- [ ] 🟠 **"Já gastou" da Ficha do Cliente conta venda de troca em
+  dobro — mesmo bug corrigido em 4 telas em 17/08, mas essa ficha
+  ficou de fora.** `VendasHistorico`, `RelatorioVendas`, `Dashboard`
+  (Home) e `DashboardVenda` já somam `COALESCE(valor_faturamento_real,
+  total)`; a Ficha do Cliente continua somando `total` puro. Todo
+  cliente que já fez uma troca aparece com "Já gastou" maior do que
+  gastou de verdade — e como essa ficha é usada no balcão pra julgar
+  "esse aqui é bom cliente?", o número errado tem efeito prático
+  direto.
+- [ ] 🟠 **Vendedor consegue gerenciar cliente mas não consegue criar
+  Origem/Motivo/Tag de Cliente em Listas do Sistema.** A edição de
+  QUALQUER catálogo (inclusive os de cliente) é gateada por
+  `registry.products.manage`, não `registry.customers.manage` — e o
+  papel Vendedor tem a segunda, não a primeira. Não é vazamento (falha
+  fechada), mas é uma tela que promete "cadastro novo aparece sozinho"
+  e não cumpre pra quem só administra clientes — obrigando a chamar um
+  Gerente toda vez que o balcão precisar de uma origem/motivo/tag nova.
+
 ---
 
 ## Dashboards e Inteligência Empresarial
 
+**🔴 Alta**
+- [ ] 🆕 **18/08 — Achado novo, confirmado por dupla checagem:
+  `DashboardMetas.tsx` (o painel de premiação Bronze/Prata/Ouro/
+  Diamante) conta o produto de uma troca pelo preço cheio no
+  faturamento do mês.** A correção de 17/08 (não contar o produto
+  trocado duas vezes) alcançou VendasHistorico, RelatorioVendas,
+  Dashboard Home e DashboardVenda — mas não esta tela, que continua
+  somando `vendas.total` puro tanto no "Faturado no Mês" quanto no
+  "Faturamento por Vendedor". Se houver uma troca no mês, o número
+  desta tela fica inflado pelo valor cheio do produto novo — podendo
+  indicar uma faixa de premiação batida (ou um vendedor com mais
+  venda) do que o dinheiro novo que realmente entrou. Como premiação é
+  processo com dinheiro real por trás, é o tipo de número que pode ser
+  usado pra acompanhar meta "batendo" antes da hora.
+
 **🟠 Média**
+- [ ] 🆕 **18/08 — Devolução pura (sem troca) nunca reduz o faturamento
+  mostrado em nenhum dashboard.** A correção de 17/08 fez a saída de
+  caixa da devolução aparecer no Financeiro — mas nenhuma tela de
+  Dashboards/IE foi ajustada pro mesmo caso: uma venda totalmente
+  devolvida no mesmo dia continua contando como "Vendas Hoje"/"Caixa
+  Hoje" cheios em todo painel de negócio, mesmo com o dinheiro já fora
+  da loja.
 - [x] ⚠️ **Atualizado em 17/08 — pior num ponto, melhor em outro.**
   Conferido contra o código atual: `OS_STATUS` (a lista fixa) é uma
   lista de chaves **diferente e desatualizada** da que o sistema usa
@@ -914,12 +1107,29 @@ o arquivo antes de assumir.
   `finance.view` for concedido sozinho como exceção a alguém.
 - [ ] `RelatorioOS` mostra a chave crua do status (`em_reparo` → "em
   reparo") em vez do rótulo/cor customizável — nem usa `useOsStatuses`
-  nem o fallback fixo, é `.replace()` puro.
+  nem o fallback fixo, é `.replace()` puro. **Conferido em 18/08, ainda
+  vale.**
+- [ ] 🆕 **18/08 — Rodapé de total do Relatório de Vendas e do
+  Relatório Financeiro soma registros CANCELADOS, divergindo do
+  indicador de faturamento logo acima na mesma tela.** O indicador
+  "Faturamento" exclui vendas/títulos cancelados; o rodapé da tabela
+  (que soma a coluna inteira) não exclui — mostra dois números
+  diferentes na mesma tela, sem explicação, mesmo o texto de apoio do
+  relatório prometendo o contrário.
+- [ ] 🆕 **18/08 — Indicador "Orçamento em aberto" do Relatório de OS
+  conta orçamento AINDA NÃO APROVADO pelo cliente como se já fosse
+  dinheiro garantido.** O texto de apoio do indicador diz "Aprovado,
+  ainda não recebido", mas o cálculo inclui também OS que nem foi
+  diagnosticada ainda e OS com orçamento na mão do cliente sem
+  resposta — superestima quanto dinheiro está garantido pra quem usa
+  esse número pra estimar caixa futuro.
 
 **🔵 Simplificação**
 - [ ] Escape de CSV não neutraliza `=`/`+`/`-`/`@` — risco de CSV/Formula
   Injection no Excel se nome de cliente ou descrição de título vier com
-  esses caracteres.
+  esses caracteres. **Reconferido em 18/08 — vale reavaliar a
+  severidade pra cima**: é um vetor real de execução de conteúdo (a
+  fórmula roda se o Excel abrir o arquivo), não só falta de formatação.
 - [ ] Nome do arquivo CSV de RelatorioEstoque sugere recorte de datas
   que não existe (a tela não filtra por período).
 - [ ] Formatação de moeda pra CSV e filtro de período duplicados nos 4
@@ -932,20 +1142,47 @@ o arquivo antes de assumir.
 **🔴 Alta**
 - [ ] Sem proteção contra o único administrador se autodemover ou se
   desativar — sem caminho de volta dentro do app, trava o sistema pra
-  todo mundo.
+  todo mundo. **Reconfirmado em 18/08, sem mitigação nova.**
 - [ ] Exceções de permissão por usuário não geram auditoria nem
   preenchem `motivo`/`definida_por` — a funcionalidade mais sensível da
   tela de Usuários é a única sem rastro. ✅ *confirmado.*
+- [ ] 🆕 **18/08 — Achado novo, confirmado por dupla checagem: troca de
+  perfil de usuário nunca aparece em Logs/Auditoria, apesar de ser
+  gravada.** A tabela de usuários/papéis (`user_roles`) é a única das 6
+  tabelas auditadas que não guarda a loja (`tenant_id`) na própria
+  linha — o gatilho genérico de auditoria grava a mudança mesmo assim,
+  mas com `tenant_id` vazio. A regra de leitura da tela de Logs exige
+  bater a loja de quem está olhando, e "vazio" nunca bate com nada —
+  então essas linhas ficam gravadas pra sempre, mas **nunca aparecem
+  pra ninguém**, nem pro Administrador. É exatamente a mudança mais
+  sensível (quem virou admin, quem perdeu acesso) que fica sem rastro
+  nenhum na única tela criada pra mostrar rastro.
 
 **🟠 Média**
 - [ ] Página gated por `users.manage`, mas escrever papel/exceção exige
   `roles.manage` — sem checagem granular na UI. ✅ *confirmado.*
 - [ ] `useUsuarios.definirPapel` troca de papel em 2 chamadas separadas
   (DELETE + INSERT), sem transação — falha no meio deixa usuário sem
-  nenhum papel, silenciosamente. ✅ *confirmado.*
+  nenhum papel, silenciosamente. ✅ *confirmado.* **Reconfirmado em
+  18/08.**
 - [ ] `MinhaEmpresa` edita cor/logo, mas nada no app consome esses
   campos ainda (nem branding, nem um laudo em PDF, que não existe).
   ✅ *confirmado.*
+- [ ] 🆕 **18/08 — Tela de Logs/Auditoria nunca mostra QUEM fez a
+  alteração, apesar do próprio texto da tela prometer isso** ("Quem
+  mexeu em quê, e quando"). O dado de quem fez a ação está gravado e
+  disponível, mas a tabela mostrada na tela só tem colunas Ação /
+  Registro / Quando / Mudanças — a metade mais importante da promessa
+  (quem) nunca é entregue, pra nenhum registro.
+- [ ] 🆕 **18/08 — Upload da logo da loja exige uma permissão
+  diferente da que libera editar a tela Minha Empresa.** Editar os
+  dados da empresa usa uma permissão; trocar o arquivo da logo usa
+  outra, de um módulo diferente (Configurações, não Empresa). Hoje só
+  o Administrador tem as duas juntas, mas o sistema permite conceder
+  as duas de forma independente — no dia em que alguém receber só uma
+  das duas, o botão "Trocar logo" aparece habilitado e a operação
+  falha, mesmo a pessoa tendo, pela tela, a permissão que deveria
+  bastar.
 
 **🔵 Simplificação**
 - [ ] Cliente não tipado (`db`) ainda em `ConfigLogs`/`ConfigPerfis`/
@@ -961,18 +1198,33 @@ o arquivo antes de assumir.
 ## Arquitetura de rotas, menu e permissões (transversal)
 
 **🟠 Média**
-- [ ] `OSDetalhe.tsx` é a única página fora do `registry.tsx` central,
-  montada direto em `App.tsx` — funciona, mas são 2 mecanismos de rota
-  em paralelo. Se aparecer uma segunda rota parametrizada, vale decidir
-  um padrão único.
-- [ ] Lógica de "permissão decide visibilidade" reimplementada em 3
-  lugares (`Sidebar.tsx`, `AppHeader.tsx`, `RequirePermission.tsx`) em
-  vez de uma função central.
+- [ ] ⚠️ **Atualizado em 18/08 — cresceu de 1 pra 4.** `OSDetalhe.tsx`
+  não é mais a única página fora do `registry.tsx` central — hoje são
+  4: `OSDetalhe` (/os/:id), `ClienteFicha` (/cadastros/clientes/:id,
+  08/08), `EstoqueDetalhe` (/estoque/:id) e `ComprovanteVenda`
+  (/vendas/:id/comprovante, 10/08), todas montadas direto em
+  `App.tsx`. Não é regressão nem bug — cada uma tem sua permissão
+  certa e não há conflito de rota — mas são 2 mecanismos de rota em
+  paralelo em 4 lugares agora, não 1. Vale decidir um padrão único
+  antes que apareça uma quinta.
+- [ ] ⚠️ **Atualizado em 18/08 — são 5 lugares, não 3.** Lógica de
+  "permissão decide visibilidade" reimplementada em `Sidebar.tsx`,
+  `AppHeader.tsx` (duas vezes — atalhos e busca global), `AbasDaSecao.tsx`
+  (09/08) e `CadastrosHub.tsx` — `RequirePermission.tsx` na real é outra
+  coisa (guarda de rota, não filtro de lista), o item original misturava
+  os dois. Nenhuma das 5 cópias diverge da regra (conferido uma a uma),
+  então não há inconsistência de acesso — só dívida técnica que cresceu
+  em vez de ser consolidada.
 - [ ] Tipo `Role` do front (5 valores) menor que o enum `app_role` do
   banco (7 valores, 2 órfãos de propósito). Risco real é baixo (RLS já
   falha fechado pra papel desconhecido), mas rótulo em branco aparece
   em pelo menos 2 lugares (inclusive `Sidebar.tsx:273`) — corrigir com
-  `ROLE_LABELS[role] ?? 'Desconhecido'`, é trivial.
+  `ROLE_LABELS[role] ?? 'Desconhecido'`, é trivial. **Reconfirmado em
+  18/08**: os 2 valores órfãos ('admin'/'atendente') já foram migrados
+  pros 5 novos em 01/08, e a única forma de atribuir papel hoje (tela
+  de Usuários) só oferece os 5 — não existe caminho real, pela
+  interface, pra alguém acabar com um valor órfão hoje. Risco
+  confirmado baixo na prática.
 
 **🔵 Simplificação**
 - [ ] PLANO-DE-CONSTRUCAO.md descreve RBAC como "admin/atendente/
@@ -990,17 +1242,45 @@ o arquivo antes de assumir.
 **🔴 Alta**
 - [ ] `ajustar_estoque_produto` (RPC, SECURITY DEFINER) não checa
   permissão nem tenant — chamável direto via API, ignorando a tela.
-  ✅ *confirmado.*
+  ✅ *confirmado.* **Ampliado em 18/08**: o alcance é maior do que
+  descrito — a função nem confere se o produto pertence à MESMA loja
+  de quem chama, então qualquer autenticado de qualquer loja cadastrada
+  no sistema pode mudar estoque de produto de OUTRA loja.
 - [ ] `proximo_numero_documento` (RPC) não valida que `_tenant` pertence
-  a quem chama. ✅ *confirmado.*
+  a quem chama. ✅ *confirmado.* **Reconfirmado em 18/08.**
 
 **🟠 Média**
 - [ ] `taxa_percent`/`juros_percent` de Formas de Pagamento têm o mesmo
   risco de overflow já corrigido em `margem_percent` — mitigado só no
   front, sem CHECK/alargamento no banco.
-- [ ] `vendas.comissao_calculada` e `service_orders.total_pecas`/
-  `total_mao_obra` parecem colunas sem gravador (órfãs) — confirmar e,
-  se confirmado, considerar remover ou documentar por que ficam.
+- [ ] 🆕 **18/08 — Colunas novas de `produtos` ficaram sem permissão de
+  leitura na tabela crua depois da tranca de custo (armadilha, não
+  vazamento).** A tranca de custo (Opção B) revoga o SELECT da tabela
+  inteira e reconcede só as colunas que existiam no momento exato de
+  aplicar essa migration. Como colunas novas (`grupo_produto_id`,
+  `marca_id`, `modelo_id`, `cor_id`, `condicao_id`, `memoria_id`,
+  `observacoes`) foram criadas DEPOIS, sem re-executar o GRANT, hoje
+  elas não têm SELECT liberado direto na tabela `produtos` — só através
+  de `vw_produtos` (que já as inclui e ignora a trava por rodar com
+  privilégio de dono). Não quebra nada hoje por sorte de desenho (toda
+  leitura de produto já passa pela view), mas é uma armadilha real: a
+  PRÓXIMA coluna nova em `produtos`/`servicos`/`service_order_items`/
+  `movimentos_estoque` (as 4 tabelas trancadas), se alguém emendar um
+  `.select()` direto na tabela depois de um insert/update, vai quebrar
+  em produção com erro de permissão que ninguém vai associar à tranca
+  de custo — todo mundo pensa em RLS primeiro, não em GRANT de coluna.
+- [ ] ⚠️ **Atualizado em 18/08 — confirmado, e os dois casos divergiram.**
+  `vendas.comissao_calculada` é confirmada órfã de verdade: nenhuma
+  tela lê, nenhum código de venda grava, nenhum gatilho calcula — fica
+  parada em 0 pra sempre, **sem nenhuma decisão documentada** em lugar
+  nenhum. Se alguém do negócio assumir que o sistema já calcula
+  comissão automaticamente por causa do nome da coluna, essa
+  expectativa está errada. Já `service_orders.total_pecas`/
+  `total_mao_obra` tiveram destino diferente em 17/08: confirmado que
+  também nunca foram escritas por nada, mas em vez de resgatar as
+  colunas, o breakdown Peças/Mão de obra na ficha da OS passou a
+  calcular ao vivo direto de `service_order_items` — decisão registrada
+  na seção de Ordens de Serviço.
 
 **🔵 Simplificação / dívida técnica**
 - [ ] Integridade cross-tenant depende só da aplicação, não de FK/CHECK
@@ -1017,10 +1297,33 @@ o arquivo antes de assumir.
 ## Modelo de dados (transversal)
 
 **🟠 Média**
-- [ ] `produtos.categoria` (enum fixo) e `catalogos` tipo
-  `grupo_produto` (catálogo flexível) são dois sistemas paralelos de
-  categorização — decidir migrar um pro outro ou documentar por que
-  coexistem.
+- [ ] ⚠️ **Confirmado com evidência de tela em 18/08.** `produtos.categoria`
+  (enum fixo: celular/acessório/peça/serviço) e `catalogos` tipo
+  `grupo_produto` (catálogo flexível: Console/Jogo/Controle/Celular/...)
+  são dois sistemas paralelos de categorização, gravados em colunas
+  diferentes, sem nenhuma trava de consistência entre eles — dá pra um
+  produto ter Grupo="Controle" e Categoria="celular" ao mesmo tempo,
+  sem erro. Os dois continuam alimentando telas diferentes hoje
+  (`categoria`: Estoque, RelatorioEstoque, IE, DashboardEstoque;
+  `grupo_produto_id`: Estoque e o filtro novo do PDV, 17/08) — decidir
+  migrar um pro outro ou documentar por que coexistem.
+- [ ] 🆕 **18/08 — Status da OS (texto livre) não tem nenhuma trava no
+  banco contra a lista de etapas cadastradas.** Desde que o status virou
+  texto livre (pra loja poder criar etapa nova), nenhuma migration
+  criou o contraponto: não existe CHECK nem gatilho que confira se o
+  valor gravado corresponde a uma etapa que existe de verdade em
+  "Gerenciar Status" daquele tenant. O Kanban já tem uma rede de
+  segurança visual pra isso (status inválido cai numa coluna própria
+  "Sem etapa válida"), mas é só visual — a fila que alimenta as
+  automações do n8n e o Histórico da OS gravam o texto cru sem checar
+  se é válido. Um status inválido (erro de digitação em código futuro,
+  por exemplo) entra silenciosamente nesses dois lugares.
+- [ ] 🔵 **18/08 — O tipo ENUM `os_status` continua existindo no banco
+  mesmo sem nenhuma coluna usar mais.** Quando o status da OS virou
+  texto livre, ninguém apagou o tipo antigo — ele continua cadastrado
+  com os 8 valores de antes e aparece no `types.ts` gerado, podendo
+  confundir quem olhar o tipo no futuro e achar que o status da OS
+  ainda é uma lista fechada de 8 valores.
 
 **🔵 Simplificação**
 - [ ] `untyped.ts` descreve um estado do banco que não existe mais — o
@@ -1078,29 +1381,50 @@ de assumir que "não foi achado" significa "não existe":
   Estoque, OS, Cadastros, Dashboards, Relatórios e Configurações — só
   Banco de Dados, Acesso a Dados e Permissões tiveram a maior parte
   desafiada antes do limite de sessão da rodada de auditoria.
+- **Atualização de 18/08**: rodei uma revisão completa nova, um agente
+  por área (as 11 do documento inteiro), cada um lendo o código de
+  verdade contra o que o plano já registrava — e verificação
+  adversarial (tentativa ativa de refutar) em todo achado novo marcado
+  crítico. Os 7 achados críticos novos desta rodada foram confirmados
+  um a um. Isso cobre a lacuna acima pras 6 áreas que não tinham tido
+  2ª leitura ainda — mas a mesma nota de honestidade vale: "não foi
+  achado" continua não sendo o mesmo que "não existe".
 
 ---
 
-## Ordem sugerida pra começar a lapidar
+## Ordem sugerida pra continuar (atualizada em 18/08)
 
-1. **Decidir a pergunta de segurança pendente** (custo/margem vazando
-   via API) — muda a forma de corrigir Estoque, Cadastros, OS e
-   Relatórios ao mesmo tempo, então melhor decidir antes de entrar
-   nessas áreas.
-2. **Vendas/PDV** — é a operação mais crítica do dia a dia; o
-   cancelamento sem reversão de estoque é o próximo item que mais
-   parece com os 2 já corrigidos (dinheiro/estoque saindo de forma
-   errada, silenciosamente).
-3. **Financeiro** — o Caixa não bater com a venda/OS real é o achado
-   mais completo desta revisão (7 pontos verificados) e some direto
-   com a confiança no fechamento diário.
-4. **Ordens de Serviço** — orçamento aprovado com permissão errada,
-   mais o laudo técnico incompleto (é o núcleo da assistência técnica).
-5. **Cadastros de Apoio** — ligar de vez Formas de Pagamento/
-   Fornecedores/Origem-Motivo ao resto do sistema, resolvendo em uma
-   tacada as 3 telas "prontas mas isoladas".
-6. **Estoque, Dashboards/IE, Relatórios, Configurações** — na ordem que
-   fizer mais sentido pro seu dia a dia; a maioria dos achados aqui é
-   inconsistência/dívida técnica, não quebra ativa.
-7. **Backlog de simplificação** — ao longo do caminho, não como etapa
-   separada; aproveitar quando a mão já estiver na área.
+Muito do que estava aqui já foi resolvido — Vendas/PDV, OS e boa parte de
+Cadastros já passaram por uma rodada completa. A revisão de 18/08 achou uma
+leva nova de itens críticos espalhada por várias áreas ao mesmo tempo, então
+a ordem agora é mais por **gravidade do achado individual** do que por área
+inteira:
+
+1. **Financeiro, o mais urgente de todos** — 3 itens críticos juntos:
+   o Caixa continua não refletindo venda/OS real (achado mais antigo,
+   ainda o mais completo), digitar valor com separador de milhar
+   engole o dinheiro em silêncio em 4 telas, e sessão de caixa já
+   fechada pode ser alterada/apagada sem rastro. Os três minam
+   diretamente a confiança no fechamento diário.
+2. **PDV — botões de pagamento rápido apagam pagamento já lançado.**
+   É uma tela que roda dezenas de vezes por dia; o erro é silencioso
+   (fecha certinho na hora) e só aparece depois, na conferência de
+   caixa por forma de pagamento.
+3. **Estoque — salvar a ficha do produto pode zerar o custo real**
+   pra quem não tem permissão de ver custo. Ainda não acontece com os
+   papéis de hoje, mas é rápido de fechar antes que aconteça.
+4. **Configurações — troca de perfil de usuário nunca aparece em
+   Logs/Auditoria.** É a mudança mais sensível do sistema (quem virou
+   admin, quem perdeu acesso) ficando sem rastro nenhum.
+5. **DashboardMetas conta produto de troca pelo valor cheio** — afeta
+   direto o painel de premiação (Bronze/Prata/Ouro/Diamante), que é
+   dinheiro de verdade pra equipe.
+6. **OS — o relógio de "Aguardando Retirada" reseta com qualquer
+   edição cosmética**, escondendo aparelho parado há mais tempo do que
+   a tela mostra (a política dos 6 meses depende desse número estar
+   certo).
+7. **O restante dos achados 🟠/🔵** de cada área, na ordem que fizer
+   mais sentido pro seu dia a dia — nenhum quebra o uso diário sozinho.
+8. **🔴 O banco continuar sem backup** segue sendo o risco maior que
+   qualquer item desta lista, em paralelo com tudo acima — ver seção
+   própria no início deste documento.
