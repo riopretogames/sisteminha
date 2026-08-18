@@ -51,9 +51,15 @@ interface MetaFaixaRow {
 }
 
 interface VendaMesRow {
+  id: string;
   total: number | null;
   valor_faturamento_real: number | null;
   vendedor_id: string | null;
+}
+
+interface DevolucaoMesRow {
+  valor_devolvido_cliente: number | null;
+  venda_original_id: string;
 }
 
 interface ProfileRow {
@@ -64,6 +70,7 @@ interface ProfileRow {
 interface DashboardMetasData {
   metas: MetaFaixaRow[];
   vendas: VendaMesRow[];
+  devolucoes: DevolucaoMesRow[];
   profiles: ProfileRow[];
 }
 
@@ -86,7 +93,7 @@ export default function DashboardMetas() {
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-metas', limites.ano, limites.mes],
     queryFn: async (): Promise<DashboardMetasData> => {
-      const [metasRes, vendasRes, profilesRes] = await Promise.all([
+      const [metasRes, vendasRes, devolucoesRes, profilesRes] = await Promise.all([
         supabase
           .from('metas_faturamento')
           .select('id, faixa, valor_meta')
@@ -94,10 +101,19 @@ export default function DashboardMetas() {
           .eq('mes', limites.mes),
         supabase
           .from('vendas')
-          .select('total, valor_faturamento_real, vendedor_id')
+          .select('id, total, valor_faturamento_real, vendedor_id')
           .gte('created_at', limites.inicioMes.toISOString())
           .lt('created_at', limites.inicioProximoMes.toISOString())
           .neq('status', 'cancelado'),
+        // Devoluções do mês: dinheiro que saiu da gaveta e não está em
+        // venda nenhuma. Sem isto, uma venda devolvida contava inteira na
+        // meta e na premiação. `venda_original_id` serve pra devolver o
+        // desconto ao vendedor certo.
+        supabase
+          .from('devolucoes')
+          .select('valor_devolvido_cliente, venda_original_id')
+          .gte('created_at', limites.inicioMes.toISOString())
+          .lt('created_at', limites.inicioProximoMes.toISOString()),
         // Não existe FK declarada entre vendas.vendedor_id e profiles — busca
         // à parte e junta no client por id (mesmo padrão de itens órfãos já
         // usado em DashboardVenda.tsx).
@@ -105,11 +121,13 @@ export default function DashboardMetas() {
       ]);
       if (metasRes.error) throw metasRes.error;
       if (vendasRes.error) throw vendasRes.error;
+      if (devolucoesRes.error) throw devolucoesRes.error;
       if (profilesRes.error) throw profilesRes.error;
 
       return {
         metas: (metasRes.data ?? []) as MetaFaixaRow[],
         vendas: (vendasRes.data ?? []) as VendaMesRow[],
+        devolucoes: (devolucoesRes.data ?? []) as DevolucaoMesRow[],
         profiles: (profilesRes.data ?? []) as ProfileRow[],
       };
     },
@@ -117,6 +135,7 @@ export default function DashboardMetas() {
 
   const metas = data?.metas ?? [];
   const vendas = data?.vendas ?? [];
+  const devolucoes = data?.devolucoes ?? [];
   const profiles = data?.profiles ?? [];
 
   const semMetaCadastrada = !isLoading && metas.length === 0;
@@ -127,10 +146,18 @@ export default function DashboardMetas() {
   // verdade — mesma regra de Dashboard.tsx/DashboardVenda.tsx. Achado na
   // revisão de 18/08: aqui ainda usava `total` puro, contando troca de
   // produto pelo valor cheio na meta e na comissão por vendedor.
-  const realizado = vendas.reduce(
-    (acc, v) => acc + Number(v.valor_faturamento_real ?? v.total ?? 0),
+  // Achado na revisão de 18/08 (segunda leva): devolução não aparecia em
+  // painel nenhum. Uma venda devolvida no mesmo mês continuava empurrando a
+  // meta pra cima e engordando a premiação, com o dinheiro já devolvido ao
+  // cliente. Régua de data igual à do Caixa: pesa no mês da devolução.
+  const devolvidoNoMes = devolucoes.reduce(
+    (acc, d) => acc + Number(d.valor_devolvido_cliente ?? 0),
     0,
   );
+
+  const realizado =
+    vendas.reduce((acc, v) => acc + Number(v.valor_faturamento_real ?? v.total ?? 0), 0) -
+    devolvidoNoMes;
 
   // Ordenado por valor_meta crescente — não assume a ordem do enum
   // (bronze/prata/ouro/diamante é o esperado, mas quem manda é o valor).
@@ -161,6 +188,21 @@ export default function DashboardMetas() {
     totalPorVendedor.set(
       v.vendedor_id,
       (totalPorVendedor.get(v.vendedor_id) ?? 0) + Number(v.valor_faturamento_real ?? v.total ?? 0),
+    );
+  }
+
+  // A devolução volta pro vendedor que fez a venda ORIGINAL, não pra quem
+  // atendeu a devolução no balcão — senão o desconto cairia na pessoa
+  // errada. Se a venda original for de um mês anterior, ela não está nesta
+  // consulta: aí o desconto já entrou no total da loja (acima) e só não é
+  // atribuído a ninguém em particular, que é melhor do que atribuir errado.
+  const vendedorPorVendaId = new Map(vendas.map((v) => [v.id, v.vendedor_id]));
+  for (const d of devolucoes) {
+    const vendedorId = vendedorPorVendaId.get(d.venda_original_id);
+    if (!vendedorId) continue;
+    totalPorVendedor.set(
+      vendedorId,
+      (totalPorVendedor.get(vendedorId) ?? 0) - Number(d.valor_devolvido_cliente ?? 0),
     );
   }
   const porVendedor = Array.from(totalPorVendedor.entries())

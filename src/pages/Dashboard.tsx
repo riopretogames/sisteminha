@@ -19,6 +19,7 @@ import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
 import { OS_STATUS } from '@/lib/constants';
 import { OS_ETAPAS } from '@/config/osStatus';
+import { somarFaturamento, totalDevolvidoNoPeriodo } from '@/lib/faturamento';
 import { AvisoAguardandoRetirada } from '@/components/os/AvisoAguardandoRetirada';
 
 interface DashboardStats {
@@ -98,15 +99,13 @@ export default function Dashboard() {
         .gte('created_at', today.toISOString())
         .eq('status', 'pago');
 
-      // COALESCE, não `total` sozinho: a venda nova de uma troca grava o
-      // preço cheio do produto em `total` (pra não perder a contagem de
-      // vendas por produto), mas só `valor_faturamento_real` reflete o
-      // dinheiro novo de verdade — ver TrocaDevolucao.tsx.
-      const caixaHoje =
-        vendasHojeData?.reduce(
-          (acc, v) => acc + Number(v.valor_faturamento_real ?? v.total),
-          0
-        ) || 0;
+      // Dinheiro devolvido hoje: sai da gaveta e não aparece em venda
+      // nenhuma (a venda original continua gravada com o valor cheio). Sem
+      // isto, uma venda devolvida no mesmo dia seguia contando inteira
+      // aqui. Mesma régua de data do Caixa: pesa no dia da devolução.
+      const devolvidoHoje = await totalDevolvidoNoPeriodo(today.toISOString());
+
+      const caixaHoje = somarFaturamento(vendasHojeData ?? []) - devolvidoHoje;
 
       // Fetch critical stock — o PostgREST não compara duas colunas da
       // mesma linha direto no filtro (`.lte('estoque_atual', 'estoque_minimo')`

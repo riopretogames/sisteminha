@@ -14,6 +14,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { PageHeader } from '@/components/PageHeader';
 import { moeda } from '@/lib/format';
+import {
+  buscarDevolucoesDesde,
+  somarDevolucoes,
+  type DevolucaoRow,
+} from '@/lib/faturamento';
 
 /**
  * Dashboard de Vendas — "olha só como tá indo agora".
@@ -103,18 +108,28 @@ export default function DashboardVenda() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-venda', limites.inicioBusca.toISOString()],
-    queryFn: async (): Promise<VendaRow[]> => {
-      const { data, error } = await supabase
-        .from('vendas')
-        .select('id, created_at, total, valor_faturamento_real, itens_venda(produto_id, quantidade, total, produtos:vw_produtos(nome))')
-        .gte('created_at', limites.inicioBusca.toISOString())
-        .neq('status', 'cancelado');
-      if (error) throw error;
-      return (data ?? []) as unknown as VendaRow[];
+    queryFn: async (): Promise<{ vendas: VendaRow[]; devolucoes: DevolucaoRow[] }> => {
+      const desde = limites.inicioBusca.toISOString();
+      const [resVendas, devolucoes] = await Promise.all([
+        supabase
+          .from('vendas')
+          .select('id, created_at, total, valor_faturamento_real, itens_venda(produto_id, quantidade, total, produtos:vw_produtos(nome))')
+          .gte('created_at', desde)
+          .neq('status', 'cancelado'),
+        buscarDevolucoesDesde(desde),
+      ]);
+      if (resVendas.error) throw resVendas.error;
+      return { vendas: (resVendas.data ?? []) as unknown as VendaRow[], devolucoes };
     },
   });
 
-  const vendas = data ?? [];
+  const vendas = data?.vendas ?? [];
+  // Dinheiro devolvido ao cliente não aparece em venda nenhuma: a venda
+  // original fica gravada com o valor cheio para sempre. Sem descontar,
+  // uma venda devolvida no mesmo dia seguia contando inteira no painel,
+  // com o dinheiro já fora da gaveta. Régua de data igual à do Caixa
+  // (17/08): pesa no dia da devolução, não no da venda original.
+  const devolucoes = data?.devolucoes ?? [];
 
   const vendasHoje = vendas.filter((v) => new Date(v.created_at) >= limites.inicioHoje);
   const vendasOntem = vendas.filter(
@@ -122,8 +137,13 @@ export default function DashboardVenda() {
   );
   const vendasSemana = vendas.filter((v) => new Date(v.created_at) >= limites.inicioSemana);
 
-  const caixaHoje = vendasHoje.reduce((acc, v) => acc + faturamentoReal(v), 0);
-  const caixaSemana = vendasSemana.reduce((acc, v) => acc + faturamentoReal(v), 0);
+  const devolucoesHoje = devolucoes.filter((d) => new Date(d.created_at) >= limites.inicioHoje);
+  const devolucoesSemana = devolucoes.filter((d) => new Date(d.created_at) >= limites.inicioSemana);
+
+  const caixaHoje =
+    vendasHoje.reduce((acc, v) => acc + faturamentoReal(v), 0) - somarDevolucoes(devolucoesHoje);
+  const caixaSemana =
+    vendasSemana.reduce((acc, v) => acc + faturamentoReal(v), 0) - somarDevolucoes(devolucoesSemana);
 
   // Mesma lógica de "vendasTrend" do Dashboard.tsx: diferença de quantidade
   // de vendas hoje vs ontem.
@@ -132,10 +152,15 @@ export default function DashboardVenda() {
   const ticketMedioHoje = vendasHoje.length > 0 ? caixaHoje / vendasHoje.length : null;
 
   const totalPorDia = limites.diasSemana.map(({ nome, chave }) => {
-    const total = vendasSemana
+    const vendido = vendasSemana
       .filter((v) => chaveDiaLocal(new Date(v.created_at)) === chave)
       .reduce((acc, v) => acc + faturamentoReal(v), 0);
-    return { nome, total };
+    // Desconta no mesmo dia da devolução — senão o "melhor dia da semana"
+    // pode ser justamente um dia que teve tudo devolvido.
+    const devolvido = somarDevolucoes(
+      devolucoesSemana.filter((d) => chaveDiaLocal(new Date(d.created_at)) === chave)
+    );
+    return { nome, total: vendido - devolvido };
   });
   const melhorDia = totalPorDia.reduce(
     (melhor, atual) => (atual.total > melhor.total ? atual : melhor),

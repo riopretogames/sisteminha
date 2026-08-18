@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { moeda, data as fmtData } from '@/lib/format';
+import { totalDevolvidoNoPeriodo } from '@/lib/faturamento';
 import { Indicador } from '@/components/PageHeader';
 import { RelatorioShell, usePeriodo, type Coluna } from './RelatorioShell';
 
@@ -77,24 +78,33 @@ export default function RelatorioVendas() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['rel-vendas', periodo],
-    queryFn: async (): Promise<LinhaVenda[]> => {
-      const { data, error } = await supabase
-        .from('vendas')
-        .select('id, numero_venda, created_at, status, subtotal, descontos, total, valor_faturamento_real, clientes(nome)')
-        .gte('created_at', periodo.de)
-        // O `ate` é uma data pura; sem o T23:59:59 o último dia ficaria de fora.
-        .lte('created_at', `${periodo.ate}T23:59:59`)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as unknown as LinhaVenda[];
+    queryFn: async (): Promise<{ linhas: LinhaVenda[]; devolvido: number }> => {
+      const [res, devolvido] = await Promise.all([
+        supabase
+          .from('vendas')
+          .select('id, numero_venda, created_at, status, subtotal, descontos, total, valor_faturamento_real, clientes(nome)')
+          .gte('created_at', periodo.de)
+          // O `ate` é uma data pura; sem o T23:59:59 o último dia ficaria de fora.
+          .lte('created_at', `${periodo.ate}T23:59:59`)
+          .order('created_at', { ascending: false }),
+        // Dinheiro devolvido no mesmo período: sai da gaveta e não está em
+        // venda nenhuma — a venda original fica gravada com o valor cheio.
+        totalDevolvidoNoPeriodo(periodo.de, `${periodo.ate}T23:59:59`),
+      ]);
+      if (res.error) throw res.error;
+      return { linhas: (res.data ?? []) as unknown as LinhaVenda[], devolvido };
     },
   });
 
-  const linhas = data ?? [];
+  const linhas = data?.linhas ?? [];
+  const devolvidoNoPeriodo = data?.devolvido ?? 0;
   const vendasValidas = linhas.filter((v) => v.status !== 'cancelado');
   const canceladas = linhas.filter((v) => v.status === 'cancelado');
 
-  const faturamento = vendasValidas.reduce((acc, v) => acc + faturamentoReal(v), 0);
+  // Desconta o que voltou pro cliente no período: sem isto, uma venda
+  // devolvida seguia inteira no faturamento do relatório.
+  const faturamento =
+    vendasValidas.reduce((acc, v) => acc + faturamentoReal(v), 0) - devolvidoNoPeriodo;
   const validas = vendasValidas.length;
   const descontoTotal = vendasValidas.reduce((acc, v) => acc + Number(v.descontos ?? 0), 0);
   const brutoTotal = vendasValidas.reduce((acc, v) => acc + Number(v.subtotal ?? 0), 0);
