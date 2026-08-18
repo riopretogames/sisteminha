@@ -4,6 +4,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { moeda, dataHora } from '@/lib/format';
 import { MOVIMENTO_TIPOS } from '@/lib/constants';
+import {
+  sentidoDoMovimento,
+  quantidadeComSinal,
+  corDaQuantidade,
+} from '@/lib/movimentoEstoque';
 import { Indicador } from '@/components/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { RelatorioShell, usePeriodo, type Coluna } from './relatorios/RelatorioShell';
@@ -52,8 +57,12 @@ export default function EstoqueMovimentacoes() {
   });
 
   const linhas = data ?? [];
-  const entradas = linhas.filter((m) => m.tipo === 'entrada' || m.quantidade > 0).length;
-  const saidas = linhas.filter((m) => m.tipo === 'saida' || (m.tipo === 'ajuste' && m.quantidade < 0)).length;
+  // Conta pelo sentido de verdade, não pelo sinal do número. Antes de 18/08
+  // `entradas` incluía "quantidade > 0", o que somava as SAÍDAS de venda
+  // junto (elas vêm positivas do banco) — o mesmo movimento entrava nos dois
+  // contadores e o total de entradas ficava inflado.
+  const entradas = linhas.filter((m) => sentidoDoMovimento(m) === 'entrada').length;
+  const saidas = linhas.filter((m) => sentidoDoMovimento(m) === 'saida').length;
 
   const colunas: Coluna<LinhaMovimento>[] = [
     {
@@ -82,11 +91,11 @@ export default function EstoqueMovimentacoes() {
       titulo: 'Quantidade',
       alinhar: 'direita',
       render: (m) => (
-        <span className={m.quantidade < 0 ? 'text-red-600' : 'text-emerald-600'}>
-          {m.quantidade > 0 ? `+${m.quantidade}` : m.quantidade}
-        </span>
+        <span className={corDaQuantidade(m)}>{quantidadeComSinal(m)}</span>
       ),
-      texto: (m) => m.quantidade,
+      // O CSV leva o mesmo sinal que a tela mostra — senão a planilha
+      // exportada volta a dizer que a venda foi uma entrada.
+      texto: (m) => quantidadeComSinal(m),
     },
     {
       chave: 'motivo',

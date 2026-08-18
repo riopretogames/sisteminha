@@ -55,7 +55,16 @@ const COLUNAS: Coluna<LinhaFin>[] = [
     texto: (t) => Number(t.valor).toFixed(2).replace('.', ','),
     // O total soma o SALDO (receber positivo, pagar negativo) — somar tudo
     // como positivo daria um número que não significa nada.
-    somar: (t) => (t.natureza === 'receber' ? Number(t.valor) : -Number(t.valor)),
+    //
+    // Título CANCELADO entra como zero: até 18/08 o rodapé somava a coluna
+    // inteira enquanto os indicadores logo acima já ignoravam cancelados,
+    // e a mesma tela mostrava dois resultados diferentes do mês.
+    somar: (t) =>
+      t.status === 'cancelado'
+        ? 0
+        : t.natureza === 'receber'
+          ? Number(t.valor)
+          : -Number(t.valor),
     formatarTotal: moeda,
   },
 ];
@@ -107,13 +116,14 @@ export default function RelatorioFinanceiro() {
   return (
     <RelatorioShell
       titulo="Relatório Financeiro"
-      hint="Todos os títulos com vencimento no período — a pagar e a receber juntos, para ver o resultado do mês de uma vez."
+      hint="Todos os títulos com vencimento no período — a pagar e a receber juntos, para ver o resultado do mês de uma vez. Título cancelado aparece na lista mas fica fora do total."
       arquivo="relatorio_financeiro"
       colunas={COLUNAS}
       dados={linhas}
       isLoading={isLoading}
       periodo={periodo}
       onPeriodoChange={setPeriodo}
+      rotuloTotal="Saldo (sem cancelados)"
       vazio="Nenhum título vence neste período."
       indicadores={
         <>

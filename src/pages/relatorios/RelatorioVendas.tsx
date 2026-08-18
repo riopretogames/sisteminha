@@ -59,7 +59,10 @@ const COLUNAS: Coluna<LinhaVenda>[] = [
     alinhar: 'direita',
     render: (v) => (Number(v.descontos) ? moeda(Number(v.descontos)) : '—'),
     texto: (v) => Number(v.descontos).toFixed(2).replace('.', ','),
-    somar: (v) => Number(v.descontos),
+    // Cancelada não entra no rodapé: até 18/08 o total somava a coluna
+    // inteira enquanto o indicador "Faturamento" logo acima excluía
+    // cancelados — dois números diferentes na mesma tela.
+    somar: (v) => (v.status === 'cancelado' ? 0 : Number(v.descontos)),
     formatarTotal: moeda,
   },
   {
@@ -68,7 +71,7 @@ const COLUNAS: Coluna<LinhaVenda>[] = [
     alinhar: 'direita',
     render: (v) => <span className="font-medium">{moeda(Number(v.total))}</span>,
     texto: (v) => Number(v.total).toFixed(2).replace('.', ','),
-    somar: (v) => Number(v.total),
+    somar: (v) => (v.status === 'cancelado' ? 0 : faturamentoReal(v)),
     formatarTotal: moeda,
   },
 ];
@@ -125,13 +128,14 @@ export default function RelatorioVendas() {
   return (
     <RelatorioShell
       titulo="Relatório de Vendas"
-      hint="Todas as vendas do período, com desconto e total. Vendas canceladas aparecem na lista mas ficam fora do faturamento."
+      hint="Todas as vendas do período, com desconto e total. Venda cancelada aparece na lista mas fica fora das somas. O indicador Faturamento vai um passo além do rodapé: ele também desconta o dinheiro devolvido a cliente no período, que não é linha desta tabela."
       arquivo="relatorio_vendas"
       colunas={COLUNAS}
       dados={linhas}
       isLoading={isLoading}
       periodo={periodo}
       onPeriodoChange={setPeriodo}
+      rotuloTotal="Total (sem canceladas)"
       indicadores={
         <>
           <Indicador rotulo="Faturamento" valor={moeda(faturamento)} tom="positivo" />

@@ -1,7 +1,10 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { moeda, data as fmtData } from '@/lib/format';
+import { Badge } from '@/components/ui/badge';
 import { Indicador } from '@/components/PageHeader';
+import { useOsStatuses } from '@/hooks/useOsStatuses';
 import { RelatorioShell, usePeriodo, type Coluna } from './RelatorioShell';
 import { OS_ETAPAS, OS_CANCELADO, osEmAndamento } from '@/config/osStatus';
 
@@ -18,7 +21,17 @@ interface LinhaOS {
   clientes: { nome: string } | null;
 }
 
-const COLUNAS: Coluna<LinhaOS>[] = [
+/**
+ * As colunas viraram função por causa do status: até 18/08 esta tela
+ * mostrava a chave crua do banco com um `.replace('_', ' ')` — "em reparo"
+ * em vez de "Em Reparo" — ignorando o rótulo e a cor que a loja cadastra em
+ * Gerenciar Status. Se a loja renomeasse uma etapa, o relatório continuava
+ * exibindo o nome técnico. Para ler o rótulo de verdade é preciso do hook
+ * `useOsStatuses`, e hook só funciona dentro do componente.
+ */
+const criarColunas = (
+  getStatusConfig: (key: string) => { label: string; color: string }
+): Coluna<LinhaOS>[] => [
   {
     chave: 'os',
     titulo: 'OS',
@@ -46,10 +59,13 @@ const COLUNAS: Coluna<LinhaOS>[] = [
   {
     chave: 'status',
     titulo: 'Status',
-    render: (o) => (
-      <span className="capitalize text-muted-foreground">{o.status.replace(/_/g, ' ')}</span>
-    ),
-    texto: (o) => o.status,
+    render: (o) => {
+      const cfg = getStatusConfig(o.status);
+      return <Badge className={`${cfg.color} border-0`}>{cfg.label}</Badge>;
+    },
+    // O CSV leva o mesmo rótulo da tela — quem abre a planilha não deve
+    // precisar traduzir "aguardando_aprovacao" de cabeça.
+    texto: (o) => getStatusConfig(o.status).label,
   },
   {
     chave: 'orcamento',
@@ -78,6 +94,8 @@ const COLUNAS: Coluna<LinhaOS>[] = [
 
 export default function RelatorioOS() {
   const [periodo, setPeriodo] = usePeriodo();
+  const { getStatusConfig } = useOsStatuses();
+  const colunas = useMemo(() => criarColunas(getStatusConfig), [getStatusConfig]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['rel-os', periodo],
@@ -133,7 +151,7 @@ export default function RelatorioOS() {
       titulo="Relatório de OS"
       hint="Ordens de serviço abertas no período. O total pago só conta OS já entregues — orçamento aprovado ainda não é dinheiro em caixa."
       arquivo="relatorio_os"
-      colunas={COLUNAS}
+      colunas={colunas}
       dados={linhas}
       isLoading={isLoading}
       periodo={periodo}

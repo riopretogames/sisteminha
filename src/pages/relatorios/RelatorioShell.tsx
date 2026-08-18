@@ -113,6 +113,7 @@ export function RelatorioShell<T>({
   indicadores,
   vazio,
   ocultarPeriodo,
+  rotuloTotal,
 }: {
   titulo: string;
   hint: string;
@@ -126,6 +127,17 @@ export function RelatorioShell<T>({
   vazio?: string;
   /** Relatórios de posição atual (estoque) não têm recorte de período. */
   ocultarPeriodo?: boolean;
+  /**
+   * Texto da primeira célula do rodapé de totais. O padrão é "Total".
+   *
+   * Existe por causa de um achado de 18/08: em Vendas e Financeiro o rodapé
+   * somava a coluna inteira (incluindo linhas CANCELADAS) enquanto o
+   * indicador "Faturamento" logo acima excluía os cancelados — dois números
+   * diferentes na mesma tela, sem nada explicando a diferença. Esses
+   * relatórios passaram a zerar o cancelado na função `somar`, e este rótulo
+   * deixa o critério visível em vez de o leitor ter que adivinhar.
+   */
+  rotuloTotal?: string;
 }) {
   const { can } = useAuth();
   const temTotais = colunas.some((c) => c.somar);
@@ -203,7 +215,11 @@ export function RelatorioShell<T>({
                 <TableRow>
                   {colunas.map((c, i) => {
                     if (!c.somar) {
-                      return <TableCell key={c.chave}>{i === 0 ? 'Total' : ''}</TableCell>;
+                      return (
+                        <TableCell key={c.chave}>
+                          {i === 0 ? rotuloTotal ?? 'Total' : ''}
+                        </TableCell>
+                      );
                     }
                     const total = dados.reduce((acc, l) => acc + c.somar!(l), 0);
                     return (

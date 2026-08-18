@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCatalogo } from '@/hooks/useCatalogos';
 import { PERMISSIONS } from '@/config/permissions';
 import { dataHora } from '@/lib/format';
+import { quantidadeComSinal, corDaQuantidade } from '@/lib/movimentoEstoque';
 import { PRODUTO_CATEGORIAS, PRODUTO_LOCALIZACOES, MOVIMENTO_TIPOS } from '@/lib/constants';
 import { PageHeader, Vazio } from '@/components/PageHeader';
 import { CampoCatalogo } from '@/components/CampoCatalogo';
@@ -643,8 +644,11 @@ export default function EstoqueDetalhe() {
                         <TableCell>
                           <Badge className={`${cfg?.cor ?? ''} border-0`}>{cfg?.label ?? m.tipo}</Badge>
                         </TableCell>
-                        <TableCell className={`text-right ${m.quantidade < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                          {m.quantidade > 0 ? `+${m.quantidade}` : m.quantidade}
+                        {/* Sentido pelo `tipo`, não pelo sinal: venda e peça
+                            de OS gravam quantidade positiva com tipo 'saida'
+                            e apareciam aqui em verde com "+". */}
+                        <TableCell className={`text-right ${corDaQuantidade(m)}`}>
+                          {quantidadeComSinal(m)}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{m.motivo ?? '—'}</TableCell>
                         <TableCell className="text-right">{m.saldo_depois}</TableCell>
