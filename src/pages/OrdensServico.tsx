@@ -29,6 +29,7 @@ import { OSTableView } from '@/components/os/OSTableView';
 import { OSKanbanView } from '@/components/os/OSKanbanView';
 import { CardConfigDialog } from '@/components/os/CardConfigDialog';
 import { StatusManagerDialog } from '@/components/os/StatusManagerDialog';
+import { EntregarOSDialog } from '@/components/os/EntregarOSDialog';
 import type { ServiceOrder, StatusConfig, OsPrioridade } from '@/types/os';
 import { OS_ETAPAS, OS_ETAPAS_EM_ORDEM, OS_STATUS_INICIAL, OS_CANCELADO } from '@/config/osStatus';
 import { ordenarOS } from '@/lib/ordenarOS';
@@ -57,6 +58,10 @@ export default function OrdensServico() {
 
   const [cardConfigOpen, setCardConfigOpen] = useState(false);
   const [statusManagerOpen, setStatusManagerOpen] = useState(false);
+  // OS paga (com orçamento > 0) indo pra "entregue" pelo quadro/grade abre o
+  // mesmo diálogo de pagamento da ficha (TrocarEtapaOS) em vez de atualizar
+  // o status direto — o banco já tranca essa regra (migration 20260818100000).
+  const [entregandoOsId, setEntregandoOsId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStatuses();
@@ -90,6 +95,7 @@ export default function OrdensServico() {
           numero_serie,
           defeito_cliente,
           status,
+          tipo,
           prioridade,
           total_orcamento,
           tecnico_id,
@@ -107,12 +113,13 @@ export default function OrdensServico() {
           id: order.id,
           numero_os: order.numero_os,
           cliente_id: order.cliente_id,
-          cliente_nome: (order.clientes as any)?.nome || 'Cliente',
+          cliente_nome: (order.clientes as { nome?: string } | null)?.nome || 'Cliente',
           marca: order.marca,
           modelo: order.modelo,
           numero_serie: order.numero_serie,
           defeito_cliente: order.defeito_cliente,
           status: order.status || OS_STATUS_INICIAL,
+          tipo: order.tipo as ServiceOrder['tipo'],
           prioridade: (order.prioridade || 'normal') as OsPrioridade,
           total_orcamento: order.total_orcamento || 0,
           tecnico_id: order.tecnico_id,
@@ -170,6 +177,20 @@ export default function OrdensServico() {
       return;
     }
 
+    // OS paga com orçamento > 0 indo pra "entregue": abre o diálogo de
+    // pagamento em vez de atualizar o status direto — o gatilho do banco
+    // (conferir_pagamento_ao_entregar) recusaria o UPDATE sem os_pagamentos
+    // suficiente. Garantia/cortesia/orçamento zerado seguem direto pro
+    // update de sempre, abaixo.
+    if (
+      newStatus === OS_ETAPAS.ENTREGUE &&
+      ordemAtual?.tipo === 'paga' &&
+      (ordemAtual?.total_orcamento ?? 0) > 0
+    ) {
+      setEntregandoOsId(orderId);
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('service_orders')
@@ -188,10 +209,10 @@ export default function OrdensServico() {
         title: 'Status atualizado',
         description: `OS alterada para ${statusLabel}`,
       });
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Erro ao atualizar',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Tente novamente.',
         variant: 'destructive',
       });
       // Revert on error
@@ -378,6 +399,19 @@ export default function OrdensServico() {
         onOpenChange={setStatusManagerOpen}
         statuses={statuses}
         onStatusesChange={fetchStatuses}
+      />
+      {/* Uma instância só pro quadro inteiro (Kanban ou grade) — não por
+          card. Os dados da OS vêm de `orders`, buscados pelo id guardado. */}
+      <EntregarOSDialog
+        open={!!entregandoOsId}
+        onOpenChange={(open) => !open && setEntregandoOsId(null)}
+        osId={entregandoOsId ?? ''}
+        numeroOs={orders.find((o) => o.id === entregandoOsId)?.numero_os ?? ''}
+        totalOrcamento={orders.find((o) => o.id === entregandoOsId)?.total_orcamento ?? 0}
+        onEntregue={() => {
+          setEntregandoOsId(null);
+          fetchOrders();
+        }}
       />
     </div>
   );

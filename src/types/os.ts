@@ -33,6 +33,8 @@ export interface ServiceOrder {
   numero_serie: string | null;
   defeito_cliente: string;
   status: string;
+  /** Paga cobra na entrega (exige os_pagamentos); garantia/cortesia não cobram nada. */
+  tipo: 'paga' | 'garantia' | 'cortesia';
   prioridade: OsPrioridade;
   total_orcamento: number;
   tecnico_id: string | null;

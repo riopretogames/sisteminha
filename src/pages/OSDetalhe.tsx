@@ -621,7 +621,10 @@ export default function OSDetalhe() {
                 era preciso voltar à lista só para avançar o fluxo. */}
             <TrocarEtapaOS
               osId={os.id}
+              numeroOs={os.numero_os}
               statusAtual={os.status}
+              tipo={os.tipo}
+              totalOrcamento={os.total_orcamento}
               onMudou={() => {
                 queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] });
                 queryClient.invalidateQueries({ queryKey: ['os-itens', id] });

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -49,6 +50,20 @@ interface Movimento {
   descricao: string;
   valor: number;
   created_at: string;
+}
+
+/**
+ * Linha de `vw_caixa_resumo_formas` — resumo INFORMATIVO de quanto entrou em
+ * cada forma de pagamento desde a abertura do caixa. Não entra na conferência
+ * cega da gaveta (isso continua vindo só de `caixa_movimentos`, via
+ * `saldoCalculado` acima) — é só uma visão geral do dia.
+ */
+interface ResumoForma {
+  sessao_id: string;
+  forma_pagamento_id: string;
+  forma_descricao: string;
+  entra_no_caixa: boolean;
+  total: number;
 }
 
 const TIPO_LABEL: Record<string, string> = {
@@ -104,11 +119,34 @@ export default function FinanceiroCaixa() {
     },
   });
 
+  const { data: resumoFormas } = useQuery({
+    queryKey: ['caixa-resumo-formas', sessao?.id],
+    enabled: Boolean(sessao?.id),
+    queryFn: async (): Promise<ResumoForma[]> => {
+      const { data, error } = await db
+        .from('vw_caixa_resumo_formas')
+        .select('*')
+        .eq('sessao_id', sessao!.id);
+      if (error) throw error;
+      return (data ?? []) as ResumoForma[];
+    },
+  });
+
   const saldoCalculado = useMemo(() => {
     const abertura = Number(sessao?.valor_abertura ?? 0);
     const soma = (movimentos ?? []).reduce((acc, m) => acc + Number(m.valor), 0);
     return abertura + soma;
   }, [sessao, movimentos]);
+
+  // Esconde formas sem nenhum movimento no dia — deixa a lista limpa, mostra
+  // só o que de fato entrou. Maior total primeiro.
+  const formasComMovimento = useMemo(
+    () =>
+      (resumoFormas ?? [])
+        .filter((f) => Number(f.total) !== 0)
+        .sort((a, b) => Number(b.total) - Number(a.total)),
+    [resumoFormas],
+  );
 
   const aoFalhar = (error: unknown) => {
     const msg = error instanceof Error ? error.message : 'Erro desconhecido';
@@ -459,6 +497,54 @@ export default function FinanceiroCaixa() {
                   </TableRow>
                 );
               })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      <h2 className="mb-1 mt-8 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        Resumo do dia por forma de pagamento
+      </h2>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Visão informativa de tudo que entrou hoje, em todas as formas de
+        pagamento (dinheiro, PIX, cartão etc.). Isso não faz parte da
+        conferência da gaveta — só o dinheiro físico (destacado abaixo) entra
+        no fechamento de caixa.
+      </p>
+
+      {formasComMovimento.length === 0 ? (
+        <Vazio
+          titulo="Nenhuma venda registrada ainda no expediente"
+          descricao="Assim que houver vendas no PDV ou OS entregues e pagas, elas aparecem aqui por forma de pagamento."
+        />
+      ) : (
+        <div className="rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Forma de pagamento</TableHead>
+                <TableHead>Conferência da gaveta</TableHead>
+                <TableHead className="text-right">Total do dia</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {formasComMovimento.map((f) => (
+                <TableRow key={f.forma_pagamento_id}>
+                  <TableCell className="font-medium">{f.forma_descricao}</TableCell>
+                  <TableCell>
+                    {f.entra_no_caixa ? (
+                      <Badge className="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/10">
+                        Dinheiro físico
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Não entra</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right font-medium tabular-nums">
+                    {moeda(Number(f.total))}
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>

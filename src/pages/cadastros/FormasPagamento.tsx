@@ -47,7 +47,9 @@ import { PageHeader, Vazio } from '@/components/PageHeader';
  * Cadastro das formas de pagamento aceitas na loja (Dinheiro, PIX, Cartão de
  * Crédito em N vezes, formas "fora do caixa" como Folha de Pagamento ou
  * Produtos para a Assistência Técnica etc.). Alimenta o PDV e o fechamento
- * de caixa — é o `entra_no_caixa` que decide se uma forma soma no fechamento.
+ * de caixa — é o `entra_no_caixa` que decide se uma forma soma na conferência
+ * cega da gaveta (hoje, só Dinheiro). As demais formas continuam aparecendo
+ * no resumo informativo do dia, só não entram nessa conferência específica.
  *
  * Limitação assumida: a taxa por parcela individual (tabela
  * `formas_pagamento_parcelas` — ex.: 3x com uma taxa, 12x com outra) NÃO é
@@ -525,10 +527,14 @@ export default function FormasPagamento() {
 
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
-                <p className="text-sm font-medium">Entra no fechamento de caixa</p>
+                <p className="text-sm font-medium">Entra no caixa (dinheiro físico da gaveta)</p>
                 <p className="text-xs text-muted-foreground">
-                  Desligue para formas que não devem contar no fechamento, como
-                  "Folha de Pagamento" ou "Produtos para a Assistência Técnica".
+                  Esse pagamento afeta o dinheiro físico da gaveta? Só marque
+                  como Sim se for dinheiro em espécie — PIX, cartão e demais
+                  formas eletrônicas normalmente não. Isso decide o que entra
+                  na conferência cega do fechamento de caixa (comparar com o
+                  que foi contado na gaveta); as outras formas continuam
+                  aparecendo no resumo do dia, só não entram nessa conferência.
                 </p>
               </div>
               <Switch

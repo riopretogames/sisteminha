@@ -821,13 +821,41 @@ o arquivo antes de assumir.
 ## Financeiro
 
 **🔴 Alta**
-- [ ] Caixa (abertura/fechamento) nunca reflete vendas do PDV nem
-  títulos de OS pagos — a "conferência cega" que a tela existe pra
-  fazer compara a gaveta contra um número que ignora quase todo o
-  dinheiro do dia. ✅ *confirmado com verificação de 7 pontos* (o achado
-  mais completo desta revisão). **Conferido de novo em 18/08, ainda
-  vale exatamente assim** — só a devolução (17/08) entra no Caixa hoje;
-  venda do PDV e título de OS pago continuam de fora.
+- [x] ✅ **Resolvido em 18/08 — o achado mais antigo e mais completo desta
+  revisão inteira, confirmado com verificação de 7 pontos.** Caixa
+  (abertura/fechamento) nunca refletia vendas do PDV nem títulos de OS
+  pagos — a "conferência cega" que a tela existe pra fazer comparava a
+  gaveta contra um número que ignorava quase todo o dinheiro do dia; só
+  a devolução (17/08) entrava. Correção em duas decisões do Felipe,
+  depois de eu perguntar diretamente (18/08): **(1)** "Só dinheiro
+  físico é o Caixa" — a conferência cega continua sendo só sobre
+  dinheiro físico; PIX, cartão e demais formas eletrônicas passam a
+  aparecer à parte, num resumo informativo do dia (nova seção "Resumo
+  do dia por forma de pagamento" em `FinanceiroCaixa.tsx`, lendo da view
+  nova `vw_caixa_resumo_formas`), sem entrar na conta que se compara com
+  a gaveta contada à mão. **(2)** "Na entrega da OS, tem que ter todas
+  as opções de pagamento, todo detalhamento completo — isso entra pra
+  contabilidade, tudo certinho" — a entrega de OS ganhou uma tela de
+  captura de pagamento tão completa quanto o PDV (`EntregarOSDialog.tsx`,
+  nova tabela `os_pagamentos`, suporta pagamento dividido em mais de uma
+  forma), ligada nos dois lugares que entregam OS (ficha e quadro
+  Kanban) — o banco agora BLOQUEIA marcar uma OS paga como entregue sem
+  pagamento suficiente já registrado. **Achado no meio do caminho**: o
+  PDV já deixava pagar em dinheiro com valor maior que a venda,
+  esperando troco — mas o troco nunca tinha sido descontado de lugar
+  nenhum; os gatilhos novos (venda e OS) descontam o troco do total em
+  dinheiro antes de lançar no Caixa, senão o valor calculado ficaria
+  inflado toda vez que o cliente pagasse com nota maior que a compra.
+  Testado com uma transação real no banco (revertida sem deixar
+  rastro) antes de entrar no ar: troco descontado corretamente,
+  pagamento dividido lança só a parte em dinheiro, trava de entrega sem
+  pagamento funciona, agregação por forma bate. Revisão adversarial
+  encontrou e fechou mais um risco real: se a entrega falhasse bem entre
+  gravar o pagamento e mudar o status (erro de rede, por exemplo), o
+  pagamento já gravado não desaparecia (não tem como apagar por
+  desenho), e tentar de novo lançaria um segundo pagamento em cima do
+  primeiro — corrigido fazendo o diálogo sempre conferir no banco quanto
+  já foi registrado antes de pedir mais.
 - [x] ✅ **Resolvido em 18/08 — 🆕 achado do dia, corrigido no mesmo dia.**
   Digitar valor com separador de milhar (ex.: "1.500,00") quebrava
   silenciosamente em 4 pontos do Financeiro. A conversão de texto pra
@@ -1426,13 +1454,12 @@ commit:
 
 **Pra continuar a partir daqui:**
 
-1. **O restante dos achados 🟠/🔵** de cada área, na ordem que fizer mais
+1. ✅ **O item mais antigo do Financeiro, resolvido em 18/08** — Caixa
+   agora reflete venda do PDV e OS entregue e paga (só a parte em
+   dinheiro físico, por decisão do Felipe — ver o item na seção
+   Financeiro pra todo o detalhe).
+2. **O restante dos achados 🟠/🔵** de cada área, na ordem que fizer mais
    sentido pro seu dia a dia — nenhum quebra o uso diário sozinho.
-2. **O item mais antigo do Financeiro** (Caixa não refletir venda do PDV
-   nem título de OS pago) — é o achado mais completo desta revisão e
-   ainda o maior buraco de confiança na conferência diária, mas exige uma
-   mudança de desenho maior (gravar o dinheiro de venda/OS no Caixa em
-   tempo real), não um ajuste pontual — vale uma sessão própria.
 3. **🔴 O banco continuar sem backup** segue sendo o risco maior que
    qualquer item desta lista, em paralelo com tudo acima — ver seção
    própria no início deste documento.

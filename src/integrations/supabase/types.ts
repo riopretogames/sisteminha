@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -201,11 +201,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "caixa_movimentos_forma_pagamento_id_fkey"
+            columns: ["forma_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "vw_caixa_resumo_formas"
+            referencedColumns: ["forma_pagamento_id"]
+          },
+          {
             foreignKeyName: "caixa_movimentos_sessao_id_fkey"
             columns: ["sessao_id"]
             isOneToOne: false
             referencedRelation: "caixa_sessoes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "caixa_movimentos_sessao_id_fkey"
+            columns: ["sessao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_caixa_resumo_formas"
+            referencedColumns: ["sessao_id"]
           },
           {
             foreignKeyName: "caixa_movimentos_titulo_id_fkey"
@@ -629,6 +643,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "devolucoes_forma_pagamento_id_fkey"
+            columns: ["forma_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "vw_caixa_resumo_formas"
+            referencedColumns: ["forma_pagamento_id"]
+          },
+          {
             foreignKeyName: "devolucoes_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -840,6 +861,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "formas_pagamento"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formas_pagamento_parcelas_forma_pagamento_id_fkey"
+            columns: ["forma_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "vw_caixa_resumo_formas"
+            referencedColumns: ["forma_pagamento_id"]
           },
         ]
       }
@@ -1148,6 +1176,68 @@ export type Database = {
           },
         ]
       }
+      os_pagamentos: {
+        Row: {
+          created_at: string
+          forma: Database["public"]["Enums"]["forma_pagamento"]
+          forma_pagamento_id: string
+          id: string
+          os_id: string
+          parcelas: number
+          usuario_id: string | null
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          forma: Database["public"]["Enums"]["forma_pagamento"]
+          forma_pagamento_id: string
+          id?: string
+          os_id: string
+          parcelas?: number
+          usuario_id?: string | null
+          valor: number
+        }
+        Update: {
+          created_at?: string
+          forma?: Database["public"]["Enums"]["forma_pagamento"]
+          forma_pagamento_id?: string
+          id?: string
+          os_id?: string
+          parcelas?: number
+          usuario_id?: string | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "os_pagamentos_forma_pagamento_id_fkey"
+            columns: ["forma_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "formas_pagamento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_pagamentos_forma_pagamento_id_fkey"
+            columns: ["forma_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "vw_caixa_resumo_formas"
+            referencedColumns: ["forma_pagamento_id"]
+          },
+          {
+            foreignKeyName: "os_pagamentos_os_id_fkey"
+            columns: ["os_id"]
+            isOneToOne: false
+            referencedRelation: "service_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_pagamentos_os_id_fkey"
+            columns: ["os_id"]
+            isOneToOne: false
+            referencedRelation: "vw_os_aguardando_retirada"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       os_status_config: {
         Row: {
           ativo: boolean | null
@@ -1239,6 +1329,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "formas_pagamento"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagamentos_venda_forma_pagamento_id_fkey"
+            columns: ["forma_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "vw_caixa_resumo_formas"
+            referencedColumns: ["forma_pagamento_id"]
           },
           {
             foreignKeyName: "pagamentos_venda_venda_id_fkey"
@@ -2003,6 +2100,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "titulos_financeiros_forma_pagamento_id_fkey"
+            columns: ["forma_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "vw_caixa_resumo_formas"
+            referencedColumns: ["forma_pagamento_id"]
+          },
+          {
             foreignKeyName: "titulos_financeiros_fornecedor_id_fkey"
             columns: ["fornecedor_id"]
             isOneToOne: false
@@ -2227,6 +2331,16 @@ export type Database = {
       }
     }
     Views: {
+      vw_caixa_resumo_formas: {
+        Row: {
+          entra_no_caixa: boolean | null
+          forma_descricao: string | null
+          forma_pagamento_id: string | null
+          sessao_id: string | null
+          total: number | null
+        }
+        Relationships: []
+      }
       vw_movimentos_estoque: {
         Row: {
           created_at: string | null

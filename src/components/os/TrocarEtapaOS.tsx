@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { PERMISSIONS } from '@/config/permissions';
 import { OS_ETAPAS, OS_CANCELADO } from '@/config/osStatus';
+import { EntregarOSDialog } from '@/components/os/EntregarOSDialog';
 
 /**
  * Mudar a etapa da OS a partir da ficha.
@@ -37,15 +38,23 @@ import { OS_ETAPAS, OS_CANCELADO } from '@/config/osStatus';
 
 interface Props {
   osId: string;
+  numeroOs: string;
   statusAtual: string;
+  tipo: 'paga' | 'garantia' | 'cortesia';
+  totalOrcamento: number;
   onMudou: () => void;
 }
 
-export function TrocarEtapaOS({ osId, statusAtual, onMudou }: Props) {
+export function TrocarEtapaOS({ osId, numeroOs, statusAtual, tipo, totalOrcamento, onMudou }: Props) {
   const { can } = useAuth();
   const { statuses } = useOsStatuses();
   const { toast } = useToast();
   const [salvando, setSalvando] = useState(false);
+  // OS paga com orçamento > 0 precisa capturar o pagamento antes de virar
+  // "entregue" — o banco já tranca essa regra (migration 20260818100000),
+  // este diálogo só existe pra não deixar o vendedor descobrir isso pelo
+  // erro cru do gatilho. Garantia/cortesia/orçamento zerado seguem direto.
+  const [dialogEntregaAberto, setDialogEntregaAberto] = useState(false);
 
   const podeEditar = can(PERMISSIONS.ORDERS_EDIT);
   const podeAprovar = can(PERMISSIONS.ORDERS_APPROVE);
@@ -111,6 +120,20 @@ export function TrocarEtapaOS({ osId, statusAtual, onMudou }: Props) {
     }
   };
 
+  /**
+   * Ponto único de decisão antes de mudar de etapa: entregar uma OS paga
+   * (com orçamento > 0) precisa do diálogo de pagamento primeiro — qualquer
+   * outra transição (inclusive "entregue" de garantia/cortesia/orçamento
+   * zerado) segue direto pro `mudar` de sempre.
+   */
+  const irPara = (novoStatus: string) => {
+    if (novoStatus === OS_ETAPAS.ENTREGUE && tipo === 'paga' && totalOrcamento > 0) {
+      setDialogEntregaAberto(true);
+      return;
+    }
+    mudar(novoStatus);
+  };
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       {proxima && (
@@ -119,7 +142,7 @@ export function TrocarEtapaOS({ osId, statusAtual, onMudou }: Props) {
           // `lib/acoes.ts`): avançar no meio do fluxo é ação neutra.
           variant={proxima.key === OS_ETAPAS.ENTREGUE ? 'sucesso' : 'default'}
           disabled={salvando}
-          onClick={() => mudar(proxima.key)}
+          onClick={() => irPara(proxima.key)}
         >
           {salvando ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -135,7 +158,7 @@ export function TrocarEtapaOS({ osId, statusAtual, onMudou }: Props) {
       {/* Cada etapa aparece com a cor dela, aqui e no quadro. A cor é a mesma
           coisa que o Kanban usa, então a pessoa reconhece a etapa pelo tom
           antes de ler o nome — que é o ponto de ter cor. */}
-      <Select value={statusAtual} onValueChange={mudar} disabled={salvando}>
+      <Select value={statusAtual} onValueChange={irPara} disabled={salvando}>
         <SelectTrigger className="w-[230px]">
           <SelectValue>
             {atual ? (
@@ -173,6 +196,18 @@ export function TrocarEtapaOS({ osId, statusAtual, onMudou }: Props) {
           peça pra um vendedor ou gerente decidir esta.
         </p>
       )}
+
+      <EntregarOSDialog
+        open={dialogEntregaAberto}
+        onOpenChange={setDialogEntregaAberto}
+        osId={osId}
+        numeroOs={numeroOs}
+        totalOrcamento={totalOrcamento}
+        onEntregue={() => {
+          setDialogEntregaAberto(false);
+          onMudou();
+        }}
+      />
     </div>
   );
 }
