@@ -589,10 +589,37 @@ o arquivo antes de assumir.
 ## Ordens de Serviço / Assistência Técnica
 
 **🔴 Alta**
-- [ ] Aprovar/recusar orçamento usa `orders.edit`, não a permissão
-  dedicada `orders.approve` (cadastrada, atribuída a papéis, checada em
-  **nenhum lugar**) — técnico aprova orçamento apesar do RBAC dizer que
-  não deveria. ✅ *confirmado.*
+- [x] ✅ **17/08 — Aprovar/recusar orçamento agora exige `orders.approve`
+  de verdade, nos 3 lugares que conseguiam fazer essa transição.**
+  `orders.approve` existia cadastrada desde 01/08 (administrador/
+  gerente/gerente_tecnico/vendedor têm, técnico não tem), mas nenhuma
+  tela nem policy conferia — técnico aprovava/recusava do mesmo jeito
+  que vendedor, contra a regra que o próprio Felipe ditou (quem fala
+  com o cliente decide orçamento, técnico não tem esse contato).
+  - Migration `20260817140000`: gatilho `validar_aprovacao_orcamento_os`
+    (BEFORE UPDATE em `service_orders`) bloqueia a transição
+    `aguardando_aprovacao` → `aprovado`/`cancelado` pra quem não tem
+    `orders.approve`, mesmo via API direta. Só essa transição
+    específica — `orders.edit` continua bastando pra qualquer outra
+    edição de OS.
+  - `OSOrcamentos.tsx`: botões Aprovar/Recusar gateados por
+    `orders.approve`.
+  - `TrocarEtapaOS.tsx` (ficha da OS): some o atalho de avançar e as
+    opções Aprovado/Cancelar OS do seletor quando a etapa atual é
+    aguardando aprovação e falta `orders.approve`.
+  - **Terceiro caminho achado na revisão adversarial**:
+    `OrdensServico.tsx` (Kanban e grade) tinha sua própria função de
+    trocar status — arrastar o cartão ou usar o seletor da grade
+    também conseguia a mesma transição sem a mesma trava de tela (só o
+    gatilho do banco barrava, com erro cru do Postgres). Corrigido
+    igual às outras duas telas.
+  - **Observação registrada, não corrigida (decisão de produto)**: se
+    uma etapa extra for reordenada pra ficar *entre*
+    "Aguardando aprovação" e "Aprovado" em "Gerenciar Status", um
+    técnico poderia chegar no mesmo resultado em 2 passos (a trava
+    compara só a etapa *imediatamente* anterior). Não acontece hoje
+    com a ordem padrão — fica pra decidir depois se vale fechar essa
+    brecha e como.
 
 **🟠 Média**
 - [x] ⚠️ **Rebaixado em 17/08 — parcialmente resolvido em 09/08, não
