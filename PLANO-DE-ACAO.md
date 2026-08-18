@@ -662,16 +662,27 @@ o arquivo antes de assumir.
   custo alheio — por isso a trava tinha que ser na tela, não no banco).
 
 **🟠 Média**
-- [ ] 🆕 **18/08 — Saída de estoque (venda ou peça usada em OS) aparece
-  em verde com "+" na tela de Movimentações, igual a uma entrada de
-  mercadoria.** Os gatilhos de venda/OS sempre gravam a quantidade como
-  número positivo (é o campo `tipo = 'saida'` que diferencia, não o
-  sinal) — só o ajuste manual usa número negativo pra saída. A tela
-  decide cor/sinal só pelo número, então o caso mais comum do dia a dia
-  (vender ou usar peça) aparece com a cor de entrada. Dá pra perceber
-  comparando a coluna de saldo ao lado, mas a tela existe justamente
-  pra ser "a auditoria" do que mexeu no estoque, e mostra o sinal
-  errado no caso mais frequente.
+- [x] ✅ **Resolvido em 18/08 (terceira leva) — eram duas telas e dois
+  bugs, não um.** Saída de estoque (venda ou peça usada em OS) aparecia
+  em verde com "+", igual a uma entrada de mercadoria. Os gatilhos de
+  venda/OS gravam a quantidade como número POSITIVO — quem diferencia é
+  o campo `tipo = 'saida'`; só o ajuste manual usa negativo. As telas
+  decidiam cor e sinal só pelo número, então o caso mais comum do dia
+  aparecia com a cor de entrada, justamente na tela que existe pra ser a
+  auditoria do estoque.
+
+  **Descoberto ao corrigir:** (a) o mesmo código estava em DUAS telas —
+  `EstoqueMovimentacoes.tsx` e a aba de movimentações da ficha do
+  produto (`EstoqueDetalhe.tsx`); (b) o contador de "entradas" filtrava
+  por `quantidade > 0`, o que somava as SAÍDAS de venda junto (elas vêm
+  positivas) — o mesmo movimento entrava nos dois contadores e o total
+  de entradas ficava inflado. Esse segundo nunca tinha sido anotado.
+
+  A régua agora mora em `src/lib/movimentoEstoque.ts`: o `tipo` manda, e
+  o sinal só decide onde o tipo não diz (ajuste e inventário, que vão
+  pros dois lados). 10 testes cobrem os casos, inclusive o de não virar
+  menos duplo quando o número já vem negativo. O CSV exportado leva o
+  mesmo sinal da tela.
 - [x] ⚠️ **Rebaixado em 10/08 — não é mais vazamento de dado, é
   inconsistência de tela.** O achado original ("`Estoque.tsx` mostra
   custo/margem pra qualquer usuário, ignorando `inventory.cost.view`")
@@ -1221,17 +1232,25 @@ o arquivo antes de assumir.
   padrão, mas o gate confere a permissão errada pros dados reais.
   **Conferido em 17/08, ainda vale** — só vira um problema real se
   `finance.view` for concedido sozinho como exceção a alguém.
-- [ ] `RelatorioOS` mostra a chave crua do status (`em_reparo` → "em
-  reparo") em vez do rótulo/cor customizável — nem usa `useOsStatuses`
-  nem o fallback fixo, é `.replace()` puro. **Conferido em 18/08, ainda
-  vale.**
-- [ ] 🆕 **18/08 — Rodapé de total do Relatório de Vendas e do
-  Relatório Financeiro soma registros CANCELADOS, divergindo do
-  indicador de faturamento logo acima na mesma tela.** O indicador
-  "Faturamento" exclui vendas/títulos cancelados; o rodapé da tabela
-  (que soma a coluna inteira) não exclui — mostra dois números
-  diferentes na mesma tela, sem explicação, mesmo o texto de apoio do
-  relatório prometendo o contrário.
+- [x] ✅ **Resolvido em 18/08 (terceira leva).** `RelatorioOS` mostrava a
+  chave crua do status (`em_reparo` → "em reparo") em vez do rótulo e da
+  cor que a loja cadastra em Gerenciar Status — era `.replace()` puro,
+  sem `useOsStatuses`. Na prática, se a loja renomeasse uma etapa, o
+  relatório continuava exibindo o nome técnico do banco. Agora usa o
+  mesmo hook do resto do sistema, e o CSV leva o rótulo também — quem
+  abre a planilha não precisa traduzir "aguardando_aprovacao" de cabeça.
+- [x] ✅ **Resolvido em 18/08 (terceira leva).** O rodapé de total do
+  Relatório de Vendas e do Financeiro somava registros CANCELADOS,
+  enquanto os indicadores logo acima os excluíam — dois números
+  diferentes na mesma tela, sem explicação. Agora cancelado soma zero, e
+  o rótulo do rodapé diz o critério ("Total (sem canceladas)" / "Saldo
+  (sem cancelados)") em vez de deixar o leitor adivinhar.
+
+  Sobrou uma diferença **legítima** em Vendas, e ela está explicada no
+  texto de apoio da tela: o rodapé soma as linhas da tabela, e o
+  indicador "Faturamento" vai um passo além, descontando também o
+  dinheiro devolvido a cliente no período — que não é linha daquela
+  tabela. São duas perguntas diferentes, as duas úteis.
 - [ ] 🆕 **18/08 — Indicador "Orçamento em aberto" do Relatório de OS
   conta orçamento AINDA NÃO APROVADO pelo cliente como se já fosse
   dinheiro garantido.** O texto de apoio do indicador diz "Aprovado,
@@ -1619,6 +1638,24 @@ Duas coisas fora do código foram resolvidas no mesmo dia:
    passou a se chamar `PLANO-DE-ACAO.md` — que é como o Felipe se refere
    a ele — e os outros quatro saíram, depois de conferido item a item que
    nada vivo se perdia. Detalhe no topo deste arquivo.
+
+**Quarta leva, ainda em 18/08 — "telas que mostram o contrário do que
+aconteceu":**
+
+7. ✅ **Saída de estoque parava de aparecer como entrada.** Eram duas
+   telas (Movimentações e a ficha do produto) e dois bugs — o segundo, o
+   contador de entradas inflado, ninguém tinha anotado.
+8. ✅ **Relatório de OS passou a mostrar o rótulo da etapa**, não a chave
+   crua do banco — inclusive no CSV.
+9. ✅ **Rodapé de Vendas e Financeiro parou de somar linha cancelada**, e
+   o rótulo agora diz o critério.
+
+Um padrão se repetiu nas quatro levas e vale registrar: **o achado
+anotado quase sempre era menor do que o problema real.** "Reabrir OS
+entregue" eram dois caminhos, não um. "Saída em verde" eram duas telas e
+dois bugs. "Título pago vira cancelado" também deixava apagar o título
+inteiro. Vale abrir o código antes de estimar o tamanho de um item desta
+lista.
 
 **Pra continuar a partir daqui:**
 
