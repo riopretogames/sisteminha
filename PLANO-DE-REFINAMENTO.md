@@ -911,13 +911,31 @@ o arquivo antes de assumir.
   ler os movimentos exige só `finance.view` — quebra pra qualquer
   exceção individual que receba só a primeira. **Conferido em 18/08,
   ainda vale.**
-- [ ] 🆕 **18/08 — Título já pago pode virar "cancelado" via API sem
-  trava nenhuma, apagando o rastro do pagamento.** A tela esconde
-  certinho os botões errados (Cancelar só aparece pra título "aberto"),
-  mas nada no banco impede uma chamada direta mudar um título "pago"
-  direto pra "cancelado" — ele sumiria do total "Já pago/recebido" em
-  Contas a Pagar/Receber e do Fluxo de Caixa, sem nenhum indício de que
-  o dinheiro já tinha entrado ou saído.
+- [x] ✅ **Resolvido em 18/08 (terceira leva).** Título já pago podia
+  virar "cancelado" via API sem trava nenhuma, apagando o rastro do
+  pagamento. A tela escondia certinho os botões errados (Cancelar só
+  aparece pra título "aberto"), mas nada no banco impedia uma chamada
+  direta mudar um título "pago" direto pra "cancelado" — ele sumiria do
+  total "Já pago/recebido" e do Fluxo de Caixa, sem indício de que o
+  dinheiro já tinha entrado. Corrigido na migration `20260818120000`,
+  em duas partes. (1) Gatilho `trg_status_titulo` valida a mudança de
+  status: policy de RLS não serve aqui porque USING enxerga a linha
+  antiga e WITH CHECK a nova, avaliadas em separado — não dá pra
+  escrever "se ANTES era pago, DEPOIS não pode ser cancelado"; gatilho
+  tem OLD e NEW juntos. Permitidas exatamente as três transições que a
+  tela oferece (aberto→pago, aberto→cancelado, pago→aberto); bloqueadas
+  pago→cancelado e qualquer saída de "cancelado". (2) Descoberto no
+  caminho: o mesmo buraco alcançava DELETE, e pior — apaga a linha
+  inteira. O próprio `useTitulos.ts` já declarava a intenção contrária
+  ("Cancela em vez de excluir") e nenhuma tela apaga título. As duas
+  policies FOR ALL viraram INSERT + UPDATE explícitos; sem policy de
+  DELETE, a RLS nega por padrão. Conferido antes de aplicar: nenhum
+  gatilho do banco faz UPDATE em `titulos_financeiros`, e os dois que
+  criam título (ao entregar OS e o do caixa) só fazem INSERT e rodam
+  como dono — a trava não atrapalha automação interna.
+  **Falta testar na tela** com um título pago de verdade: a recusa e a
+  mensagem em português só aparecem com sessão logada, que a revisão
+  por código não alcança.
 
 **🔵 Simplificação**
 - [ ] `FinanceiroCaixa.tsx` sem hook dedicado.
@@ -1086,13 +1104,41 @@ o arquivo antes de assumir.
   a busca de vendas passou a trazer `valor_faturamento_real` junto.
 
 **🟠 Média**
-- [ ] 🆕 **18/08 — Devolução pura (sem troca) nunca reduz o faturamento
-  mostrado em nenhum dashboard.** A correção de 17/08 fez a saída de
-  caixa da devolução aparecer no Financeiro — mas nenhuma tela de
-  Dashboards/IE foi ajustada pro mesmo caso: uma venda totalmente
-  devolvida no mesmo dia continua contando como "Vendas Hoje"/"Caixa
-  Hoje" cheios em todo painel de negócio, mesmo com o dinheiro já fora
-  da loja.
+- [x] ✅ **Resolvido em 18/08 (terceira leva).** Devolução nunca reduzia
+  o faturamento em painel nenhum. A correção de 17/08 fez a saída de
+  caixa aparecer no Financeiro, mas nenhuma tela de negócio foi
+  ajustada: venda devolvida no mesmo dia contava cheia em "Vendas
+  Hoje"/"Caixa Hoje", na meta do mês e na premiação por vendedor, com o
+  dinheiro já fora da gaveta. A causa é que o dinheiro devolvido não
+  aparece em venda nenhuma — a venda original fica gravada com o valor
+  cheio para sempre, e a devolução vive em outra tabela. A fórmula
+  agora mora num lugar só (`src/lib/faturamento.ts`): faturamento =
+  soma(COALESCE(valor_faturamento_real, total)) − soma(devolvido).
+  Conferida nos quatro caminhos que troca/devolução podem tomar, cada
+  um virou teste (9 novos, 27 no total): devolução pura de 100 → 0;
+  troca com 20 de volta → 80; troca com 50 a mais → 150 sem desconto;
+  troca de valor igual → 100. Nenhum conta em dobro. Régua de data
+  igual à do Caixa: pesa no dia da devolução, não no da venda original.
+  Em `DashboardMetas` o desconto volta pro vendedor da venda ORIGINAL,
+  não pra quem atendeu o balcão. Telas ajustadas: `Dashboard`,
+  `DashboardVenda`, `DashboardMetas`, `RelatorioVendas`.
+- [ ] 🆕 **18/08 (achado ao corrigir o item acima) — `IeComercial` e
+  `IeEstoque` continuam sem descontar item devolvido.** As duas
+  agregam receita e margem **por produto**, somando `itens_venda`, não
+  o total da venda — o desconto que resolveu os outros painéis não
+  alcança elas. Um produto devolvido segue aparecendo como vendido no
+  ranking de mais vendidos e na margem por produto. Descontar exige
+  cruzar `devolucao_itens` (item a item, com quantidade), que é
+  trabalho diferente do que foi feito agora — por isso ficou separado,
+  não esquecido. Enquanto não for feito, o ranking de produto e a
+  margem por produto superestimam quem tem muita devolução.
+- [ ] 🆕 **18/08 (mesmo achado) — Rodapé de faturamento do Histórico de
+  Vendas não desconta devolução.** `VendasHistorico` filtra no cliente
+  por critérios livres (vendedor, forma de pagamento, período, texto),
+  então não dá pra casar uma devolução com um filtro arbitrário — o
+  desconto por período usado nos painéis não serve aqui. O caminho
+  certo é marcar na própria linha da venda que ela teve devolução (e
+  quanto), o que é mudança de tela, não de conta.
 - [x] ⚠️ **Atualizado em 17/08 — pior num ponto, melhor em outro.**
   Conferido contra o código atual: `OS_STATUS` (a lista fixa) é uma
   lista de chaves **diferente e desatualizada** da que o sistema usa
@@ -1505,6 +1551,24 @@ disciplina (migration própria, tsc/eslint/build, revisão adversarial):
    Configurações sem rastro agora tem, e a tela ganhou campo de motivo.
 5. ✅ **Vendas > Pagamentos** — "Detalhe por forma" agrupa pela forma
    cadastrada específica, não mais só pela categoria ampla do enum.
+
+**Terceira leva, em 18/08 — "onde o sistema mente sobre dinheiro":**
+
+Retomada depois de conferir o estado real do projeto (56 migrations
+aplicadas e batendo com o banco, tipos/testes/build limpos, trava de custo
+de pé nas 4 tabelas, nada solto fora do GitHub). Dois itens fechados, cada
+um com migration ou teste próprio:
+
+1. ✅ **Título já pago não pode mais ser cancelado nem apagado** — e o
+   buraco era maior do que o registrado: o DELETE também estava aberto.
+2. ✅ **Devolução passou a reduzir o faturamento** em Dashboard,
+   DashboardVenda, DashboardMetas e RelatorioVendas, com a fórmula num
+   arquivo só e os quatro cenários de troca/devolução virando teste.
+
+Corrigir o item 2 revelou dois pontos novos, registrados acima em vez de
+ficarem no ar: `IeComercial`/`IeEstoque` (receita por produto) e o rodapé
+do `VendasHistorico` continuam sem descontar devolução, cada um por um
+motivo técnico diferente.
 
 **Pra continuar a partir daqui:**
 
