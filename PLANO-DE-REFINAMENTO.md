@@ -678,9 +678,23 @@ o arquivo antes de assumir.
   esperado ao investigar: nem "entregue" travava de verdade no banco
   antes, só a tela escondia o botão (`jaFoiEntregue`) — os dois casos
   ficaram cobertos juntos (`osEncerrada` em `OSDetalhe.tsx`).
-- [ ] `total_pecas`/`total_mao_obra` e `service_order_history` (timeline)
-  nunca são lidos por nenhuma tela — dado gravado, nunca mostrado.
-  **Conferido em 17/08, ainda vale.**
+- [x] ✅ **17/08 — Histórico da OS e breakdown de peças/mão de obra, os
+  dois na ficha agora.** Card "Histórico da OS" mostra a timeline de
+  `service_order_history` (gravada sozinha pelo gatilho
+  `track_os_status_change` desde a criação do schema — data/hora,
+  status anterior → novo, quem fez a mudança). O nome de quem mudou é
+  resolvido à parte (`usuario_id` referencia `auth.users`, não
+  `profiles`, sem FK entre as duas — busca contra a lista de todos os
+  perfis, ativos ou não, pra não "esquecer" quem fez o quê depois de
+  desativado).
+  **`total_pecas`/`total_mao_obra` acabaram não sendo "dado gravado,
+  nunca mostrado"** — conferido que nenhuma migration ou gatilho nunca
+  escreveu nessas duas colunas (diferente de `service_order_history`,
+  que é dado real). Decisão: em vez de ressuscitar com um gatilho novo
+  de sincronia, o breakdown "Peças" / "Mão de obra" no card "Peças e
+  serviços" é computado ao vivo a partir de `service_order_items` — a
+  fonte real. As duas colunas continuam no schema, intencionalmente
+  não usadas.
 - [ ] 3 cópias do fallback de status e 2 de formatação de moeda/data
   entre telas antigas (Kanban/Tabela) e novas (Detalhe/Finalizadas/
   Orçamentos).
