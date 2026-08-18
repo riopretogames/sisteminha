@@ -1,18 +1,33 @@
-# Plano de Refinamento — Sisteminha (RP System.IO)
+# Plano de Ação — Sisteminha (RPG System.IO)
 
-**Data:** 07/08/2026
-**Como este documento se encaixa:**
-- [`PLANO-DE-CONSTRUCAO.md`](PLANO-DE-CONSTRUCAO.md) é o histórico — Passos 1
-  a 6, tudo que foi construído do zero até aqui. Continua valendo como
-  registro, não foi apagado nem reescrito.
-- [`REVISAO-TECNICA.md`](REVISAO-TECNICA.md) é a auditoria bruta — ~90
-  achados, lidos por agentes especializados em 3 camadas-base (Banco de
-  Dados, Acesso a Dados, Permissões/Rotas) e 8 áreas funcionais, com
-  citação exata de arquivo/linha. Cada achado lá diz se foi "✅ confirmado
-  (2ª leitura adversarial)" ou "— não verificado" — vale a pena abrir esse
-  documento quando um item deste plano precisar de mais detalhe técnico.
-- **Este documento é o plano de ataque** — a mesma auditoria, reorganizada
-  página por página, com prioridade, pronta pra virar trabalho.
+**Começou em:** 07/08/2026 · **Atualizado em:** 18/08/2026
+
+> **Este é o único documento de planejamento do sisteminha.**
+> Se você quer saber o que falta fazer, o que já foi feito e por quê, é
+> aqui. Não existe outro.
+
+**Por que "o único":** até 18/08 o planejamento estava espalhado em cinco
+documentos, e ninguém sabia mais qual valia. Decisão do Felipe naquele dia:
+*"apaga os antigos e deixa somente o mais atualizado"*. Os quatro que
+sobravam foram apagados depois de conferir, um por um, que tudo que ainda
+era vivo neles já estava aqui dentro:
+
+| Documento apagado | O que era | Por que podia sair |
+|---|---|---|
+| `PLANO-DE-CONSTRUCAO.md` | Passos 1 a 6, a construção do zero (04/08) | Histórico puro, parado desde 06/08 — o sistema já saiu dessa fase |
+| `REVISAO-TECNICA.md` | Auditoria bruta, ~90 achados com arquivo e linha | Todos os achados foram reorganizados neste plano, por área |
+| `MAPA-FINANCEIRO.md` | Como o dinheiro circulava, e as 4 decisões pendentes | As 4 decisões foram **respondidas pelo Felipe em 18/08** e estão registradas na seção Financeiro |
+| `ESCOPO-REVISAO-09-08.md` | Escopo da revisão de 09/08, 6 achados | 5 resolvidos naquele dia, o 6º (título nascendo pago) resolvido em 18/08 |
+
+**Nada foi perdido.** Os quatro continuam inteiros no histórico do Git, com
+todo o texto original. Para ler qualquer um deles como estava:
+
+```bash
+git show 4fc4b3c:MAPA-FINANCEIRO.md
+```
+
+(troque o nome do arquivo; `4fc4b3c` é o último commit em que os quatro
+ainda existiam).
 
 Agora que o Passo 6 fechou o "construir do zero", a fase muda de figura:
 não é mais adicionar tela nova, é **lapidar o que já existe** — achar o que
@@ -954,9 +969,9 @@ o arquivo antes de assumir.
 
 **🔴 Alta**
 - [ ] Cadastro "pronto mas isolado" — nada do resto do sistema consome.
-  **3 "Passos" marcados como ✅ no PLANO-DE-CONSTRUCAO.md são, na prática,
-  vitrine de CRUD sem ligação com o resto do sistema.** Estado por
-  cadastro:
+  **3 "Passos" marcados como ✅ no antigo plano de construção são, na
+  prática, vitrine de CRUD sem ligação com o resto do sistema.** Estado
+  por cadastro:
   - [x] ✅ **Formas de Pagamento — resolvido de vez em 18/08.** O PDV já
     consultava o cadastro de verdade desde 07/08 (migration
     `20260807060000`, commit `23292e8`). Faltavam Vendas>Pagamentos e
@@ -1348,28 +1363,22 @@ o arquivo antes de assumir.
   confirmado baixo na prática.
 
 **🔵 Simplificação**
-- [ ] PLANO-DE-CONSTRUCAO.md descreve RBAC como "admin/atendente/
-  técnico/vendedor" (4 papéis antigos) — o código já usa 5 papéis
-  renomeados. Só o texto do plano antigo ficou desatualizado (não vale
-  reescrever histórico, mas bom saber ao ler).
-- [ ] ⚠️ **Atualizado em 18/08 — é bem maior do que "cabeçalho de
-  migration", e precisa de decisão do Felipe.** O nome "RPG System.IO"
-  não está só em comentário: está em **9 lugares**, e os três primeiros
-  são o que o cliente e a equipe veem na cara da tela — o título da aba
-  do navegador e a prévia de link compartilhado (`index.html:6,13`), a
-  marca na tela de login (`Login.tsx:70`) e a marca na barra lateral
-  (`Sidebar.tsx:210`). Os outros são comentários de cabeçalho
-  (`Sidebar.tsx:19`, `menu.ts:5`, `permissions.ts:2`, `useAuth.tsx:9`,
-  `Login.tsx:19`).
-
-  **A decisão não é técnica, é de marca, e é do Felipe.** As duas grafias
-  se defendem: "RPG" são as iniciais de **R**io **P**reto **G**ames e
-  ainda cai como trocadilho com RPG de videogame, o que é ótimo pra uma
-  loja de games; "RP System.IO" é o que o `CLAUDE.md` e toda a
-  documentação usam hoje. Pode muito bem ser que o certo seja "RPG" e a
-  documentação é que esteja errada — por isso ninguém deve sair
-  renomeando por conta própria. Definido o nome, é achar-e-substituir
-  nos 9 lugares (mais o `CLAUDE.md`, se a escolha for "RPG").
+- [x] ✅ **Resolvido em 18/08 pela faxina de documentos.** O antigo plano
+  de construção descrevia o RBAC como "admin/atendente/técnico/vendedor"
+  (4 papéis) quando o código já usava 5 papéis renomeados. Como aquele
+  documento foi apagado, a descrição desatualizada saiu junto — não
+  existe mais texto no projeto afirmando isso.
+- [x] ✅ **Resolvido em 18/08 — decidido pelo Felipe: o nome é "RPG
+  System.IO".** O achado estava anotado como "cabeçalho das migrations",
+  mas na verdade eram duas grafias brigando em todo o projeto: a tela
+  dizia "RPG System.IO" (título da aba, tela de login, barra lateral) e a
+  documentação inteira dizia "RP System.IO". Perguntado diretamente, o
+  Felipe confirmou **RPG System.IO** — as iniciais de **R**io **P**reto
+  **G**ames, que ainda caem como trocadilho com RPG de videogame. Ou
+  seja: o código estava certo o tempo todo e a documentação é que tinha
+  se desencontrado. A documentação foi acertada para bater com a tela.
+  Migrations antigas não foram reescritas (é histórico); as novas já
+  nascem com o nome certo.
 
 ---
 
@@ -1499,8 +1508,7 @@ Não quebram nada hoje — limpar enquanto a mão está na área correspondente:
 
 ## O que esta revisão não cobriu
 
-Herdado da nota de honestidade do `REVISAO-TECNICA.md` — vale lembrar antes
-de assumir que "não foi achado" significa "não existe":
+Vale lembrar antes de assumir que "não foi achado" significa "não existe":
 
 - Nenhum teste foi feito no app rodando além dos 2 que eu confirmei
   manualmente (profile query e status TEXT/ENUM) — o resto é leitura
@@ -1598,10 +1606,19 @@ Na sequência, os dois itens 🟠 da assistência:
 4. ✅ **OS cancelada trava o valor do orçamento**, igual à seção de peças
    que já travava.
 
-E uma divergência de marca apareceu ao abrir o sistema no navegador: a
-tela mostra "RPG System.IO" e a documentação toda diz "RP System.IO" — o
-item na seção de arquitetura foi atualizado, porque é decisão do Felipe e
-não ajuste técnico.
+Duas coisas fora do código foram resolvidas no mesmo dia:
+
+5. ✅ **O nome do sistema.** Abrindo o sistema no navegador apareceu uma
+   divergência de marca: a tela dizia "RPG System.IO" e a documentação
+   inteira dizia "RP System.IO". Perguntado, o Felipe confirmou **RPG
+   System.IO** — o código estava certo, a documentação é que tinha se
+   desencontrado. Documentação acertada; migrations antigas ficam como
+   estão (histórico).
+6. ✅ **Cinco documentos de planejamento viraram um.** Decisão do Felipe:
+   *"apaga os antigos e deixa somente o mais atualizado"*. Este documento
+   passou a se chamar `PLANO-DE-ACAO.md` — que é como o Felipe se refere
+   a ele — e os outros quatro saíram, depois de conferido item a item que
+   nada vivo se perdia. Detalhe no topo deste arquivo.
 
 **Pra continuar a partir daqui:**
 

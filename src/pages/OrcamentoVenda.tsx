@@ -14,7 +14,7 @@ import { moeda } from '@/lib/format';
 /**
  * Orçamento de Venda — simulação, não vira registro nenhum no banco.
  *
- * Pedido do Felipe em 10/08 (ver PLANO-DE-REFINAMENTO.md, Vendas/PDV):
+ * Pedido do Felipe em 10/08 (ver PLANO-DE-ACAO.md, Vendas/PDV):
  * antes de fechar uma venda, o vendedor às vezes só quer mostrar pro
  * cliente quanto vai dar — sem comprometer estoque, sem criar venda
  * "rascunho", sem fluxo de aprovação nenhum. Decisão do Felipe: fica só

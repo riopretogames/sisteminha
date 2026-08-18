@@ -1,4 +1,4 @@
-# Sisteminha (RP System.IO)
+# Sisteminha (RPG System.IO)
 
 O sistema próprio da loja, feito pra substituir o sistema atual.
 **Ainda não está em uso.** Volta pro [[_inicio|Início]].
@@ -11,19 +11,17 @@ O sistema próprio da loja, feito pra substituir o sistema atual.
 
 ## Planejamento
 
-- [[sisteminha/PLANO-DE-CONSTRUCAO|Plano de construção]] — o que ainda
-  falta ser feito.
-- [[sisteminha/PLANO-DE-REFINAMENTO|Plano de refinamento]] — o que existe
-  mas precisa melhorar.
-- [[sisteminha/ESCOPO-REVISAO-09-08|Escopo da revisão de 09/08/2026]] — o
-  trabalho mais recente.
+- [[sisteminha/PLANO-DE-ACAO|Plano de ação]] — **o único documento de
+  planejamento.** O que falta fazer, o que já foi feito e por quê, área
+  por área, com prioridade.
 
-## Diagnóstico
-
-- [[sisteminha/REVISAO-TECNICA|Revisão técnica completa]]
-- [[sisteminha/MAPA-FINANCEIRO|Mapa do financeiro — antes de mexer]] — como
-  o dinheiro circula dentro do sistema. Ler antes de encostar em qualquer
-  coisa de venda ou caixa.
+> [!note] Eram cinco documentos, agora é um
+> Até 18/08 o planejamento estava espalhado em cinco arquivos e ninguém
+> sabia mais qual valia. Os quatro antigos (plano de construção, revisão
+> técnica, mapa do financeiro e escopo da revisão de 09/08) foram
+> apagados depois de conferir que tudo que ainda era vivo neles já estava
+> no plano de ação. O texto original dos quatro continua guardado no
+> histórico do Git — o próprio plano explica como abrir.
 
 > [!info] A pasta `node_modules` daqui está escondida no Obsidian
 > São 1.240 manuais em inglês de peças de programação que o sistema usa

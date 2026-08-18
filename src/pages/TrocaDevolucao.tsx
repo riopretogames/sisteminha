@@ -24,7 +24,7 @@ import {
  * Troca e Devolução de produto.
  *
  * Feature nova (não existia rascunho nenhum antes) — desenhada com o
- * Felipe em 08/08 (ver PLANO-DE-REFINAMENTO.md). Duas decisões de negócio
+ * Felipe em 08/08 (ver PLANO-DE-ACAO.md). Duas decisões de negócio
  * que moldam esta tela:
  * - Devolução é sempre em DINHEIRO de verdade — a loja não trabalha com
  *   crédito de loja nem crediário, então não existe "fica devendo" nem
@@ -48,7 +48,7 @@ import {
  * essa permissão deveria gatear.
  *
  * As 2 pendências abaixo (achadas na revisão adversarial de 08/08,
- * registradas no PLANO-DE-REFINAMENTO.md) foram corrigidas em 17/08:
+ * registradas no PLANO-DE-ACAO.md) foram corrigidas em 17/08:
  *
  * 1. ✅ O dinheiro devolvido agora entra na conferência de Caixa: o
  *    gatilho `registrar_devolucao_no_caixa` (migration `20260817120000`)

@@ -1,4 +1,4 @@
-# Sisteminha (RP System.IO) — regras da área
+# Sisteminha (RPG System.IO) — regras da área
 
 Complementa o `CLAUDE.md` raiz da empresa. As regras gerais de lá continuam
 valendo aqui — em especial a de **explicar tudo em linguagem de leigo**,
@@ -153,10 +153,19 @@ que são dois cadastros, não um.
 
 ## Documentos de referência
 
-- `PLANO-DE-REFINAMENTO.md` — o plano de trabalho atual, item por item,
-  com o que já foi feito e o que falta. **É o documento a consultar
-  primeiro.**
-- `REVISAO-TECNICA.md` — a auditoria bruta que originou o plano, com
-  citação de arquivo e linha.
-- `PLANO-DE-CONSTRUCAO.md` — histórico dos Passos 1 a 6, quando o sistema
-  foi construído do zero. Registro, não plano ativo.
+- `PLANO-DE-ACAO.md` — **o único documento de planejamento, e o primeiro a
+  consultar.** O que falta fazer, o que já foi feito e por quê, área por
+  área, com prioridade.
+
+Eram cinco documentos até 18/08 (plano de construção, plano de
+refinamento, revisão técnica, mapa do financeiro e escopo da revisão de
+09/08). Decisão do Felipe naquele dia: *"apaga os antigos e deixa somente
+o mais atualizado"*. Os quatro antigos foram apagados depois de conferir
+que tudo que ainda era vivo já estava no plano de ação — e continuam
+inteiros no histórico do Git, com o comando de leitura registrado no topo
+do próprio plano.
+
+**Não crie documento de planejamento novo.** Achado novo, decisão nova ou
+mudança de rumo entram no `PLANO-DE-ACAO.md`, na área a que pertencem. Foi
+justamente a proliferação de documentos que fez ninguém saber mais qual
+valia.
