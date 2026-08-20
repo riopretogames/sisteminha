@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
 import { PRODUTO_CATEGORIAS, PRODUTO_LOCALIZACOES } from '@/lib/constants';
 import { FiltrosProdutos } from '@/components/produtos/FiltrosProdutos';
@@ -66,9 +67,12 @@ interface Produto {
   condicao_id: string | null;
   memoria_id: string | null;
   categoria: ProdutoCategoria;
-  custo: number;
+  // `vw_produtos` devolve estas duas como NULL pra quem não tem
+  // inventory.cost.view (regra do custo protegido, Opção B) — nunca
+  // assumir preenchido. Foi exatamente daqui que veio a tela em branco.
+  custo: number | null;
   preco: number;
-  margem_percent: number;
+  margem_percent: number | null;
   estoque_atual: number;
   estoque_minimo: number;
   localizacao: ProdutoLocalizacao;
@@ -86,7 +90,13 @@ interface Produto {
 export default function Estoque() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
+  // Vendedor e Técnico têm inventory.view mas NÃO inventory.cost.view: a
+  // view devolve custo/margem nulos pra eles, e a tela quebrava inteira
+  // tentando calcular a porcentagem em cima do vazio (`.toFixed()` de
+  // null). As colunas somem pra quem não tem a permissão — mesmo padrão
+  // já usado no Relatório de Estoque.
+  const veCusto = can(PERMISSIONS.INVENTORY_COST_VIEW);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
   // Padrão continua "Apto à Venda: Sim" — não muda o que todo mundo já está
@@ -332,9 +342,9 @@ export default function Estoque() {
                 <TableRow>
                   <TableHead>Produto</TableHead>
                   <TableHead>Categoria</TableHead>
-                  <TableHead className="text-right">Custo</TableHead>
+                  {veCusto && <TableHead className="text-right">Custo</TableHead>}
                   <TableHead className="text-right">Preço</TableHead>
-                  <TableHead className="text-right">Margem</TableHead>
+                  {veCusto && <TableHead className="text-right">Margem</TableHead>}
                   <TableHead className="text-center">Estoque</TableHead>
                   <TableHead>Local</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
@@ -376,17 +386,25 @@ export default function Estoque() {
                           {PRODUTO_CATEGORIAS[produto.categoria]?.label || produto.categoria}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(produto.custo)}
-                      </TableCell>
+                      {veCusto && (
+                        <TableCell className="text-right">
+                          {produto.custo != null ? formatCurrency(produto.custo) : '—'}
+                        </TableCell>
+                      )}
                       <TableCell className="text-right font-medium">
                         {formatCurrency(produto.preco)}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <span className={produto.margem_percent > 0 ? 'text-success' : 'text-destructive'}>
-                          {produto.margem_percent.toFixed(1)}%
-                        </span>
-                      </TableCell>
+                      {veCusto && (
+                        <TableCell className="text-right">
+                          {produto.margem_percent != null ? (
+                            <span className={produto.margem_percent > 0 ? 'text-success' : 'text-destructive'}>
+                              {produto.margem_percent.toFixed(1)}%
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell className="text-center">
                         <Badge variant={isLowStock ? 'destructive' : 'secondary'}>
                           {isLowStock && <AlertTriangle className="mr-1 h-3 w-3" />}
