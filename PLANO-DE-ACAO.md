@@ -1690,6 +1690,70 @@ dois bugs. "Título pago vira cancelado" também deixava apagar o título
 inteiro. Vale abrir o código antes de estimar o tamanho de um item desta
 lista.
 
+**Resgate do 11/08, feito em 20/08 — um dia inteiro de trabalho que tinha
+se perdido:**
+
+O Felipe levantou a suspeita de ter trabalhado em dois projetos paralelos
+(ele usa duas máquinas, casa e serviço). Verificado: **não existem dois
+projetos** — um repositório, um remoto, um autor. Mas havia trabalho que
+nunca cruzou.
+
+Em **11/08** foi feita uma revisão completa com 6 agentes: 32 achados
+verificados, 139 linhas de atualização do plano e um relatório de 221
+linhas (`REVISAO-11-08.md`). Tudo isso ficou na branch
+`claude/project-complete-review-347203`, que **nunca chegou na main e até
+20/08 existia só no disco de uma das máquinas**. O plano não tinha uma
+única menção a 11/08.
+
+O que o resgate encontrou:
+
+- 🔴 **A tela de Estoque quebrava — em branco — para Vendedor e Técnico.**
+  `vw_produtos` devolve custo/margem nulos pra quem não tem
+  `inventory.cost.view` (a trava funcionando como deve), e a tela fazia
+  `margem_percent.toFixed(1)` direto. O conserto existia desde 11/08 e
+  nunca foi aplicado. **Agravante:** em 17/08 este item foi reavaliado e
+  teve a gravidade REBAIXADA, com a nota de que a tela "só mostra R$0
+  enganoso" — não mostra, quebra. A reavaliação foi feita sem a informação
+  que já existia na branch perdida. Corrigido em 20/08, com varredura no
+  resto do projeto: as outras 16 telas que leem das views protegidas já
+  tratavam o caso; `Estoque.tsx` era a única exceção, justamente por causa
+  da correção órfã.
+- 🟠 **PDV: cancelar o pagamento não descartava nada.** Pagamento lançado e
+  produto recebido em troca sobreviviam ao cancelamento e reapareciam na
+  próxima venda, possivelmente de outro cliente. Corrigido em 20/08.
+- 🟠 **Estoque Crítico decidia o rótulo pelo valor, não pela permissão.**
+  Corrigido em 20/08.
+- 🔵 **Import morto de `untyped.ts` em `useAuth.tsx`.** Removido.
+
+A maioria dos outros 32 achados já tinha sido re-encontrada e resolvida
+entre 17 e 18/08, por caminhos independentes — aprovação de orçamento,
+`ajustar_estoque_produto`, administrador se autodemovendo, rastro de quem
+liberou permissão, "total recebido" somando o que não entrou, relatório
+contando troca duas vezes, cliente bloqueado abrindo OS.
+
+**A lição que fica:** trabalho em branch que não sobe não é trabalho
+guardado — é trabalho perdido com aparência de guardado. Pior, ele
+envenena decisões futuras: a reavaliação de 17/08 rebaixou um bug real
+porque quem reavaliou não tinha o que já se sabia. As duas branches que
+ainda estavam só em disco foram publicadas no GitHub em 20/08.
+
+**Continua aberto do 11/08:**
+
+- [ ] 🟠 **PDV e ficha do produto não avisam quando uma busca ao banco
+  falha.** `src/pages/PDV.tsx` tem 9 consultas diretas e só 2 checagens de
+  erro; `EstoqueDetalhe.tsx` tem mais 4 sem checagem. Se o banco engasgar
+  por um instante, a lista fica vazia em silêncio — quem está no balcão não
+  distingue "não tem cadastro" de "não consegui buscar", e pode cadastrar
+  um produto que já existe ou dizer ao cliente que não tem estoque.
+- [ ] 🔵 **Os três painéis de filtro (Venda, OS, Produto) repetem a mesma
+  estrutura** em vez de compartilhar componente: mesma moldura, mesma função
+  de limpar, e o bloco "campo + lista suspensa" copiado 9 vezes entre os
+  três arquivos.
+- [ ] 🔵 **O cálculo de "quantos dias tem o período" está copiado** em
+  `VendasPagamentos.tsx` e `relatorios/RelatorioVendas.tsx`.
+- [ ] 🔵 **`untyped.ts` cresceu de 6 para 10 arquivos** em vez de diminuir,
+  mesmo as tabelas que ele cobre já sendo reconhecidas pelo gerador de tipos.
+
 **Pra continuar a partir daqui:**
 
 1. **Fornecedores não alimentar compra/entrada de estoque** — o único
