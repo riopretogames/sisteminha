@@ -1,7 +1,5 @@
 import { useEffect, useState, useCallback, createContext, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-// `role_permissions` ainda não está em types.ts — ver untyped.ts.
-import { db } from '@/integrations/supabase/untyped';
 import type { User, Session } from '@supabase/supabase-js';
 import type { Permission, Role } from '@/config/permissions';
 

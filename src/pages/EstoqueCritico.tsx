@@ -94,7 +94,15 @@ export default function EstoqueCritico() {
     (soma, p) => soma + Math.max(0, p.estoque_minimo - p.estoque_atual) * Number(p.preco ?? 0),
     0
   );
-  const vecusto = custoReposicao > 0;
+  // Achado em 11/08, resgatado em 20/08: isto decidia pelo VALOR calculado
+  // (`custoReposicao > 0`), não pela permissão — apesar do nome sugerir o
+  // contrário. Funcionava por acidente (quem não tem a permissão recebe
+  // custo nulo da view, a soma dá 0 e o rótulo troca), mas errava no caso
+  // legítimo: quem TEM a permissão e ainda não cadastrou o preço de compra
+  // dos produtos em alerta via "Valor em venda" no lugar de "Custo para
+  // repor tudo" — etiqueta errada pra pessoa certa. Agora pergunta a
+  // permissão direto, como RelatorioEstoque.tsx já fazia.
+  const veCusto = can(PERMISSIONS.INVENTORY_COST_VIEW);
 
   const abrirReposicao = (produto: Produto) => {
     setRepondo(produto);
@@ -160,7 +168,7 @@ export default function EstoqueCritico() {
           valor={String(faltando)}
           detalhe="Para todos chegarem ao mínimo"
         />
-        {vecusto ? (
+        {veCusto ? (
           <Indicador
             rotulo="Custo para repor tudo"
             valor={moeda(custoReposicao)}

@@ -492,6 +492,27 @@ export default function PDV() {
     setEntradasProduto(entradasProduto.filter((_, i) => i !== index));
   };
 
+  /**
+   * Fecha o diálogo de pagamento DESCARTANDO o que foi montado nele.
+   *
+   * Achado em 11/08, resgatado em 20/08: cancelar só escondia a janela.
+   * Pagamento já lançado e produto recebido em troca continuavam guardados,
+   * e reapareciam na próxima vez que alguém abrisse "Finalizar Venda" —
+   * inclusive para OUTRO cliente. Uma venda podia fechar com forma de
+   * pagamento ou produto de troca que não eram daquele atendimento, e o
+   * produto de troca entra no estoque, então o erro não ficaria só na tela.
+   *
+   * Carrinho, cliente e desconto NÃO são limpos de propósito: quem cancela
+   * quase sempre quer voltar e corrigir justamente o carrinho.
+   */
+  const cancelarCheckout = () => {
+    setPagamentos([]);
+    setEntradasProduto([]);
+    setNovaEntrada(ENTRADA_PRODUTO_VAZIA);
+    setShowEntradaProduto(false);
+    setShowCheckout(false);
+  };
+
   const handleCheckout = async () => {
     if (cart.length === 0) {
       toast({
@@ -1043,7 +1064,7 @@ export default function PDV() {
       />
 
       {/* Checkout Dialog */}
-      <Dialog open={showCheckout} onOpenChange={setShowCheckout}>
+      <Dialog open={showCheckout} onOpenChange={(aberto) => (aberto ? setShowCheckout(true) : cancelarCheckout())}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Finalizar Venda</DialogTitle>
@@ -1320,7 +1341,7 @@ export default function PDV() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCheckout(false)}>
+            <Button variant="outline" onClick={cancelarCheckout}>
               Cancelar
             </Button>
             <Button
