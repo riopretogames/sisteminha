@@ -1064,18 +1064,33 @@ o arquivo antes de assumir.
   item, então não pode mais ser apagada por engano ou de propósito.
 
 **🟠 Média**
-- [ ] Fluxo de Caixa classifica "Realizado" pelo **vencimento**, não pela
-  data real de pagamento (`pago_em`) — o próprio comentário do arquivo
-  avisa que esse é o erro mais comum em relatório de fluxo de caixa, e
-  reproduz ele mesmo. Afeta título manual pago fora do mês do
-  vencimento. **Conferido em 18/08, ainda vale.**
-- [ ] Formulário de título manual não vincula fornecedor/cliente, apesar
-  das colunas e cadastros já existirem — não dá pra consultar "quanto o
-  cliente X me deve" pelo Financeiro. **Conferido em 18/08, ainda vale.**
-- [ ] Assimetria: abrir/lançar no Caixa exige `finance.cashier.close`,
-  ler os movimentos exige só `finance.view` — quebra pra qualquer
-  exceção individual que receba só a primeira. **Conferido em 18/08,
-  ainda vale.**
+- [x] ✅ **Resolvido em 21/08.** O Fluxo de Caixa classificava "Realizado"
+  pelo VENCIMENTO — o arquivo avisava que esse é o erro mais comum em
+  relatório de fluxo de caixa e cometia ele. Uma conta que venceu em janeiro
+  e foi paga em março contava como realizada de janeiro, mês em que nenhum
+  dinheiro se moveu, e sumia de março, onde o dinheiro saiu. Agora são duas
+  consultas com recortes de data diferentes de propósito: Previsto filtra
+  por `vencimento`, Realizado por `pago_em`. Os títulos das seções e o texto
+  de apoio explicam a diferença com exemplo — senão os dois blocos parecem
+  discordar um do outro.
+- [x] ✅ **Resolvido em 21/08.** O formulário de título manual não
+  vinculava fornecedor nem cliente, apesar das colunas existirem desde a
+  criação da tabela. O campo entrou, com a lista trocando conforme a tela
+  (fornecedores em Contas a Pagar, clientes em Contas a Receber), e o nome
+  aparece na própria linha — sem isso o vínculo ficaria só no banco e a tela
+  não responderia a pergunta que motivou o campo.
+- [x] ✅ **Resolvido em 21/08 — e o problema era pior que "assimetria".**
+  Quem recebesse só `finance.cashier.close` caía numa tela inutilizável:
+  abria o caixa, lançava sangria, e não via uma linha do que ele mesmo
+  lançou — a lista voltava vazia pela RLS, sem erro, como se o caixa não
+  tivesse nada. Modo de falha silencioso, o pior tipo: a pessoa acha que não
+  salvou e lança de novo. A leitura passou a aceitar qualquer uma das duas
+  permissões; a recíproca continua não valendo (`finance.view` sozinha só
+  lê), que é o ponto do controle. Junto, a descrição da permissão foi
+  corrigida: chamava-se "Fechar o caixa" mas governa abrir, lançar E fechar
+  — quem montava um perfil lendo a lista concedia achando que liberava bem
+  menos. Só o texto mudou; a chave continua a mesma, porque renomeá-la
+  quebraria as concessões já feitas.
 - [x] ✅ **Resolvido em 18/08 (terceira leva).** Título já pago podia
   virar "cancelado" via API sem trava nenhuma, apagando o rastro do
   pagamento. A tela escondia certinho os botões errados (Cancelar só
@@ -1723,6 +1738,32 @@ Não quebram nada hoje — limpar enquanto a mão está na área correspondente:
 - [ ] Bundle principal (`index-*.js`) em ~600kB, acima do limite
   recomendado do Vite — avaliar code-splitting mais agressivo (a loja
   pode ter internet ruim).
+
+---
+
+## A verificação de tipo não verificava nada (achado em 21/08)
+
+Vale como item próprio porque afeta a confiança em tudo que foi dito antes.
+
+- [x] ✅ **Resolvido em 21/08.** `npx tsc --noEmit` — o comando usado como
+  prova de "está limpo" em dezenas de commits — **compilava zero arquivos**.
+  O `tsconfig.json` da raiz tem `"files": []` e delega por `references`, e
+  `--noEmit` ignora referências: ele terminava em silêncio, e o silêncio era
+  lido como aprovação quando era indiferença.
+
+  Descoberto por acaso: o `vite build` reclamou de uma variável declarada
+  duas vezes logo depois de o `tsc` dizer que estava tudo certo. Provado
+  injetando `const x: number = "texto"` num arquivo — `tsc --noEmit` não
+  disse nada, `tsc --build` acusou na hora.
+
+  Quem vinha segurando erro de tipo era o esbuild dentro do `vite build`,
+  que reclama do que é grave mas não faz checagem completa. Rodada a
+  verificação de verdade no projeto inteiro: **zero erros** — o código estava
+  limpo mesmo, mas por sorte, não por processo.
+
+  Fechado com `npm run typecheck` (`tsc --build --force`) e `npm run check`
+  (typecheck + testes + build), e a regra registrada no `CLAUDE.md` com o
+  teste que prova.
 
 ---
 
