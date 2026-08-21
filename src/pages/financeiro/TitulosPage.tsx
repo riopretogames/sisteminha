@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Plus, Check, Undo2, Ban, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { moeda, data as fmtData, hojeISO, paraNumero } from '@/lib/format';
 import { useToast } from '@/hooks/use-toast';
 import { PageHeader, Indicador, Vazio } from '@/components/PageHeader';
@@ -56,6 +58,26 @@ export function TitulosPage({ natureza }: { natureza: NaturezaTitulo }) {
     vencimento: hojeISO(),
     categoria_id: '',
     observacoes: '',
+    // De quem é a conta. A pagar vincula fornecedor, a receber vincula
+    // cliente — as colunas existiam desde a criação da tabela e nunca eram
+    // preenchidas, então não dava pra responder "quanto o cliente X me deve"
+    // pelo Financeiro.
+    vinculo_id: '',
+  });
+
+  // A lista do vínculo muda com a natureza da tela: fornecedores em Contas a
+  // Pagar, clientes em Contas a Receber.
+  const { data: vinculos } = useQuery({
+    queryKey: ['titulo-vinculos', natureza],
+    queryFn: async (): Promise<{ id: string; nome: string }[]> => {
+      const { data, error } = await supabase
+        .from(ehPagar ? 'fornecedores' : 'clientes')
+        .select('id, nome')
+        .eq('ativo', true)
+        .order('nome');
+      if (error) throw error;
+      return (data ?? []) as { id: string; nome: string }[];
+    },
   });
 
   const comSituacao = useMemo(
@@ -105,11 +127,16 @@ export function TitulosPage({ natureza }: { natureza: NaturezaTitulo }) {
         vencimento: form.vencimento,
         categoria_id: form.categoria_id || null,
         observacoes: form.observacoes.trim() || null,
+        fornecedor_id: ehPagar ? form.vinculo_id || null : null,
+        cliente_id: ehPagar ? null : form.vinculo_id || null,
       },
       {
         onSuccess: () => {
           setAberto(false);
-          setForm({ descricao: '', valor: '', vencimento: hojeISO(), categoria_id: '', observacoes: '' });
+          setForm({
+            descricao: '', valor: '', vencimento: hojeISO(),
+            categoria_id: '', observacoes: '', vinculo_id: '',
+          });
         },
       },
     );
@@ -168,6 +195,33 @@ export function TitulosPage({ natureza }: { natureza: NaturezaTitulo }) {
                       onChange={(e) => setForm({ ...form, vencimento: e.target.value })}
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>{ehPagar ? 'Fornecedor' : 'Cliente'}</Label>
+                  <Select
+                    value={form.vinculo_id}
+                    onValueChange={(v) => setForm({ ...form, vinculo_id: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          ehPagar ? 'De quem é esta conta?' : 'Quem deve este valor?'
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(vinculos ?? []).map((v) => (
+                        <SelectItem key={v.id} value={v.id}>
+                          {v.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Opcional, mas é o que permite consultar depois quanto{' '}
+                    {ehPagar ? 'você deve a um fornecedor' : 'um cliente te deve'}.
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -281,7 +335,17 @@ export function TitulosPage({ natureza }: { natureza: NaturezaTitulo }) {
                 const meta = SITUACAO_META[t.situacao];
                 return (
                   <TableRow key={t.id} className={cn(t.situacao === 'cancelado' && 'opacity-50')}>
-                    <TableCell className="font-medium">{t.descricao}</TableCell>
+                    <TableCell className="font-medium">
+                      {t.descricao}
+                      {/* De quem é a conta, logo abaixo da descrição: sem
+                          isso o vínculo ficaria só no banco, e a tela não
+                          responderia a pergunta que motivou o campo. */}
+                      {(t.fornecedores?.nome ?? t.clientes?.nome) && (
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          {t.fornecedores?.nome ?? t.clientes?.nome}
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {t.categorias_financeiras?.nome ?? '—'}
                     </TableCell>

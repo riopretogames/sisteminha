@@ -40,6 +40,23 @@ apagar linha — continua exigindo confirmação do Felipe.
     desabilitada na máquina do Felipe e o `npx` puro é barrado.
   - O CLI só faz login em terminal de verdade. Rodar `supabase login` por
     ferramenta falha com "non-TTY".
+- **Para conferir tipos, use `npm run typecheck` — NÃO `npx tsc --noEmit`.**
+  Descoberto em 21/08, e é armadilha séria: o `tsconfig.json` da raiz tem
+  `"files": []` e delega tudo por `references`. `tsc --noEmit` ignora
+  referências, então compila **zero arquivos** e termina em silêncio — parece
+  aprovação, é indiferença. Provado na marra: injetei
+  `const x: number = "texto"` num arquivo, `tsc --noEmit` não disse nada e
+  `tsc --build` acusou na hora.
+
+  Quem vinha segurando o erro de tipo era o `vite build` (esbuild), que
+  reclama de coisa grave mas não faz checagem de tipo completa. Os comandos
+  certos:
+
+  ```bash
+  npm run typecheck   # tsc --build --force — a verificação de verdade
+  npm run check       # typecheck + testes + build, tudo de uma vez
+  ```
+
 - **`src/integrations/supabase/types.ts` é gerado de verdade** desde 08/08:
   `npx supabase gen types typescript --project-id ylhxlvqqkifayglqbzre >
   src/integrations/supabase/types.ts`. Não escreva mais nada à mão ali.

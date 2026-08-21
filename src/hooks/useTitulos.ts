@@ -30,7 +30,15 @@ export interface Titulo {
   status: StatusTitulo;
   pago_em: string | null;
   observacoes: string | null;
+  /** De quem é a conta. Só um dos dois é usado, conforme a natureza:
+   *  a pagar vincula fornecedor, a receber vincula cliente. As colunas
+   *  existiam desde a criação da tabela e nunca eram preenchidas — sem elas
+   *  não dá pra responder "quanto o cliente X me deve". */
+  fornecedor_id: string | null;
+  cliente_id: string | null;
   categorias_financeiras?: { nome: string } | null;
+  fornecedores?: { nome: string } | null;
+  clientes?: { nome: string } | null;
 }
 
 export interface CategoriaFinanceira {
@@ -94,7 +102,7 @@ export function useTitulos(natureza: NaturezaTitulo) {
     queryFn: async (): Promise<Titulo[]> => {
       const { data, error } = await db
         .from('titulos_financeiros')
-        .select('*, categorias_financeiras(nome)')
+        .select('*, categorias_financeiras(nome), fornecedores(nome), clientes(nome)')
         .eq('natureza', natureza)
         .order('vencimento', { ascending: true });
       if (error) throw error;
@@ -125,6 +133,8 @@ export function useTitulos(natureza: NaturezaTitulo) {
       vencimento: string;
       categoria_id: string | null;
       observacoes: string | null;
+      fornecedor_id?: string | null;
+      cliente_id?: string | null;
     }) => {
       if (!tenantId) throw new Error('Usuário sem loja vinculada.');
 
