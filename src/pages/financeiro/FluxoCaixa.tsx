@@ -39,32 +39,61 @@ export default function FluxoCaixa() {
   const [de, setDe] = useState(inicial.inicio);
   const [ate, setAte] = useState(inicial.fim);
 
-  const { data: linhas, isLoading } = useQuery({
+  const { data: dados, isLoading } = useQuery({
     queryKey: ['fluxo-caixa', de, ate],
-    queryFn: async (): Promise<LinhaFluxo[]> => {
-      const { data, error } = await db
-        .from('titulos_financeiros')
-        .select('id, natureza, descricao, valor, vencimento, status, pago_em, categorias_financeiras(nome)')
-        .neq('status', 'cancelado')
-        .gte('vencimento', de)
-        .lte('vencimento', ate)
-        .order('vencimento');
-      if (error) throw error;
+    queryFn: async (): Promise<{ previsto: LinhaFluxo[]; realizado: LinhaFluxo[] }> => {
+      const colunas =
+        'id, natureza, descricao, valor, vencimento, status, pago_em, categorias_financeiras(nome)';
+
+      // DUAS consultas, com recortes de data DIFERENTES de propósito — é o
+      // conserto do erro mais comum em relatório de fluxo de caixa, que este
+      // arquivo avisava e cometia ao mesmo tempo:
+      //
+      //   Previsto  = o que VENCE no período  → filtra por `vencimento`
+      //   Realizado = o que foi PAGO no período → filtra por `pago_em`
+      //
+      // Antes, "realizado" era só o subconjunto pago de quem vencia no
+      // período. Um título que venceu em janeiro e foi pago em março contava
+      // como realizado de JANEIRO — mês em que nenhum dinheiro se moveu — e
+      // sumia de março, onde o dinheiro de fato saiu.
+      const [previstoRes, realizadoRes] = await Promise.all([
+        db.from('titulos_financeiros').select(colunas)
+          .neq('status', 'cancelado')
+          .gte('vencimento', de).lte('vencimento', ate)
+          .order('vencimento'),
+        db.from('titulos_financeiros').select(colunas)
+          .eq('status', 'pago')
+          .gte('pago_em', de).lte('pago_em', ate)
+          .order('pago_em'),
+      ]);
+      if (previstoRes.error) throw previstoRes.error;
+      if (realizadoRes.error) throw realizadoRes.error;
+
       // O client sem tipos infere a relação embutida como array; em `maybeSingle`
       // de relação 1:1 ela vem como objeto. Daí o passo por `unknown`.
-      return (data ?? []) as unknown as LinhaFluxo[];
+      return {
+        previsto: (previstoRes.data ?? []) as unknown as LinhaFluxo[],
+        realizado: (realizadoRes.data ?? []) as unknown as LinhaFluxo[],
+      };
     },
   });
+
+  const linhas = dados?.previsto;
+  const realizadas = dados?.realizado ?? [];
 
   const resumo = useMemo(() => {
     const xs = linhas ?? [];
     const soma = (f: (l: LinhaFluxo) => boolean) =>
       xs.filter(f).reduce((acc, l) => acc + Number(l.valor), 0);
 
+    const somaRealizado = (f: (l: LinhaFluxo) => boolean) =>
+      realizadas.filter(f).reduce((acc, l) => acc + Number(l.valor), 0);
+
     const entradasPrevistas = soma((l) => l.natureza === 'receber');
     const saidasPrevistas = soma((l) => l.natureza === 'pagar');
-    const entradasRealizadas = soma((l) => l.natureza === 'receber' && l.status === 'pago');
-    const saidasRealizadas = soma((l) => l.natureza === 'pagar' && l.status === 'pago');
+    // Realizado sai da OUTRA lista — a que foi filtrada por data de pagamento.
+    const entradasRealizadas = somaRealizado((l) => l.natureza === 'receber');
+    const saidasRealizadas = somaRealizado((l) => l.natureza === 'pagar');
 
     return {
       entradasPrevistas,
@@ -74,7 +103,7 @@ export default function FluxoCaixa() {
       saidasRealizadas,
       saldoRealizado: entradasRealizadas - saidasRealizadas,
     };
-  }, [linhas]);
+  }, [linhas, realizadas]);
 
   const porCategoria = useMemo(() => {
     const mapa = new Map<string, { nome: string; entrada: number; saida: number }>();
@@ -94,7 +123,7 @@ export default function FluxoCaixa() {
     <div className="mx-auto max-w-6xl">
       <PageHeader
         titulo="Fluxo de Caixa"
-        hint="Quanto entra e quanto sai no período. Previsto é tudo que está lançado; realizado é só o que já foi pago ou recebido de fato."
+        hint="Quanto entra e quanto sai no período. Os dois blocos olham datas diferentes de propósito: Previsto conta o que VENCE no período, Realizado conta o que foi PAGO no período. Uma conta que venceu em janeiro e você pagou em março entra no previsto de janeiro e no realizado de março — que é onde o dinheiro saiu de verdade."
       />
 
       <div className="mb-6 flex flex-wrap items-end gap-3">
@@ -116,7 +145,7 @@ export default function FluxoCaixa() {
         <>
           <section className="mb-8">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Realizado — o que já aconteceu
+              Realizado — o dinheiro que se moveu neste período
             </h2>
             <div className="grid gap-3 sm:grid-cols-3">
               <Indicador rotulo="Entrou" valor={moeda(resumo.entradasRealizadas)} tom="positivo" />
@@ -131,7 +160,7 @@ export default function FluxoCaixa() {
 
           <section className="mb-8">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Previsto — tudo que está lançado no período
+              Previsto — o que vence neste período
             </h2>
             <div className="grid gap-3 sm:grid-cols-3">
               <Indicador rotulo="A receber" valor={moeda(resumo.entradasPrevistas)} />
@@ -193,7 +222,7 @@ export default function FluxoCaixa() {
 
           <section>
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Lançamentos do período
+              Lançamentos que vencem no período
             </h2>
             {(linhas?.length ?? 0) === 0 ? (
               <Vazio titulo="Nenhum lançamento" />
