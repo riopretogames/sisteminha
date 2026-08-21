@@ -70,3 +70,24 @@ export function osEmAndamento(status: string | null | undefined): boolean {
 
 /** Status com que toda OS nasce. */
 export const OS_STATUS_INICIAL: OsEtapa = OS_ETAPAS.AGUARDANDO_ANALISE;
+
+/**
+ * O cliente já disse SIM para o orçamento?
+ *
+ * Serve para separar "dinheiro que a loja pode contar" de "dinheiro que talvez
+ * aconteça". Antes de aprovar, o orçamento é uma proposta: o cliente pode
+ * recusar, sumir, ou nem ter recebido o laudo ainda.
+ *
+ * Achado em 18/08, corrigido em 21/08: o indicador "Orçamento em aberto" do
+ * Relatório de OS somava TODA OS não entregue — inclusive as que nem foram
+ * diagnosticadas — e chamava isso de "Aprovado, ainda não recebido". Quem
+ * usasse o número para estimar caixa futuro contava com dinheiro que ainda
+ * dependia de o cliente dizer sim.
+ *
+ * Etapa extra criada pela loja (tipo "Aguardando peça") não entra: só as
+ * etapas fixas dizem, com certeza, que houve aprovação. Errar para menos aqui
+ * é melhor do que prometer caixa que não vem.
+ */
+export function osOrcamentoAprovado(status: string | null | undefined): boolean {
+  return status === OS_ETAPAS.APROVADO || status === OS_ETAPAS.FINALIZADO;
+}

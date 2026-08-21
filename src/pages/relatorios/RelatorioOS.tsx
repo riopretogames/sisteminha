@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Indicador } from '@/components/PageHeader';
 import { useOsStatuses } from '@/hooks/useOsStatuses';
 import { RelatorioShell, usePeriodo, type Coluna } from './RelatorioShell';
-import { OS_ETAPAS, OS_CANCELADO, osEmAndamento } from '@/config/osStatus';
+import { OS_ETAPAS, OS_CANCELADO, osEmAndamento, osOrcamentoAprovado } from '@/config/osStatus';
 
 interface LinhaOS {
   id: string;
@@ -120,10 +120,14 @@ export default function RelatorioOS() {
   const receita = entregues.reduce((acc, o) => acc + Number(o.valor_final_pago ?? 0), 0);
 
   const orcado = linhas.reduce((acc, o) => acc + Number(o.total_orcamento ?? 0), 0);
-  const orcadoEmAberto = emAndamento.reduce(
-    (acc, o) => acc + Number(o.total_orcamento ?? 0),
-    0
-  );
+  // Só conta o que o cliente JÁ APROVOU. Antes somava toda OS não entregue,
+  // inclusive as que nem tinham laudo, e chamava isso de "Aprovado, ainda não
+  // recebido" — superestimava o caixa futuro com dinheiro que ainda dependia
+  // de o cliente dizer sim.
+  const orcadoEmAberto = linhas
+    .filter((o) => osOrcamentoAprovado(o.status))
+    .reduce((acc, o) => acc + Number(o.total_orcamento ?? 0), 0);
+  const qtdAprovadas = linhas.filter((o) => osOrcamentoAprovado(o.status)).length;
 
   /**
    * Quanto tempo o conserto leva, na média — só de OS já finalizada.
@@ -184,7 +188,7 @@ export default function RelatorioOS() {
           <Indicador
             rotulo="Orçamento em aberto"
             valor={moeda(orcadoEmAberto)}
-            detalhe="Aprovado, ainda não recebido"
+            detalhe={`${qtdAprovadas} OS aprovada${qtdAprovadas === 1 ? '' : 's'}, ainda não recebida${qtdAprovadas === 1 ? '' : 's'}`}
             tom={orcadoEmAberto > 0 ? 'alerta' : 'neutro'}
           />
           <Indicador
