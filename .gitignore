@@ -35,3 +35,6 @@ supabase/.temp
 # Backups do banco: contem DADOS REAIS de cliente (nome, CPF, telefone).
 # Nunca vao pro GitHub - o repositorio nao e lugar de dado pessoal.
 backups/
+
+# Artefato gerado a partir do ROTEIRO-DE-TESTE.md — nao editar a mao.
+roteiro-de-teste.html
