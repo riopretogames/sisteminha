@@ -1396,11 +1396,18 @@ o arquivo antes de assumir.
   `vw_produtos` — quem não tem `inventory.cost.view` recebe `null` de
   verdade do banco, e a tela nem chega a renderizar a coluna pra esse
   caso. Vazamento fechado.
-- [ ] Relatório Financeiro é liberado por `finance.view`, mas a RLS da
-  tabela que ele lê exige outra permissão — não quebra com os papéis
-  padrão, mas o gate confere a permissão errada pros dados reais.
-  **Conferido em 17/08, ainda vale** — só vira um problema real se
-  `finance.view` for concedido sozinho como exceção a alguém.
+- [x] ✅ **Resolvido em 21/08.** A rota do Relatório Financeiro exigia
+  `finance.view`, e a RLS de `titulos_financeiros` aceita outras três
+  permissões — `finance.view` não está entre elas. Quem tivesse só ela
+  abria o relatório e via uma tela VAZIA, sem erro, porque o banco
+  filtrava tudo em silêncio: o mesmo modo de falha do Caixa corrigido
+  no mesmo dia, e igualmente enganoso, porque parece "não teve
+  lançamento no período". `finance.view` é o crachá de ENTRAR no módulo
+  e ver o caixa, e continua correto onde é usado; só não serve para
+  título. O relatório passou a pedir `finance.cashflow.view`, a mesma
+  do Fluxo de Caixa, que lê exatamente os mesmos dados. Conferido
+  depois que as cinco telas financeiras ficaram alinhadas com o que a
+  RLS de cada tabela exige.
 - [x] ✅ **Resolvido em 18/08 (terceira leva).** `RelatorioOS` mostrava a
   chave crua do status (`em_reparo` → "em reparo") em vez do rótulo e da
   cor que a loja cadastra em Gerenciar Status — era `.replace()` puro,
@@ -1622,9 +1629,18 @@ o arquivo antes de assumir.
   quebra nenhum fluxo real.
 
 **🟠 Média**
-- [ ] `taxa_percent`/`juros_percent` de Formas de Pagamento têm o mesmo
-  risco de overflow já corrigido em `margem_percent` — mitigado só no
-  front, sem CHECK/alargamento no banco.
+- [x] ✅ **Resolvido em 21/08 — mas com correção diferente da margem, e
+  o motivo importa.** `taxa_percent` e `juros_percent` tinham o mesmo
+  risco de overflow que estourou em `margem_percent`: `DECIMAL(5,2)`,
+  máximo 999,99, e acima disso um "numeric field overflow" cru. Só que
+  margem é CALCULADA (lá o certo foi limitar o resultado) e estes são
+  DIGITADOS. Alargar a coluna resolveria o sintoma errado — não existe
+  taxa de maquininha de 5.000%, e aceitar esse número calado é pior do
+  que recusar: ele entraria no cálculo de toda venda parcelada naquela
+  forma de pagamento e comeria a margem sem ninguém entender por quê.
+  CHECK de 0 a 100 nas três colunas (migration `20260821160000`), com
+  nome descritivo porque é o nome que aparece no erro. Aplicou sem
+  falhar, o que confirma que nenhum dado existente violava.
 - [x] ✅ **Resolvido em 18/08 (quinta leva) — e virou ferramenta, não
   remendo.** Colunas novas nas 4 tabelas trancadas nasciam sem permissão
   de leitura na tabela crua. A trava de custo funciona revogando o SELECT
