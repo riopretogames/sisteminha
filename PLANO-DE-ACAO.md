@@ -1704,8 +1704,9 @@ que tem em estoque.
 
 **🔴 Alta**
 
-- [ ] 🆕 **21/08 — Sem caixa aberto, o dinheiro do dia inteiro fica fora da
-  conferência, e ninguém avisa.** Os gatilhos que lançam venda e OS no Caixa
+- [x] ✅ **Resolvido em 21/08 — o Caixa abre sozinho na primeira venda.**
+  Era: sem caixa aberto, o dinheiro do dia inteiro ficava fora da
+  conferência, e ninguém avisava. Os gatilhos que lançam venda e OS no Caixa
   procuram uma sessão com status "aberto"; não achando, saem em silêncio
   (`CONTINUE` em `registrar_pagamentos_venda_no_caixa`, `RETURN NEW` em
   `registrar_pagamento_os_no_caixa`). **Comprovado no teste:** as 10 vendas
@@ -1718,11 +1719,25 @@ que tem em estoque.
   está registrada — só a ponte entre os dois não foi feita, e não dá pra
   reconstruir depois sem trabalho manual.
 
-  Duas saídas possíveis, e a escolha é do Felipe: **(a)** o PDV avisa ao abrir
-  ("o caixa está fechado — as vendas de hoje não entram na conferência"), ou
-  **(b)** o sistema abre a sessão sozinho na primeira venda do dia. A (b)
-  resolve sem depender de ninguém lembrar, mas muda o significado de "abrir o
-  caixa", que hoje é um ato consciente com valor inicial contado.
+  **Decisão do Felipe: opção (b), abrir sozinho** — resolve sem depender de
+  ninguém lembrar, e o erro acontece justamente no dia corrido em que ninguém
+  lê aviso. Implementado na migration `20260821120000`: a função
+  `garantir_caixa_aberto` devolve a sessão aberta, criando uma se não houver.
+  A automática nasce com valor de abertura **zero** (ninguém contou a gaveta) e
+  marcada em `observacoes`; a tela do Caixa mostra isso em destaque, porque
+  quem fecha precisa saber — senão vai perseguir uma "sobra" que é só o fundo
+  de troco que já estava na gaveta. Concorrência resolvida pelo índice parcial
+  que já existia: duas vendas simultâneas, a segunda relê a sessão vencedora em
+  vez de derrubar a venda.
+
+  **Armadilha evitada no caminho, que vale registrar:** os dois gatilhos de
+  Caixa tinham sido reescritos em 20/08 para corrigir duplicidade (troco, forma
+  que não entra no caixa, sessão fechada imutável, recálculo). A primeira versão
+  desta migration ia sobrescrevê-los com uma versão simplificada — teria
+  desfeito aquela correção inteira em silêncio. Refeita copiando as funções de
+  20/08 idênticas e trocando **só** o trecho que desistia. Ao mexer em função de
+  banco, conferir sempre qual é a versão mais recente: `CREATE OR REPLACE` não
+  avisa que você está regredindo.
 
 **🔵 Observação de cadastro**
 
