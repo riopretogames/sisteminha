@@ -608,10 +608,19 @@ o arquivo antes de assumir.
     (ou lançar o mesmo estorno duas vezes numa nova tentativa).
     Corrigido com a policy que faltava + `ON DELETE CASCADE` de
     `caixa_movimentos.devolucao_id` (migration `20260817130000`).
-- [ ] Sem trava no banco (só client-side) contra devolver mais unidades
-  do que foi vendido em devoluções parciais simultâneas — risco baixo
-  com terminal único, lacuna real se um dia tiver mais de um PDV.
-  **Conferido em 18/08, ainda vale.**
+- [x] ✅ **Resolvido em 21/08.** Não havia trava no banco contra devolver
+  mais unidades do que a venda teve — só o limite do campo na tela, que
+  resolve o erro de digitação e mais nada. Passavam por baixo: duas
+  devoluções da mesma venda em terminais diferentes (as duas leem "restam
+  2", as duas devolvem 2), chamada direta à API, e a automação do n8n
+  quando existir. Caro porque devolução mexe em dinheiro E estoque ao mesmo
+  tempo: paga ao cliente valor que ele nunca gastou e faz entrar unidade
+  que nunca saiu — diferença que só aparece no inventário, meses depois,
+  sem rastro. Gatilho `trg_quantidade_devolvida` (migration
+  `20260821130000`) confere contra a venda original, e o `SELECT ... FOR
+  UPDATE` é o que faz valer no caso concorrente: a segunda transação espera
+  a primeira e reconta. Testado no banco, 5 de 5 — inclusive um caso que
+  nem estava no achado: devolver produto que não estava naquela venda.
 
 **🆕 Achados da revisão geral de 20/08 (pós-fusão de duas frentes)**
 - [x] ✅ **Resolvido em 20/08 — ordem de gravação no checkout do PDV
@@ -745,14 +754,22 @@ o arquivo antes de assumir.
   produtos em alerta (via de repor, "Valor em venda" no lugar errado).
   Corrigido pra perguntar `can(PERMISSIONS.INVENTORY_COST_VIEW)`
   diretamente, igual `RelatorioEstoque` já fazia.
-- [ ] `Estoque.tsx` não esconde os botões de Novo/Editar/Excluir por
-  permissão — usuário sem acesso recebe erro cru de RLS em vez de não
-  ver o botão (inconsistente com Fornecedores/Transportadoras/Serviços).
-- [ ] `estoque_atual <= estoque_minimo` reimplementado em 6+ lugares
-  (Estoque, EstoqueCritico, Dashboard, DashboardEstoque,
-  RelatorioEstoque ×2) — vira um helper `isEstoqueCritico(produto)`.
-- [ ] `inventory.delete` é permissão morta — "Excluir" já é soft-delete
-  via UPDATE, na prática usa `inventory.edit`.
+- [x] ✅ **Resolvido em 21/08.** `Estoque.tsx` era a única tela de cadastro
+  que não escondia os botões por permissão — quem não tinha acesso clicava
+  e recebia erro cru da RLS, sem ter como saber que o problema era de
+  acesso. Botão que aparece e não funciona é pior do que botão escondido.
+- [x] ✅ **Resolvido em 21/08 — eram 7 cópias, não 6.** Virou
+  `src/lib/estoque.ts` com 9 testes, cobrindo também o que a comparação
+  solta errava: produto sem mínimo cadastrado e valor nulo. Ao substituir,
+  apareceu um efeito colateral real — no `Dashboard` a variável local se
+  chamava `estoqueCritico` e passou a sombrear a função importada; a
+  contagem virou `qtdEstoqueCritico`.
+- [x] ✅ **Resolvido na prática em 21/08.** `inventory.delete` continua no
+  catálogo, mas o botão Excluir do Estoque passou a perguntar
+  `inventory.edit` — que é o que o banco realmente exige, já que "excluir"
+  ali é soft-delete (um UPDATE em `ativo`). Usar `inventory.delete`
+  esconderia o botão de quem o banco deixaria passar. Se um dia a permissão
+  for aposentada de vez, nenhuma tela depende dela.
 
 **🔵 Simplificação**
 - [ ] Preview de margem no dialog de cadastro não aplica o mesmo clamp
@@ -1275,8 +1292,17 @@ o arquivo antes de assumir.
   Em `DashboardMetas` o desconto volta pro vendedor da venda ORIGINAL,
   não pra quem atendeu o balcão. Telas ajustadas: `Dashboard`,
   `DashboardVenda`, `DashboardMetas`, `RelatorioVendas`.
-- [ ] 🆕 **18/08 (achado ao corrigir o item acima) — `IeComercial` e
-  `IeEstoque` continuam sem descontar item devolvido.** As duas
+- [x] ✅ **Resolvido em 21/08.** `IeComercial` e `IeEstoque` não
+  descontavam item devolvido — as duas agregam por PRODUTO (somam
+  `itens_venda`), então o desconto por período que consertou os outros
+  painéis não alcançava elas. Produto devolvido seguia como vendido no
+  ranking, inflando a margem de quem tem muita devolução; e no `IeEstoque`
+  um produto vendido 5 e devolvido 5 parecia ter girado cinco quando girou
+  zero. Novo helper `devolvidosPorProdutoNoPeriodo()` cruza
+  `devolucao_itens` com a data da devolução, usando o preço da venda
+  ORIGINAL (que é o que o cliente pagou). No `IeComercial` desconta os três
+  de uma vez — quantidade, receita e custo; subtrair só a receita deixaria
+  a margem negativa. Era: As duas
   agregam receita e margem **por produto**, somando `itens_venda`, não
   o total da venda — o desconto que resolveu os outros painéis não
   alcança elas. Um produto devolvido segue aparecendo como vendido no
@@ -1285,8 +1311,14 @@ o arquivo antes de assumir.
   trabalho diferente do que foi feito agora — por isso ficou separado,
   não esquecido. Enquanto não for feito, o ranking de produto e a
   margem por produto superestimam quem tem muita devolução.
-- [ ] 🆕 **18/08 (mesmo achado) — Rodapé de faturamento do Histórico de
-  Vendas não desconta devolução.** `VendasHistorico` filtra no cliente
+- [x] ✅ **Resolvido em 21/08 — trazendo a devolução presa à linha.** O
+  rodapé do Histórico de Vendas não descontava devolução, e o desconto por
+  período não servia aqui porque a tela filtra no cliente por critério
+  livre. A saída foi vincular a devolução à LINHA da venda: assim ela
+  acompanha qualquer filtro, o total fecha com o que está na tela, e a
+  linha ganha etiqueta "Devolvida" com o valor abaixo do total — sem a
+  marca visível, o rodapé descontado não bateria com a soma que a pessoa
+  faz de cabeça olhando a coluna, e pareceria erro de conta. Era: `VendasHistorico` filtra no cliente
   por critérios livres (vendedor, forma de pagamento, período, texto),
   então não dá pra casar uma devolução com um filtro arbitrário — o
   desconto por período usado nos painéis não serve aqui. O caminho
