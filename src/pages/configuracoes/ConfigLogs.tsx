@@ -41,6 +41,12 @@ const ACAO_META: Record<string, { label: string; classe: string; Icone: typeof P
   DELETE: { label: 'Excluiu', classe: 'bg-red-500/10 text-red-600', Icone: Trash2 },
 };
 
+// `os_pagamentos` e `user_permissions` ganharam gatilho de auditoria em
+// 20260818100000 e 20260818110000 — sem entrada aqui, essas linhas ainda
+// apareciam em "Tudo" mas com o nome cru da tabela na coluna Registro, e sem
+// botão de filtro próprio (achado na revisão de 20/08: outra frente, no
+// mesmo dia, adicionou a coluna "Quem" a este arquivo sem saber das duas
+// tabelas novas sendo auditadas).
 const TABELA_LABEL: Record<string, string> = {
   vendas: 'Venda',
   produtos: 'Produto',
@@ -49,6 +55,8 @@ const TABELA_LABEL: Record<string, string> = {
   user_roles: 'Perfil de usuário',
   caixa_sessoes: 'Caixa',
   caixa_movimentos: 'Movimento de caixa',
+  os_pagamentos: 'Pagamento de OS',
+  user_permissions: 'Exceção de permissão',
 };
 
 const TABELAS = ['todas', ...Object.keys(TABELA_LABEL)];

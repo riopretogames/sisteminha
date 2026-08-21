@@ -42,11 +42,19 @@ interface OSTableViewProps {
   statuses: StatusConfig[];
   loading: boolean;
   onStatusChange: (orderId: string, newStatus: string) => void;
-  /** Sem orders.approve, some "Aprovado" e "Cancelado" do seletor de quem
-   *  está aguardando aprovação — aprovar/recusar orçamento não é decisão de
-   *  quem só tem orders.edit. Mesma regra de OSOrcamentos.tsx e
-   *  TrocarEtapaOS.tsx; sem isso, o seletor desta grade era um terceiro
-   *  caminho pra tentar a mesma transição sem a mesma trava de tela. */
+  /** Sem orders.approve, "Aprovado" some do seletor sempre (não importa a
+   *  etapa atual da OS) e "Cancelado" some quando a OS está aguardando
+   *  aprovação — aprovar/recusar orçamento não é decisão de quem só tem
+   *  orders.edit. Mesma regra de OSOrcamentos.tsx e TrocarEtapaOS.tsx.
+   *
+   *  Achado na revisão de 20/08: até então "Aprovado" só sumia quando a OS
+   *  JÁ estava em "Aguardando aprovação" — vindo de qualquer outra etapa
+   *  (ex.: "Aguardando análise"), o seletor desta grade oferecia "Aprovado"
+   *  como destino normal, e um clique bastava pra um técnico (orders.edit,
+   *  sem orders.approve) aprovar o orçamento num pulo só, sem passar pela
+   *  decisão. O gatilho do banco também não pegava esse caso (só confere
+   *  `OLD.status = 'aguardando_aprovacao'`). Agora "Aprovado" exige
+   *  orders.approve sempre. */
   podeAprovar: boolean;
 }
 
@@ -137,11 +145,18 @@ export function OSTableView({ orders, statuses, loading, onStatusChange, podeApr
               const diasAtraso = diasDeAtraso(order);
               const decisaoDeOrcamentoBloqueada =
                 order.status === OS_ETAPAS.AGUARDANDO_APROVACAO && !podeAprovar;
-              const opcoesDeStatus = decisaoDeOrcamentoBloqueada
-                ? statuses.filter(
-                    (s) => s.ativo && s.key !== OS_ETAPAS.APROVADO && s.key !== OS_CANCELADO
-                  )
-                : statuses.filter((s) => s.ativo);
+              const opcoesDeStatus = statuses.filter((s) => {
+                if (!s.ativo) return false;
+                // "Aprovado" exige orders.approve sempre, não só saindo de
+                // aguardando_aprovacao — ver comentário de `podeAprovar` na
+                // interface acima.
+                if (s.key === OS_ETAPAS.APROVADO && !podeAprovar) return false;
+                // "Cancelar" só é bloqueado nesta saída específica (recusar
+                // orçamento) — cancelar de outra etapa segue liberado, igual
+                // o banco permite.
+                if (s.key === OS_CANCELADO && decisaoDeOrcamentoBloqueada) return false;
+                return true;
+              });
               return (
                 <TableRow key={order.id} className={atrasada ? 'bg-red-500/5' : undefined}>
                   <TableCell>

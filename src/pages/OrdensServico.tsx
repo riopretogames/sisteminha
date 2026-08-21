@@ -157,18 +157,30 @@ export default function OrdensServico() {
       return;
     }
 
-    // Sair de "aguardando aprovação" pra "aprovado" ou "cancelado" é decidir
-    // o orçamento — exige orders.approve, não só orders.edit (ver
-    // OSOrcamentos.tsx e TrocarEtapaOS.tsx). Sem esta trava, o card do
-    // Kanban arrastado (ou o seletor da grade) chegava a chamar o banco e
-    // só voltava sozinho com o erro cru do gatilho.
+    // "Aprovado" é decisão de orçamento (aprovar) — exige orders.approve, não
+    // importa de qual etapa a OS está saindo. Achado na revisão de 20/08: a
+    // trava aqui só disparava quando `ordemAtual.status` já era
+    // "aguardando_aprovacao", mas o Kanban deixa arrastar um card de
+    // QUALQUER coluna pra QUALQUER coluna (todas ficam visíveis lado a
+    // lado) e a grade oferece todas as etapas no seletor — então um cartão
+    // ainda em "Aguardando análise", arrastado direto pra "Aprovado", ou
+    // selecionado assim na grade, pulava a decisão inteira num passo só. O
+    // gatilho do banco (`validar_aprovacao_orcamento_os`, migration
+    // 20260817140000) só confere `OLD.status = 'aguardando_aprovacao'`, e
+    // por isso também deixava passar — um técnico com só `orders.edit`
+    // aprovava orçamento sem nunca ter `orders.approve`. Mesmo problema,
+    // mesma correção, em TrocarEtapaOS.tsx.
     const ordemAtual = orders.find((o) => o.id === orderId);
-    const decisaoDeOrcamentoBloqueada =
+    const aprovarBloqueado = newStatus === OS_ETAPAS.APROVADO && !podeAprovar;
+    // Recusar (cancelar vindo de "Aguardando aprovação") continua só nesse
+    // caminho específico — cancelar de outra etapa não é "recusar
+    // orçamento", e o banco nunca travou isso.
+    const recusarBloqueado =
       ordemAtual?.status === OS_ETAPAS.AGUARDANDO_APROVACAO &&
-      (newStatus === OS_ETAPAS.APROVADO || newStatus === OS_CANCELADO) &&
+      newStatus === OS_CANCELADO &&
       !podeAprovar;
 
-    if (decisaoDeOrcamentoBloqueada) {
+    if (aprovarBloqueado || recusarBloqueado) {
       toast({
         title: 'Sem permissão',
         description:

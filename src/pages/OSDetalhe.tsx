@@ -633,6 +633,11 @@ export default function OSDetalhe() {
               onMudou={() => {
                 queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] });
                 queryClient.invalidateQueries({ queryKey: ['os-itens', id] });
+                // Card "Histórico da OS" (17/08) lê 'os-historico' — faltava
+                // invalidar aqui, então a timeline só atualizava depois de um
+                // reload/refoco da janela, mesmo a mudança de etapa já tendo
+                // sido gravada pelo gatilho track_os_status_change.
+                queryClient.invalidateQueries({ queryKey: ['os-historico', id] });
               }}
             />
             <Button variant="outline" onClick={() => navigate('/os')}>

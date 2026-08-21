@@ -584,26 +584,29 @@ export default function PDV() {
 
         if (itensError) throw itensError;
 
-        // Create payments
-        const pagamentosVenda = pagamentos.map(p => ({
-          venda_id: venda.id,
-          forma: p.forma,
-          forma_pagamento_id: p.formaPagamentoId,
-          parcelas: p.parcelas,
-          valor: p.valor,
-        }));
-
-        const { error: pagamentosError } = await supabase
-          .from('pagamentos_venda')
-          .insert(pagamentosVenda);
-
-        if (pagamentosError) throw pagamentosError;
-
-        // Produto(s) recebido(s) em troca: a RPC cria o produto (inativo),
+        // Produto(s) recebido(s) em troca ANTES dos pagamentos normais —
+        // ordem importa, não é só estilo. A RPC cria o produto (inativo),
         // grava o valor como pagamento (forma vale_troca) e o rastreio até
         // esta venda, numa chamada só. SECURITY DEFINER porque o vendedor
         // não tem `inventory.create` — um INSERT direto em `produtos` pelo
         // front seria recusado pela RLS.
+        //
+        // Achado na revisão de 20/08: o gatilho `lancar_pagamentos_venda_no_caixa`
+        // (migration 20260818100000) calcula o troco somando TODOS os
+        // `pagamentos_venda` já gravados pra esta venda no momento em que
+        // cada INSERT roda — e ele reage por INSTRUÇÃO SQL, não por venda
+        // inteira. Cada chamada RPC aqui é uma instrução separada do INSERT
+        // em lote logo abaixo. Se o lote (dinheiro/cartão/PIX) fosse gravado
+        // ANTES da entrada de troca, o gatilho calcularia o troco sem contar
+        // o valor do produto trocado — subestimando o troco e, por causa
+        // disso, lançando no Caixa dinheiro A MAIS do que realmente ficou na
+        // gaveta (ex.: venda de R$100, cliente troca um usado de R$50 e paga
+        // R$70 em dinheiro esperando R$20 de troco — o Caixa registraria
+        // R$70 em vez dos R$50 líquidos). Uma trava de idempotência no
+        // gatilho impede ele de se corrigir depois (só lança uma vez por
+        // venda). Gravando a entrada de troca primeiro, o INSERT dos
+        // pagamentos normais já enxerga o valor da troca somado e o troco
+        // sai certo.
         for (const entrada of entradasProduto) {
           const { data: produtoIdCriado, error: entradaError } = await supabase.rpc('registrar_entrada_produto_troca', {
             _venda_id: venda.id,
@@ -627,6 +630,21 @@ export default function PDV() {
           if (entradaError) throw entradaError;
           if (produtoIdCriado) produtosDeTroca.push(produtoIdCriado as unknown as string);
         }
+
+        // Create payments — depois da entrada de troca (ver comentário acima).
+        const pagamentosVenda = pagamentos.map(p => ({
+          venda_id: venda.id,
+          forma: p.forma,
+          forma_pagamento_id: p.formaPagamentoId,
+          parcelas: p.parcelas,
+          valor: p.valor,
+        }));
+
+        const { error: pagamentosError } = await supabase
+          .from('pagamentos_venda')
+          .insert(pagamentosVenda);
+
+        if (pagamentosError) throw pagamentosError;
       } catch (innerError) {
         // A venda já foi criada (é outra linha, outra transação). Se itens
         // ou pagamento falharem depois — por exemplo, estoque insuficiente

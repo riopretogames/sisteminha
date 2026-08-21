@@ -43,8 +43,19 @@ export interface Periodo {
  * em português abre tudo numa coluna só e quebra os acentos.
  */
 function baixarCSV<T>(nome: string, colunas: Coluna<T>[], linhas: T[]) {
+  // Um número negativo formatado pelo próprio relatório (ex.: "-1.234,56", um
+  // saldo negativo) começa com "-" mas não é fórmula nenhuma — não precisa do
+  // prefixo de proteção abaixo.
+  const numeroNegativoPuro = /^-[\d.,]+$/;
+
   const escapar = (v: string | number) => {
-    const s = String(v ?? '');
+    let s = String(v ?? '');
+    // Neutraliza CSV/Formula Injection: se a célula começa com =, +, -, @, o
+    // Excel pode interpretar o conteúdo como fórmula e executá-la ao abrir o
+    // arquivo (ex.: nome de cliente ou descrição de título cadastrado como
+    // `=cmd|'/c calc'!A1`). Prefixa com aspas simples pra forçar texto —
+    // mesma mitigação usada pelo Google Sheets/Excel.
+    if (/^[=+\-@]/.test(s) && !numeroNegativoPuro.test(s)) s = `'${s}`;
     return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
 

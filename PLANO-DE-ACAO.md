@@ -594,7 +594,24 @@ o arquivo antes de assumir.
   com terminal único, lacuna real se um dia tiver mais de um PDV.
   **Conferido em 18/08, ainda vale.**
 
-**🆕 Achados novos da revisão completa de 18/08**
+**🆕 Achados da revisão geral de 20/08 (pós-fusão de duas frentes)**
+- [x] ✅ **Resolvido em 20/08 — ordem de gravação no checkout do PDV
+  quebrava o cálculo de troco do Caixa numa venda com troca.** O gatilho
+  `lancar_pagamentos_venda_no_caixa` (Financeiro, migration `20260818100000`)
+  calcula o troco somando todos os `pagamentos_venda` já gravados pra
+  aquela venda no momento em que cada `INSERT` roda — mas o `handleCheckout`
+  gravava primeiro o lote de pagamentos manuais (dinheiro/cartão/PIX) e só
+  depois, em chamadas RPC separadas, a entrada de cada produto recebido em
+  troca. Resultado: o gatilho via só a parte manual, calculava troco de
+  menos e lançava dinheiro A MAIS no Caixa do que realmente ficou na
+  gaveta (ex.: venda de R$100, troca de R$50, R$70 em dinheiro — o Caixa
+  registrava R$70 em vez dos R$50 líquidos). Corrigido gravando a entrada
+  de troca ANTES do lote de pagamentos manuais — e, na mesma leva, o
+  gatilho do Caixa também passou a recalcular a partir de tudo que existe
+  agora em vez de travar no primeiro cálculo (ver detalhe no item
+  "Reabrir OS duplica lançamento" na seção Ordens de Serviço, migration
+  `20260820100000`), o que cobre inclusive 2+ produtos de troca na mesma
+  venda. Testado com transação revertida no banco.
 - [ ] 🟠 **Falha parcial no recebimento de produto por troca (dentro do
   próprio PDV) deixa produto e pagamento `vale_troca` órfãos numa venda
   cancelada.** No checkout do PDV, cada produto recebido em troca chama
@@ -683,19 +700,32 @@ o arquivo antes de assumir.
   pros dois lados). 10 testes cobrem os casos, inclusive o de não virar
   menos duplo quando o número já vem negativo. O CSV exportado leva o
   mesmo sinal da tela.
-- [x] ⚠️ **Rebaixado em 10/08 — não é mais vazamento de dado, é
-  inconsistência de tela.** O achado original ("`Estoque.tsx` mostra
-  custo/margem pra qualquer usuário, ignorando `inventory.cost.view`")
-  é de **antes** da Opção B fechar. Conferido agora: `Estoque.tsx` já
-  lê de `vw_produtos` (linha 126) desde "Ligar as telas de leitura nas
-  views" (07/08) — quem não tem a permissão já recebe `custo`/
-  `margem_percent` como `null` direto do banco, o valor de verdade
-  nunca chega no navegador. **O que sobra é só isto**: a tela renderiza
-  `formatCurrency(produto.custo)` sem checar a permissão antes (linha
-  380), então quem não tem `inventory.cost.view` vê "R$0,00" na coluna
-  Custo em vez de a coluna simplesmente não aparecer — passa a
-  impressão de que o produto não teve custo, quando na real é a
-  permissão escondendo. Enganoso, mas não é mais vazamento.
+- [x] ✅ **Resolvido em 20/08 (resgate do 11/08) — achado que tinha sido
+  rebaixado por engano em 17/08, sem a informação de uma branch perdida.**
+  O achado original ("`Estoque.tsx` mostra custo/margem pra qualquer
+  usuário, ignorando `inventory.cost.view`") é de antes da Opção B
+  fechar. Em 17/08 foi rebaixado com a nota de que a tela só mostrava
+  "R$0,00" enganoso pra quem não vê custo — só que o conserto de verdade
+  já existia desde 11/08 numa branch que nunca chegou na main
+  (`claude/project-complete-review-347203`), e sem essa informação a
+  reavaliação de 17/08 aconteceu no escuro. Resgatado em 20/08: a coluna
+  Custo/Margem inteira agora só aparece com `veCusto` (`{veCusto &&
+  (...)}`), e a célula também confere `produto.custo != null` antes de
+  formatar (mostra "—" no raro caso de faltar mesmo com permissão) — o
+  mesmo padrão que `CadastroServicos`/`RelatorioEstoque` já usavam.
+  Confirmado no código atual pela revisão geral de 20/08, linha por
+  linha, não só pelo texto do commit.
+- [x] ✅ **Resolvido em 20/08 (resgate do 11/08) — achado novo, nunca
+  tinha entrado nesta seção do plano.** Em `EstoqueCritico.tsx`, o
+  rótulo do indicador ("Custo para repor tudo" vs. "Valor em venda")
+  decidia pelo VALOR calculado (`custoReposicao > 0`) em vez de
+  perguntar a permissão direto — funcionava por acidente na maioria dos
+  casos (quem não tem `inventory.cost.view` recebe custo nulo da view,
+  a soma dá 0 e o rótulo troca sozinho), mas errava no caso legítimo de
+  quem TEM a permissão e ainda não cadastrou custo de compra nos
+  produtos em alerta (via de repor, "Valor em venda" no lugar errado).
+  Corrigido pra perguntar `can(PERMISSIONS.INVENTORY_COST_VIEW)`
+  diretamente, igual `RelatorioEstoque` já fazia.
 - [ ] `Estoque.tsx` não esconde os botões de Novo/Editar/Excluir por
   permissão — usuário sem acesso recebe erro cru de RLS em vez de não
   ver o botão (inconsistente com Fornecedores/Transportadoras/Serviços).
@@ -715,6 +745,67 @@ o arquivo antes de assumir.
 ## Ordens de Serviço / Assistência Técnica
 
 **🔴 Alta**
+- [x] ✅ **Resolvido em 20/08 — a trava de "Aprovar orçamento" (17/08) tinha
+  um QUARTO caminho, mais simples que os três já fechados, e ainda aberto:
+  dava pra pular direto pra "Aprovado" vindo de QUALQUER outra etapa, não só
+  saindo de "Aguardando aprovação".** Achado na revisão adversarial de 20/08
+  ao reler `TrocarEtapaOS.tsx`, `OrdensServico.tsx` e `OSTableView.tsx` por
+  completo: as três telas só escondiam "Aprovado" do seletor quando a OS JÁ
+  estava em "Aguardando aprovação" (`decisaoDeOrcamentoBloqueada`) — mas o
+  seletor da ficha, o seletor da grade e o Kanban sempre ofereceram TODAS as
+  etapas como destino possível (de propósito, pra "voltar uma etapa" ou
+  "pular pra etapa extra da loja"). Isso significa que uma OS recém-aberta,
+  ainda em "Aguardando análise", podia ser arrastada (Kanban) ou selecionada
+  (grade/ficha) direto pra "Aprovado" num passo só — sem nunca passar por
+  "Aguardando aprovação". O gatilho do banco
+  (`validar_aprovacao_orcamento_os`, migration 20260817140000) só confere
+  `OLD.status = 'aguardando_aprovacao'`, então esse pulo passava batido
+  também no banco: um técnico com `orders.edit` (e sem `orders.approve`)
+  aprovava orçamento de qualquer OS, a qualquer momento, com um clique —
+  driblando a permissão inteira, não só "em dois passos com uma etapa
+  reordenada" como o item de observação abaixo já cogitava.
+  - Corrigido nas 3 telas: `TrocarEtapaOS.tsx`, `OrdensServico.tsx`
+    (`handleStatusChange`, cobre Kanban arrastado e seletor da grade
+    juntos) e `OSTableView.tsx` — "Aprovado" agora exige `orders.approve`
+    **sempre**, não só saindo de "Aguardando aprovação". "Cancelar OS"
+    continua com a regra estreita de antes (só bloqueado saindo de
+    "Aguardando aprovação"), porque é a única saída de cancelamento que o
+    banco de fato trava — cancelar de outra etapa não é "recusar
+    orçamento" e sempre foi permitido.
+  - **✅ Migration aplicada em 20/08** (`20260820100000_fecha_bypass_aprovacao_e_duplicidade_caixa.sql`):
+    `validar_aprovacao_orcamento_os` agora exige `orders.approve` pra
+    QUALQUER transição que resulte em "aprovado", não só saindo de
+    "aguardando_aprovacao" — fecha a trava de verdade no banco, não só na
+    tela. "Recusar" (`aguardando_aprovacao` → `cancelado`) continua exigindo
+    `orders.approve`; cancelar de outra etapa continua livre com
+    `orders.edit`, como sempre foi. Testado com transação revertida:
+    técnico sem `orders.approve` bloqueado ao pular direto pra "aprovado"
+    vindo de "recebido"; o mesmo técnico ainda consegue cancelar de
+    "recebido" normalmente (regra estreita preservada).
+- [x] ✅ **Resolvido em 20/08 — achado do mesmo dia, migration aplicada no
+  mesmo dia.** Reabrir uma OS entregue (paga) e entregar de novo duplicava
+  o lançamento em Caixa, mesmo sem nenhum pagamento novo. A reabertura
+  (`reabrirOS.ts`, seção 🟠 abaixo) deixa uma OS voltar de "Entregue" pra
+  qualquer etapa anterior e ser entregue de novo — de propósito. O
+  problema estava no gatilho `registrar_pagamento_os_no_caixa` (criado em
+  18/08 por outra frente): ele recalculava a soma de TUDO em
+  `os_pagamentos` toda vez que o status virava "entregue", sem nenhuma
+  trava de "já lancei isso antes" (diferente do gatilho irmão de venda,
+  que já tinha essa trava). Corrigido na mesma migration acima: os dois
+  gatilhos (venda e OS) passaram de "calcula uma vez e trava" pra
+  "recalcula sempre a partir de tudo que existe agora, e AJUSTA o
+  lançamento existente em vez de duplicar" — com uma regra a mais: sessão
+  de caixa **fechada** nunca é alterada (mesma trava de 17/08 pra
+  `caixa_sessoes`); só dinheiro genuinamente NOVO vira lançamento novo na
+  sessão aberta atual. Isso também fechou, de brinde, o mesmo tipo de
+  problema no PDV: venda com 2+ produtos recebidos em troca grava
+  pagamento em mais de uma instrução SQL separada, e o gatilho de venda
+  (que roda por instrução) só via o primeiro item antes da correção.
+  Testado com transação revertida: venda com 2 itens de troca em
+  instruções separadas + lote manual soma certo num lançamento só; OS
+  reaberta e reentregue sem pagamento novo não duplica; OS reaberta e
+  reentregue COM pagamento novo lança só a diferença, na sessão atual,
+  sem tocar no lançamento já fechado.
 - [x] ✅ **17/08 — Aprovar/recusar orçamento agora exige `orders.approve`
   de verdade, nos 3 lugares que conseguiam fazer essa transição.**
   `orders.approve` existia cadastrada desde 01/08 (administrador/
@@ -853,6 +944,13 @@ o arquivo antes de assumir.
   serviços" é computado ao vivo a partir de `service_order_items` — a
   fonte real. As duas colunas continuam no schema, intencionalmente
   não usadas.
+  - **✅ Corrigido em 20/08**: o card ficou sem atualizar sozinho depois de
+    mudar a etapa pela ficha — `TrocarEtapaOS.tsx` já existia com seu
+    `onMudou` de antes do card existir, e ninguém tinha voltado pra somar
+    a invalidação de `['os-historico', id]` junto com `os-detalhe`/
+    `os-itens`. Sem isso, a mudança já estava gravada pelo gatilho, mas a
+    timeline só aparecia depois de recarregar a página ou trocar de aba e
+    voltar (foco da janela). Ajustado em `OSDetalhe.tsx`.
 - [ ] 3 cópias do fallback de status e 2 de formatação de moeda/data
   entre telas antigas (Kanban/Tabela) e novas (Detalhe/Finalizadas/
   Orçamentos).
@@ -1265,11 +1363,19 @@ o arquivo antes de assumir.
   esse número pra estimar caixa futuro.
 
 **🔵 Simplificação**
-- [ ] Escape de CSV não neutraliza `=`/`+`/`-`/`@` — risco de CSV/Formula
-  Injection no Excel se nome de cliente ou descrição de título vier com
-  esses caracteres. **Reconferido em 18/08 — vale reavaliar a
-  severidade pra cima**: é um vetor real de execução de conteúdo (a
-  fórmula roda se o Excel abrir o arquivo), não só falta de formatação.
+- [x] ✅ **Resolvido em 20/08.** Escape de CSV não neutralizava
+  `=`/`+`/`-`/`@` — risco real de CSV/Formula Injection no Excel se nome
+  de cliente ou descrição de título viesse com esses caracteres (a
+  fórmula roda de verdade se o Excel abrir o arquivo, não é só falta de
+  formatação — item já tinha sido reavaliado pra cima em 18/08).
+  Corrigido em `RelatorioShell.tsx` (função de escape usada por todos os
+  relatórios que exportam CSV, inclusive Vendas e Financeiro): célula que
+  começa com um desses quatro caracteres ganha um prefixo de aspas
+  simples, mesma mitigação padrão do Google Sheets/Excel — exceto quando
+  o conteúdo é só um número negativo formatado pelo próprio relatório
+  (regex dedicada), pra não estragar saldo negativo legítimo em telas
+  financeiras que usam o mesmo componente. `tsc`/`eslint`/37 testes
+  limpos depois da correção.
 - [ ] Nome do arquivo CSV de RelatorioEstoque sugere recorte de datas
   que não existe (a tela não filtra por período).
 - [ ] Formatação de moeda pra CSV e filtro de período duplicados nos 4
@@ -1324,7 +1430,17 @@ o arquivo antes de assumir.
 - [ ] `useUsuarios.definirPapel` troca de papel em 2 chamadas separadas
   (DELETE + INSERT), sem transação — falha no meio deixa usuário sem
   nenhum papel, silenciosamente. ✅ *confirmado.* **Reconfirmado em
-  18/08.**
+  18/08.** **Nota da revisão de 20/08, pra quem for corrigir:** o
+  gatilho `trg_protege_admin_ao_trocar_papel` (migration `20260818110000`)
+  foi escrito de propósito em cima do passo DELETE deste fluxo — é um
+  `BEFORE DELETE` que impede apagar o papel de administrador do último
+  administrador ativo, e o comentário da migration cita literalmente
+  "o passo que `definirPapel` usa". Se a correção da atomicidade trocar
+  DELETE+INSERT por um `upsert` (sem DELETE), a proteção do último
+  administrador para de disparar nessa troca de papel — silenciosamente.
+  A correção certa é envolver o par DELETE+INSERT numa função de banco
+  (RPC) que rode as duas no mesmo `BEGIN`/`COMMIT`, mantendo o DELETE de
+  fato, não substituí-lo.
 - [ ] `MinhaEmpresa` edita cor/logo, mas nada no app consome esses
   campos ainda (nem branding, nem um laudo em PDF, que não existe).
   ✅ *confirmado.*
@@ -1347,6 +1463,20 @@ o arquivo antes de assumir.
   `company.edit` (migration `20260818140000`) — a logo é dado da empresa,
   mora em `tenants.logo_url` ao lado de nome e CNPJ, não é configuração
   de sistema. A leitura continua pública, sem mudança.
+- [x] ✅ **🆕 Achado e resolvido em 20/08 (revisão de integração pós-fusão).**
+  `ConfigLogs.tsx` não reconhecia as duas tabelas mais novas a ganhar
+  gatilho de auditoria no mesmo dia 18/08: `os_pagamentos` (migration
+  `20260818100000`) e `user_permissions` (migration `20260818110000`).
+  A tela que adicionou a coluna "Quem" (commit `a85ac98`, mais tarde no
+  mesmo dia) mexeu em `TABELA_LABEL`/`TABELAS` sem saber dessas duas
+  tabelas novas — sintoma de duas frentes trabalhando em partes
+  relacionadas (gatilho de auditoria vs. tela de auditoria) sem se verem.
+  Na prática: linhas de `os_pagamentos`/`user_permissions` apareciam em
+  "Tudo" mas com o nome cru da tabela na coluna Registro, e sem botão de
+  filtro próprio. Corrigido adicionando as duas ao mapa (`'Pagamento de
+  OS'` e `'Exceção de permissão'`) — os botões de filtro nascem sozinhos
+  porque `TABELAS` deriva de `Object.keys(TABELA_LABEL)`. `tsc` e
+  `eslint` limpos.
 
 **🔵 Simplificação**
 - [ ] Cliente não tipado (`db`) ainda em `ConfigLogs`/`ConfigPerfis`/
@@ -1754,14 +1884,56 @@ ainda estavam só em disco foram publicadas no GitHub em 20/08.
 - [ ] 🔵 **`untyped.ts` cresceu de 6 para 10 arquivos** em vez de diminuir,
   mesmo as tabelas que ele cobre já sendo reconhecidas pelo gerador de tipos.
 
+**Revisão geral de 20/08 — depois de mesclar as duas frentes paralelas de
+18/08.** O Felipe pediu uma revisão geral de tudo antes de começar a testar
+o sistema por completo. Rodei 7 agentes em paralelo (um por área) mais um
+agente de verificação final, focados especialmente em achar bug de
+*composição* — arquivo tocado pelas duas frentes de 18/08 que ficou
+inconsistente na junção — e não só reconferir achado antigo. Achados
+reais, todos corrigidos no mesmo dia:
+
+1. ✅ **Bug de integração real, achado antes mesmo de rodar os agentes**:
+   `NovaOS.tsx` quebrava o `tsc` — um objeto `Cliente` local ficou sem o
+   campo `liberado_venda` que a outra frente tinha acrescentado na
+   interface. Corrigido passando o valor real que o banco devolve.
+2. ✅ **Bypass de aprovação de orçamento — 4º caminho, mais simples que os
+   três já fechados em 17/08.** Dava pra pular direto pra "Aprovado" vindo
+   de qualquer etapa (não só saindo de "Aguardando aprovação"), nas 3
+   telas E no banco. Corrigido nas telas e com migration nova.
+3. ✅ **Duplicidade de lançamento no Caixa** — venda com 2+ produtos de
+   troca em instruções separadas, e OS reaberta/reentregue, podiam lançar
+   dinheiro a mais. Os dois gatilhos de Caixa (venda e OS) passaram a
+   recalcular sempre a partir de tudo que existe agora, ajustando o
+   lançamento em vez de duplicar — respeitando que sessão já fechada é
+   imutável.
+4. ✅ **CSV/Formula Injection** no exportador de relatórios, item que já
+   estava anotado pra reavaliar a severidade — corrigido de vez.
+5. ✅ **"Histórico da OS" não atualizava sozinho** depois de mudar etapa
+   pela ficha (faltava invalidar a query certa).
+6. ✅ **`ConfigLogs.tsx` não reconhecia 2 tabelas novas de auditoria**
+   (`os_pagamentos`, `user_permissions`) — outro sintoma de duas frentes
+   trabalhando em partes relacionadas sem se verem.
+7. ✅ **Documentação corrigida**: dois achados de Estoque, resgatados da
+   branch perdida de 11/08, que já estavam certos no código mas o plano
+   ainda descrevia como abertos ou rebaixados sem essa informação.
+
+Nenhuma correção desta rodada exigiu decisão de produto nova — todas eram
+bug de verdade, com comportamento errado claro. `tsc`, `eslint` (mesma
+baseline de antes, nenhum erro novo), 37 testes e `build` limpos depois de
+tudo. Migrations testadas com transação revertida no banco antes de
+aplicar.
+
 **Pra continuar a partir daqui:**
 
-1. **Fornecedores não alimentar compra/entrada de estoque** — o único
+1. **Testar o sistema de ponta a ponta**, cadastrando dados reais pela
+   tela (clientes, produtos, vendas, troca, ordens de serviço) — é o
+   próximo passo combinado com o Felipe, depois desta revisão.
+2. **Fornecedores não alimentar compra/entrada de estoque** — o único
    achado 🔴 restante que não é ajuste pontual, é feature nova (não existe
    fluxo de recebimento de mercadoria hoje). Precisa de conversa sobre como
    esse fluxo deveria funcionar antes de qualquer código.
-2. **O restante dos achados 🟠/🔵** de cada área, na ordem que fizer mais
+3. **O restante dos achados 🟠/🔵** de cada área, na ordem que fizer mais
    sentido pro seu dia a dia — nenhum quebra o uso diário sozinho.
-3. **🔴 O banco continuar sem backup** segue sendo o risco maior que
+4. **🔴 O banco continuar sem backup** segue sendo o risco maior que
    qualquer item desta lista, em paralelo com tudo acima — ver seção
    própria no início deste documento.

@@ -62,16 +62,27 @@ export function TrocarEtapaOS({ osId, numeroOs, statusAtual, tipo, totalOrcament
 
   if (!podeEditar) return null;
 
-  // Sair de "aguardando aprovação" pra "aprovado" ou "cancelado" é decidir o
-  // orçamento (aprovar ou recusar) — mesma regra de OSOrcamentos.tsx e do
-  // gatilho `validar_aprovacao_orcamento_os` no banco (migration
-  // 20260817140000): exige orders.approve, não só orders.edit. Quem não tem
-  // não vê esses dois destinos aqui — sem isso, o botão "Avançar" e o
-  // seletor deixavam qualquer um com orders.edit (inclusive técnico)
-  // aprovar/recusar por este caminho, o mesmo problema que a correção na
-  // fila de Orçamentos fechou por lá.
+  // Sair de "aguardando aprovação" pra "cancelado" é RECUSAR o orçamento —
+  // mesma regra de OSOrcamentos.tsx e do gatilho `validar_aprovacao_orcamento_os`
+  // no banco (migration 20260817140000): exige orders.approve, não só
+  // orders.edit. Só essa saída específica; cancelar de qualquer outra etapa
+  // não é "recusar orçamento" e o banco nunca travou isso.
   const decisaoDeOrcamentoBloqueada =
     statusAtual === OS_ETAPAS.AGUARDANDO_APROVACAO && !podeAprovar;
+
+  // "Aprovado" é decisão de orçamento (APROVAR) não importa de qual etapa se
+  // está saindo — achado na revisão de 20/08: o seletor só escondia
+  // "Aprovado" quando a OS JÁ estava em "Aguardando aprovação", mas o
+  // dropdown sempre ofereceu TODAS as etapas como destino (é assim de
+  // propósito, para "voltar uma etapa" ou "pular pra etapa extra"). Vindo de
+  // qualquer outra etapa — inclusive uma OS recém-aberta em
+  // "Aguardando análise" — dava pra pular direto pra "Aprovado" num clique
+  // só. O gatilho do banco só confere `OLD.status = 'aguardando_aprovacao'`
+  // (migration 20260817140000), então esse pulo passava batido também no
+  // banco: um técnico com `orders.edit` aprovava orçamento sem nunca ter
+  // `orders.approve`, driblando a permissão inteira. Por isso "Aprovado"
+  // exige `podeAprovar` sempre, e não só quando `decisaoDeOrcamentoBloqueada`.
+  const aprovarBloqueado = !podeAprovar;
 
   // Etapas na ordem do quadro. Cancelado fica fora da esteira e entra à parte.
   const etapas = statuses
@@ -84,13 +95,15 @@ export function TrocarEtapaOS({ osId, numeroOs, statusAtual, tipo, totalOrcament
   // Some o atalho de avançar quando o próximo passo seria justamente a
   // decisão bloqueada (aguardando_aprovacao → aprovado).
   const proxima =
-    decisaoDeOrcamentoBloqueada && proximaBruta?.key === OS_ETAPAS.APROVADO
+    aprovarBloqueado && proximaBruta?.key === OS_ETAPAS.APROVADO
       ? undefined
       : proximaBruta;
-  // Idem pro seletor: sem permissão de aprovar, "Aprovado" e "Cancelar OS"
-  // somem da lista quando a OS está esperando decisão — as outras etapas
-  // (voltar pro diagnóstico, por exemplo) continuam alcançáveis.
-  const etapasSelecionaveis = decisaoDeOrcamentoBloqueada
+  // "Aprovado" some sempre que falta orders.approve, não só saindo de
+  // aguardando_aprovacao (ver comentário de `aprovarBloqueado`). "Cancelar
+  // OS" continua com a regra estreita de sempre (só some saindo de
+  // aguardando_aprovacao), porque é a única saída de cancelamento que o
+  // banco de fato trava.
+  const etapasSelecionaveis = aprovarBloqueado
     ? etapas.filter((s) => s.key !== OS_ETAPAS.APROVADO)
     : etapas;
 
