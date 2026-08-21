@@ -106,7 +106,13 @@ export const MENU: MenuRoot[] = [
     children: [
       { kind: 'link', id: 'rel-vendas', label: 'Relatório de Vendas', path: '/relatorios/vendas', element: 'RelatorioVendas', permission: PERMISSIONS.REPORTS_VIEW },
       { kind: 'link', id: 'rel-os', label: 'Relatório de OS', path: '/relatorios/os', element: 'RelatorioOS', permission: PERMISSIONS.REPORTS_VIEW },
-      { kind: 'link', id: 'rel-financeiro', label: 'Relatório Financeiro', path: '/relatorios/financeiro', element: 'RelatorioFinanceiro', permission: PERMISSIONS.FINANCE_VIEW },
+      // Lê `titulos_financeiros`, exatamente como o Fluxo de Caixa — por isso
+      // pede a MESMA permissão que ele. Até 21/08 pedia `finance.view`, que é
+      // o crachá de ENTRAR no módulo Financeiro e ver o caixa, e não está
+      // entre as três que a RLS de títulos aceita. Resultado: quem tivesse só
+      // `finance.view` abria o relatório e via uma tela vazia, sem erro — o
+      // banco filtrava tudo em silêncio.
+      { kind: 'link', id: 'rel-financeiro', label: 'Relatório Financeiro', path: '/relatorios/financeiro', element: 'RelatorioFinanceiro', permission: PERMISSIONS.FINANCE_CASHFLOW_VIEW },
       { kind: 'link', id: 'rel-estoque', label: 'Relatório de Estoque', path: '/relatorios/estoque', element: 'RelatorioEstoque', permission: PERMISSIONS.REPORTS_VIEW },
     ],
   },
