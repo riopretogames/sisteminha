@@ -232,8 +232,36 @@ export default function PDV() {
     }
   }, [catalogoOrigemVenda.data]);
 
+  /**
+   * Avisa que uma busca do PDV falhou, em vez de deixar a lista vazia.
+   *
+   * Achado em 11/08, resgatado em 20/08, corrigido em 21/08: as 9 consultas
+   * desta tela ignoravam o erro por completo. Se o banco engasgasse por um
+   * instante, `data` vinha nulo, a lista virava `[]` e a tela ficava
+   * idêntica a "não tem nada cadastrado". Quem está no balcão não tem como
+   * distinguir uma coisa da outra — e as duas levam a decisões opostas:
+   * "não tem esse produto em estoque" faz perder a venda, "não achei o
+   * cliente" faz cadastrar de novo alguém que já existe (justamente o que a
+   * regra de cliente único tenta evitar).
+   *
+   * O aviso é um toast destrutivo, e não um texto fixo na lista, porque
+   * esta tela não tem estado de "lista vazia" pra escrever em cima: o PDV
+   * simplesmente não desenha nada quando não há produto. Trocar isso é
+   * mudança maior de layout; o aviso já resolve o silêncio, que era o
+   * problema.
+   */
+  const avisarFalhaDeBusca = (oQue: string, erro: unknown) => {
+    console.error(`PDV: falha ao buscar ${oQue}`, erro);
+    toast({
+      title: `Não consegui carregar ${oQue}`,
+      description:
+        'A lista pode estar incompleta. Verifique a internet e atualize a página antes de continuar a venda.',
+      variant: 'destructive',
+    });
+  };
+
   const fetchProdutos = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('vw_produtos')
       .select(
         'id, nome, preco, estoque_atual, imei_serial, codigo_barra, grupo_produto_id, marca_id, cor_id, condicao_id, memoria_id'
@@ -241,25 +269,40 @@ export default function PDV() {
       .eq('ativo', true)
       .gt('estoque_atual', 0)
       .order('nome');
+    if (error) {
+      avisarFalhaDeBusca('os produtos', error);
+      return;
+    }
     setProdutos(data || []);
   };
 
   const fetchClientes = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('clientes')
       .select('id, nome, telefones, liberado_venda')
       .eq('ativo', true)
       .order('nome');
+    if (error) {
+      avisarFalhaDeBusca('os clientes', error);
+      return;
+    }
     setClientes(data || []);
   };
 
   const fetchFormasPagamento = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('formas_pagamento')
       .select('id, descricao, forma_enum, max_parcelas, contem_taxa, taxa_percent')
       .eq('ativo', true)
       .order('ordem', { ascending: true })
       .order('descricao', { ascending: true });
+    if (error) {
+      // Esta é a mais grave das três: sem forma de pagamento não dá pra
+      // fechar venda nenhuma, e sem aviso o vendedor fica olhando uma
+      // lista vazia achando que ninguém cadastrou forma de pagamento.
+      avisarFalhaDeBusca('as formas de pagamento', error);
+      return;
+    }
     setFormasPagamento((data ?? []) as FormaPagamentoCadastro[]);
   };
 
@@ -319,11 +362,19 @@ export default function PDV() {
 
     // Cadastrado em outro terminal depois desta tela abrir: busca a ficha
     // antes de vincular, senão não dá pra saber se está bloqueado.
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('clientes')
       .select('id, nome, telefones, liberado_venda')
       .eq('id', id)
       .single();
+
+    if (error) {
+      // Sem a ficha não dá pra saber se o cliente está bloqueado pra venda.
+      // Vincular assim mesmo esconderia o bloqueio até o banco recusar lá
+      // na frente, com a venda montada.
+      avisarFalhaDeBusca('a ficha do cliente', error);
+      return;
+    }
 
     if (data) {
       setClientes((atuais) =>
