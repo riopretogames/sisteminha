@@ -435,8 +435,38 @@ export default function FinanceiroCaixa() {
         }
       />
 
+      {/*
+        Sessão que o próprio sistema abriu na primeira venda do dia (decisão
+        do Felipe em 21/08, depois do teste que mostrou R$ 22 mil vendidos
+        sem nenhum lançamento no Caixa). Quem vai FECHAR precisa saber disso:
+        a abertura ficou em R$ 0,00 porque ninguém contou a gaveta, então um
+        fundo de troco que já estava lá vai aparecer como sobra na
+        conferência — e não é erro de ninguém.
+      */}
+      {sessao.observacoes?.startsWith('Aberto automaticamente') && (
+        <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+          <p className="text-sm font-medium text-amber-800">
+            Este caixa foi aberto pelo sistema, não por uma pessoa.
+          </p>
+          <p className="mt-1 text-sm text-amber-700">
+            Abriu sozinho na primeira venda do dia, para o dinheiro não ficar
+            de fora da conferência. Como ninguém contou a gaveta na abertura,
+            o valor inicial ficou em <strong>R$ 0,00</strong> — se havia troco
+            guardado, ele vai aparecer como sobra no fechamento.
+          </p>
+        </div>
+      )}
+
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <Indicador rotulo="Abertura" valor={moeda(Number(sessao.valor_abertura))} />
+        <Indicador
+          rotulo="Abertura"
+          valor={moeda(Number(sessao.valor_abertura))}
+          detalhe={
+            sessao.observacoes?.startsWith('Aberto automaticamente')
+              ? 'Automática — gaveta não contada'
+              : undefined
+          }
+        />
         <Indicador
           rotulo="Movimentos"
           valor={String(movimentos?.length ?? 0)}
