@@ -98,3 +98,55 @@ export async function buscarDevolucoesDesde(deISO: string): Promise<DevolucaoRow
   if (error) throw error;
   return (data ?? []) as DevolucaoRow[];
 }
+
+/** Quanto de um produto voltou pela porta, e por qual valor. */
+export interface DevolvidoDoProduto {
+  quantidade: number;
+  valor: number;
+}
+
+/**
+ * Itens devolvidos num período, somados por produto.
+ *
+ * Existe porque os painéis de Inteligência (`IeComercial`, `IeEstoque`)
+ * agregam **por produto**, somando `itens_venda` — o desconto por período que
+ * conserta os outros painéis não alcança eles. Sem isto, um produto devolvido
+ * segue aparecendo como vendido no ranking de mais vendidos e infla a margem
+ * de quem tem muita devolução.
+ *
+ * O `preco_unitario` vem de `devolucao_itens`, que guarda o preço da venda
+ * ORIGINAL e não o preço atual do produto — é quanto o cliente pagou de
+ * verdade, que é o valor certo pra tirar da receita.
+ *
+ * Mesma régua de data do resto: a devolução pesa no dia em que aconteceu.
+ *
+ * @param deISO   início (ISO, inclusive)
+ * @param ateISO  fim (ISO, inclusive). Omitido = sem limite.
+ */
+export async function devolvidosPorProdutoNoPeriodo(
+  deISO: string,
+  ateISO?: string
+): Promise<Map<string, DevolvidoDoProduto>> {
+  let q = supabase
+    .from('devolucao_itens')
+    .select('produto_id, quantidade, preco_unitario, devolucoes!inner(created_at)')
+    .gte('devolucoes.created_at', deISO);
+
+  if (ateISO) q = q.lte('devolucoes.created_at', ateISO);
+
+  const { data, error } = await q;
+  if (error) throw error;
+
+  const porProduto = new Map<string, DevolvidoDoProduto>();
+  for (const item of (data ?? []) as unknown as Array<{
+    produto_id: string;
+    quantidade: number;
+    preco_unitario: number | null;
+  }>) {
+    const atual = porProduto.get(item.produto_id) ?? { quantidade: 0, valor: 0 };
+    atual.quantidade += Number(item.quantidade ?? 0);
+    atual.valor += Number(item.quantidade ?? 0) * Number(item.preco_unitario ?? 0);
+    porProduto.set(item.produto_id, atual);
+  }
+  return porProduto;
+}

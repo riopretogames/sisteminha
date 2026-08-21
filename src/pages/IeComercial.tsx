@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { devolvidosPorProdutoNoPeriodo } from '@/lib/faturamento';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { moeda } from '@/lib/format';
@@ -37,14 +38,22 @@ export default function IeComercial() {
   const { data, isLoading } = useQuery({
     queryKey: ['ie-comercial', periodo.de, periodo.ate],
     queryFn: async (): Promise<LinhaProduto[]> => {
-      const { data, error } = await supabase
-        .from('vendas')
-        .select(
-          'id, created_at, status, itens_venda(quantidade, preco_unitario, total, produtos:vw_produtos(id, nome, categoria, custo))'
-        )
-        .gte('created_at', periodo.de)
-        .lte('created_at', `${periodo.ate}T23:59:59`)
-        .neq('status', 'cancelado');
+      const ate = `${periodo.ate}T23:59:59`;
+      const [res, devolvidos] = await Promise.all([
+        supabase
+          .from('vendas')
+          .select(
+            'id, created_at, status, itens_venda(quantidade, preco_unitario, total, produtos:vw_produtos(id, nome, categoria, custo))'
+          )
+          .gte('created_at', periodo.de)
+          .lte('created_at', ate)
+          .neq('status', 'cancelado'),
+        // Produto devolvido continuava contando como vendido aqui: este
+        // painel agrega por PRODUTO (soma itens_venda), então o desconto por
+        // período que consertou os outros painéis não alcançava ele.
+        devolvidosPorProdutoNoPeriodo(periodo.de, ate),
+      ]);
+      const { data, error } = res;
       if (error) throw error;
 
       // Agrupa por produto — uma venda pode ter vários itens, e o mesmo
@@ -75,6 +84,18 @@ export default function IeComercial() {
           atual.custo += Number(produto.custo) * item.quantidade;
           porProduto.set(produto.id, atual);
         }
+      }
+
+      // Desconta o que voltou pela porta. A quantidade sai do ranking de mais
+      // vendidos, a receita sai do faturamento por produto, e o custo sai
+      // junto — senão a margem ficaria negativa por subtrair só um lado.
+      for (const [produtoId, dev] of devolvidos) {
+        const linha = porProduto.get(produtoId);
+        if (!linha) continue; // devolução de venda de outro período
+        const custoUnit = linha.quantidade > 0 ? linha.custo / linha.quantidade : 0;
+        linha.quantidade = Math.max(0, linha.quantidade - dev.quantidade);
+        linha.receita = Math.max(0, linha.receita - dev.valor);
+        linha.custo = Math.max(0, linha.custo - custoUnit * dev.quantidade);
       }
 
       return Array.from(porProduto.values()).sort(

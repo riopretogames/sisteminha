@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { devolvidosPorProdutoNoPeriodo } from '@/lib/faturamento';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { moeda } from '@/lib/format';
@@ -50,19 +51,24 @@ export default function IeEstoque() {
   const { data, isLoading } = useQuery({
     queryKey: ['ie-estoque', periodo.de, periodo.ate],
     queryFn: async (): Promise<LinhaProduto[]> => {
-      const [vendasRes, produtosRes] = await Promise.all([
+      const ate = `${periodo.ate}T23:59:59`;
+      const [vendasRes, produtosRes, devolvidos] = await Promise.all([
         supabase
           .from('vendas')
           .select(
             'id, created_at, status, itens_venda(quantidade, total, produtos:vw_produtos(id, nome, categoria, custo, estoque_atual))'
           )
           .gte('created_at', periodo.de)
-          .lte('created_at', `${periodo.ate}T23:59:59`)
+          .lte('created_at', ate)
           .neq('status', 'cancelado'),
         supabase
           .from('vw_produtos')
           .select('id, nome, categoria, custo, estoque_atual')
           .eq('ativo', true),
+        // Produto devolvido inflava a quantidade vendida — e é a quantidade
+        // vendida que decide se um produto está "parado" ou "girando". Um
+        // produto vendido 5 e devolvido 5 girou zero, não cinco.
+        devolvidosPorProdutoNoPeriodo(periodo.de, ate),
       ]);
 
       if (vendasRes.error) throw vendasRes.error;
@@ -105,6 +111,13 @@ export default function IeEstoque() {
           atual.quantidadeVendida += item.quantidade;
           porProduto.set(produto.id, atual);
         }
+      }
+
+      // Tira do "vendido" o que voltou pela porta, antes de calcular o giro.
+      for (const [produtoId, dev] of devolvidos) {
+        const linha = porProduto.get(produtoId);
+        if (!linha) continue; // produto inativo ou devolução de outro período
+        linha.quantidadeVendida = Math.max(0, linha.quantidadeVendida - dev.quantidade);
       }
 
       // "Parado primeiro, maior valor parado primeiro" — é o que mais

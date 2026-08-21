@@ -45,6 +45,10 @@ interface Venda {
    *  completo dos itens continua sendo buscado ao abrir a venda. */
   itens_venda: { produtos: { nome: string; imei_serial: string | null } | null }[] | null;
   pagamentos_venda: { forma: string | null }[] | null;
+  /** Devoluções desta venda. Vem presa à linha, e não somada por período,
+   *  porque esta tela filtra no cliente por critério livre — assim o
+   *  desconto acompanha qualquer filtro que o usuário aplicar. */
+  devolucoes: { valor_devolvido_cliente: number | null }[] | null;
 }
 
 interface ItemVenda {
@@ -90,7 +94,8 @@ export default function VendasHistorico() {
            clientes(nome),
            vendedor:profiles!vendas_vendedor_id_fkey(nome),
            itens_venda(produtos:vw_produtos(nome, imei_serial)),
-           pagamentos_venda(forma)`
+           pagamentos_venda(forma),
+           devolucoes!venda_original_id(valor_devolvido_cliente)`
         )
         .order('created_at', { ascending: false })
         .limit(500);
@@ -142,10 +147,24 @@ export default function VendasHistorico() {
   // cheio do produto em `total` (pra não perder a contagem de vendas por
   // produto), mas só `valor_faturamento_real` reflete o dinheiro novo de
   // verdade — ver TrocaDevolucao.tsx.
+  //
+  // Achado em 18/08, resolvido em 21/08: o rodapé não descontava devolução.
+  // O desconto por período usado nos painéis não servia aqui, porque esta
+  // tela filtra no cliente por critério livre (vendedor, forma, texto) e não
+  // dá pra casar uma devolução com um filtro arbitrário. A saída foi trazer
+  // a devolução PRESA À LINHA da venda: aí ela acompanha qualquer filtro,
+  // aparece na própria linha, e o total fecha com o que está na tela.
+  const devolvidoDaVenda = (v: Venda) =>
+    (v.devolucoes ?? []).reduce(
+      (acc, d) => acc + Number(d.valor_devolvido_cliente ?? 0),
+      0
+    );
+
   const faturamento = validas.reduce(
-    (acc, v) => acc + Number(v.valor_faturamento_real ?? v.total),
+    (acc, v) => acc + Number(v.valor_faturamento_real ?? v.total) - devolvidoDaVenda(v),
     0
   );
+  const totalDevolvido = validas.reduce((acc, v) => acc + devolvidoDaVenda(v), 0);
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -163,7 +182,16 @@ export default function VendasHistorico() {
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
         <Indicador rotulo="Vendas listadas" valor={String(filtradas.length)} />
-        <Indicador rotulo="Faturamento" valor={moeda(faturamento)} tom="positivo" detalhe="Sem contar canceladas" />
+        <Indicador
+          rotulo="Faturamento"
+          valor={moeda(faturamento)}
+          tom="positivo"
+          detalhe={
+            totalDevolvido > 0
+              ? `Sem canceladas, menos ${moeda(totalDevolvido)} devolvido`
+              : 'Sem contar canceladas'
+          }
+        />
         <Indicador
           rotulo="Ticket médio"
           valor={moeda(validas.length ? faturamento / validas.length : 0)}
@@ -208,9 +236,26 @@ export default function VendasHistorico() {
                     <Badge className={`${STATUS_COR[v.status] ?? ''} border-0 capitalize`}>
                       {v.status}
                     </Badge>
+                    {/* Venda com devolução fica marcada na própria linha: sem
+                        isso, o total do rodapé (que agora desconta) não batia
+                        com a soma que a pessoa faz de cabeça olhando a
+                        coluna, e parecia erro de conta. */}
+                    {devolvidoDaVenda(v) > 0 && (
+                      <Badge
+                        variant="secondary"
+                        className="ml-1.5 border border-amber-500 bg-amber-500/10 text-amber-700"
+                      >
+                        Devolvida
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-right font-medium tabular-nums">
                     {moeda(Number(v.total))}
+                    {devolvidoDaVenda(v) > 0 && (
+                      <span className="block text-xs font-normal text-amber-700">
+                        −{moeda(devolvidoDaVenda(v))} devolvido
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell>
                     {/* Pedido do Felipe (10/08): sempre ter um botão
