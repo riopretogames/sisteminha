@@ -73,11 +73,21 @@ export function useUsuarios() {
 
   const definirPapel = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: Role }) => {
-      // Um papel por pessoa: apaga o anterior antes de gravar o novo.
-      const { error: eDel } = await supabase.from('user_roles').delete().eq('user_id', userId);
-      if (eDel) throw eDel;
-
-      const { error } = await supabase.from('user_roles').insert({ user_id: userId, role });
+      // Um papel por pessoa: apaga o anterior antes de gravar o novo — mas os
+      // dois passos rodam DENTRO do banco, na mesma transação.
+      //
+      // Antes eram duas chamadas soltas daqui. Se a segunda falhasse (queda de
+      // rede, aba fechada), a pessoa ficava SEM PAPEL NENHUM — ou seja, sem
+      // acesso ao sistema, em silêncio, sem ninguém ter pedido isso. E quem
+      // estava trocando via a mensagem de erro e supunha que "não mudou nada".
+      //
+      // A função mantém o DELETE de propósito, em vez de virar um upsert: o
+      // gatilho que impede tirar o papel do último administrador ativo é um
+      // BEFORE DELETE, e sem o DELETE ele deixaria de disparar.
+      const { error } = await supabase.rpc('trocar_papel_do_usuario', {
+        _user_id: userId,
+        _role: role,
+      });
       if (error) throw error;
     },
     onSuccess: invalidar,

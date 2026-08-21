@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Loader2, Search, ShieldCheck, UserCog, Info, RotateCcw, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import { ROLES, ROLE_LABELS, type Role, type Permission } from '@/config/permissions';
+import { ROLES, ROLE_LABELS, PERMISSIONS, type Role, type Permission } from '@/config/permissions';
+import { useAuth } from '@/hooks/useAuth';
 import { PageHeader, Vazio } from '@/components/PageHeader';
 import { useUsuarios, useExcecoes, type UsuarioLinha } from '@/hooks/useUsuarios';
 import { Button } from '@/components/ui/button';
@@ -163,6 +164,11 @@ function DialogUsuario({
   onAtivo: (ativo: boolean) => void;
   onNome: (nome: string) => void;
 }) {
+  const { can } = useAuth();
+  // Ver e editar o cadastro é `users.manage`; trocar o PERFIL é
+  // `roles.manage`. São concedidas separadamente, então a tela pergunta as
+  // duas em vez de supor que quem entrou pode tudo.
+  const podeTrocarPapel = can(PERMISSIONS.ROLES_MANAGE);
   const [nome, setNome] = useState(usuario.nome);
   const [papel, setPapel] = useState<Role | null>(usuario.role);
   const [ativo, setAtivo] = useState(usuario.ativo);
@@ -232,10 +238,18 @@ function DialogUsuario({
               />
             </div>
 
+            {/*
+              A tela inteira é liberada por `users.manage`, mas TROCAR O PERFIL
+              exige `roles.manage` — são permissões diferentes, e o sistema
+              deixa conceder uma sem a outra. Sem esta checagem, quem tivesse
+              só a primeira via o seletor habilitado, escolhia um perfil e a
+              operação era recusada pelo banco depois do clique.
+            */}
             <div className="space-y-2">
               <Label>Perfil</Label>
               <Select
                 value={papel ?? ''}
+                disabled={!podeTrocarPapel}
                 onValueChange={(v) => {
                   setPapel(v as Role);
                   onPapel(v as Role);
@@ -252,6 +266,12 @@ function DialogUsuario({
                   ))}
                 </SelectContent>
               </Select>
+              {!podeTrocarPapel && (
+                <p className="text-xs text-muted-foreground">
+                  Você pode ver e editar o cadastro, mas trocar o perfil exige a
+                  permissão "Gerenciar perfis de acesso".
+                </p>
+              )}
             </div>
           </div>
 

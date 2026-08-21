@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -2730,6 +2730,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      aplicar_trava_de_custo: { Args: never; Returns: string }
       buscar_clientes_semelhantes: {
         Args: { _documento?: string; _nome?: string; _telefone?: string }
         Returns: {
@@ -2744,6 +2745,10 @@ export type Database = {
       catalogo_e_do_tipo: {
         Args: { _id: string; _tipo: string }
         Returns: boolean
+      }
+      garantir_caixa_aberto: {
+        Args: { _tenant: string; _usuario: string }
+        Returns: string
       }
       get_user_tenant_id: { Args: { _user_id: string }; Returns: string }
       has_permission: {
@@ -2779,6 +2784,13 @@ export type Database = {
         Returns: string
       }
       somente_digitos: { Args: { _texto: string }; Returns: string }
+      trocar_papel_do_usuario: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: undefined
+      }
       user_belongs_to_tenant: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
