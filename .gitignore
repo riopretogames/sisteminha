@@ -38,3 +38,6 @@ backups/
 
 # Artefato gerado a partir do ROTEIRO-DE-TESTE.md — nao editar a mao.
 roteiro-de-teste.html
+
+# Cache do "tsc --build" (npm run typecheck). E gerado, muda a cada rodada.
+*.tsbuildinfo
