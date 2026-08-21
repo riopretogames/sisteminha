@@ -312,6 +312,25 @@ vendo; quem não via continua não vendo. A diferença é que agora a trava
 
 ## 🔴 O banco não tem backup nenhum (achado em 08/08)
 
+> **ATUALIZAÇÃO 21/08 — está a um clique de resolver.** Conferido na máquina:
+> o **Docker já está instalado** (`DockerDesktop/resources/bin/docker`), só não
+> está *rodando* — era isso que bloqueava o `supabase db dump` esse tempo todo.
+> Confirmado também, pelo próprio painel do Supabase via CLI, que **não existe
+> backup nenhum**: `"backups": []` e `"pitr_enabled": false` (recuperação a
+> ponto no tempo é do plano pago).
+>
+> Ficou pronto o arquivo **`backup-do-banco.cmd`** na raiz do projeto. O
+> caminho inteiro agora é:
+>
+> 1. Abrir o Docker Desktop e esperar aparecer "Engine running".
+> 2. Dar dois cliques em `backup-do-banco.cmd`.
+> 3. Copiar a pasta `backups` para fora do computador.
+>
+> O passo 3 não é detalhe: backup que mora no mesmo computador que o original
+> não protege contra a máquina queimar ou ser roubada. A pasta `backups/` já
+> está no `.gitignore` — ela contém nome, CPF e telefone de cliente, e
+> repositório não é lugar de dado pessoal.
+
 O painel da Supabase mostra, com todas as letras: **LAST BACKUP — No
 backups**. O projeto está no plano Free, que **não faz backup automático**.
 
