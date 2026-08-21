@@ -1675,6 +1675,64 @@ Não quebram nada hoje — limpar enquanto a mão está na área correspondente:
 
 ---
 
+## Achados dos testes com massa real (21/08)
+
+Primeira vez que o sistema foi exercitado com volume: 10 clientes, 10
+produtos, 10 vendas e 10 OS espalhadas por 7 etapas, mais seis tentativas
+deliberadas de fazer o que o sistema deveria proibir.
+
+**O que passou** (verificado no banco, não presumido): estoque descontou certo
+nos 10 produtos, conferido um a um contra o esperado; 20 movimentos gravados
+com origem rastreável até o número da venda; auditoria registrou 40 eventos;
+numeração sequencial funcionou; e **5 de 6 travas recusaram o que deviam**,
+com mensagem em português — venda para cliente bloqueado, pular etapa para
+aprovado, entregar OS sem pagamento, cancelar título já pago, e vender mais do
+que tem em estoque.
+
+- [x] ✅ **Resolvido em 21/08 — OS que nasce "entregue" pulava as duas travas
+  de uma vez.** Criando a OS já com `status = 'entregue'` num único INSERT,
+  `conferir_pagamento_ao_entregar` e `gerar_titulo_ao_entregar_os` eram os
+  dois pulados, porque ambos eram `BEFORE UPDATE`. Testado: nasceu uma OS
+  "entregue" de R$ 999 sem um centavo registrado, e título gerado = 0. Um
+  atendimento inteiro, com valor, sumindo do controle financeiro sem rastro.
+  A tela nunca faz isso, mas **a migração do sistema antigo e as automações do
+  n8n fazem exatamente isso** — OS já concluída entra com status final, e seria
+  o pior momento possível para descobrir que nenhuma gerou título. Corrigido na
+  migration `20260821110000`: as duas funções valem para INSERT também.
+  Retestado nos quatro cenários, incluindo os que não podiam quebrar (garantia
+  nascendo entregue, OS normal em análise, fluxo completo gerando 1 título).
+
+**🔴 Alta**
+
+- [ ] 🆕 **21/08 — Sem caixa aberto, o dinheiro do dia inteiro fica fora da
+  conferência, e ninguém avisa.** Os gatilhos que lançam venda e OS no Caixa
+  procuram uma sessão com status "aberto"; não achando, saem em silêncio
+  (`CONTINUE` em `registrar_pagamentos_venda_no_caixa`, `RETURN NEW` em
+  `registrar_pagamento_os_no_caixa`). **Comprovado no teste:** as 10 vendas
+  somaram R$ 22.265,40 e o Caixa registrou **zero** movimentos, porque não
+  havia sessão aberta. Nada na tela do PDV indica isso.
+
+  Na prática da loja: quem abrir a loja e esquecer de abrir o caixa vende o
+  dia todo normalmente, e no fim do dia a conferência compara a gaveta cheia
+  contra um sistema que diz que não entrou nada. O dinheiro existe, a venda
+  está registrada — só a ponte entre os dois não foi feita, e não dá pra
+  reconstruir depois sem trabalho manual.
+
+  Duas saídas possíveis, e a escolha é do Felipe: **(a)** o PDV avisa ao abrir
+  ("o caixa está fechado — as vendas de hoje não entram na conferência"), ou
+  **(b)** o sistema abre a sessão sozinho na primeira venda do dia. A (b)
+  resolve sem depender de ninguém lembrar, mas muda o significado de "abrir o
+  caixa", que hoje é um ato consciente com valor inicial contado.
+
+**🔵 Observação de cadastro**
+
+- [ ] 🆕 **21/08 — A etapa de OS "tercerizada" está escrita errado** (o certo é
+  "terceirizada"). Não está no código: é item cadastrado pela loja em
+  Gerenciar Status, então corrige-se pela própria tela, sem migration. Fica
+  anotado porque aparece no Kanban e em relatório, à vista do cliente.
+
+---
+
 ## Requisitos do projeto original que se perderam (resgatados em 21/08)
 
 Até 21/08 o `README.md` guardava, sem ninguém notar, o **prompt de IA
