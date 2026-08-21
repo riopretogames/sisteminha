@@ -1420,13 +1420,16 @@ o arquivo antes de assumir.
   indicador "Faturamento" vai um passo além, descontando também o
   dinheiro devolvido a cliente no período — que não é linha daquela
   tabela. São duas perguntas diferentes, as duas úteis.
-- [ ] 🆕 **18/08 — Indicador "Orçamento em aberto" do Relatório de OS
-  conta orçamento AINDA NÃO APROVADO pelo cliente como se já fosse
-  dinheiro garantido.** O texto de apoio do indicador diz "Aprovado,
-  ainda não recebido", mas o cálculo inclui também OS que nem foi
-  diagnosticada ainda e OS com orçamento na mão do cliente sem
-  resposta — superestima quanto dinheiro está garantido pra quem usa
-  esse número pra estimar caixa futuro.
+- [x] ✅ **Resolvido em 21/08.** O indicador "Orçamento em aberto"
+  dizia "Aprovado, ainda não recebido" mas somava TODA OS não
+  entregue — inclusive as que nem tinham laudo e as que estavam com o
+  orçamento na mão do cliente sem resposta. Quem usasse o número para
+  estimar caixa futuro contava com dinheiro que ainda dependia de o
+  cliente dizer sim. Novo helper `osOrcamentoAprovado()` conta só
+  `aprovado` e `finalizado`; etapa extra criada pela loja não entra,
+  porque só as fixas dizem com certeza que houve aprovação — errar
+  para menos aqui é melhor do que prometer caixa que não vem. O
+  detalhe do indicador passou a dizer de quantas OS o número veio.
 
 **🔵 Simplificação**
 - [x] ✅ **Resolvido em 20/08.** Escape de CSV não neutralizava
@@ -1687,17 +1690,17 @@ o arquivo antes de assumir.
   (`categoria`: Estoque, RelatorioEstoque, IE, DashboardEstoque;
   `grupo_produto_id`: Estoque e o filtro novo do PDV, 17/08) — decidir
   migrar um pro outro ou documentar por que coexistem.
-- [ ] 🆕 **18/08 — Status da OS (texto livre) não tem nenhuma trava no
-  banco contra a lista de etapas cadastradas.** Desde que o status virou
-  texto livre (pra loja poder criar etapa nova), nenhuma migration
-  criou o contraponto: não existe CHECK nem gatilho que confira se o
-  valor gravado corresponde a uma etapa que existe de verdade em
-  "Gerenciar Status" daquele tenant. O Kanban já tem uma rede de
-  segurança visual pra isso (status inválido cai numa coluna própria
-  "Sem etapa válida"), mas é só visual — a fila que alimenta as
-  automações do n8n e o Histórico da OS gravam o texto cru sem checar
-  se é válido. Um status inválido (erro de digitação em código futuro,
-  por exemplo) entra silenciosamente nesses dois lugares.
+- [x] ✅ **Resolvido em 21/08.** O status da OS era texto livre sem
+  nenhuma conferência contra a lista de etapas cadastradas. O Kanban
+  tinha rede visual, mas dois lugares gravavam o texto cru sem olhar
+  para ela: `automacao_eventos` (a fila do n8n — justamente onde
+  ninguém daqui vê o erro acontecer) e `service_order_history`.
+  Gatilho `trg_status_da_os` (migration `20260821150000`) confere
+  contra `os_status_config` do MESMO tenant, e a mensagem lista as
+  etapas válidas da loja — erro de digitação em integração é o caso
+  mais provável, e quem lê o log quer ver a lista na hora. Testado,
+  4 de 4, incluindo o caso de editar outro campo sem mexer no status
+  (que não pode pagar o custo da checagem).
 - [ ] 🔵 **18/08 — O tipo ENUM `os_status` continua existindo no banco
   mesmo sem nenhuma coluna usar mais.** Quando o status da OS virou
   texto livre, ninguém apagou o tipo antigo — ele continua cadastrado
