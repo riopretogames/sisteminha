@@ -1501,22 +1501,33 @@ o arquivo antes de assumir.
   daqui pra frente.
 
 **🟠 Média**
-- [ ] Página gated por `users.manage`, mas escrever papel/exceção exige
-  `roles.manage` — sem checagem granular na UI. ✅ *confirmado.*
-- [ ] `useUsuarios.definirPapel` troca de papel em 2 chamadas separadas
-  (DELETE + INSERT), sem transação — falha no meio deixa usuário sem
-  nenhum papel, silenciosamente. ✅ *confirmado.* **Reconfirmado em
-  18/08.** **Nota da revisão de 20/08, pra quem for corrigir:** o
-  gatilho `trg_protege_admin_ao_trocar_papel` (migration `20260818110000`)
-  foi escrito de propósito em cima do passo DELETE deste fluxo — é um
-  `BEFORE DELETE` que impede apagar o papel de administrador do último
-  administrador ativo, e o comentário da migration cita literalmente
-  "o passo que `definirPapel` usa". Se a correção da atomicidade trocar
-  DELETE+INSERT por um `upsert` (sem DELETE), a proteção do último
-  administrador para de disparar nessa troca de papel — silenciosamente.
-  A correção certa é envolver o par DELETE+INSERT numa função de banco
-  (RPC) que rode as duas no mesmo `BEGIN`/`COMMIT`, mantendo o DELETE de
-  fato, não substituí-lo.
+- [x] ✅ **Resolvido em 21/08.** A página era liberada por
+  `users.manage`, mas trocar o perfil exige `roles.manage` — e as duas
+  são concedidas separadamente. Quem tivesse só a primeira via o
+  seletor de perfil habilitado, escolhia, e a operação era recusada
+  pelo banco depois do clique. Agora o seletor fica desabilitado, com
+  uma linha dizendo qual permissão falta.
+
+- [x] ✅ **Resolvido em 21/08 — e a nota de 20/08 evitou um estrago.**
+  `definirPapel` fazia DELETE e INSERT em duas chamadas soltas, sem
+  transação: uma falha no meio deixava a pessoa SEM PAPEL NENHUM, ou
+  seja, sem acesso ao sistema, em silêncio — e quem estava trocando via
+  a mensagem de erro e supunha que "não mudou nada", quando tinha
+  mudado para o pior estado possível.
+
+  A correção óbvia seria um `upsert`. Foi exatamente o que a nota
+  deixada na revisão de 20/08 avisou para NÃO fazer: o gatilho que
+  impede tirar o papel do último administrador ativo é um `BEFORE
+  DELETE` escrito em cima desse passo, e o upsert eliminaria o DELETE
+  junto com a proteção — silenciosamente. A função nova
+  (`trocar_papel_do_usuario`, migration `20260821170000`) mantém o
+  DELETE e só envolve o par numa transação do banco. De quebra confere
+  tenant e exige `roles.manage` com mensagem em português.
+
+  **Vale como exemplo de por que anotar o motivo, e não só o achado:**
+  sem aquela nota, a correção "certa" teria desligado uma trava de
+  segurança sem ninguém perceber.
+
 - [ ] `MinhaEmpresa` edita cor/logo, mas nada no app consome esses
   campos ainda (nem branding, nem um laudo em PDF, que não existe).
   ✅ *confirmado.*
