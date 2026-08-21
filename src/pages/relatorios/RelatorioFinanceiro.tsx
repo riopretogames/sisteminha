@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { db } from '@/integrations/supabase/untyped';
+import { supabase } from '@/integrations/supabase/client';
 import { moeda, data as fmtData } from '@/lib/format';
 import { Indicador } from '@/components/PageHeader';
 import { situacaoDoTitulo, SITUACAO_META, type Titulo } from '@/hooks/useTitulos';
@@ -75,7 +75,7 @@ export default function RelatorioFinanceiro() {
   const { data, isLoading } = useQuery({
     queryKey: ['rel-financeiro', periodo],
     queryFn: async (): Promise<LinhaFin[]> => {
-      const { data, error } = await db
+      const { data, error } = await supabase
         .from('titulos_financeiros')
         .select('*, categorias_financeiras(nome)')
         .gte('vencimento', periodo.de)

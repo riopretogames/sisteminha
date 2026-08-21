@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, LockOpen, Lock, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
-import { db } from '@/integrations/supabase/untyped';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { moeda, dataHora, paraNumero } from '@/lib/format';
@@ -66,6 +66,22 @@ interface ResumoForma {
   total: number;
 }
 
+/**
+ * Os tipos de movimento que ESTA TELA deixa lançar à mão.
+ *
+ * O banco aceita sete (`venda`, `recebimento`, `pagamento`, `sangria`,
+ * `suprimento`, `ajuste`, `devolucao`), mas três deles — venda, devolução e
+ * ajuste — são gravados por gatilho, nunca por pessoa. Digitar um desses aqui
+ * criaria um lançamento que parece automático e não é.
+ *
+ * Tipado assim de propósito: enquanto o estado era `string` solto, o
+ * TypeScript não tinha como reclamar de um valor inválido — e não reclamava
+ * mesmo, porque esta tela usava a ponte sem checagem de tipo (`untyped.ts`,
+ * removida em 21/08). Foi o único erro real que a remoção da ponte revelou.
+ */
+const TIPOS_MANUAIS = ['sangria', 'suprimento', 'pagamento', 'recebimento'] as const;
+type TipoMovimentoManual = (typeof TIPOS_MANUAIS)[number];
+
 const TIPO_LABEL: Record<string, string> = {
   venda: 'Venda',
   recebimento: 'Recebimento',
@@ -90,12 +106,14 @@ export default function FinanceiroCaixa() {
   const [obsFechamento, setObsFechamento] = useState('');
   const [fecharAberto, setFecharAberto] = useState(false);
   const [movAberto, setMovAberto] = useState(false);
-  const [mov, setMov] = useState({ tipo: 'sangria', descricao: '', valor: '' });
+  const [mov, setMov] = useState<{ tipo: TipoMovimentoManual; descricao: string; valor: string }>(
+    { tipo: 'sangria', descricao: '', valor: '' }
+  );
 
   const { data: sessao, isLoading } = useQuery({
     queryKey: ['caixa-sessao'],
     queryFn: async (): Promise<Sessao | null> => {
-      const { data, error } = await db
+      const { data, error } = await supabase
         .from('caixa_sessoes')
         .select('*')
         .eq('status', 'aberto')
@@ -109,7 +127,7 @@ export default function FinanceiroCaixa() {
     queryKey: ['caixa-movimentos', sessao?.id],
     enabled: Boolean(sessao?.id),
     queryFn: async (): Promise<Movimento[]> => {
-      const { data, error } = await db
+      const { data, error } = await supabase
         .from('caixa_movimentos')
         .select('id, tipo, descricao, valor, created_at')
         .eq('sessao_id', sessao!.id)
@@ -123,7 +141,7 @@ export default function FinanceiroCaixa() {
     queryKey: ['caixa-resumo-formas', sessao?.id],
     enabled: Boolean(sessao?.id),
     queryFn: async (): Promise<ResumoForma[]> => {
-      const { data, error } = await db
+      const { data, error } = await supabase
         .from('vw_caixa_resumo_formas')
         .select('*')
         .eq('sessao_id', sessao!.id);
@@ -175,7 +193,7 @@ export default function FinanceiroCaixa() {
       if (Number.isNaN(valor) || valor < 0) {
         throw new Error('Valor de abertura inválido — confira o que foi digitado.');
       }
-      const { error } = await db.from('caixa_sessoes').insert({
+      const { error } = await supabase.from('caixa_sessoes').insert({
         tenant_id: tenantId,
         aberto_por: user?.id,
         valor_abertura: valor,
@@ -201,7 +219,7 @@ export default function FinanceiroCaixa() {
       // Sangria e pagamento saem do caixa: gravados como negativo.
       const sai = mov.tipo === 'sangria' || mov.tipo === 'pagamento';
 
-      const { error } = await db.from('caixa_movimentos').insert({
+      const { error } = await supabase.from('caixa_movimentos').insert({
         sessao_id: sessao!.id,
         tipo: mov.tipo,
         descricao: mov.descricao.trim(),
@@ -227,7 +245,7 @@ export default function FinanceiroCaixa() {
         throw new Error('Valor contado inválido — confira o que foi digitado.');
       }
 
-      const { error } = await db
+      const { error } = await supabase
         .from('caixa_sessoes')
         .update({
           status: 'fechado',
@@ -329,7 +347,7 @@ export default function FinanceiroCaixa() {
                   <div className="space-y-2">
                     <Label>Tipo</Label>
                     <div className="grid grid-cols-2 gap-2">
-                      {(['sangria', 'suprimento', 'pagamento', 'recebimento'] as const).map((t) => (
+                      {TIPOS_MANUAIS.map((t) => (
                         <Button
                           key={t}
                           type="button"

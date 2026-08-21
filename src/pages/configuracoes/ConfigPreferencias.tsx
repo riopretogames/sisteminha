@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Plus, ArrowRight } from 'lucide-react';
-import { db } from '@/integrations/supabase/untyped';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { PageHeader } from '@/components/PageHeader';
@@ -43,7 +43,7 @@ function EditorCategorias({ natureza }: { natureza: 'receita' | 'despesa' }) {
   const { data, isLoading } = useQuery({
     queryKey: chave,
     queryFn: async (): Promise<Categoria[]> => {
-      const { data, error } = await db
+      const { data, error } = await supabase
         .from('categorias_financeiras')
         .select('id, nome, natureza, ativo')
         .eq('natureza', natureza)
@@ -73,7 +73,7 @@ function EditorCategorias({ natureza }: { natureza: 'receita' | 'despesa' }) {
     mutationFn: async (nome: string) => {
       if (!tenantId) throw new Error('Usuário sem loja vinculada.');
       const proxima = ((data ?? []).length + 1) * 10;
-      const { error } = await db
+      const { error } = await supabase
         .from('categorias_financeiras')
         .insert({ tenant_id: tenantId, nome: nome.trim(), natureza, ordem: proxima });
       if (error) throw error;
@@ -87,7 +87,7 @@ function EditorCategorias({ natureza }: { natureza: 'receita' | 'despesa' }) {
 
   const alternar = useMutation({
     mutationFn: async ({ id, ativo }: { id: string; ativo: boolean }) => {
-      const { error } = await db.from('categorias_financeiras').update({ ativo }).eq('id', id);
+      const { error } = await supabase.from('categorias_financeiras').update({ ativo }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: invalidar,

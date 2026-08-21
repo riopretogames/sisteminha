@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { db } from '@/integrations/supabase/untyped';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { hojeISO, diasAte } from '@/lib/format';
@@ -77,7 +77,7 @@ export function useCategoriasFinanceiras(natureza: 'receita' | 'despesa') {
   return useQuery({
     queryKey: ['categorias-financeiras', natureza],
     queryFn: async (): Promise<CategoriaFinanceira[]> => {
-      const { data, error } = await db
+      const { data, error } = await supabase
         .from('categorias_financeiras')
         .select('id, nome, natureza, ativo')
         .eq('natureza', natureza)
@@ -100,7 +100,7 @@ export function useTitulos(natureza: NaturezaTitulo) {
   const query = useQuery({
     queryKey: chave,
     queryFn: async (): Promise<Titulo[]> => {
-      const { data, error } = await db
+      const { data, error } = await supabase
         .from('titulos_financeiros')
         .select('*, categorias_financeiras(nome), fornecedores(nome), clientes(nome)')
         .eq('natureza', natureza)
@@ -138,7 +138,7 @@ export function useTitulos(natureza: NaturezaTitulo) {
     }) => {
       if (!tenantId) throw new Error('Usuário sem loja vinculada.');
 
-      const { error } = await db.from('titulos_financeiros').insert({
+      const { error } = await supabase.from('titulos_financeiros').insert({
         tenant_id: tenantId,
         natureza,
         criado_por: user?.id,
@@ -154,7 +154,7 @@ export function useTitulos(natureza: NaturezaTitulo) {
 
   const baixar = useMutation({
     mutationFn: async (titulo: Titulo) => {
-      const { error } = await db
+      const { error } = await supabase
         .from('titulos_financeiros')
         .update({ status: 'pago', valor_pago: titulo.valor, pago_em: hojeISO() })
         .eq('id', titulo.id);
@@ -169,7 +169,7 @@ export function useTitulos(natureza: NaturezaTitulo) {
 
   const reabrir = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await db
+      const { error } = await supabase
         .from('titulos_financeiros')
         .update({ status: 'aberto', valor_pago: 0, pago_em: null })
         .eq('id', id);
@@ -182,7 +182,7 @@ export function useTitulos(natureza: NaturezaTitulo) {
   /** Cancela em vez de excluir: título apagado some do histórico financeiro. */
   const cancelar = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await db
+      const { error } = await supabase
         .from('titulos_financeiros')
         .update({ status: 'cancelado' })
         .eq('id', id);

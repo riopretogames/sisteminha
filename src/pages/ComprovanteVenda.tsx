@@ -399,6 +399,9 @@ interface FormatoProps {
 function ComprovanteSulfite({
   venda, itens, pagamentos, tenant, descricaoProduto, calcularPagamento,
 }: FormatoProps) {
+  // Só faz sentido gastar uma coluna do papel com desconto se houver algum.
+  const temDescontoPorItem = itens.some((i) => Number(i.desconto ?? 0) > 0);
+
   return (
     <div className="relative rounded-lg border bg-white p-8 text-sm text-black print:border-0 print:p-0">
       {venda.status === 'cancelado' && (
@@ -431,6 +434,20 @@ function ComprovanteSulfite({
       </div>
 
       <p className="mb-1 font-semibold">Descrição dos Produtos: {itens.length} no Total</p>
+      {/*
+        A coluna Desconto só aparece se ALGUM item tiver desconto de verdade.
+
+        Hoje o PDV grava desconto só no total da venda (`vendas.descontos`),
+        nunca por item — então a coluna aparecia em todo comprovante mostrando
+        R$ 0,00 em todas as linhas, mesmo numa venda que teve desconto. Para
+        quem recebe o papel, coluna zerada não diz "não houve desconto neste
+        item": diz "o sistema não sabe calcular". O desconto real continua no
+        rodapé, onde sempre esteve certo.
+
+        Condicional em vez de removida de propósito: no dia em que o PDV
+        passar a dar desconto por produto, a coluna volta sozinha, sem
+        ninguém precisar lembrar de reativá-la.
+      */}
       <table className="mb-4 w-full border-collapse border text-xs">
         <thead>
           <tr className="border bg-gray-50">
@@ -438,7 +455,7 @@ function ComprovanteSulfite({
             <th className="border px-2 py-1 text-left">Produto</th>
             <th className="border px-2 py-1">Defeito?</th>
             <th className="border px-2 py-1 text-right">Valor.Unit.</th>
-            <th className="border px-2 py-1 text-right">Desconto</th>
+            {temDescontoPorItem && <th className="border px-2 py-1 text-right">Desconto</th>}
             <th className="border px-2 py-1">QTD</th>
             <th className="border px-2 py-1 text-right">Total</th>
           </tr>
@@ -450,7 +467,9 @@ function ComprovanteSulfite({
               <td className="border px-2 py-1">{descricaoProduto(item)}</td>
               <td className="border px-2 py-1 text-center">{item.defeito_declarado ? 'Sim' : 'Não'}</td>
               <td className="border px-2 py-1 text-right">{moeda(Number(item.preco_unitario))}</td>
-              <td className="border px-2 py-1 text-right">{moeda(Number(item.desconto))}</td>
+              {temDescontoPorItem && (
+                <td className="border px-2 py-1 text-right">{moeda(Number(item.desconto))}</td>
+              )}
               <td className="border px-2 py-1 text-center">{item.quantidade}</td>
               <td className="border px-2 py-1 text-right">{moeda(Number(item.total))}</td>
             </tr>

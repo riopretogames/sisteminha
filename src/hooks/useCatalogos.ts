@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { db } from '@/integrations/supabase/untyped';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 
@@ -34,7 +34,7 @@ export function useCatalogo(tipo: string) {
     queryKey: chave,
     enabled: Boolean(tipo),
     queryFn: async (): Promise<CatalogoItem[]> => {
-      const { data, error } = await db
+      const { data, error } = await supabase
         .from('catalogos')
         .select('*')
         .eq('tipo', tipo)
@@ -71,7 +71,7 @@ export function useCatalogo(tipo: string) {
       // de lista da Nova OS, por exemplo) precisa do id para já deixá-lo
       // escolhido, sem obrigar a pessoa a procurar de novo o que acabou de
       // digitar.
-      const { data, error } = await db
+      const { data, error } = await supabase
         .from('catalogos')
         .insert({
           tenant_id: tenantId,
@@ -91,7 +91,7 @@ export function useCatalogo(tipo: string) {
 
   const renomear = useMutation({
     mutationFn: async ({ id, descricao }: { id: string; descricao: string }) => {
-      const { error } = await db
+      const { error } = await supabase
         .from('catalogos')
         .update({ descricao: descricao.trim() })
         .eq('id', id);
@@ -107,7 +107,7 @@ export function useCatalogo(tipo: string) {
    */
   const alternarAtivo = useMutation({
     mutationFn: async ({ id, ativo }: { id: string; ativo: boolean }) => {
-      const { error } = await db.from('catalogos').update({ ativo }).eq('id', id);
+      const { error } = await supabase.from('catalogos').update({ ativo }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: invalidar,
@@ -120,14 +120,14 @@ export function useCatalogo(tipo: string) {
       // então limpa o anterior antes de marcar o novo.
       const atual = (query.data ?? []).find((i) => i.padrao);
       if (atual && atual.id !== id) {
-        const { error } = await db
+        const { error } = await supabase
           .from('catalogos')
           .update({ padrao: false })
           .eq('id', atual.id);
         if (error) throw error;
       }
 
-      const { error } = await db.from('catalogos').update({ padrao: true }).eq('id', id);
+      const { error } = await supabase.from('catalogos').update({ padrao: true }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: invalidar,

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2, Plus, Pencil, Trash2 } from 'lucide-react';
-import { db } from '@/integrations/supabase/untyped';
+import { supabase } from '@/integrations/supabase/client';
 import { dataHora } from '@/lib/format';
 import { PageHeader, Vazio } from '@/components/PageHeader';
 import { Badge } from '@/components/ui/badge';
@@ -78,7 +78,7 @@ export default function ConfigLogs() {
   const { data, isLoading } = useQuery({
     queryKey: ['auditoria', tabela],
     queryFn: async (): Promise<{ registros: Registro[]; nomes: Map<string, string> }> => {
-      let q = db
+      let q = supabase
         .from('auditoria')
         .select('*')
         .order('created_at', { ascending: false })
@@ -94,7 +94,7 @@ export default function ConfigLogs() {
       // DashboardMetas.tsx e DashboardVenda.tsx).
       const [res, perfis] = await Promise.all([
         q,
-        db.from('profiles').select('id, nome'),
+        supabase.from('profiles').select('id, nome'),
       ]);
       if (res.error) throw res.error;
       if (perfis.error) throw perfis.error;

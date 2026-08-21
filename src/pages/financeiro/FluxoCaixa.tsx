@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2, TrendingUp, TrendingDown } from 'lucide-react';
-import { db } from '@/integrations/supabase/untyped';
+import { supabase } from '@/integrations/supabase/client';
 import { moeda, mesCorrente, data as fmtData } from '@/lib/format';
 import { PageHeader, Indicador, Vazio } from '@/components/PageHeader';
 import { Input } from '@/components/ui/input';
@@ -57,11 +57,11 @@ export default function FluxoCaixa() {
       // como realizado de JANEIRO — mês em que nenhum dinheiro se moveu — e
       // sumia de março, onde o dinheiro de fato saiu.
       const [previstoRes, realizadoRes] = await Promise.all([
-        db.from('titulos_financeiros').select(colunas)
+        supabase.from('titulos_financeiros').select(colunas)
           .neq('status', 'cancelado')
           .gte('vencimento', de).lte('vencimento', ate)
           .order('vencimento'),
-        db.from('titulos_financeiros').select(colunas)
+        supabase.from('titulos_financeiros').select(colunas)
           .eq('status', 'pago')
           .gte('pago_em', de).lte('pago_em', ate)
           .order('pago_em'),

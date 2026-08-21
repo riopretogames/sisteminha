@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, ShieldCheck, Info } from 'lucide-react';
-import { db } from '@/integrations/supabase/untyped';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { ROLES, ROLE_LABELS, type Role } from '@/config/permissions';
 import { PageHeader } from '@/components/PageHeader';
@@ -44,7 +44,7 @@ export default function ConfigPerfis() {
   const { data: permissoes, isLoading: carregandoPerms } = useQuery({
     queryKey: ['permissions-catalogo'],
     queryFn: async (): Promise<PermissaoCatalogo[]> => {
-      const { data, error } = await db.from('permissions').select('key, modulo, descricao');
+      const { data, error } = await supabase.from('permissions').select('key, modulo, descricao');
       if (error) throw error;
       return (data ?? []) as PermissaoCatalogo[];
     },
@@ -53,7 +53,7 @@ export default function ConfigPerfis() {
   const { data: mapa, isLoading: carregandoMapa } = useQuery({
     queryKey: ['role-permissions'],
     queryFn: async (): Promise<Array<{ role: string; permission_key: string }>> => {
-      const { data, error } = await db.from('role_permissions').select('role, permission_key');
+      const { data, error } = await supabase.from('role_permissions').select('role, permission_key');
       if (error) throw error;
       return data ?? [];
     },
@@ -80,12 +80,12 @@ export default function ConfigPerfis() {
   const alternar = useMutation({
     mutationFn: async ({ chave, conceder }: { chave: string; conceder: boolean }) => {
       if (conceder) {
-        const { error } = await db
+        const { error } = await supabase
           .from('role_permissions')
           .insert({ role: papel, permission_key: chave });
         if (error) throw error;
       } else {
-        const { error } = await db
+        const { error } = await supabase
           .from('role_permissions')
           .delete()
           .eq('role', papel)
