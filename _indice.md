@@ -7,7 +7,8 @@ O sistema próprio da loja, feito pra substituir o sistema atual.
 
 - [[sisteminha/CLAUDE|Regras da área]] — o que pode e o que não pode ser
   alterado enquanto o sistema não entra no ar.
-- [[sisteminha/README|Visão geral do sistema]]
+- [[sisteminha/README|Visão geral do sistema]] — o que é, como rodar na sua
+  máquina, e a stack de verdade.
 
 ## Planejamento
 

@@ -1675,6 +1675,56 @@ Não quebram nada hoje — limpar enquanto a mão está na área correspondente:
 
 ---
 
+## Requisitos do projeto original que se perderam (resgatados em 21/08)
+
+Até 21/08 o `README.md` guardava, sem ninguém notar, o **prompt de IA
+original** que gerou a primeira versão do sistema — 540 linhas escritas para
+um produto chamado "OkCells Pro". Boa parte daquilo não descreve mais este
+projeto (falava em Next.js, Lovable Cloud e um SaaS vendido por assinatura de
+R$49 a R$149/mês; o sisteminha é Vite e é sistema interno de uma loja só), e
+por isso o README foi reescrito.
+
+Mas o documento guardava **requisitos que nunca foram implementados e nunca
+tinham entrado neste plano** — conferido item a item: zero ocorrência no
+código e zero menção aqui. Entram agora, para a decisão de fazer ou descartar
+ser consciente, em vez de por esquecimento.
+
+**🟠 Média**
+
+- [ ] 🆕 **21/08 — Termo de aceite assinado pelo cliente não existe.** O
+  projeto original previa uma tabela própria com `os_id`, `cliente_assinou`,
+  `data_assinatura`, `ip`, `user_agent` e `hash_documento` — ou seja,
+  assinatura digital do orçamento com rastro de quem aceitou, de onde e
+  quando. Hoje não existe nada disso: a aprovação de orçamento é registrada
+  como uma mudança de etapa feita por um funcionário, sem nenhuma
+  confirmação do lado do cliente. Para uma assistência técnica isso é
+  proteção real — é o que responde "o senhor autorizou este reparo" quando
+  o cliente contesta o valor na hora de retirar. Vale decidir se entra.
+- [ ] 🆕 **21/08 — Nota fiscal (NFC-e) não existe em lugar nenhum.** Zero
+  ocorrência no código e no banco. O prompt original tratava emissão fiscal
+  como parte do produto. Como a loja hoje emite por fora, isso pode estar
+  certo — mas precisa ser **decisão registrada**, não lacuna silenciosa: no
+  dia em que o sisteminha virar o sistema principal, alguém vai perguntar
+  por onde sai a nota.
+
+**🔵 Simplificação / futuro**
+
+- [ ] 🆕 **21/08 — PDV offline-first nunca foi feito.** O prompt exigia que o
+  PDV funcionasse sem internet, com sincronização automática depois. Hoje
+  qualquer queda de conexão para a venda no balcão. É trabalho grande e
+  provavelmente não vale agora (a loja tem internet estável), mas fica
+  registrado: se um dia a operação crescer ou abrir segunda unidade, isto
+  volta a importar.
+- [ ] 🆕 **21/08 — Outros itens do prompt original, conferir se ainda fazem
+  sentido:** mobile-first de verdade no PDV e na OS (hoje o layout é
+  responsivo, mas nunca foi testado como ferramenta principal de celular),
+  atalhos de teclado padronizados, onboarding com dados de demonstração, e
+  as metas de desempenho que ninguém mediu ("listas abaixo de 500ms com 10
+  mil registros", "PDV do código de barras ao fechamento em menos de 2
+  segundos").
+
+---
+
 ## O que esta revisão não cobriu
 
 Vale lembrar antes de assumir que "não foi achado" significa "não existe":
