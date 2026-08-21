@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
+import { estoqueCritico } from '@/lib/estoque';
 import { OS_STATUS } from '@/lib/constants';
 import { OS_ETAPAS } from '@/config/osStatus';
 import { somarFaturamento, totalDevolvidoNoPeriodo } from '@/lib/faturamento';
@@ -117,9 +118,9 @@ export default function Dashboard() {
         .select('estoque_atual, estoque_minimo')
         .eq('ativo', true);
 
-      const estoqueCritico = (estoqueData ?? []).filter(
-        (p) => p.estoque_atual <= p.estoque_minimo
-      ).length;
+      // Nome diferente da função de propósito: `estoqueCritico` é a regra
+      // (importada de lib/estoque), isto aqui é a CONTAGEM.
+      const qtdEstoqueCritico = (estoqueData ?? []).filter(estoqueCritico).length;
 
       // Fetch recent OS with client name
       const { data: osData } = await supabase
@@ -142,7 +143,7 @@ export default function Dashboard() {
         osAbertas: osAbertas || 0,
         osPendentes: osPendentes || 0,
         caixaHoje,
-        estoqueCritico: estoqueCritico || 0,
+        estoqueCritico: qtdEstoqueCritico,
       });
 
       setRecentOS(

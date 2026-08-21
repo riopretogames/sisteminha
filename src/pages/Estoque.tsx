@@ -46,6 +46,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
+import { estoqueCritico } from '@/lib/estoque';
 import { PRODUTO_CATEGORIAS, PRODUTO_LOCALIZACOES } from '@/lib/constants';
 import { FiltrosProdutos } from '@/components/produtos/FiltrosProdutos';
 import { FILTROS_PRODUTOS_VAZIO, aplicarFiltrosProdutos, type FiltrosProdutosValores } from '@/lib/filtrosProdutos';
@@ -97,6 +98,17 @@ export default function Estoque() {
   // null). As colunas somem pra quem não tem a permissão — mesmo padrão
   // já usado no Relatório de Estoque.
   const veCusto = can(PERMISSIONS.INVENTORY_COST_VIEW);
+  // Botão que aparece e não funciona é pior do que botão escondido: quem
+  // clica recebe erro cru da RLS e não tem como saber que o problema é de
+  // acesso. As outras telas de cadastro (Fornecedores, Transportadoras,
+  // Serviços) já escondiam; esta era a exceção.
+  const podeCriar = can(PERMISSIONS.INVENTORY_CREATE);
+  // "Excluir" aqui é soft-delete — um UPDATE em `ativo`, não um DELETE.
+  // Quem manda no banco é a policy de edição, então a tela pergunta a mesma
+  // coisa que o banco vai perguntar. `inventory.delete` continua existindo no
+  // catálogo mas não governa nada: usar ela aqui esconderia o botão de quem
+  // o banco deixaria passar.
+  const podeExcluir = can(PERMISSIONS.INVENTORY_EDIT);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
   // Padrão continua "Apto à Venda: Sim" — não muda o que todo mundo já está
@@ -261,7 +273,7 @@ export default function Estoque() {
 
   const filteredProdutos = aplicarFiltrosProdutos(produtos, filtros);
 
-  const criticalStock = produtos.filter(p => p.ativo && p.estoque_atual <= p.estoque_minimo).length;
+  const criticalStock = produtos.filter((p) => p.ativo && estoqueCritico(p)).length;
   // Inativo + sem preço é a marca de quem entrou por troca no PDV e ainda não
   // foi revisado. Inativo sozinho não basta: "Excluir" também zera `ativo`,
   // e produto excluído de propósito não devia contar como "esperando alguém".
@@ -277,10 +289,12 @@ export default function Estoque() {
             Gerencie seus produtos e peças
           </p>
         </div>
-        <Button onClick={handleOpenDialog}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Produto
-        </Button>
+        {podeCriar && (
+          <Button onClick={handleOpenDialog}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Produto
+          </Button>
+        )}
       </div>
 
       {/* Alert for critical stock */}
@@ -352,7 +366,7 @@ export default function Estoque() {
               </TableHeader>
               <TableBody>
                 {filteredProdutos.map(produto => {
-                  const isLowStock = produto.estoque_atual <= produto.estoque_minimo;
+                  const isLowStock = estoqueCritico(produto);
                   return (
                     <TableRow
                       key={produto.id}
@@ -426,13 +440,15 @@ export default function Estoque() {
                               <Eye className="mr-2 h-4 w-4" />
                               Ver ficha completa
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => handleDelete(produto.id)}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Excluir
-                            </DropdownMenuItem>
+                            {podeExcluir && (
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => handleDelete(produto.id)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Excluir
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>

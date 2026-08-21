@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { estoqueCritico } from '@/lib/estoque';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { moeda } from '@/lib/format';
@@ -65,7 +66,7 @@ export default function RelatorioEstoque() {
       titulo: 'Saldo',
       alinhar: 'direita',
       render: (p) => {
-        const critico = p.estoque_atual <= p.estoque_minimo;
+        const critico = estoqueCritico(p);
         return (
           <span className="inline-flex items-center gap-2">
             {critico && (
@@ -112,7 +113,7 @@ export default function RelatorioEstoque() {
       : []),
   ];
 
-  const criticos = linhas.filter((p) => p.estoque_atual <= p.estoque_minimo);
+  const criticos = linhas.filter(estoqueCritico);
   const imobilizado = linhas.reduce((acc, p) => acc + Number(p.custo) * p.estoque_atual, 0);
   const potencial = linhas.reduce((acc, p) => acc + Number(p.preco) * p.estoque_atual, 0);
 

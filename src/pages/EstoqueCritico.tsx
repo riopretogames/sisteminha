@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, PackagePlus, PartyPopper } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { estoqueCritico } from '@/lib/estoque';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { PageHeader, Indicador, Vazio } from '@/components/PageHeader';
@@ -67,7 +68,7 @@ export default function EstoqueCritico() {
   });
 
   const criticos = (data ?? [])
-    .filter((p) => p.estoque_atual <= p.estoque_minimo)
+    .filter(estoqueCritico)
     .sort((a, b) => (a.estoque_atual - a.estoque_minimo) - (b.estoque_atual - b.estoque_minimo));
 
   const zerados = criticos.filter((p) => p.estoque_atual === 0).length;

@@ -14,6 +14,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
+import { estoqueCritico } from '@/lib/estoque';
 import { moeda } from '@/lib/format';
 
 /**
@@ -81,7 +82,7 @@ export default function DashboardEstoque() {
       const lista = (produtosData ?? []) as ProdutoEstoque[];
 
       const produtosCriticos = lista.filter(
-        (p) => p.estoque_atual <= p.estoque_minimo
+        estoqueCritico
       ).length;
 
       const valorTotalEstoque = lista.reduce(
