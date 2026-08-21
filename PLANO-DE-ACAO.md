@@ -1706,20 +1706,14 @@ o arquivo antes de assumir.
   ainda é uma lista fechada de 8 valores.
 
 **🔵 Simplificação**
-- [ ] `untyped.ts` descreve um estado do banco que não existe mais — o
-  comentário diz que `catalogos`/`role_permissions`/`formas_pagamento`
-  "ainda não existem" em `types.ts`, mas já estão lá. Falta só trocar
-  `db` por `supabase` em `useCatalogos.ts`, `useTitulos.ts`,
-  `ConfigLogs.tsx`, `ConfigPerfis.tsx`, `ConfigPreferencias.tsx` e
-  `RelatorioFinanceiro.tsx`, e apagar o arquivo. Zero risco.
-
+- [x] ✅ **Resolvido em 21/08 — o arquivo foi apagado.** `untyped.ts` descrevia um estado do banco que não existia mais e, pior, seguia crescendo: de 6 para 8 arquivos, incluindo 4 de Financeiro, onde erro de nome de coluna só apareceria em runtime com dinheiro na frente. As 12 tabelas que ela cobria já estavam todas tipadas há semanas — só faltava o último passo, que as próprias instruções dentro do arquivo descreviam. Ao remover, a checagem revelou um erro real que estava escondido: em `FinanceiroCaixa` o tipo do movimento era texto livre quando o banco aceita 7 valores específicos.
 ---
 
 ## Backlog de simplificação transversal
 
 Não quebram nada hoje — limpar enquanto a mão está na área correspondente:
 
-- [ ] Apagar `untyped.ts` (ver acima).
+- [x] ✅ **Feito em 21/08.** `untyped.ts` apagado; os 8 arquivos voltaram ao client tipado.
 - [ ] Util central pra traduzir erro de RLS (reimplementado em 13+
   arquivos com nomes diferentes).
 - [ ] Helper `isEstoqueCritico(produto)` (reimplementado em 6 lugares).
@@ -2096,8 +2090,10 @@ ainda estavam só em disco foram publicadas no GitHub em 20/08.
   três arquivos.
 - [ ] 🔵 **O cálculo de "quantos dias tem o período" está copiado** em
   `VendasPagamentos.tsx` e `relatorios/RelatorioVendas.tsx`.
-- [ ] 🔵 **`untyped.ts` cresceu de 6 para 10 arquivos** em vez de diminuir,
-  mesmo as tabelas que ele cobre já sendo reconhecidas pelo gerador de tipos.
+- [x] ✅ **Resolvido em 21/08 — a ponte foi apagada.** Ela cresceu de 6 para
+  8 arquivos em vez de diminuir, mesmo as tabelas que cobria já estarem
+  tipadas há semanas. Os arquivos voltaram ao client tipado, e a checagem
+  revelou na hora um erro que estava escondido em `FinanceiroCaixa`.
 
 **Revisão geral de 20/08 — depois de mesclar as duas frentes paralelas de
 18/08.** O Felipe pediu uma revisão geral de tudo antes de começar a testar
