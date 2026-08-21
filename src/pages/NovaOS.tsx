@@ -813,6 +813,7 @@ export default function NovaOS() {
             id: salvo.id,
             nome: salvo.nome,
             telefones: salvo.telefones,
+            liberado_venda: salvo.liberado_venda,
           };
           setClientes((atuais) =>
             [...atuais, novo].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
