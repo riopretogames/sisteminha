@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -2246,6 +2246,41 @@ export type Database = {
         }
         Relationships: []
       }
+      venda_status_historico: {
+        Row: {
+          created_at: string
+          id: string
+          status_anterior: Database["public"]["Enums"]["venda_status"] | null
+          status_novo: Database["public"]["Enums"]["venda_status"]
+          usuario_id: string | null
+          venda_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          status_anterior?: Database["public"]["Enums"]["venda_status"] | null
+          status_novo: Database["public"]["Enums"]["venda_status"]
+          usuario_id?: string | null
+          venda_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          status_anterior?: Database["public"]["Enums"]["venda_status"] | null
+          status_novo?: Database["public"]["Enums"]["venda_status"]
+          usuario_id?: string | null
+          venda_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venda_status_historico_venda_id_fkey"
+            columns: ["venda_id"]
+            isOneToOne: false
+            referencedRelation: "vendas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendas: {
         Row: {
           cliente_id: string | null
@@ -2767,6 +2802,7 @@ export type Database = {
         Args: { _documento: string; _tenant: string }
         Returns: string
       }
+      proximo_numero_venda: { Args: { _tenant: string }; Returns: string }
       registrar_entrada_produto_troca: {
         Args: {
           _condicao_id: string

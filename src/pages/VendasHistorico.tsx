@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Printer } from 'lucide-react';
+import { Printer, Clock, ArrowRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { moeda, dataHora } from '@/lib/format';
 import { FORMAS_PAGAMENTO } from '@/lib/constants';
@@ -64,6 +64,39 @@ interface PagamentoVenda {
   forma: keyof typeof FORMAS_PAGAMENTO;
   valor: number;
   parcelas: number;
+}
+
+/** Uma mudança de status depois de criada (ex.: cancelamento). A maioria das
+ *  vendas nasce "pago" e nunca muda, então fica sem nenhuma linha aqui — a
+ *  hora de criação vem de `Venda.created_at`/`vendedor_id`, não daqui. */
+interface HistoricoStatusVenda {
+  id: string;
+  usuario_id: string | null;
+  status_anterior: string | null;
+  status_novo: string;
+  created_at: string;
+}
+
+interface DevolucaoDetalhe {
+  id: string;
+  numero_devolucao: string | null;
+  usuario_id: string | null;
+  motivo: string | null;
+  valor_devolvido_cliente: number;
+  valor_cliente_pagou_a_mais: number;
+  created_at: string;
+}
+
+/** Um evento na linha do tempo da venda, já normalizado — cada fonte
+ *  (criação, mudança de status, devolução) vira um item deste tipo antes de
+ *  entrar na lista ordenada por hora. */
+interface EventoLinhaDoTempo {
+  id: string;
+  created_at: string;
+  usuario_id: string | null;
+  descricao: string;
+  statusAnterior?: string | null;
+  statusNovo?: string | null;
 }
 
 // Segue os tons de `lib/acoes.ts`: verde terminou bem, vermelho foi desfeito,
@@ -137,10 +170,30 @@ export default function VendasHistorico() {
     },
   });
 
+  // TODOS os perfis (não só ativo), pra resolver "quem" na linha do tempo —
+  // mesmo raciocínio de OSDetalhe.tsx: um evento de meses atrás pode ter
+  // sido feito por alguém que já saiu da loja, e o nome tem que continuar
+  // aparecendo. `usuario_id` referencia `auth.users`, não `profiles`, então
+  // não dá pra pedir o nome junto num embed do PostgREST.
+  const { data: perfisTodos } = useQuery({
+    queryKey: ['profiles-todos'],
+    queryFn: async () => {
+      const { data } = await supabase.from('profiles').select('id, nome');
+      return data ?? [];
+    },
+  });
+  const nomeUsuario = (usuarioId: string | null) =>
+    (usuarioId && (perfisTodos ?? []).find((p) => p.id === usuarioId)?.nome) || '—';
+
   const { data: detalhe, isLoading: carregandoDetalhe } = useQuery({
     queryKey: ['venda-detalhe', vendaAberta?.id],
-    queryFn: async (): Promise<{ itens: ItemVenda[]; pagamentos: PagamentoVenda[] }> => {
-      const [itensRes, pagamentosRes] = await Promise.all([
+    queryFn: async (): Promise<{
+      itens: ItemVenda[];
+      pagamentos: PagamentoVenda[];
+      historicoStatus: HistoricoStatusVenda[];
+      devolucoesDetalhe: DevolucaoDetalhe[];
+    }> => {
+      const [itensRes, pagamentosRes, historicoRes, devolucoesRes] = await Promise.all([
         supabase
           .from('itens_venda')
           .select('id, quantidade, preco_unitario, total, produtos:vw_produtos(nome)')
@@ -149,16 +202,63 @@ export default function VendasHistorico() {
           .from('pagamentos_venda')
           .select('id, forma, valor, parcelas')
           .eq('venda_id', vendaAberta!.id),
+        supabase
+          .from('venda_status_historico')
+          .select('id, usuario_id, status_anterior, status_novo, created_at')
+          .eq('venda_id', vendaAberta!.id)
+          .order('created_at', { ascending: true }),
+        supabase
+          .from('devolucoes')
+          .select('id, numero_devolucao, usuario_id, motivo, valor_devolvido_cliente, valor_cliente_pagou_a_mais, created_at')
+          .eq('venda_original_id', vendaAberta!.id)
+          .order('created_at', { ascending: true }),
       ]);
       if (itensRes.error) throw itensRes.error;
       if (pagamentosRes.error) throw pagamentosRes.error;
+      if (historicoRes.error) throw historicoRes.error;
+      if (devolucoesRes.error) throw devolucoesRes.error;
       return {
         itens: (itensRes.data ?? []) as unknown as ItemVenda[],
         pagamentos: (pagamentosRes.data ?? []) as unknown as PagamentoVenda[],
+        historicoStatus: (historicoRes.data ?? []) as unknown as HistoricoStatusVenda[],
+        devolucoesDetalhe: (devolucoesRes.data ?? []) as unknown as DevolucaoDetalhe[],
       };
     },
     enabled: !!vendaAberta,
   });
+
+  // Junta as três fontes (criação, mudança de status, devolução) numa lista
+  // só, em ordem de hora — é a "linha do tempo" que o Felipe pediu (22/08)
+  // pra não precisar caçar em Logs/Auditoria quem fez o quê e quando.
+  const linhaDoTempo: EventoLinhaDoTempo[] = vendaAberta
+    ? [
+        {
+          id: 'criacao',
+          created_at: vendaAberta.created_at,
+          usuario_id: vendaAberta.vendedor_id,
+          descricao: 'Venda criada',
+        },
+        ...((detalhe?.historicoStatus ?? []).map((h) => ({
+          id: h.id,
+          created_at: h.created_at,
+          usuario_id: h.usuario_id,
+          descricao: 'Mudança de status',
+          statusAnterior: h.status_anterior,
+          statusNovo: h.status_novo,
+        }))),
+        ...((detalhe?.devolucoesDetalhe ?? []).map((d) => ({
+          id: d.id,
+          created_at: d.created_at,
+          usuario_id: d.usuario_id,
+          descricao:
+            d.valor_devolvido_cliente > 0
+              ? `Devolução ${d.numero_devolucao ?? ''} — devolveu ${moeda(d.valor_devolvido_cliente)} ao cliente${d.motivo ? ` (${d.motivo})` : ''}`
+              : d.valor_cliente_pagou_a_mais > 0
+                ? `Troca ${d.numero_devolucao ?? ''} — cliente pagou ${moeda(d.valor_cliente_pagou_a_mais)} a mais${d.motivo ? ` (${d.motivo})` : ''}`
+                : `Troca ${d.numero_devolucao ?? ''} sem diferença a acertar${d.motivo ? ` (${d.motivo})` : ''}`,
+        }))),
+      ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    : [];
 
   const vendas = data ?? [];
   // Bateu exatamente no teto: quase certo que há mais fora da lista.
@@ -367,6 +467,41 @@ export default function VendasHistorico() {
                   {!detalhe?.pagamentos.length && (
                     <p className="text-sm text-muted-foreground">Nenhum pagamento registrado.</p>
                   )}
+                </div>
+              </div>
+              {/* Linha do tempo — hora de criação, cada mudança de status e
+                  cada devolução, com quem fez. Pedido do Felipe em 22/08:
+                  sem isso, essa informação só aparecia (misturada com o
+                  resto do sistema) em Logs/Auditoria. */}
+              <div>
+                <p className="mb-2 text-sm font-medium text-muted-foreground">Linha do tempo</p>
+                <div className="space-y-2.5">
+                  {linhaDoTempo.map((ev) => (
+                    <div key={ev.id} className="flex flex-wrap items-center gap-2 text-sm">
+                      <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span className="whitespace-nowrap text-muted-foreground">
+                        {dataHora(ev.created_at)}
+                      </span>
+                      {ev.statusNovo ? (
+                        <>
+                          {ev.statusAnterior && (
+                            <>
+                              <Badge className={`${STATUS_COR[ev.statusAnterior] ?? ''} border-0 capitalize`}>
+                                {ev.statusAnterior}
+                              </Badge>
+                              <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                            </>
+                          )}
+                          <Badge className={`${STATUS_COR[ev.statusNovo] ?? ''} border-0 capitalize`}>
+                            {ev.statusNovo}
+                          </Badge>
+                        </>
+                      ) : (
+                        <span>{ev.descricao}</span>
+                      )}
+                      <span className="text-muted-foreground">— {nomeUsuario(ev.usuario_id)}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

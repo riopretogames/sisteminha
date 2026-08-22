@@ -671,6 +671,45 @@ o arquivo antes de assumir.
   coluna "Desconto" por produto que sempre aparece zerada, mesmo numa
   venda com desconto real. O total geral do comprovante continua certo.
 
+- [x] ✅ **Feito em 22/08 — número da venda muda pra OV0001, OV0002... e a
+  venda ganha linha do tempo.** Pedido do Felipe, vendo o CSV do
+  Relatório de Vendas: o número `VD-202608-0015` (reinicia todo mês)
+  virou `OV0001` numa sequência única por loja que nunca reinicia — nem
+  no fim do mês, nem no fim do ano. Só vendas **novas** usam o formato
+  novo; as que já existem mantêm o `VD-AAAAMM-NNNN` que já tinham
+  (decisão do Felipe — não reescreve histórico). Numeração de OS
+  (`OS-AAAAMM-NNNN`) não muda.
+
+  Junto, veio o pedido de documentar hora de criação, hora de cada
+  mudança de etapa e quem fez. A hora/quem de criação já existia
+  (`vendas.created_at`/`vendedor_id`); o que faltava era o histórico de
+  mudança de status **depois** de criada. Nova tabela
+  `venda_status_historico`, gravada por gatilho só quando o status muda
+  de verdade — espelha `service_order_history`/`track_os_status_change`
+  de Ordens de Serviço, que já era exatamente esse mecanismo, testado e
+  em produção. Diferença deliberada: sem policy de INSERT (só o gatilho,
+  SECURITY DEFINER, escreve) — mesmo raciocínio do comentário em
+  `auditoria`, "log que pode ser editado não é log"; a versão de OS tinha
+  uma policy de INSERT direto que nunca foi necessária, não repetida
+  aqui.
+
+  Não criei uma coluna separada de "hora de finalização": hoje o PDV
+  cria a venda já com status `pago` numa única gravação (não existe fase
+  de rascunho persistida), então "criada" e "finalizada" são o mesmo
+  instante — uma coluna própria só repetiria `created_at`. Se o fluxo
+  ganhar uma etapa de rascunho de verdade no futuro, o gatilho já
+  registra essa transição automaticamente, sem precisar de nada novo.
+
+  Na tela, **Histórico de Vendas > abrir uma venda** ganhou a seção
+  "Linha do tempo", juntando três fontes em ordem de hora: criação
+  (vendedor), mudança de status (`venda_status_historico`) e devolução
+  (`devolucoes`, que já existia com quem/quando/motivo). Resolve o nome
+  de quem fez contra TODOS os perfis (não só ativo) — mesmo cuidado que
+  `OSDetalhe.tsx` já tinha, pra um evento antigo continuar mostrando o
+  nome de alguém que já saiu da loja.
+
+  Migration `20260822130000`. `npm run check` limpo.
+
 ---
 
 ## Estoque
