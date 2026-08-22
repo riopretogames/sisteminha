@@ -1,7 +1,12 @@
 # Roteiro de Teste — RP System.IO
 ### Para o Felipe percorrer na tela, na ordem de um dia de loja
 
-**Tempo estimado: 2h30 a 3h.** São 41 passos, divididos em 11 blocos. Dá para parar no fim de qualquer bloco e voltar depois — só não pare no meio de um bloco, porque um passo usa o que o anterior criou.
+**Tempo estimado: 3h30 a 4h.** São 56 passos, divididos em 11 blocos.
+
+> **Atualizado em 21/08, no fim do dia.** O roteiro foi escrito de manhã, e ao
+> longo do dia foram corrigidos mais 14 itens — todos verificados no banco e
+> **nenhum visto na tela**. Eles viraram o **Bloco 11**, no fim. Se o tempo
+> estiver curto, comece por ele: é onde a chance de achar erro é maior. Dá para parar no fim de qualquer bloco e voltar depois — só não pare no meio de um bloco, porque um passo usa o que o anterior criou.
 
 Leve papel e caneta: em vários passos você vai precisar **anotar um número antes** (estoque, saldo do caixa, faturamento) para comparar depois.
 
@@ -279,6 +284,82 @@ Não precisa apagar nada no fim. Tudo que você criar aqui é teste, e o sistema
 
 ---
 
+## Bloco 11 — Correções da tarde de 21/08 (todas novas, nenhuma testada na tela)
+
+Este bloco não existia quando o roteiro foi escrito de manhã. São 14 correções feitas depois, todas verificadas no banco e **nenhuma vista na tela por uma pessoa**. Se o tempo estiver curto, este é o bloco mais valioso — é o que tem maior chance de esconder um erro.
+
+- [ ] **43. Devolver mais do que foi vendido é recusado** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Abra **Venda > Troca e Devolução**. Escolha uma venda que tenha um produto com quantidade 1 ou 2. Tente digitar, no campo de quantidade a devolver, um número **maior** do que foi vendido. Se o campo não deixar digitar (ele limita), tudo bem — devolva a quantidade inteira, salve, e depois tente abrir uma **segunda** devolução da mesma venda para o mesmo produto.
+  **Tem que acontecer:** No primeiro caso, o campo não deixa passar do que foi vendido. No segundo, o sistema recusa com uma frase dizendo quanto a venda teve, quanto já foi devolvido e quanto resta — algo como *"a venda teve 2, e 2 já foi devolvida. Resta 0"*.
+  *Por que importa: devolver a mais paga ao cliente dinheiro que ele nunca gastou e coloca no estoque uma unidade que nunca saiu — a diferença só apareceria no inventário, meses depois.*
+
+- [ ] **44. Venda devolvida fica marcada no Histórico e sai do total** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Depois de fazer a devolução do passo anterior, abra **Venda > Histórico de Vendas** e procure a venda que você devolveu. Olhe a linha dela e o indicador **Faturamento** no topo.
+  **Tem que acontecer:** A linha tem uma etiqueta amarela **Devolvida**, e logo abaixo do valor aparece quanto foi devolvido, com sinal de menos. O indicador Faturamento desconta esse valor e o texto embaixo dele diz que descontou.
+  *Por que importa: antes o rodapé somava a venda cheia; quem conferia via um faturamento maior do que o dinheiro que ficou na loja.*
+
+- [ ] **45. Produto devolvido some do ranking de mais vendidos** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Abra **Inteligência > IE Comercial** e ache o produto que você devolveu. Anote a quantidade e a receita dele. Depois abra **Inteligência > IE Estoque** e olhe o mesmo produto.
+  **Tem que acontecer:** No IE Comercial, a quantidade e a receita já vêm **descontadas** da devolução. No IE Estoque, a quantidade vendida também. Um produto vendido 2 e devolvido 2 tem que aparecer como se tivesse girado zero, não dois.
+  *Por que importa: essas telas decidem o que comprar de novo — produto que voltou inteiro não pode contar como sucesso de venda.*
+
+- [ ] **46. Filtrar período no Histórico de Vendas traz o período certo** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Em **Venda > Histórico de Vendas**, escolha um período no filtro de datas (por exemplo, o mês inteiro). Anote o valor do indicador **Faturamento**. Agora abra **Relatórios > Relatório de Vendas** e escolha exatamente o mesmo período.
+  **Tem que acontecer:** Os dois faturamentos batem (fora a diferença de devolução, que o Relatório também desconta). Se a lista bater em 500 vendas, aparece um aviso amarelo dizendo que há mais e apontando o Relatório para o número fechado.
+  *Por que importa: antes as duas telas respondiam diferente para a mesma pergunta, e quem conferia não sabia em qual acreditar.*
+
+- [ ] **47. Fluxo de Caixa separa o que vence do que foi pago** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Abra **Financeiro > Contas a Pagar** e crie uma conta com vencimento **no mês passado**. Dê baixa nela **hoje**. Agora abra **Financeiro > Fluxo de Caixa** e olhe dois períodos: o mês passado e este mês.
+  **Tem que acontecer:** No mês passado, a conta aparece no **Previsto** (venceu lá) mas **não** no Realizado. Neste mês, aparece no **Realizado** (o dinheiro saiu hoje). Os títulos das seções dizem "o que vence neste período" e "o dinheiro que se moveu neste período".
+  *Por que importa: antes uma conta paga fora do mês do vencimento contava como realizada no mês em que nenhum dinheiro se moveu.*
+
+- [ ] **48. Título manual agora tem dono** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Em **Financeiro > Contas a Pagar**, clique em **Novo título**. Olhe se existe o campo **Fornecedor**. Escolha um, preencha o resto e salve. Depois faça o mesmo em **Contas a Receber**, onde o campo tem que ser **Cliente**.
+  **Tem que acontecer:** O campo existe nas duas telas, com a lista certa em cada uma (fornecedores numa, clientes na outra). Depois de salvar, o nome escolhido aparece na linha da tabela, logo abaixo da descrição.
+  *Por que importa: sem o vínculo, não dá para responder "quanto o cliente X me deve" pelo Financeiro.*
+
+- [ ] **49. Não dá para cadastrar taxa de 5.000%** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Abra **Cadastros > Formas de Pagamento**, edite uma forma de cartão e tente colocar **150** no campo de taxa. Salve.
+  **Tem que acontecer:** O sistema recusa. (A mensagem pode vir técnica — se vier, me avise o texto exato, porque aí falta traduzir.)
+  *Por que importa: taxa digitada errado entra no cálculo de toda venda parcelada naquela forma e come a margem sem ninguém entender por quê.*
+
+- [ ] **50. Etapa de OS inventada é recusada** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Este é difícil de testar pela tela de propósito — a tela só oferece etapas válidas. O que dá para conferir: abra **Configurações > Gerenciar Status**, crie uma etapa nova chamada `Teste 21-08`, e vá ao Kanban de OS ver se ela aparece como coluna. Depois arraste uma OS para ela.
+  **Tem que acontecer:** A etapa nova aparece no Kanban e aceita receber OS normalmente. (A trava nova só recusa etapa que **não existe** no cadastro — e você não consegue criar essa situação pela tela, que é justamente o ponto.)
+  *Por que importa: a trava protege o caminho de integração e importação, onde um erro de digitação entraria calado na fila que alimenta as automações.*
+
+- [ ] **51. "Orçamento em aberto" só conta o que o cliente aprovou** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Abra **Relatórios > Relatório de OS**. Olhe o indicador **Orçamento em aberto** e o texto embaixo dele. Compare com quantas OS estão nas etapas **Aprovado** e **Finalizado** no Kanban.
+  **Tem que acontecer:** O valor corresponde só às OS aprovadas e finalizadas — OS em análise ou esperando resposta do cliente **não** entram. O texto embaixo diz de quantas OS o número veio.
+  *Por que importa: antes somava toda OS não entregue e chamava de "aprovado", inflando a estimativa de caixa futuro com dinheiro que ainda dependia do cliente dizer sim.*
+
+- [ ] **52. Relatório Financeiro abre com dados** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Abra **Relatórios > Relatório Financeiro** com o seu usuário de administrador. Confira que aparecem títulos.
+  **Tem que acontecer:** A lista vem preenchida. (Antes, quem tivesse só a permissão de "acessar o financeiro" abria a tela e via **vazio**, sem erro nenhum — parecia que não tinha lançamento no período.)
+  *Por que importa: tela que abre vazia por falta de permissão engana — a pessoa acha que não há dado, não que não tem acesso.*
+
+- [ ] **53. Trocar o perfil de um usuário não deixa ninguém sem perfil** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Abra **Cadastros > Usuários**, clique num usuário de teste (**não** no seu) e troque o perfil dele — por exemplo, de Vendedor para Técnico. Feche e abra a ficha de novo.
+  **Tem que acontecer:** O perfil novo está lá. Em nenhum momento a pessoa aparece "Sem perfil".
+  *Por que importa: antes eram duas operações separadas — se a segunda falhasse, a pessoa ficava sem perfil nenhum, ou seja, sem acesso ao sistema, e ninguém percebia.*
+
+- [ ] **54. O último administrador continua protegido** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Ainda em **Cadastros > Usuários**, tente trocar o **seu próprio** perfil de Administrador para outro (se você for o único administrador da loja).
+  **Tem que acontecer:** O sistema **recusa**, dizendo que não dá para tirar o último administrador.
+  *Por que importa: este teste existe porque a correção do passo anterior quase desligou essa trava sem querer — vale confirmar que ela continua de pé.*
+
+- [ ] **55. Comprovante sem coluna de desconto vazia** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Abra uma venda no **Histórico de Vendas**, clique em **Imprimir** e olhe a tabela de produtos do comprovante em folha.
+  **Tem que acontecer:** **Não existe** mais a coluna "Desconto" mostrando R$ 0,00 em todas as linhas. Se a venda teve desconto, ele continua aparecendo no rodapé, no total.
+  *Por que importa: coluna zerada em todo comprovante não diz "não houve desconto" — diz "o sistema não sabe calcular", e o cliente lê isso.*
+
+- [ ] **56. Nada quebrou nas telas de configuração** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Passe rápido por **Configurações > Logs/Auditoria**, **Configurações > Perfis de Acesso**, **Configurações > Preferências** e **Financeiro > Caixa**. Só abra cada uma e veja se carrega.
+  **Tem que acontecer:** Todas abrem normalmente, com dados.
+  *Por que importa: essas quatro telas usavam um atalho de programação que foi removido hoje. A remoção foi verificada, mas é o tipo de mudança que só a tela confirma.*
+
+---
+
 ## Se algo falhar
 
 Não tente consertar nem investigar. Anote e siga para o próximo passo — o roteiro foi montado para que uma falha não derrube o resto.
@@ -294,4 +375,4 @@ E, sempre que der: **tire um print da tela inteira** (tecla `Print Screen`, ou `
 
 Se a tela ficar **branca** ou **travar**: aperte `F5` uma vez. Se voltar, anote isso ("ficou branca, F5 resolveu"). Se não voltar, anote e pule o bloco inteiro.
 
-Priorize me mandar primeiro as falhas dos passos marcados **[CORREÇÃO RECENTE]** — são os 20 que testam coisas consertadas agora e que têm mais chance de estar quebradas de novo.
+Priorize me mandar primeiro as falhas dos passos marcados **[CORREÇÃO RECENTE]** — são os que testam coisas consertadas agora e que têm mais chance de estar quebradas de novo.
