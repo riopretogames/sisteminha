@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Loader2, Search, ShieldCheck, UserCog, Info, RotateCcw, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import { ROLES, ROLE_LABELS, PERMISSIONS, type Role, type Permission } from '@/config/permissions';
+import { ROLES, ROLE_LABELS, PERMISSIONS, type Role, type Permission, rotuloDoPapel } from '@/config/permissions';
 import { useAuth } from '@/hooks/useAuth';
 import { PageHeader, Vazio } from '@/components/PageHeader';
 import { useUsuarios, useExcecoes, type UsuarioLinha } from '@/hooks/useUsuarios';
@@ -123,7 +123,7 @@ export default function Usuarios() {
                 <div className="mt-3 flex items-center justify-between gap-2">
                   <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
                     <ShieldCheck className="h-3.5 w-3.5" />
-                    {u.role ? ROLE_LABELS[u.role] : 'Sem perfil'}
+                    {rotuloDoPapel(u.role)}
                   </span>
                   <Button size="sm" variant="outline" onClick={() => setEditando(u)}>
                     <UserCog className="mr-1.5 h-3.5 w-3.5" />

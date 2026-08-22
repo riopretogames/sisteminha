@@ -80,10 +80,24 @@ export default function VendasHistorico() {
   const [filtros, setFiltros] = useState<FiltrosVendaValores>(FILTROS_VENDA_VAZIO);
   const [vendaAberta, setVendaAberta] = useState<Venda | null>(null);
 
+  /**
+   * O período vai para o BANCO, não para a memória.
+   *
+   * Achado em 18/08: a consulta trazia sempre as últimas 500 vendas e os
+   * filtros de data eram aplicados só sobre essas 500 já carregadas. Passando
+   * de 500 vendas no intervalo, as mais antigas do período sumiam **sem
+   * aviso** — e a mesma pergunta ("quanto o vendedor X vendeu esse mês")
+   * respondia diferente aqui e no Relatório de Vendas, que sempre filtrou no
+   * banco. Número que muda conforme a tela destrói a confiança nos dois.
+   *
+   * Os outros filtros (vendedor, forma de pagamento, produto, texto) seguem
+   * em memória de propósito: eles refinam DENTRO do período, e o período já
+   * limita o volume.
+   */
   const { data, isLoading } = useQuery({
-    queryKey: ['vendas-historico'],
+    queryKey: ['vendas-historico', filtros.de, filtros.ate],
     queryFn: async (): Promise<Venda[]> => {
-      const { data, error } = await supabase
+      let q = supabase
         .from('vendas')
         // Traz vendedor, itens e pagamentos junto: sao eles que os filtros de
         // produto, numero de serie e forma de pagamento consultam. Produto vem
@@ -99,6 +113,13 @@ export default function VendasHistorico() {
         )
         .order('created_at', { ascending: false })
         .limit(500);
+
+      if (filtros.de) q = q.gte('created_at', filtros.de);
+      // O `ate` é data pura; sem o T23:59:59 o último dia ficaria de fora —
+      // mesma régua do Relatório de Vendas.
+      if (filtros.ate) q = q.lte('created_at', `${filtros.ate}T23:59:59`);
+
+      const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as unknown as Venda[];
     },
@@ -140,6 +161,8 @@ export default function VendasHistorico() {
   });
 
   const vendas = data ?? [];
+  // Bateu exatamente no teto: quase certo que há mais fora da lista.
+  const atingiuOLimite = vendas.length === 500;
   const filtradas = aplicarFiltrosVenda(vendas, filtros);
 
   const validas = filtradas.filter((v) => v.status !== 'cancelado');
@@ -170,8 +193,30 @@ export default function VendasHistorico() {
     <div className="mx-auto max-w-5xl">
       <PageHeader
         titulo="Histórico de Vendas"
-        hint="Últimas 500 vendas. Clique numa linha para ver os produtos e pagamentos daquela venda."
+        hint={
+          filtros.de || filtros.ate
+            ? 'Vendas do período escolhido. Clique numa linha para ver os produtos e pagamentos daquela venda.'
+            : 'Últimas 500 vendas. Use o filtro de período para ver um intervalo específico. Clique numa linha para ver os produtos e pagamentos daquela venda.'
+        }
       />
+
+      {/*
+        O limite de 500 continua existindo — o que mudou é que agora ele se
+        aplica DENTRO do período pedido, não sobre "as últimas 500 de todas".
+        Quando bate no teto, a tela precisa dizer: um total que parece completo
+        e não está é pior do que um total assumidamente parcial.
+      */}
+      {atingiuOLimite && (
+        <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+          <p className="text-sm text-amber-800">
+            Esta lista mostra <strong>as 500 vendas mais recentes</strong> do
+            período escolhido, e existem mais. Os totais abaixo contam só o que
+            está na lista — para o número fechado do mês, use o{' '}
+            <strong>Relatório de Vendas</strong>, que soma direto no banco.
+            Reduzir o período também resolve.
+          </p>
+        </div>
+      )}
 
       <FiltrosVenda
         valores={filtros}

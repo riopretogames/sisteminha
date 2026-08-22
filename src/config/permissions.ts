@@ -87,3 +87,22 @@ export const ROLE_LABELS: Record<Role, string> = {
   [ROLES.VENDEDOR]: 'Vendedor',
   [ROLES.TECNICO]: 'Técnico',
 };
+
+/**
+ * Rótulo do papel, tolerante a valor que o front não conhece.
+ *
+ * O enum `app_role` do banco tem 7 valores; este arquivo conhece 5. Os dois
+ * órfãos ('admin' e 'atendente') foram migrados para os novos em 01/08 e a
+ * tela de Usuários só oferece os 5 — então, hoje, não existe caminho pela
+ * interface que produza um valor desconhecido.
+ *
+ * Ainda assim a leitura precisa aguentar um: dado antigo restaurado de
+ * backup, importação, ou uma linha mexida direto no banco. Sem isto, o rótulo
+ * saía **em branco** — o que na tela parece "esta pessoa não tem perfil",
+ * exatamente o oposto de "tem um perfil que eu não reconheço". A primeira
+ * leitura convida a atribuir um papel; a segunda, a investigar.
+ */
+export function rotuloDoPapel(role: string | null | undefined): string {
+  if (!role) return 'Sem perfil';
+  return ROLE_LABELS[role as Role] ?? `Perfil desconhecido (${role})`;
+}

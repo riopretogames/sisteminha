@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { MENU, findSectionIdByPath, type MenuLink, type MenuGroup, type MenuSection, type MenuRoot } from '@/config/menu';
 import { getIcon } from '@/config/icons';
-import { ROLE_LABELS } from '@/config/permissions';
+import { ROLE_LABELS, rotuloDoPapel } from '@/config/permissions';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -270,7 +270,7 @@ export function AppSidebar() {
                   {user?.profile?.nome || 'Usuário'}
                 </span>
                 <span className="text-[11px] text-sidebar-foreground/50">
-                  {papelPrincipal ? ROLE_LABELS[papelPrincipal] : 'Sem perfil'}
+                  {rotuloDoPapel(papelPrincipal)}
                 </span>
               </div>
             </button>
