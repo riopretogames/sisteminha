@@ -149,6 +149,10 @@ interface OSCompleta {
   valor_final_pago: number | null;
   data_finalizacao: string | null;
   created_at: string;
+  /** Quem ABRIU a OS no balcão. Entra na linha do tempo como o primeiro
+   *  evento — sem ele a linha começava na primeira troca de etapa, e a
+   *  abertura, que é o momento mais consultado, ficava de fora. */
+  vendedor_id: string | null;
   clientes: { nome: string; telefones: string[] } | null;
   /** Marcações do check-in, com o item de catálogo que cada uma representa. */
   os_checklist: { catalogo_id: string; catalogos: { descricao: string; tipo: string } | null }[];
@@ -419,7 +423,7 @@ export default function OSDetalhe() {
           `id, numero_os, status, tipo, prioridade, marca, modelo, cor, memoria, numero_serie,
            defeito_cliente, observacoes, anotacoes_checkin, senha_aparelho, senha_padrao,
            prazo_previsto, garantia_dias, total_orcamento, valor_final_pago, data_finalizacao,
-           created_at, clientes(nome, telefones),
+           created_at, vendedor_id, clientes(nome, telefones),
            os_checklist(catalogo_id, catalogos(descricao, tipo)),
            tecnico_id, tecnico:profiles!service_orders_tecnico_id_fkey(nome),
            suspeita_tecnica, constatacao_tecnica, risco_informado_em, reparo_inviavel`
@@ -474,6 +478,44 @@ export default function OSDetalhe() {
 
   const nomeUsuario = (usuarioId: string | null) =>
     (usuarioId && (perfisTodos ?? []).find((p) => p.id === usuarioId)?.nome) || '—';
+
+  /**
+   * Linha do tempo da OS: abertura + cada troca de etapa, em ordem de hora.
+   *
+   * Pedido do Felipe em 23/08: "toda etapa tem que ter histórico de tempo e
+   * usuário". O histórico de etapas já existia, mas começava na PRIMEIRA
+   * TROCA — a abertura da OS não aparecia ali, porque o gatilho só grava
+   * quando o status muda de um valor para outro, e criar não é mudar.
+   *
+   * Na prática isso deixava de fora justamente o evento mais consultado
+   * ("quando esse aparelho entrou, e quem recebeu?"), que ficava só no
+   * cabeçalho da ficha, longe do resto da cronologia.
+   *
+   * A abertura é montada aqui, a partir de `created_at` + `vendedor_id`, em
+   * vez de virar linha no banco: gravar um registro de "mudou de nada para
+   * aguardando_análise" duplicaria o que `service_orders` já sabe, e faria o
+   * histórico de toda OS antiga ficar incompleto em comparação.
+   */
+  const linhaDoTempo = os
+    ? [
+        {
+          id: 'abertura',
+          created_at: os.created_at,
+          usuario_id: os.vendedor_id,
+          statusAnterior: null as string | null,
+          statusNovo: null as string | null,
+          descricao: 'OS aberta',
+        },
+        ...(historico ?? []).map((h) => ({
+          id: h.id,
+          created_at: h.created_at,
+          usuario_id: h.usuario_id,
+          statusAnterior: h.status_anterior,
+          statusNovo: h.status_novo,
+          descricao: '',
+        })),
+      ].sort((a, b) => a.created_at.localeCompare(b.created_at))
+    : [];
 
   const valorAtual = orcamento ?? (os ? String(os.total_orcamento) : '');
   const mudou = os && parseFloat(valorAtual || '0') !== Number(os.total_orcamento);
@@ -1022,34 +1064,38 @@ export default function OSDetalhe() {
             desde a criação do schema, nenhuma tela lia até agora. */}
         <Card className="sm:col-span-2">
           <CardHeader>
-            <CardTitle className="text-base">Histórico da OS</CardTitle>
+            <CardTitle className="text-base">Linha do tempo</CardTitle>
           </CardHeader>
           <CardContent>
-            {!historico?.length ? (
+            {!linhaDoTempo.length ? (
               <p className="py-2 text-sm text-muted-foreground">
-                Nenhuma mudança de etapa registrada ainda.
+                Nada registrado ainda.
               </p>
             ) : (
               <div className="space-y-2.5">
-                {historico.map((h) => {
-                  const de = h.status_anterior ? getStatusConfig(h.status_anterior) : null;
-                  const para = getStatusConfig(h.status_novo);
+                {linhaDoTempo.map((ev) => {
+                  const de = ev.statusAnterior ? getStatusConfig(ev.statusAnterior) : null;
+                  const para = ev.statusNovo ? getStatusConfig(ev.statusNovo) : null;
                   return (
-                    <div key={h.id} className="flex flex-wrap items-center gap-2 text-sm">
+                    <div key={ev.id} className="flex flex-wrap items-center gap-2 text-sm">
                       <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <span className="whitespace-nowrap text-muted-foreground">
-                        {dataHora(h.created_at)}
+                      <span className="whitespace-nowrap tabular-nums text-muted-foreground">
+                        {dataHora(ev.created_at)}
                       </span>
-                      {de && (
+                      {para ? (
                         <>
-                          <Badge className={`${de.color} border-0`}>{de.label}</Badge>
-                          <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                          {de && (
+                            <>
+                              <Badge className={`${de.color} border-0`}>{de.label}</Badge>
+                              <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                            </>
+                          )}
+                          <Badge className={`${para.color} border-0`}>{para.label}</Badge>
                         </>
+                      ) : (
+                        <span className="font-medium">{ev.descricao}</span>
                       )}
-                      <Badge className={`${para?.color ?? ''} border-0`}>
-                        {para?.label ?? h.status_novo}
-                      </Badge>
-                      <span className="text-muted-foreground">— {nomeUsuario(h.usuario_id)}</span>
+                      <span className="text-muted-foreground">— {nomeUsuario(ev.usuario_id)}</span>
                     </div>
                   );
                 })}
