@@ -651,15 +651,19 @@ o arquivo antes de assumir.
   o que a RPC já tinha efetivado. É o mesmo tipo de "venda órfã" que
   `TrocaDevolucao.tsx` já corrige, mas esse caminho paralelo dentro do
   PDV não tem a mesma proteção.
-- [ ] 🟠 **Histórico de Vendas pode devolver resultado incompleto num
-  filtro de período, sem avisar.** A consulta traz só as últimas 500
-  vendas (sem filtro de data no banco); os filtros de "Data de/até" são
-  aplicados só em memória sobre essas 500 já carregadas. Passando de
-  500 vendas no intervalo pesquisado, vendas mais antigas dentro do
-  período somem sem aviso — diferente de Relatório de Vendas e Vendas
-  &gt; Pagamentos, que filtram por período direto no banco. A mesma
-  pergunta ("quanto o vendedor X vendeu esse mês") pode dar números
-  diferentes dependendo da tela usada.
+- [x] ✅ **Resolvido em 21/08.** O Histórico de Vendas trazia sempre as
+  últimas 500 vendas e aplicava o filtro de data sobre essas 500, já em
+  memória — passando de 500 no intervalo, as mais antigas sumiam sem
+  aviso. O sintoma que importa: "quanto o vendedor X vendeu esse mês"
+  respondia diferente aqui e no Relatório de Vendas, e número que muda
+  conforme a tela destrói a confiança nos dois. O período passou a ir
+  para o banco, com a mesma régua do Relatório. Os outros filtros seguem
+  em memória de propósito — refinam DENTRO do período. O limite de 500
+  continua, mas agora vale dentro do período pedido, e quando bate no
+  teto **a tela avisa** e aponta o Relatório de Vendas para o número
+  fechado: total que parece completo e não está é pior do que total
+  assumidamente parcial.
+
 - [ ] 🔵 **Coluna "Desconto" por item no comprovante de venda sempre
   mostra R$0,00.** O desconto do PDV é gravado só a nível da venda
   inteira (`vendas.descontos`), nunca por item (`itens_venda.desconto`
@@ -1596,16 +1600,16 @@ o arquivo antes de assumir.
   os dois. Nenhuma das 5 cópias diverge da regra (conferido uma a uma),
   então não há inconsistência de acesso — só dívida técnica que cresceu
   em vez de ser consolidada.
-- [ ] Tipo `Role` do front (5 valores) menor que o enum `app_role` do
-  banco (7 valores, 2 órfãos de propósito). Risco real é baixo (RLS já
-  falha fechado pra papel desconhecido), mas rótulo em branco aparece
-  em pelo menos 2 lugares (inclusive `Sidebar.tsx:273`) — corrigir com
-  `ROLE_LABELS[role] ?? 'Desconhecido'`, é trivial. **Reconfirmado em
-  18/08**: os 2 valores órfãos ('admin'/'atendente') já foram migrados
-  pros 5 novos em 01/08, e a única forma de atribuir papel hoje (tela
-  de Usuários) só oferece os 5 — não existe caminho real, pela
-  interface, pra alguém acabar com um valor órfão hoje. Risco
-  confirmado baixo na prática.
+- [x] ✅ **Resolvido em 21/08.** O enum do banco tem 7 papéis e o front
+  conhece 5. Não há caminho pela interface que produza um dos 2 órfãos
+  hoje, mas a leitura precisava aguentar um: dado restaurado de backup,
+  importação, linha mexida direto no banco. Sem tratamento o rótulo saía
+  **em branco** — o que na tela parece "esta pessoa não tem perfil",
+  exatamente o oposto de "tem um perfil que eu não reconheço". A
+  primeira leitura convida a atribuir um papel; a segunda, a investigar.
+  Agora existe `rotuloDoPapel()`, que mostra "Perfil desconhecido
+  (valor)" com o valor à vista para quem for apurar.
+
 
 **🔵 Simplificação**
 - [x] ✅ **Resolvido em 18/08 pela faxina de documentos.** O antigo plano
