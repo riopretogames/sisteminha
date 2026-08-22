@@ -41,3 +41,6 @@ roteiro-de-teste.html
 
 # Cache do "tsc --build" (npm run typecheck). E gerado, muda a cada rodada.
 *.tsbuildinfo
+
+# Artefato gerado a partir do TESTE-MANUAL.md — nao editar a mao.
+teste-manual.html
