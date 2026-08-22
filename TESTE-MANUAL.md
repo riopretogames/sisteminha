@@ -183,15 +183,23 @@ Nada disso pode ser verificado sem olhar o papel (ou a prévia de impressão).
 
 ---
 
-## Uma coisa que você vai notar, e não é bug
+## Sobre a cor dos avisos
 
-Os avisos de sucesso do sistema **não são verdes** — saem em cinza neutro. Isso
-foi conferido: hoje o sistema só tem duas cores de aviso, cinza e vermelho de
-erro. A cor verde foi criada em 22/08 mas ainda não foi aplicada nos avisos
-existentes.
+**Os avisos de sucesso SÃO verdes** — foram aplicados em 22/08, em 33 avisos
+espalhados por 24 telas. Se algum aviso de "salvo", "cadastrado" ou "concluído"
+sair **cinza**, isso É uma falha e vale anotar.
 
-Não anote isso como falha. Se você quiser que os avisos de sucesso fiquem
-verdes, é só me dizer que eu aplico.
+Duas exceções, que estão cinza/vermelho de propósito e **não** devem ser
+anotadas:
+
+- **"Logo enviada — clique em Salvar para confirmar"** (Minha Empresa). É etapa
+  do meio, não conclusão: verde ali diria "acabou" quando ainda falta salvar.
+- **"OS criada, mas o checklist não foi salvo"** (Nova OS). Sucesso parcial com
+  problema — sai em vermelho, que é o certo.
+
+*(Uma versão anterior deste documento dizia que os avisos ainda eram cinzas.
+Estava errado: eu li a nota da conferência de 22/08 sem ver que o commit
+seguinte, do mesmo dia, já tinha aplicado a cor.)*
 
 ---
 
