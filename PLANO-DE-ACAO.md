@@ -1,6 +1,6 @@
 # Plano de Ação — Sisteminha (RPG System.IO)
 
-**Começou em:** 07/08/2026 · **Atualizado em:** 18/08/2026
+**Começou em:** 07/08/2026 · **Atualizado em:** 22/08/2026
 
 > **Este é o único documento de planejamento do sisteminha.**
 > Se você quer saber o que falta fazer, o que já foi feito e por quê, é
@@ -1865,6 +1865,104 @@ que tem em estoque.
   "terceirizada"). Não está no código: é item cadastrado pela loja em
   Gerenciar Status, então corrige-se pela própria tela, sem migration. Fica
   anotado porque aparece no Kanban e em relatório, à vista do cliente.
+
+---
+
+## Conferência do roteiro de teste por código, e 3 bugs achados (22/08)
+
+Ninguém conseguiu logar no sistema pra percorrer o `ROTEIRO-DE-TESTE.md` na
+tela (login ainda não é automatizável), então os 56 passos foram conferidos
+por **14 agentes lendo o código-fonte e as migrations do banco de verdade**
+— cada um cuidando de um pedaço do roteiro — e cada resultado passou por uma
+**segunda checagem independente, tentando ativamente refutar o primeiro**
+(mesmo método da revisão de 18/08). Antes de começar, confirmei que todas as
+68 migrations locais estavam mesmo aplicadas 1:1 no banco de produção
+(`supabase migration list --linked`), então "achei no código" aqui significa
+"está rodando de verdade".
+
+**Resultado: 46 dos 56 passos passam exatamente como prometido, nenhum
+achado é o sistema fazendo o oposto do prometido.** 7 passos (3, 6, 17, 25,
+29, 30, 37) tiveram ressalva — anotada no próprio roteiro, no passo certo — e
+3 (39, 42, 56) têm a parte de código confirmada mas só fecham de verdade
+clicando (rede cair, cor renderizada, CSV abrindo no Excel). Isso não
+substitui o Felipe passar pelo roteiro na tela — só reduz onde é mais
+provável achar problema.
+
+**🔴 Alta**
+
+- [x] ✅ **Resolvido em 22/08 — Reabrir e reentregar uma OS duplicava o
+  título no Financeiro.** A migration de 21/08 que passou
+  `gerar_titulo_ao_entregar_os` a valer também para OS que já nasce entregue
+  (`20260821110000`) reescreveu a função e, sem querer, tirou a checagem de
+  idempotência que a versão original tinha (`IF NOT EXISTS ... WHERE os_id =
+  NEW.id`). Consequência: OS entregue → reaberta (o próprio roteiro, passo
+  29, já previa isso e diz que "a cobrança CONTINUA lá") → entregue de novo
+  = **segundo título em Contas a Receber**, cobrando o cliente duas vezes
+  pelo mesmo conserto. Corrigido na migration `20260822100000`, devolvendo a
+  checagem.
+
+- [x] ✅ **Resolvido em 22/08 — OS cancelada não devolvia a peça pro
+  estoque.** `baixar_estoque_os()` desconta estoque quando uma peça é
+  lançada numa OS, mas nunca existiu o gatilho inverso — a trava de 21/08 que
+  congela valor/itens de OS cancelada (`20260821150000`, ver seção Ordens de
+  Serviço) não devolve a peça. Era o mesmo buraco que existia em vendas antes
+  da correção `20260807040000` (`estorna_estoque_venda_cancelada`), só que
+  nunca replicado pro lado da Assistência. Peça lançada numa OS cancelada
+  (cliente desistiu, orçamento não aprovado) sumia da prateleira digital pra
+  sempre. Corrigido na migration `20260822110000`, espelhando exatamente a
+  lógica de vendas — cancelar a OS devolve a quantidade e grava a auditoria
+  em Movimentações ("Estorno de peça de OS cancelada").
+
+- [x] ✅ **Resolvido em 22/08 — cliente bloqueado tinha a OS entregue e
+  cobrada normalmente, apesar da própria tela prometer o contrário.** Achado
+  fora do escopo original do passo 25 (que testa só a abertura da OS):
+  `NovaOS.tsx` mostra, pra dono de aparelho bloqueado, o aviso "*A OS pode
+  ser aberta normalmente [...] Mas o sistema vai **recusar a cobrança na
+  entrega** enquanto o bloqueio existir*" — só que nem
+  `conferir_pagamento_ao_entregar_os` nem `gerar_titulo_ao_entregar_os`
+  conferiam `clientes.liberado_venda`. A tela prometia uma trava que o banco
+  nunca teve — mesma classe do achado de 08/08 sobre venda bloqueada
+  (`trg_venda_cliente_bloqueado`, migration `20260808160000`), só que esse
+  caminho específico (entrega de OS) tinha ficado de fora daquela correção.
+  Corrigido na migration `20260822120000`: `conferir_pagamento_ao_entregar_os`
+  agora recusa entregar/cobrar OS paga de cliente bloqueado, com a mesma
+  mensagem de recusa que a venda já usa. Escopo: só OS tipo "paga" com
+  orçamento > 0 (garantia/cortesia não cobram nada).
+
+**🟢 Baixa**
+
+- [x] ✅ **Resolvido em 22/08 — aviso de "estoque insuficiente" inconsistente
+  dentro do PDV.** Clicar no produto pra adicionar ao carrinho mostra "Apenas
+  X unidades disponíveis"; clicar no **+** de uma linha já dentro do carrinho
+  mostrava só "Estoque insuficiente", sem dizer quanto tem. `PDV.tsx`,
+  função `updateQuantity` — agora avisa a mesma quantidade nos dois
+  caminhos.
+
+**🔵 Decisão do Felipe**
+
+- [ ] 🆕 **22/08 — nenhum aviso de sucesso do sistema é verde.** O roteiro
+  descreve dezenas de vezes um "aviso verde" para confirmação (`Produto
+  cadastrado!`, `Cliente cadastrado!`, `Venda finalizada!` etc.), mas o
+  componente de aviso (`src/components/ui/toast.tsx`) só tem duas cores:
+  cinza neutro ("default") e vermelho de erro ("destructive") — verde de
+  sucesso não existe em nenhuma tela, não é um caso isolado. Não muda o
+  funcionamento (a mensagem certa aparece do mesmo jeito, só não colorida),
+  mas quem testa pela cor descrita no roteiro vai estranhar quase toda tela.
+  Fica registrado pra decisão: criar uma terceira cor (verde) pro aviso de
+  sucesso, ou deixar como está e ajustar o roteiro para não prometer cor.
+  Anotado nos passos 3 e 6 do roteiro como exemplo.
+
+**Sem ação — nuance, não bug:**
+
+- Passo 43 (devolver mais do que foi vendido): a trava do banco existe e
+  recusa com a frase certa, mas a tela já corta a quantidade digitada antes
+  de enviar, então a frase quase nunca chega a aparecer clicando — proteção
+  dobrada (tela + banco), não falha. Nota deixada no próprio passo do
+  roteiro.
+- Passo 37 (Fluxo de Caixa): o comportamento sempre esteve certo; só o texto
+  do passo, escrito de manhã de 21/08, ficou com os rótulos antigos depois
+  que o passo 47 (Bloco 11, tarde do mesmo dia) os atualizou. Corrigido o
+  texto do próprio `ROTEIRO-DE-TESTE.md`, sem mudança de código.
 
 ---
 

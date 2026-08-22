@@ -418,6 +418,7 @@ export default function PDV() {
             if (newQty > item.produto.estoque_atual) {
               toast({
                 title: 'Estoque insuficiente',
+                description: `Apenas ${item.produto.estoque_atual} unidades disponíveis`,
                 variant: 'destructive',
               });
               return item;

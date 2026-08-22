@@ -8,6 +8,20 @@
 > **nenhum visto na tela**. Eles viraram o **Bloco 11**, no fim. Se o tempo
 > estiver curto, comece por ele: é onde a chance de achar erro é maior. Dá para parar no fim de qualquer bloco e voltar depois — só não pare no meio de um bloco, porque um passo usa o que o anterior criou.
 
+> **Conferência por código em 22/08** (ninguém conseguiu logar pra clicar, então
+> os 56 passos foram conferidos por 14 agentes lendo o código-fonte e as
+> migrations do banco de verdade, cada achado com uma segunda checagem
+> independente tentando refutar o primeiro). Resultado: **46 passam exatamente
+> como prometido**. Achados que valeram nota no passo certo, mais abaixo:
+> passos **3** e **6** (o aviso de sucesso não é verde — nenhum aviso do
+> sistema é, veja a nota), **17** (corrigido agora), **29**, **30** e **25**
+> (três bugs reais achados e já corrigidos: título de OS duplicando ao
+> reentregar, peça de OS cancelada não voltando pro estoque, e cobrança de OS
+> não recusada pra cliente bloqueado como a própria tela promete), e **37**
+> (só o texto do passo estava desatualizado). Passos **39**, **42** e **56**
+> têm a parte de código confirmada, mas dependem mesmo de alguém clicar pra
+> fechar. Nenhum passo achou o sistema fazendo o oposto do prometido.
+
 Leve papel e caneta: em vários passos você vai precisar **anotar um número antes** (estoque, saldo do caixa, faturamento) para comparar depois.
 
 ---
@@ -50,6 +64,7 @@ Não precisa apagar nada no fim. Tudo que você criar aqui é teste, e o sistema
   **O que fazer:** Abra **Cadastros > Clientes** e clique em **Novo Cliente**. Preencha SÓ o campo **Nome completo \*** com `Teste Balcao 21-08` e clique em **Cadastrar**. Não preencha mais nada.
   **Tem que acontecer:** Aviso verde "Cliente cadastrado! — Teste Balcao 21-08 foi salvo com sucesso.", a janela fecha sozinha e o cliente aparece na lista, com um traço (—) na coluna CPF/CNPJ e nada em Contato. Nenhuma mensagem vermelha de campo obrigatório.
   *Por que importa: é o cadastro de fila — se o sistema exigir CPF ou telefone, o vendedor com cliente esperando desiste e a venda sai sem cliente nenhum.*
+  > 🔎 **Nota do código (22/08):** tudo funciona (só o nome mesmo é obrigatório), mas o aviso não sai verde — hoje o sistema só tem duas cores de aviso, cinza (neutro) e vermelho (erro); verde de sucesso não existe em nenhuma tela. Registrado no plano para o Felipe decidir se vale criar essa cor.
 
 - [ ] **4. Cliente repetido: CPF e telefone recusam, nome igual só avisa**
   **O que fazer (três tentativas seguidas, todas em Novo Cliente):**
@@ -73,6 +88,7 @@ Não precisa apagar nada no fim. Tudo que você criar aqui é teste, e o sistema
   **O que fazer:** Em **Estoque > Produtos**, clique em **Novo Produto**. Nome `TESTE 21-08 Fone Bluetooth`, Marca `JBL`, Custo `100`, Preço `150`, Estoque Atual `5`, Estoque Mínimo `2`. Clique em **Cadastrar**. Depois abra **Estoque > Movimentações** (o período já vem no mês atual) e procure a linha desse produto.
   **Tem que acontecer:** Aviso verde "Produto cadastrado!", o produto aparece na lista com Preço R$ 150,00, Margem 50,0% em verde e Estoque 5 (antes de salvar, o quadrinho "Margem" dentro da caixa já mostrava 50,0% sozinho). Em Movimentações existe uma linha com etiqueta verde **Entrada**, quantidade **+5 em VERDE**, motivo "Cadastro inicial" e Saldo depois 5.
   *Por que importa: produto salvo torto entra sem preço e alguém vende por R$ 0; e estoque que aparece do nada, sem registro, torna impossível achar erro de contagem depois.*
+  > 🔎 **Nota do código (22/08):** tudo funciona certo, só o aviso não sai verde — mesmo caso do passo 3, é assim em toda tela do sistema hoje.
 
 - [ ] **7. Editar a ficha completa e mudar a quantidade pela ficha**
   **O que fazer:** Clique em cima da linha do `TESTE 21-08 Fone Bluetooth` (a linha inteira abre a ficha). Mude o **Preço** para `180`, escolha Grupo, Marca, Cor e Condição no bloco **Catálogo**, escreva algo em **Observações**. No bloco **Preços e Estoque**, troque Estoque Atual de 5 para `3` e Estoque Mínimo de 2 para `5`. Clique em **Salvar** e desça até **Movimentações recentes**, no pé da página. Depois clique em **Voltar** e reabra a ficha.
@@ -132,6 +148,7 @@ Não precisa apagar nada no fim. Tudo que você criar aqui é teste, e o sistema
   **O que fazer:** No PDV, olhe o numerozinho cinza no canto de um cartão de produto (é o estoque). Clique nesse cartão mais vezes do que o número mostra, e tente também o **+** da linha dentro do carrinho. Depois limpe o carrinho, deixe a busca vazia e use o painel de filtros (Categoria, Marca, Cor, Condição, Memória, Preço De/Até): escolha uma **Categoria** e digite `1000` no campo **De** do Preço. Por fim clique em **Limpar filtros**.
   **Tem que acontecer:** Aviso vermelho **"Estoque insuficiente — Apenas X unidades disponíveis"** e a quantidade no carrinho **para** no número que existe. Nos filtros, a vitrine vai encurtando; o botão "Limpar filtros" mostra uma bolinha com a quantidade de filtros ligados (2) e, ao clicar, tudo volta e as caixinhas voltam para "Todos".
   *Por que importa: vender o que não tem gera estoque negativo; e vitrine sem filtro trava o atendimento quando o catálogo cresce.*
+  > 🔎 **Corrigido em 22/08:** a trava de quantidade sempre funcionou nos dois caminhos, mas o aviso do **+** dentro do carrinho não dizia quantas unidades existem (só o clique no produto dizia). Agora os dois avisam a mesma coisa.
 
 - [ ] **18. Entrada de produto por troca no PDV: entra no estoque, mas travado**
   **O que fazer:** No PDV, coloque o **PlayStation 5 Slim 1TB** no carrinho, escolha o cliente **Bruno Tavares** e clique em **Finalizar Venda**. Em **Produto recebido em troca** clique em **Adicionar**, descrição `PlayStation 4 Slim 500GB`, preencha Tipo/Marca se quiser, **Valor de entrada (R$)** `1200`, e clique no **+**. Depois clique em **Dinheiro** para cobrir o que falta e em **Confirmar Venda**. No aviso verde, clique em **Revisar produto**. Depois abra **Estoque > Produtos**.
@@ -180,6 +197,7 @@ Não precisa apagar nada no fim. Tudo que você criar aqui é teste, e o sistema
   **O que fazer:** **Nova OS**, clique em "Dono do aparelho", digite `Joao` e escolha **Joao Vitor Passos**. Preencha só o defeito relatado e clique em **Abrir OS**.
   **Tem que acontecer:** Na busca, o nome dele vem com etiqueta **amarela "Bloqueado"**. Depois de escolhido, faixa amarela no card Cliente dizendo que ele está bloqueado para venda e explicando que **a OS pode ser aberta normalmente**. A OS é criada sem erro nenhum.
   *Por que importa: aparelho que já está na bancada precisa ser registrado; o que não pode é o bloqueio aparecer só depois do conserto pronto, na hora de cobrar.*
+  > 🔎 **Bug achado e corrigido em 22/08:** o aviso amarelo desta tela promete que "o sistema vai recusar a cobrança na entrega" enquanto o cliente estiver bloqueado — mas o banco não conferia isso na hora de entregar a OS, então a cobrança passava normalmente. Agora o banco recusa de verdade a entrega/cobrança de uma OS paga enquanto o cliente estiver bloqueado, do mesmo jeito que já recusa venda no PDV.
 
 - [ ] **26. Lançar peça do estoque, serviço avulso e fechar o orçamento**
   **O que fazer:** Abra uma das OS de teste que ainda está em andamento. Anote antes, no Estoque, a quantidade do produto que vai usar. No card **Peças e serviços** clique em **Adicionar item** > aba **Peça do estoque**, escolha um produto com estoque, quantidade `2`, **Adicionar**. De novo em Adicionar item > aba **Serviço avulso**: `Mão de obra — troca de tela`, preço `150`, **Adicionar**. Volte ao Estoque e confira. Depois, na ficha, desça até **Valor do orçamento**, clique em **Usar soma dos itens (R$ …)**, **Salvar**, e aperte **F5**.
@@ -200,11 +218,13 @@ Não precisa apagar nada no fim. Tudo que você criar aqui é teste, e o sistema
   **O que fazer:** Na OS já entregue, use o seletor de etapa (ao lado do botão de avançar, mostra a etiqueta "Entregue") e escolha **Finalizado**. **Leia** a janela de confirmação e clique em **Cancelar**. Confira que nada mudou. Repita e, agora, clique em **OK**.
   **Tem que acontecer:** A janela avisa que a OS já foi entregue, diz **o valor exato que já está lançado no Financeiro**, avisa que a cobrança **CONTINUA lá** e que o orçamento volta a ser editável. Em Cancelar, tudo continua travado. Em OK, a etapa volta para Finalizado e o campo de valor volta a aceitar digitação.
   *Por que importa: reabrir sem aviso deixa a ficha mostrando um número e o Financeiro cobrando outro, sem nada na tela denunciando.*
+  > 🔎 **Bug achado e corrigido em 22/08:** a correção de 21/08 que passou a valer também para OS que já nasce entregue (migration do dia) removeu, sem querer, a trava que impedia duplicar o título. Reabrir esta OS e entregar de novo criava um SEGUNDO título em Contas a Receber, cobrando o cliente duas vezes pelo mesmo conserto. Corrigido — voltou a checar se já existe título antes de criar outro.
 
 - [ ] **30. OS cancelada também trava o valor** **[CORREÇÃO RECENTE]**
   **O que fazer:** Abra **outra** OS de teste em andamento (não a entregue). No seletor de etapa, escolha a opção vermelha **Cancelar OS**. Olhe o card Valor do orçamento e o card Peças e serviços. Se essa OS tinha peça lançada, confira o Estoque.
   **Tem que acontecer:** A etiqueta vira **Cancelado**. O campo Valor fica cinza, sem botão Salvar, com o texto *"Esta OS foi cancelada — valor travado"*. O botão Adicionar item some. A quantidade da peça **volta a subir** no estoque (estorno).
   *Por que importa: antes, OS cancelada deixava o valor solto enquanto o resto da ficha já estava travado — duas regras na mesma tela confundem quem fecha o laudo.*
+  > 🔎 **Bug achado e corrigido em 22/08:** o valor e os itens realmente travam, mas a peça lançada **não** voltava pro estoque ao cancelar — só existia esse estorno para venda cancelada no PDV, nunca para OS. A peça saía da prateleira digital para sempre. Corrigido — cancelar a OS agora devolve a peça ao estoque, com o mesmo tipo de registro em Movimentações que a venda já tinha.
 
 - [ ] **31. OS atrasada sobe para o topo, e os cartões filtram**
   **O que fazer:** Vá em **Ordens de Serviço** e ligue o **Modo Grade** (ícone de quadradinhos, canto superior direito). Olhe as primeiras linhas e a coluna **Prioridade**. Depois clique no cartão de contagem **Aguardando aprovação** (a fileira de 4 cartões acima da busca) e clique nele de novo para desfazer.
@@ -245,9 +265,10 @@ Não precisa apagar nada no fim. Tudo que você criar aqui é teste, e o sistema
   *Por que importa: título cancelado que continua somando faz a loja achar que deve mais do que deve.*
 
 - [ ] **37. Fluxo de Caixa: o que já aconteceu x o que só está previsto** **[CORREÇÃO RECENTE]**
-  **O que fazer:** Abra **Financeiro > Fluxo de Caixa**, período do mês atual (já vem preenchido). Compare os blocos **Realizado — o que já aconteceu** e **Previsto — tudo que está lançado no período**. Procure na lista "Lançamentos do período" os dois títulos que você criou.
+  **O que fazer:** Abra **Financeiro > Fluxo de Caixa**, período do mês atual (já vem preenchido). Compare os blocos **Realizado — o dinheiro que se moveu neste período** e **Previsto — o que vence neste período**. Procure na lista "Lançamentos do período" os dois títulos que você criou.
   **Tem que acontecer:** O aluguel de R$ 2.800,00 aparece em **Saiu** no bloco Realizado (foi baixado) e na lista, com a situação "Baixado em <hoje>". O título cancelado de R$ 300,00 **não aparece em lugar nenhum** — nem nos totais, nem na lista, nem na tabela "Por categoria".
   *Por que importa: misturar previsto com realizado, ou somar conta cancelada, mostra um saldo que não existe — e é nesse número que se decide comprar estoque.*
+  > 🔎 **Nota do código (22/08):** os números batem certo — só os RÓTULOS mudaram no mesmo dia 21/08 (correção do passo 47, Bloco 11) e este passo, escrito de manhã, ficou com o texto antigo. Os títulos certos, hoje, são "Realizado — o dinheiro que se moveu neste período" e "Previsto — o que vence neste período" (o texto abaixo já foi ajustado).
 
 ---
 
@@ -292,6 +313,7 @@ Este bloco não existia quando o roteiro foi escrito de manhã. São 14 correç�
   **O que fazer:** Abra **Venda > Troca e Devolução**. Escolha uma venda que tenha um produto com quantidade 1 ou 2. Tente digitar, no campo de quantidade a devolver, um número **maior** do que foi vendido. Se o campo não deixar digitar (ele limita), tudo bem — devolva a quantidade inteira, salve, e depois tente abrir uma **segunda** devolução da mesma venda para o mesmo produto.
   **Tem que acontecer:** No primeiro caso, o campo não deixa passar do que foi vendido. No segundo, o sistema recusa com uma frase dizendo quanto a venda teve, quanto já foi devolvido e quanto resta — algo como *"a venda teve 2, e 2 já foi devolvida. Resta 0"*.
   *Por que importa: devolver a mais paga ao cliente dinheiro que ele nunca gastou e coloca no estoque uma unidade que nunca saiu — a diferença só apareceria no inventário, meses depois.*
+  > 🔎 **Nota do código (22/08):** a trava do banco existe e recusa de verdade, com a frase prometida — mas na prática você não vai VER essa frase clicando pela tela normal: antes de enviar, a tela já corta (limita) a quantidade digitada para o que ainda pode ser devolvido, então o pedido que chega ao banco já vem certo. A frase só apareceria numa tentativa fora da tela (API direta) ou numa falha rara de sincronismo — o que importa (não dá pra devolver a mais) está garantido em dois lugares, não só um.
 
 - [ ] **44. Venda devolvida fica marcada no Histórico e sai do total** **[CORREÇÃO RECENTE]**
   **O que fazer:** Depois de fazer a devolução do passo anterior, abra **Venda > Histórico de Vendas** e procure a venda que você devolveu. Olhe a linha dela e o indicador **Faturamento** no topo.
