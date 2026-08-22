@@ -1,12 +1,17 @@
 # Roteiro de Teste — RP System.IO
 ### Para o Felipe percorrer na tela, na ordem de um dia de loja
 
-**Tempo estimado: 3h30 a 4h.** São 56 passos, divididos em 11 blocos.
+**Tempo estimado: 3h45 a 4h15.** São 61 passos, divididos em 12 blocos.
 
 > **Atualizado em 21/08, no fim do dia.** O roteiro foi escrito de manhã, e ao
 > longo do dia foram corrigidos mais 14 itens — todos verificados no banco e
 > **nenhum visto na tela**. Eles viraram o **Bloco 11**, no fim. Se o tempo
-> estiver curto, comece por ele: é onde a chance de achar erro é maior. Dá para parar no fim de qualquer bloco e voltar depois — só não pare no meio de um bloco, porque um passo usa o que o anterior criou.
+> estiver curto, comece por ele: é onde a chance de achar erro é maior.
+>
+> **Atualizado de novo em 23/08.** Entrou o **Bloco 12**, com a numeração
+> curta (OV0001 / OS0001) e a linha do tempo de venda e OS. São 5 passos
+> rápidos, uns 15 minutos, e cobrem o que você mais olha no dia: o número
+> que se fala em voz alta no balcão. Dá para parar no fim de qualquer bloco e voltar depois — só não pare no meio de um bloco, porque um passo usa o que o anterior criou.
 
 > **Conferência por código em 22/08** (ninguém conseguiu logar pra clicar, então
 > os 56 passos foram conferidos por 14 agentes lendo o código-fonte e as
@@ -379,6 +384,39 @@ Este bloco não existia quando o roteiro foi escrito de manhã. São 14 correç�
   **O que fazer:** Passe rápido por **Configurações > Logs/Auditoria**, **Configurações > Perfis de Acesso**, **Configurações > Preferências** e **Financeiro > Caixa**. Só abra cada uma e veja se carrega.
   **Tem que acontecer:** Todas abrem normalmente, com dados.
   *Por que importa: essas quatro telas usavam um atalho de programação que foi removido hoje. A remoção foi verificada, mas é o tipo de mudança que só a tela confirma.*
+
+---
+
+## Bloco 12 — Numeração curta e linha do tempo (22 e 23/08)
+
+Quatro testes das mudanças mais recentes: o número de venda e de OS ficaram curtos e sem reiniciar, e as duas telas ganharam linha do tempo. Nenhum deles foi visto na tela ainda.
+
+Este bloco é rápido — uns 15 minutos — e cobre o que você mais vai olhar no dia a dia: o número que você fala em voz alta no balcão.
+
+- [ ] **57. Venda nova sai como OV0001** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Abra o **PDV**, monte uma venda simples de qualquer produto e finalize. Anote o número que aparece no aviso verde. Faça uma **segunda** venda e anote o número dela também.
+  **Tem que acontecer:** Os números têm o formato **OV** seguido de 4 dígitos — `OV0001`, `OV0002` — e o segundo é exatamente o primeiro **mais um**. Não aparece mês nem ano no meio.
+  *Por que importa: antes o número reiniciava todo mês, então duas vendas de meses diferentes podiam ser as duas "0001" — e falar "a venda 1" exigia dizer o mês junto.*
+
+- [ ] **58. Venda antiga continua com o número antigo** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Em **Venda > Histórico de Vendas**, role até as vendas mais antigas (as da massa de teste, de agosto).
+  **Tem que acontecer:** Elas continuam com o número no formato antigo, tipo `VD-202608-0006`. **Não** podem ter sido renumeradas.
+  *Por que importa: o número que o cliente levou no comprovante tem que continuar batendo com o do sistema — renumerar histórico quebraria isso.*
+
+- [ ] **59. OS nova sai como OS0001, e a antiga não muda** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Abra **Assistência > Nova OS**, preencha o mínimo (cliente, aparelho, defeito) e salve. Anote o número. Abra outra e anote. Depois vá em **Assistência > Ordens de Serviço** e olhe as OS antigas.
+  **Tem que acontecer:** As novas saem `OS0001`, `OS0002`… sequenciais, sem mês no meio. As antigas continuam `OS-202608-000X`.
+  *Por que importa: é o número que você fala no telefone quando o cliente liga perguntando do aparelho.*
+
+- [ ] **60. Linha do tempo da OS começa na abertura** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Abra a ficha de uma das OS que você acabou de criar (clique nela na lista). Role até o card **Linha do tempo**. Depois mude a etapa dela — por exemplo, de "Entrada/Análise" para "Aguardando aprovação" — e olhe o card de novo.
+  **Tem que acontecer:** Antes de mudar qualquer coisa, já aparece uma linha **"OS aberta"** com a data, a **hora e o minuto**, e o seu nome. Depois de mudar a etapa, aparece uma segunda linha mostrando de qual etapa para qual, também com hora, minuto e quem fez. As linhas ficam em ordem de horário.
+  *Por que importa: "quando esse aparelho entrou e quem recebeu" é a pergunta mais feita quando o cliente liga — antes essa informação estava só no cabeçalho, separada do resto da cronologia.*
+
+- [ ] **61. Aprovação aparece na linha do tempo com hora** **[CORREÇÃO RECENTE]**
+  **O que fazer:** Pegue uma OS, coloque um valor no orçamento e leve ela até a etapa **Aprovado**. Volte ao card **Linha do tempo**.
+  **Tem que acontecer:** Existe uma linha registrando a passagem para **Aprovado**, com data, hora, minuto e o nome de quem aprovou.
+  *Por que importa: é a hora que responde "quando o cliente autorizou o serviço", se ele contestar o valor na retirada.*
 
 ---
 
