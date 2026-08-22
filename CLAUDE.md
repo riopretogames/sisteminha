@@ -57,6 +57,22 @@ apagar linha — continua exigindo confirmação do Felipe.
   npm run check       # typecheck + testes + build, tudo de uma vez
   ```
 
+- **Código em `supabase/functions/` NÃO sobe com `db push`.** Desde 22/08 o
+  projeto tem uma peça que roda no servidor do Supabase (a criação de usuário).
+  Ela é publicada por um comando próprio, e **editar o arquivo não muda nada
+  no ar** até rodar:
+
+  ```bash
+  npx.cmd supabase functions deploy admin-usuarios --use-api
+  ```
+
+  O `--use-api` empacota no servidor e dispensa o Docker — importante, porque
+  o Docker da máquina do Felipe fica desligado. Sem a flag, o comando exige
+  Docker rodando.
+
+  Cuidado com o modo de falha: o arquivo commitado e o que está no ar podem
+  divergir em silêncio, e nada avisa. Mexeu na função, publique na mesma hora.
+
 - **`src/integrations/supabase/types.ts` é gerado de verdade** desde 08/08:
   `npx supabase gen types typescript --project-id ylhxlvqqkifayglqbzre >
   src/integrations/supabase/types.ts`. Não escreva mais nada à mão ali.
@@ -108,6 +124,26 @@ Consequência concreta, que vale para todo código novo:
   Aconteceu com 7 colunas de `produtos` entre 09 e 18/08. A função
   (migration `20260818130000`) descobre as colunas do catálogo em vez de
   usar lista digitada, então basta chamá-la: ela se reajusta sozinha.
+
+## Regra da chave mestra (22/08)
+
+O projeto tem duas chaves do Supabase. A **pública** viaja para o navegador de
+todo mundo — é assim que tem que ser, e o RLS é quem protege os dados. A
+**chave mestra** (`service_role`) ignora RLS, ignora perfil, ignora tudo.
+
+Regra: **a chave mestra nunca entra em `src/`.** Nem em variável de ambiente do
+Vite (todo `VITE_*` acaba no navegador), nem "só para um caso". Quem precisa
+dela vira função em `supabase/functions/`, e lá:
+
+1. Confere o crachá de quem pediu **antes** de usar a chave, chamando
+   `has_permission` com o cliente montado a partir do token da pessoa — nunca
+   com a chave mestra, senão a checagem responde sim para qualquer um.
+2. Delega a regra ao banco onde já existir uma. `admin-usuarios` cria a conta
+   com a chave mestra (só isso exige), mas atribui o perfil chamando
+   `trocar_papel_do_usuario` **com o crachá de quem pediu** — assim a exigência
+   de `roles.manage` e a proteção do último administrador continuam valendo. Um
+   segundo lugar decidindo permissão é como as duas versões divergem sem
+   ninguém notar.
 
 ## Regra de cliente único (08/08)
 

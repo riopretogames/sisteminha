@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, Search, ShieldCheck, UserCog, Info, RotateCcw, MessageSquare } from 'lucide-react';
+import {
+  Loader2, Search, ShieldCheck, UserCog, RotateCcw, MessageSquare,
+  Plus, KeyRound, Eye, EyeOff, Dices,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { ROLES, ROLE_LABELS, PERMISSIONS, type Role, type Permission, rotuloDoPapel } from '@/config/permissions';
@@ -47,9 +50,13 @@ interface PermissaoCatalogo {
 }
 
 export default function Usuarios() {
-  const { usuarios, definirPapel, definirAtivo, renomear } = useUsuarios();
+  const { usuarios, definirPapel, definirAtivo, renomear, criarUsuario, redefinirSenha } =
+    useUsuarios();
+  const { can } = useAuth();
+  const podeGerenciar = can(PERMISSIONS.USERS_MANAGE);
   const [busca, setBusca] = useState('');
   const [editando, setEditando] = useState<UsuarioLinha | null>(null);
+  const [criando, setCriando] = useState(false);
 
   const lista = (usuarios.data ?? []).filter(
     (u) =>
@@ -62,22 +69,15 @@ export default function Usuarios() {
       <PageHeader
         titulo="Usuários"
         hint="Quem acessa o sistema, com qual perfil, e o que cada um pode fazer."
+        acoes={
+          podeGerenciar ? (
+            <Button onClick={() => setCriando(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Novo usuário
+            </Button>
+          ) : null
+        }
       />
-
-      <Card className="mb-6 border-blue-500/30 bg-blue-500/5">
-        <CardContent className="flex gap-3 py-4">
-          <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600" />
-          <div className="text-sm">
-            <p className="font-medium">Para criar um usuário novo, use o painel do Supabase.</p>
-            <p className="mt-0.5 text-muted-foreground">
-              Criar conta exige a chave secreta do projeto, que não pode ficar no
-              navegador — qualquer visitante conseguiria lê-la. Crie em
-              Authentication → Users (com "Auto Confirm User" ligado) e a pessoa
-              aparece aqui na hora, pronta para receber um perfil.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
 
       <div className="relative mb-4">
         <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -136,6 +136,16 @@ export default function Usuarios() {
         </div>
       )}
 
+      {criando && (
+        <DialogNovoUsuario
+          salvando={criarUsuario.isPending}
+          onFechar={() => setCriando(false)}
+          onCriar={(dados) =>
+            criarUsuario.mutate(dados, { onSuccess: () => setCriando(false) })
+          }
+        />
+      )}
+
       {editando && (
         <DialogUsuario
           usuario={editando}
@@ -143,9 +153,206 @@ export default function Usuarios() {
           onPapel={(role) => definirPapel.mutate({ userId: editando.id, role })}
           onAtivo={(ativo) => definirAtivo.mutate({ userId: editando.id, ativo })}
           onNome={(nome) => renomear.mutate({ userId: editando.id, nome })}
+          onSenha={(senha) => redefinirSenha.mutate({ userId: editando.id, senha })}
+          trocandoSenha={redefinirSenha.isPending}
         />
       )}
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
+/** Mínimo aceito. O servidor exige o mesmo — a tela só avisa antes. */
+const SENHA_MINIMA = 8;
+
+/**
+ * Senha aleatória fácil de ditar em voz alta.
+ *
+ * Sem as letras e números que se confundem lendo no papel ou no WhatsApp:
+ * i/l/1, o/0. Quem entrega a senha para o funcionário fala ela em voz alta —
+ * uma senha "correta" que ninguém consegue transmitir vira chamado de suporte.
+ */
+function gerarSenha(): string {
+  const letras = 'abcdefghjkmnpqrstuvwxyz';
+  const numeros = '23456789';
+  const sortear = (fonte: string, n: number) =>
+    Array.from(crypto.getRandomValues(new Uint32Array(n)))
+      .map((v) => fonte[v % fonte.length])
+      .join('');
+  return `${sortear(letras, 4)}-${sortear(numeros, 4)}-${sortear(letras, 4)}`;
+}
+
+/** Campo de senha com olho para conferir e dado para sortear. */
+function CampoSenha({
+  valor,
+  onChange,
+  id,
+}: {
+  valor: string;
+  onChange: (v: string) => void;
+  id: string;
+}) {
+  const [mostrar, setMostrar] = useState(false);
+  return (
+    <div className="flex gap-2">
+      <div className="relative flex-1">
+        <Input
+          id={id}
+          type={mostrar ? 'text' : 'password'}
+          value={valor}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={`No mínimo ${SENHA_MINIMA} caracteres`}
+          className="pr-9 font-mono"
+          autoComplete="new-password"
+        />
+        <button
+          type="button"
+          onClick={() => setMostrar((m) => !m)}
+          className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground"
+          aria-label={mostrar ? 'Ocultar senha' : 'Mostrar senha'}
+        >
+          {mostrar ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => {
+          onChange(gerarSenha());
+          setMostrar(true);
+        }}
+      >
+        <Dices className="mr-1.5 h-4 w-4" />
+        Sortear
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Criação de usuário.
+ *
+ * O perfil vem no mesmo formulário de propósito: usuário criado sem perfil não
+ * consegue fazer nada no sistema, e "eu defino depois" é justamente o passo
+ * que fica para depois. Quem não tem permissão para definir perfil vê o campo
+ * travado, com o motivo — em vez de criar uma conta inútil sem saber.
+ */
+function DialogNovoUsuario({
+  onFechar,
+  onCriar,
+  salvando,
+}: {
+  onFechar: () => void;
+  onCriar: (dados: { nome: string; email: string; senha: string; papel: Role }) => void;
+  salvando: boolean;
+}) {
+  const { can } = useAuth();
+  const podeTrocarPapel = can(PERMISSIONS.ROLES_MANAGE);
+  const [nome, setNome] = useState('');
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
+  const [papel, setPapel] = useState<Role>(ROLES.VENDEDOR);
+
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const podeSalvar =
+    nome.trim().length > 0 && emailOk && senha.length >= SENHA_MINIMA && !salvando;
+
+  return (
+    <Dialog open onOpenChange={(aberto) => !aberto && onFechar()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Novo usuário</DialogTitle>
+          <DialogDescription>
+            A pessoa já entra no sistema com o e-mail e a senha definidos aqui.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="n-nome">Nome completo</Label>
+            <Input
+              id="n-nome"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Maria Souza"
+              autoFocus
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="n-email">E-mail</Label>
+            <Input
+              id="n-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="maria@riopretogames.com.br"
+            />
+            {email.trim().length > 0 && !emailOk && (
+              <p className="text-xs text-destructive">
+                Esse e-mail não parece válido — é com ele que a pessoa entra.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="n-senha">Senha</Label>
+            <CampoSenha id="n-senha" valor={senha} onChange={setSenha} />
+            <p className="text-xs text-muted-foreground">
+              Anote antes de salvar: depois de criado, o sistema não mostra a senha de
+              novo — só permite trocar por outra.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Perfil</Label>
+            <Select
+              value={papel}
+              onValueChange={(v) => setPapel(v as Role)}
+              disabled={!podeTrocarPapel}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.values(ROLES) as Role[]).map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {ROLE_LABELS[r]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!podeTrocarPapel && (
+              <p className="text-xs text-muted-foreground">
+                Definir perfil exige a permissão de gerenciar perfis de acesso. A conta
+                será criada sem perfil, e quem tiver essa permissão define depois.
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={onFechar} disabled={salvando}>
+            Cancelar
+          </Button>
+          <Button
+            disabled={!podeSalvar}
+            onClick={() =>
+              onCriar({
+                nome: nome.trim(),
+                email: email.trim(),
+                senha,
+                papel: podeTrocarPapel ? papel : ('' as Role),
+              })
+            }
+          >
+            {salvando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Criar usuário
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -157,14 +364,20 @@ function DialogUsuario({
   onPapel,
   onAtivo,
   onNome,
+  onSenha,
+  trocandoSenha,
 }: {
   usuario: UsuarioLinha;
   onFechar: () => void;
   onPapel: (role: Role) => void;
   onAtivo: (ativo: boolean) => void;
   onNome: (nome: string) => void;
+  onSenha: (senha: string) => void;
+  trocandoSenha: boolean;
 }) {
   const { can } = useAuth();
+  const [senhaNova, setSenhaNova] = useState('');
+  const [trocandoAberto, setTrocandoAberto] = useState(false);
   // Ver e editar o cadastro é `users.manage`; trocar o PERFIL é
   // `roles.manage`. São concedidas separadamente, então a tela pergunta as
   // duas em vez de supor que quem entrou pode tudo.
@@ -273,6 +486,59 @@ function DialogUsuario({
                 </p>
               )}
             </div>
+          </div>
+
+          {/* Senha: só troca, nunca mostra a atual — nem o sistema sabe qual é. */}
+          <div className="rounded-lg border p-3">
+            {!trocandoAberto ? (
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Senha de acesso</p>
+                  <p className="text-xs text-muted-foreground">
+                    Para quem esqueceu a senha. A antiga para de valer na hora.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setSenhaNova('');
+                    setTrocandoAberto(true);
+                  }}
+                >
+                  <KeyRound className="mr-1.5 h-3.5 w-3.5" />
+                  Trocar
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="e-senha" className="text-sm font-medium">
+                  Senha nova para {usuario.nome}
+                </Label>
+                <CampoSenha id="e-senha" valor={senhaNova} onChange={setSenhaNova} />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setTrocandoAberto(false)}
+                    disabled={trocandoSenha}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={senhaNova.length < SENHA_MINIMA || trocandoSenha}
+                    onClick={() => {
+                      onSenha(senhaNova);
+                      setTrocandoAberto(false);
+                    }}
+                  >
+                    {trocandoSenha && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                    Salvar senha
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between rounded-lg border p-3">

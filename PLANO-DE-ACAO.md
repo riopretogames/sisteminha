@@ -1504,6 +1504,64 @@ o arquivo antes de assumir.
 
 ## Configurações, Permissões e Minha Empresa
 
+- [x] ✅ **Resolvido em 22/08 — 🆕 pedido do Felipe no dia.** Não dava para
+  criar usuário dentro do sistema: a tela de Usuários trazia um aviso
+  mandando criar no painel do Supabase. O motivo era real — criar conta de
+  login exige a chave mestra do projeto, que ignora perfil e permissão, e
+  ela não pode viajar para o navegador de quem abre o sistema. Só que a
+  permissão `users.manage` já existia no catálogo desde 01/08, descrita
+  como *"Criar, editar e desativar usuários"*: a intenção estava lá, faltava
+  a peça.
+
+  Resolvido com a primeira função de servidor do projeto
+  (`supabase/functions/admin-usuarios`), onde a chave mestra pode viver sem
+  sair do servidor. Ela faz duas coisas: **criar usuário** (com o e-mail já
+  confirmado, senão a pessoa fica presa esperando um e-mail que a loja não
+  manda) e **trocar a senha de quem esqueceu** — que era o outro motivo para
+  voltar ao painel do Supabase.
+
+  Três cuidados que valem para qualquer função de servidor daqui pra frente,
+  registrados no `CLAUDE.md` como "Regra da chave mestra":
+
+  1. **A permissão é conferida com o crachá de quem clicou, não com a chave
+     mestra.** Perguntar "esta pessoa pode?" usando a chave que pode tudo
+     responde sim para qualquer um.
+  2. **A regra de perfil continua morando no banco.** A função cria a conta
+     com a chave mestra (só isso exige), mas atribui o perfil chamando
+     `trocar_papel_do_usuario` com o crachá de quem pediu — então a exigência
+     de `roles.manage` e a proteção do último administrador seguem valendo,
+     de graça. Um segundo lugar decidindo permissão é como as duas versões
+     divergem sem ninguém notar.
+  3. **Trocar senha confere a loja pelo RLS**, não por comparação escrita à
+     mão: a busca do usuário-alvo roda com o crachá de quem pediu, então
+     alguém de outra loja simplesmente não é encontrado — e a chave mestra
+     nem chega a ser usada.
+
+  Na tela: botão **Novo usuário** no lugar do aviso, com nome, e-mail, senha
+  e perfil no mesmo formulário (usuário sem perfil não faz nada no sistema, e
+  "defino depois" é justamente o que fica para depois). A senha tem botão de
+  **Sortear**, que gera algo como `krtm-4829-hpsv` — sem as letras e números
+  que se confundem ao ditar em voz alta (i/l/1, o/0), porque quem entrega a
+  senha fala ela para o funcionário. E a ficha de quem já existe ganhou
+  **Senha de acesso → Trocar**.
+
+  Cuidado que a tela também resolveu: sem tratamento, qualquer recusa da
+  função apareceria como *"Edge Function returned a non-2xx status code"* —
+  inútil para quem está atendendo. A mensagem de verdade ("Já existe um
+  usuário com este e-mail") vem escondida dentro do erro, e agora é extraída.
+
+  **Conferido:** chamada sem crachá é recusada; chamada com a chave pública
+  tentando criar um administrador é recusada pela própria função (não só pelo
+  portão do Supabase); `npm run check` limpo. **Falta conferir na tela** — a
+  Parte 1 do `TESTE-MANUAL.md` foi reescrita em torno disso, e agora consegue
+  testar o que antes era impossível: que um Vendedor **não** consegue criar
+  usuário.
+
+  ⚠️ **Publicar é um comando separado.** `npx.cmd supabase db push` não sobe
+  função de servidor. Mexeu em `supabase/functions/`, rode
+  `npx.cmd supabase functions deploy admin-usuarios --use-api` — senão o
+  arquivo commitado e o que está no ar divergem em silêncio.
+
 **🔴 Alta**
 - [x] ✅ **Resolvido em 18/08.** Não havia proteção contra o único
   administrador se autodemover ou se desativar — sem caminho de volta

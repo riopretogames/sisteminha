@@ -32,6 +32,31 @@ export interface ExcecaoUsuario {
   definida_por: string | null;
 }
 
+/**
+ * Fala com a função de servidor `admin-usuarios` e traz a mensagem de verdade.
+ *
+ * Sem isto, QUALQUER recusa aparece na tela como "Edge Function returned a
+ * non-2xx status code" — que não diz nada para quem está atendendo. A frase
+ * útil ("Já existe um usuário com este e-mail") vem no corpo da resposta, e a
+ * biblioteca do Supabase a deixa escondida dentro do objeto de erro.
+ */
+async function chamarAdminUsuarios(corpo: Record<string, unknown>) {
+  const { data, error } = await supabase.functions.invoke('admin-usuarios', { body: corpo });
+  if (!error) return data as Record<string, unknown>;
+
+  let mensagem = error.message;
+  const resposta = (error as { context?: Response }).context;
+  if (resposta && typeof resposta.json === 'function') {
+    try {
+      const corpoDoErro = await resposta.json();
+      if (corpoDoErro?.erro) mensagem = String(corpoDoErro.erro);
+    } catch {
+      // Resposta sem JSON: fica a mensagem original, que é melhor que nada.
+    }
+  }
+  throw new Error(mensagem);
+}
+
 export function useUsuarios() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -120,7 +145,62 @@ export function useUsuarios() {
     onError: aoFalhar,
   });
 
-  return { usuarios, definirPapel, definirAtivo, renomear };
+  /**
+   * Cria a conta de acesso de alguém da loja.
+   *
+   * O trabalho todo acontece no servidor (`supabase/functions/admin-usuarios`),
+   * porque criar conta exige a chave mestra do projeto — que não pode viajar
+   * para o navegador.
+   */
+  const criarUsuario = useMutation({
+    mutationFn: async (dados: { nome: string; email: string; senha: string; papel: Role }) =>
+      chamarAdminUsuarios({ acao: 'criar', ...dados }),
+    onSuccess: (resultado) => {
+      invalidar();
+      // A conta pode nascer sem perfil se quem criou não tem permissão para
+      // definir poder de acesso. Dizer "criado com sucesso" e calar isso deixa
+      // a pessoa sem entrar no sistema, sem ninguém entender por quê.
+      const aviso = resultado?.avisoPerfil as string | undefined;
+      toast(
+        aviso
+          ? { title: 'Usuário criado, mas sem perfil', description: aviso, variant: 'destructive' }
+          : {
+              title: 'Usuário criado',
+              description: 'Já pode entrar no sistema com o e-mail e a senha que você definiu.',
+              variant: 'success',
+            },
+      );
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: 'Não foi possível criar o usuário',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  /** Troca a senha de alguém que esqueceu a dela. */
+  const redefinirSenha = useMutation({
+    mutationFn: async (dados: { userId: string; senha: string }) =>
+      chamarAdminUsuarios({ acao: 'redefinir_senha', user_id: dados.userId, senha: dados.senha }),
+    onSuccess: () => {
+      toast({
+        title: 'Senha trocada',
+        description: 'Passe a senha nova para a pessoa. A antiga não vale mais.',
+        variant: 'success',
+      });
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: 'Não foi possível trocar a senha',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  return { usuarios, definirPapel, definirAtivo, renomear, criarUsuario, redefinirSenha };
 }
 
 /** Exceções de permissão de UMA pessoa. */
