@@ -203,7 +203,7 @@ export default function FinanceiroCaixa() {
     onSuccess: () => {
       setValorAbertura('');
       queryClient.invalidateQueries({ queryKey: ['caixa-sessao'] });
-      toast({ title: 'Caixa aberto' });
+      toast({ title: 'Caixa aberto', variant: 'success' });
     },
     onError: aoFalhar,
   });
@@ -274,7 +274,7 @@ export default function FinanceiroCaixa() {
             : diferenca > 0
               ? `Sobrou ${moeda(diferenca)} na gaveta.`
               : `Faltou ${moeda(Math.abs(diferenca))} na gaveta.`,
-        variant: diferenca === 0 ? undefined : 'destructive',
+        variant: diferenca === 0 ? 'success' : 'destructive',
       });
     },
     onError: aoFalhar,

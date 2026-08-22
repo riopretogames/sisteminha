@@ -118,7 +118,7 @@ export function TrocarEtapaOS({ osId, numeroOs, statusAtual, tipo, totalOrcament
       if (error) throw error;
 
       const nome = statuses.find((s) => s.key === novoStatus)?.label ?? novoStatus;
-      toast({ title: 'Etapa alterada', description: `OS movida para ${nome}.` });
+      toast({ variant: 'success', title: 'Etapa alterada', description: `OS movida para ${nome}.` });
       onMudou();
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Tente novamente.';

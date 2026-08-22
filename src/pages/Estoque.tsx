@@ -222,6 +222,7 @@ export default function Estoque() {
       toast({
         title: 'Produto cadastrado!',
         description: 'O produto foi adicionado com sucesso. Marca, modelo e demais catálogos podem ser completados na ficha do produto.',
+        variant: 'success',
       });
 
       setDialogOpen(false);
@@ -252,6 +253,7 @@ export default function Estoque() {
       toast({
         title: 'Produto excluído',
         description: 'O produto foi removido.',
+        variant: 'success',
       });
 
       fetchProdutos();

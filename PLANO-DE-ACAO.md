@@ -1940,17 +1940,21 @@ provável achar problema.
 
 **🔵 Decisão do Felipe**
 
-- [ ] 🆕 **22/08 — nenhum aviso de sucesso do sistema é verde.** O roteiro
-  descreve dezenas de vezes um "aviso verde" para confirmação (`Produto
-  cadastrado!`, `Cliente cadastrado!`, `Venda finalizada!` etc.), mas o
-  componente de aviso (`src/components/ui/toast.tsx`) só tem duas cores:
-  cinza neutro ("default") e vermelho de erro ("destructive") — verde de
-  sucesso não existe em nenhuma tela, não é um caso isolado. Não muda o
-  funcionamento (a mensagem certa aparece do mesmo jeito, só não colorida),
-  mas quem testa pela cor descrita no roteiro vai estranhar quase toda tela.
-  Fica registrado pra decisão: criar uma terceira cor (verde) pro aviso de
-  sucesso, ou deixar como está e ajustar o roteiro para não prometer cor.
-  Anotado nos passos 3 e 6 do roteiro como exemplo.
+- [x] ✅ **Resolvido em 22/08 — nenhum aviso de sucesso do sistema era
+  verde.** O roteiro descreve dezenas de vezes um "aviso verde" para
+  confirmação (`Produto cadastrado!`, `Cliente cadastrado!`, `Venda
+  finalizada!` etc.), mas o componente de aviso (`src/components/ui/toast.tsx`)
+  só tinha duas cores: cinza neutro ("default") e vermelho de erro
+  ("destructive") — verde de sucesso não existia em nenhuma tela, não era
+  um caso isolado. Felipe decidiu criar a cor. Feito: terceira variante
+  `success` (verde) no componente, aplicada em todos os avisos que
+  confirmam ação concluída com sucesso — cadastro, edição, exclusão,
+  lançamento, entrega, venda, devolução, etc. — em 25 arquivos, um por um,
+  deixando intactos os avisos de erro (vermelho) e os avisos neutros que
+  não confirmam conclusão (ex.: "logo enviada, falta clicar em Salvar" e
+  "importação com falha parcial" continuam cinza de propósito, porque a
+  ação ainda não terminou ou terminou só em parte). `npm run check` limpo
+  depois da mudança.
 
 **Sem ação — nuance, não bug:**
 

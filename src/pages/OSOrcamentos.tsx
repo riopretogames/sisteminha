@@ -96,6 +96,7 @@ export default function OSOrcamentos() {
       toast({
         title: aprovado ? 'Orçamento aprovado' : 'Orçamento recusado',
         description: aprovado ? 'OS liberada para execução.' : 'OS movida para Cancelado.',
+        variant: 'success',
       });
       queryClient.invalidateQueries({ queryKey: ['os-orcamentos'] });
     } catch (error: unknown) {

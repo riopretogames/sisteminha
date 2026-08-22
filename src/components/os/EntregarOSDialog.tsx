@@ -242,6 +242,7 @@ export function EntregarOSDialog({
       toast({
         title: 'OS entregue!',
         description: `OS ${numeroOs} entregue e pagamento registrado.`,
+        variant: 'success',
       });
       onEntregue();
       limparEstado();

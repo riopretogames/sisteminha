@@ -100,7 +100,7 @@ export default function Clientes() {
   const excluir = async (cliente: Cliente) => {
     if (!confirm(`Excluir o cadastro de ${cliente.nome}?`)) return;
     await inativar.mutateAsync(cliente.id);
-    toast({ title: 'Cliente excluído', description: 'O cadastro foi removido da lista.' });
+    toast({ variant: 'success', title: 'Cliente excluído', description: 'O cadastro foi removido da lista.' });
   };
 
   const filtrados = useMemo(() => {

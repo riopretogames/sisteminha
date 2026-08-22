@@ -402,6 +402,7 @@ export default function TrocaDevolucao() {
                 ? `cliente pagou ${moeda(Math.abs(diferenca))} a mais.`
                 : 'troca sem diferença a acertar.'
           }`,
+          variant: 'success',
         });
 
         queryClient.invalidateQueries({ queryKey: ['troca-devolucao-vendas'] });

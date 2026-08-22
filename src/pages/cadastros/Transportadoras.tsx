@@ -174,6 +174,7 @@ export default function Transportadoras() {
         toast({
           title: 'Transportadora atualizada!',
           description: 'Os dados foram salvos com sucesso.',
+          variant: 'success',
         });
       } else {
         const { error } = await supabase
@@ -185,6 +186,7 @@ export default function Transportadoras() {
         toast({
           title: 'Transportadora cadastrada!',
           description: 'A transportadora foi adicionada com sucesso.',
+          variant: 'success',
         });
       }
 
@@ -216,6 +218,7 @@ export default function Transportadoras() {
       toast({
         title: 'Transportadora excluída',
         description: 'A transportadora foi removida.',
+        variant: 'success',
       });
 
       fetchTransportadoras();

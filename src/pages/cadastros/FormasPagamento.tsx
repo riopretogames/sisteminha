@@ -226,6 +226,7 @@ export default function FormasPagamento() {
         toast({
           title: 'Forma de pagamento atualizada!',
           description: 'Os dados foram salvos com sucesso.',
+          variant: 'success',
         });
       } else {
         const { error } = await supabase
@@ -237,6 +238,7 @@ export default function FormasPagamento() {
         toast({
           title: 'Forma de pagamento cadastrada!',
           description: 'A forma de pagamento foi adicionada com sucesso.',
+          variant: 'success',
         });
       }
 
@@ -268,6 +270,7 @@ export default function FormasPagamento() {
       toast({
         title: 'Forma de pagamento excluída',
         description: 'A forma de pagamento foi removida.',
+        variant: 'success',
       });
 
       fetchFormas();

@@ -226,6 +226,7 @@ export default function Fornecedores() {
         toast({
           title: 'Fornecedor atualizado!',
           description: 'Os dados foram salvos com sucesso.',
+          variant: 'success',
         });
       } else {
         const { error } = await supabase
@@ -237,6 +238,7 @@ export default function Fornecedores() {
         toast({
           title: 'Fornecedor cadastrado!',
           description: 'O fornecedor foi adicionado com sucesso.',
+          variant: 'success',
         });
       }
 
@@ -268,6 +270,7 @@ export default function Fornecedores() {
       toast({
         title: 'Fornecedor excluído',
         description: 'O fornecedor foi removido.',
+        variant: 'success',
       });
 
       fetchFornecedores();

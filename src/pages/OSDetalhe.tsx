@@ -354,6 +354,7 @@ export default function OSDetalhe() {
           tipoItem === 'peca'
             ? 'O estoque já foi descontado automaticamente.'
             : 'Item adicionado à OS.',
+        variant: 'success',
       });
 
       setItemDialogOpen(false);
@@ -493,7 +494,7 @@ export default function OSDetalhe() {
         .eq('id', os.id);
       if (error) throw error;
 
-      toast({ title: 'Orçamento salvo!' });
+      toast({ title: 'Orçamento salvo!', variant: 'success' });
       setOrcamento(null);
       queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] });
     } catch (error: unknown) {
@@ -533,7 +534,7 @@ export default function OSDetalhe() {
         .eq('id', os.id);
       if (error) throw error;
 
-      toast({ title: 'Diagnóstico salvo!' });
+      toast({ title: 'Diagnóstico salvo!', variant: 'success' });
       setSuspeitaEdit(null);
       setConstatacaoEdit(null);
       setReparoInviavelEdit(null);
@@ -560,7 +561,7 @@ export default function OSDetalhe() {
         .update({ tecnico_id: tecnicoId || null })
         .eq('id', os.id);
       if (error) throw error;
-      toast({ title: 'Técnico responsável atualizado!' });
+      toast({ title: 'Técnico responsável atualizado!', variant: 'success' });
       queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] });
     } catch (error) {
       toast({

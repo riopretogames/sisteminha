@@ -279,7 +279,7 @@ export default function EstoqueDetalhe() {
         if (ajusteError) throw ajusteError;
       }
 
-      toast({ title: 'Produto atualizado!' });
+      toast({ title: 'Produto atualizado!', variant: 'success' });
       queryClient.invalidateQueries({ queryKey: ['produto-detalhe', id] });
       queryClient.invalidateQueries({ queryKey: ['produto-movimentos', id] });
     } catch (error) {
@@ -304,7 +304,7 @@ export default function EstoqueDetalhe() {
         .eq('id', produto.id);
       if (error) throw error;
 
-      toast({ title: 'Produto excluído' });
+      toast({ title: 'Produto excluído', variant: 'success' });
       navigate('/estoque');
     } catch (error) {
       toast({

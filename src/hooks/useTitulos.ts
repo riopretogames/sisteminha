@@ -162,7 +162,7 @@ export function useTitulos(natureza: NaturezaTitulo) {
     },
     onSuccess: () => {
       invalidar();
-      toast({ title: 'Título baixado' });
+      toast({ title: 'Título baixado', variant: 'success' });
     },
     onError: aoFalhar,
   });

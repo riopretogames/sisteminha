@@ -163,6 +163,7 @@ export default function MinhaEmpresa() {
       toast({
         title: 'Dados salvos!',
         description: 'As informações da loja foram atualizadas.',
+        variant: 'success',
       });
     } catch (error) {
       console.error('Erro ao salvar dados da loja:', error);

@@ -228,6 +228,7 @@ export default function CadastroServicos() {
         toast({
           title: 'Serviço atualizado!',
           description: 'Os dados foram salvos com sucesso.',
+          variant: 'success',
         });
       } else {
         const { error } = await supabase
@@ -239,6 +240,7 @@ export default function CadastroServicos() {
         toast({
           title: 'Serviço cadastrado!',
           description: 'O serviço foi adicionado com sucesso.',
+          variant: 'success',
         });
       }
 
@@ -267,6 +269,7 @@ export default function CadastroServicos() {
       toast({
         title: 'Serviço excluído',
         description: 'O serviço foi removido.',
+        variant: 'success',
       });
 
       fetchServicos();

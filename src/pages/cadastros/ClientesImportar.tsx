@@ -330,6 +330,7 @@ export default function ClientesImportar() {
       toast({
         title: 'Importação concluída!',
         description: `${sucesso} ${sucesso === 1 ? 'cliente cadastrado' : 'clientes cadastrados'} com sucesso.${jaExistiam}`,
+        variant: 'success',
       });
     } else {
       toast({

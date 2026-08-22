@@ -13,8 +13,8 @@
 > migrations do banco de verdade, cada achado com uma segunda checagem
 > independente tentando refutar o primeiro). Resultado: **46 passam exatamente
 > como prometido**. Achados que valeram nota no passo certo, mais abaixo:
-> passos **3** e **6** (o aviso de sucesso não é verde — nenhum aviso do
-> sistema é, veja a nota), **17** (corrigido agora), **29**, **30** e **25**
+> passos **3** e **6** (o aviso de sucesso não saía verde — corrigido, veja a
+> nota), **17** (corrigido agora), **29**, **30** e **25**
 > (três bugs reais achados e já corrigidos: título de OS duplicando ao
 > reentregar, peça de OS cancelada não voltando pro estoque, e cobrança de OS
 > não recusada pra cliente bloqueado como a própria tela promete), e **37**
@@ -64,7 +64,7 @@ Não precisa apagar nada no fim. Tudo que você criar aqui é teste, e o sistema
   **O que fazer:** Abra **Cadastros > Clientes** e clique em **Novo Cliente**. Preencha SÓ o campo **Nome completo \*** com `Teste Balcao 21-08` e clique em **Cadastrar**. Não preencha mais nada.
   **Tem que acontecer:** Aviso verde "Cliente cadastrado! — Teste Balcao 21-08 foi salvo com sucesso.", a janela fecha sozinha e o cliente aparece na lista, com um traço (—) na coluna CPF/CNPJ e nada em Contato. Nenhuma mensagem vermelha de campo obrigatório.
   *Por que importa: é o cadastro de fila — se o sistema exigir CPF ou telefone, o vendedor com cliente esperando desiste e a venda sai sem cliente nenhum.*
-  > 🔎 **Nota do código (22/08):** tudo funciona (só o nome mesmo é obrigatório), mas o aviso não sai verde — hoje o sistema só tem duas cores de aviso, cinza (neutro) e vermelho (erro); verde de sucesso não existe em nenhuma tela. Registrado no plano para o Felipe decidir se vale criar essa cor.
+  > 🔎 **Corrigido em 22/08:** o aviso não saía verde — o sistema só tinha duas cores de aviso, cinza (neutro) e vermelho (erro). Felipe decidiu criar a terceira cor; agora este e todos os avisos de sucesso do sistema saem verdes de verdade.
 
 - [ ] **4. Cliente repetido: CPF e telefone recusam, nome igual só avisa**
   **O que fazer (três tentativas seguidas, todas em Novo Cliente):**
@@ -88,7 +88,7 @@ Não precisa apagar nada no fim. Tudo que você criar aqui é teste, e o sistema
   **O que fazer:** Em **Estoque > Produtos**, clique em **Novo Produto**. Nome `TESTE 21-08 Fone Bluetooth`, Marca `JBL`, Custo `100`, Preço `150`, Estoque Atual `5`, Estoque Mínimo `2`. Clique em **Cadastrar**. Depois abra **Estoque > Movimentações** (o período já vem no mês atual) e procure a linha desse produto.
   **Tem que acontecer:** Aviso verde "Produto cadastrado!", o produto aparece na lista com Preço R$ 150,00, Margem 50,0% em verde e Estoque 5 (antes de salvar, o quadrinho "Margem" dentro da caixa já mostrava 50,0% sozinho). Em Movimentações existe uma linha com etiqueta verde **Entrada**, quantidade **+5 em VERDE**, motivo "Cadastro inicial" e Saldo depois 5.
   *Por que importa: produto salvo torto entra sem preço e alguém vende por R$ 0; e estoque que aparece do nada, sem registro, torna impossível achar erro de contagem depois.*
-  > 🔎 **Nota do código (22/08):** tudo funciona certo, só o aviso não sai verde — mesmo caso do passo 3, é assim em toda tela do sistema hoje.
+  > 🔎 **Corrigido em 22/08:** mesmo caso do passo 3 — o aviso de sucesso agora sai verde.
 
 - [ ] **7. Editar a ficha completa e mudar a quantidade pela ficha**
   **O que fazer:** Clique em cima da linha do `TESTE 21-08 Fone Bluetooth` (a linha inteira abre a ficha). Mude o **Preço** para `180`, escolha Grupo, Marca, Cor e Condição no bloco **Catálogo**, escreva algo em **Observações**. No bloco **Preços e Estoque**, troque Estoque Atual de 5 para `3` e Estoque Mínimo de 2 para `5`. Clique em **Salvar** e desça até **Movimentações recentes**, no pé da página. Depois clique em **Voltar** e reabra a ficha.

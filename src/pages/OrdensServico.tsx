@@ -235,6 +235,7 @@ export default function OrdensServico() {
       toast({
         title: 'Status atualizado',
         description: `OS alterada para ${statusLabel}`,
+        variant: 'success',
       });
     } catch (error) {
       toast({

@@ -712,6 +712,7 @@ export default function PDV() {
       toast({
         title: 'Venda finalizada!',
         description: `Venda ${venda.numero_venda} registrada com sucesso.`,
+        variant: 'success',
         // Produto recebido em troca entra inativo, esperando alguém revisar
         // e definir o preço — sem este atalho, o único jeito de achar era
         // saber que existe o aviso "Aguardando revisão" em Estoque.

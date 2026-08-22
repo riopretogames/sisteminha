@@ -270,7 +270,7 @@ export default function ComprovanteVenda() {
         body: JSON.stringify({ telefone: `${digitos}@s.whatsapp.net`, texto: textoWhatsApp }),
       });
       if (!resposta.ok) throw new Error(`Falha no envio (${resposta.status})`);
-      toast({ title: 'Comprovante enviado por WhatsApp!' });
+      toast({ title: 'Comprovante enviado por WhatsApp!', variant: 'success' });
     } catch (error) {
       toast({
         title: 'Erro ao enviar',

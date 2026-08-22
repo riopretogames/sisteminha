@@ -130,6 +130,7 @@ export default function EstoqueCritico() {
       toast({
         title: 'Estoque reposto!',
         description: `${repondo.nome}: +${quantidade} unidade(s).`,
+        variant: 'success',
       });
       setRepondo(null);
       queryClient.invalidateQueries({ queryKey: ['estoque-critico'] });

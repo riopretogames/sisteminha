@@ -105,6 +105,7 @@ export function useUsuarios() {
         title: 'Acesso atualizado',
         description:
           'Usuário desativado perde acesso a tudo imediatamente, mas o histórico do que ele fez é preservado.',
+        variant: 'success',
       });
     },
     onError: aoFalhar,

@@ -227,6 +227,7 @@ export function StatusManagerDialog({
       toast({
         title: 'Status salvos',
         description: 'As alterações foram salvas com sucesso',
+        variant: 'success',
       });
 
       onStatusesChange();

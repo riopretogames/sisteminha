@@ -338,6 +338,7 @@ export default function NovaOS() {
       toast({
         title: 'OS criada!',
         description: `Ordem de serviço ${os.numero_os} aberta com sucesso.`,
+        variant: 'success',
       });
 
       navigate(`/os/${os.id}`);

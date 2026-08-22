@@ -233,6 +233,7 @@ export function ClienteFormDialog({
       toast({
         title: editando ? 'Cliente atualizado!' : 'Cliente cadastrado!',
         description: `${salvo.nome} foi salvo com sucesso.`,
+        variant: 'success',
       });
 
       onSalvo?.(salvo);
