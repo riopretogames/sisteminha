@@ -19,14 +19,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { PageHeader } from '@/components/PageHeader';
 import { moeda } from '@/lib/format';
 import {
-  buscarDevolucoesDesde,
+  buscarDevolucoesComVendedorDesde,
   somarDevolucoes,
-  type DevolucaoRow,
+  type DevolucaoComVendedor,
 } from '@/lib/faturamento';
 import {
   agrupar,
   porValor,
   porQuantidade,
+  descontar,
   lider,
   horarioDePico,
   faixaDeHora,
@@ -119,7 +120,7 @@ export default function DashboardVenda() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-venda', limites.inicioBusca.toISOString()],
-    queryFn: async (): Promise<{ vendas: VendaRow[]; devolucoes: DevolucaoRow[] }> => {
+    queryFn: async (): Promise<{ vendas: VendaRow[]; devolucoes: DevolucaoComVendedor[] }> => {
       const desde = limites.inicioBusca.toISOString();
       const [resVendas, devolucoes] = await Promise.all([
         supabase
@@ -134,7 +135,7 @@ export default function DashboardVenda() {
           .select('id, created_at, total, valor_faturamento_real, vendedor_id, vendedor:profiles(nome), itens_venda(produto_id, quantidade, total, produtos:vw_produtos(nome, categoria)), pagamentos_venda(valor, formas_pagamento(descricao))')
           .gte('created_at', desde)
           .neq('status', 'cancelado'),
-        buscarDevolucoesDesde(desde),
+        buscarDevolucoesComVendedorDesde(desde),
       ]);
       if (resVendas.error) throw resVendas.error;
       return { vendas: (resVendas.data ?? []) as unknown as VendaRow[], devolucoes };
@@ -208,19 +209,36 @@ export default function DashboardVenda() {
   );
 
   /**
-   * Ranking de vendedores da semana.
+   * Ranking de vendedores da semana, JÁ COM A DEVOLUÇÃO ABATIDA.
    *
-   * ⚠️ Este ranking NÃO desconta devolução, e os cards lá em cima descontam —
-   * então os dois totais não batem, de propósito. O motivo é que a devolução
-   * não guarda quem fez a venda original: descontá-la de alguém seria chute.
-   * Para "quanto a loja faturou", vale o card; aqui vale "quem fechou venda".
+   * A devolução guarda a venda que a originou (`venda_original_id`), e a venda
+   * guarda quem a fechou — então o abatimento cai na conta certa, sem rateio e
+   * sem chute. Assim a soma do ranking bate com o faturamento dos cards, e
+   * ninguém fica em primeiro lugar com dinheiro que já voltou pela porta.
+   *
+   * Régua de data igual à do Caixa e à dos cards (17/08): a devolução pesa na
+   * semana em que ACONTECEU, não na semana da venda original. Por isso alguém
+   * pode aparecer com valor negativo — vendeu antes, devolveram agora — e isso
+   * é a leitura correta do dinheiro que entrou nesta semana.
+   *
+   * Devolução sem venda de origem fica de fora daqui, mas continua pesando no
+   * total da loja lá em cima: não há de quem abater.
    */
   const rankingVendedores = porValor(
-    agrupar(vendasSemana, {
-      chave: (v) => v.vendedor_id,
-      nome: (v) => v.vendedor?.nome,
-      valor: (v) => faturamentoReal(v),
-    }),
+    descontar(
+      agrupar(vendasSemana, {
+        chave: (v) => v.vendedor_id,
+        nome: (v) => v.vendedor?.nome,
+        valor: (v) => faturamentoReal(v),
+      }),
+      devolucoesSemana
+        .filter((d) => d.venda_original?.vendedor_id)
+        .map((d) => ({
+          chave: d.venda_original!.vendedor_id!,
+          nome: d.venda_original!.vendedor?.nome ?? 'Sem nome',
+          valor: Number(d.valor_devolvido_cliente ?? 0),
+        })),
+    ),
   );
   const melhorVendedor = lider(rankingVendedores);
 
@@ -365,7 +383,7 @@ export default function DashboardVenda() {
       <div className="grid gap-6 lg:grid-cols-2">
         <TabelaRanking
           titulo="Ranking de Vendedores"
-          descricao="Quem fechou venda de segunda até hoje. Não desconta devolução — para o faturamento da loja, veja os cards acima."
+          descricao="Quem fechou venda de segunda até hoje, já descontando o que foi devolvido — a devolução é abatida de quem fez a venda original."
           linhas={rankingVendedores}
           rotuloNome="Vendedor"
           rotuloQuantidade="Vendas"

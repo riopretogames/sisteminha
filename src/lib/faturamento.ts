@@ -99,6 +99,38 @@ export async function buscarDevolucoesDesde(deISO: string): Promise<DevolucaoRow
   return (data ?? []) as DevolucaoRow[];
 }
 
+/** Uma devolução, com quem fechou a venda que foi devolvida. */
+export interface DevolucaoComVendedor extends DevolucaoRow {
+  venda_original: {
+    vendedor_id: string | null;
+    vendedor: { nome: string } | null;
+  } | null;
+}
+
+/**
+ * Devoluções do período, já com o vendedor da venda original.
+ *
+ * Existe para o ranking de vendedores poder abater a devolução de quem fez a
+ * venda, em vez de só tirar do total da loja. O caminho é
+ * `devolucoes.venda_original_id -> vendas.vendedor_id`, e o apelido explícito
+ * da chave estrangeira é obrigatório: `devolucoes` aponta DUAS vezes para
+ * `vendas` (a original e a nova, quando é troca), e sem dizer qual o Supabase
+ * recusa a consulta por ambiguidade.
+ *
+ * `venda_original` vem nulo em devolução avulsa — sem venda de origem não há
+ * de quem abater, e ela pesa só no total da loja.
+ */
+export async function buscarDevolucoesComVendedorDesde(
+  deISO: string,
+): Promise<DevolucaoComVendedor[]> {
+  const { data, error } = await supabase
+    .from('devolucoes')
+    .select('created_at, valor_devolvido_cliente, venda_original:vendas!devolucoes_venda_original_id_fkey(vendedor_id, vendedor:profiles(nome))')
+    .gte('created_at', deISO);
+  if (error) throw error;
+  return (data ?? []) as unknown as DevolucaoComVendedor[];
+}
+
 /** Quanto de um produto voltou pela porta, e por qual valor. */
 export interface DevolvidoDoProduto {
   quantidade: number;

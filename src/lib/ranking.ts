@@ -75,6 +75,53 @@ export function porValor(linhas: readonly LinhaRanking[]): LinhaRanking[] {
   );
 }
 
+/** Uma saída de dinheiro que precisa ser abatida de alguém do ranking. */
+export interface Desconto {
+  chave: string;
+  nome: string;
+  valor: number;
+}
+
+/**
+ * Abate devoluções do ranking, na conta de quem fez a venda original.
+ *
+ * Duas decisões que valem explicação:
+ *
+ * 1. A QUANTIDADE NÃO MUDA. A venda aconteceu — a pessoa atendeu, fechou,
+ *    emitiu. O que voltou foi o dinheiro. Zerar a venda também apagaria o
+ *    trabalho, e "vendeu 8, faturou 1.200" com uma devolução no meio é uma
+ *    leitura mais fiel que "vendeu 7".
+ *
+ * 2. QUEM SÓ TEM DEVOLUÇÃO APARECE, com quantidade 0 e valor negativo. É o
+ *    caso de quem vendeu semana passada e teve a devolução agora. Deixá-lo de
+ *    fora esconderia a saída de dinheiro e faria a soma do ranking divergir
+ *    do faturamento da loja — que é justamente o problema que este desconto
+ *    veio resolver.
+ *
+ * Devolução sem venda original identificada não chega aqui: ela pesa no total
+ * da loja, mas não tem dono para abater.
+ */
+export function descontar(
+  linhas: readonly LinhaRanking[],
+  descontos: readonly Desconto[],
+): LinhaRanking[] {
+  const mapa = new Map(linhas.map((l) => [l.chave, { ...l }]));
+
+  for (const d of descontos) {
+    if (!d.chave) continue;
+    const atual = mapa.get(d.chave) ?? {
+      chave: d.chave,
+      nome: d.nome || 'Sem nome',
+      quantidade: 0,
+      valor: 0,
+    };
+    atual.valor -= d.valor;
+    mapa.set(d.chave, atual);
+  }
+
+  return Array.from(mapa.values());
+}
+
 /** Ordena por quantidade. Mesmo critério de desempate, invertido. */
 export function porQuantidade(linhas: readonly LinhaRanking[]): LinhaRanking[] {
   return [...linhas].sort(

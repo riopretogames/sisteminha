@@ -6,6 +6,7 @@ import {
   lider,
   participacao,
   horarioDePico,
+  descontar,
   faixaDeHora,
   type LinhaRanking,
 } from './ranking';
@@ -114,6 +115,61 @@ describe('ordenação', () => {
 
   it('porQuantidade usa a contagem como critério principal', () => {
     expect(porQuantidade(linhas).map((l) => l.nome)).toEqual(['Ana', 'Carla', 'Bruno']);
+  });
+});
+
+describe('descontar', () => {
+  const linhas: LinhaRanking[] = [
+    { chave: 'a', nome: 'Ana', quantidade: 8, valor: 1500 },
+    { chave: 'b', nome: 'Bruno', quantidade: 3, valor: 600 },
+  ];
+
+  it('abate o valor de quem fez a venda original', () => {
+    const r = descontar(linhas, [{ chave: 'a', nome: 'Ana', valor: 300 }]);
+    expect(r.find((l) => l.chave === 'a')!.valor).toBe(1200);
+    expect(r.find((l) => l.chave === 'b')!.valor).toBe(600);
+  });
+
+  it('não mexe na quantidade: a venda aconteceu, o dinheiro é que voltou', () => {
+    const r = descontar(linhas, [{ chave: 'a', nome: 'Ana', valor: 300 }]);
+    expect(r.find((l) => l.chave === 'a')!.quantidade).toBe(8);
+  });
+
+  it('inclui quem só teve devolução, com quantidade 0 e valor negativo', () => {
+    // Vendeu na semana passada, devolveram agora. Deixar de fora esconderia
+    // a saída de dinheiro do ranking.
+    const r = descontar(linhas, [{ chave: 'c', nome: 'Carla', valor: 200 }]);
+    const carla = r.find((l) => l.chave === 'c')!;
+    expect(carla.quantidade).toBe(0);
+    expect(carla.valor).toBe(-200);
+  });
+
+  it('soma várias devoluções da mesma pessoa', () => {
+    const r = descontar(linhas, [
+      { chave: 'a', nome: 'Ana', valor: 100 },
+      { chave: 'a', nome: 'Ana', valor: 250 },
+    ]);
+    expect(r.find((l) => l.chave === 'a')!.valor).toBe(1150);
+  });
+
+  it('deixa o valor negativo quando devolveram mais do que a pessoa vendeu', () => {
+    const r = descontar(linhas, [{ chave: 'b', nome: 'Bruno', valor: 1000 }]);
+    expect(r.find((l) => l.chave === 'b')!.valor).toBe(-400);
+  });
+
+  it('ignora desconto sem chave, em vez de criar linha fantasma', () => {
+    const r = descontar(linhas, [{ chave: '', nome: '', valor: 999 }]);
+    expect(r).toHaveLength(2);
+  });
+
+  it('não altera a lista original', () => {
+    const copia = JSON.parse(JSON.stringify(linhas));
+    descontar(linhas, [{ chave: 'a', nome: 'Ana', valor: 300 }]);
+    expect(linhas).toEqual(copia);
+  });
+
+  it('sem devolução nenhuma, devolve o mesmo ranking', () => {
+    expect(descontar(linhas, [])).toEqual(linhas);
   });
 });
 
