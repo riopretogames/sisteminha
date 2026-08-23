@@ -205,7 +205,26 @@ export default function FinanceiroCaixa() {
       queryClient.invalidateQueries({ queryKey: ['caixa-sessao'] });
       toast({ title: 'Caixa aberto', variant: 'success' });
     },
-    onError: aoFalhar,
+    onError: (error: unknown) => {
+      const msg = error instanceof Error ? error.message : '';
+      // Caixa já aberto não é erro de quem clicou: desde 21/08 a primeira
+      // venda do dia abre o caixa sozinha. Quem estava com esta tela aberta
+      // antes disso continua vendo o formulário de abertura, que a partir
+      // dali nunca mais funciona — e cada clique repete o mesmo aviso.
+      //
+      // Recarregar a sessão tira a pessoa desse beco: a tela troca sozinha
+      // para o caixa que existe, em vez de insistir num formulário morto.
+      if (/idx_caixa_um_aberto|duplicate key/i.test(msg)) {
+        queryClient.invalidateQueries({ queryKey: ['caixa-sessao'] });
+        toast({
+          title: 'O caixa já estava aberto',
+          description:
+            'Alguém abriu, ou a primeira venda do dia abriu sozinha — o sistema faz isso para a venda nunca ficar de fora do caixa. Atualizei a tela para mostrar o caixa aberto.',
+        });
+        return;
+      }
+      aoFalhar(error);
+    },
   });
 
   const lancar = useMutation({
