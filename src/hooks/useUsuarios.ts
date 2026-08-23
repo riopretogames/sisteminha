@@ -22,6 +22,9 @@ export interface UsuarioLinha {
   nome: string;
   email: string | null;
   ativo: boolean;
+  /** Preenchido = saiu da lista do dia a dia, mas o cadastro continua no
+   *  banco para as vendas e OS antigas seguirem mostrando quem atendeu. */
+  arquivado_em: string | null;
   role: Role | null;
 }
 
@@ -57,7 +60,14 @@ async function chamarAdminUsuarios(corpo: Record<string, unknown>) {
   throw new Error(mensagem);
 }
 
-export function useUsuarios() {
+/**
+ * Gestão de usuários.
+ *
+ * @param verArquivados quando true, traz TAMBÉM quem foi arquivado. A lista
+ *   do dia a dia esconde essa gente de propósito — o cadastro fica no banco
+ *   só para o histórico não perder o nome de quem atendeu.
+ */
+export function useUsuarios(verArquivados = false) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -72,13 +82,23 @@ export function useUsuarios() {
     });
   };
 
+  // Sem o prefixo, a lista 'com arquivados' nao recarregaria depois de
+  // arquivar alguem — a chave dela tem o `true` no fim.
   const invalidar = () => queryClient.invalidateQueries({ queryKey: ['usuarios'] });
 
   const usuarios = useQuery({
-    queryKey: ['usuarios'],
+    queryKey: ['usuarios', verArquivados],
     queryFn: async (): Promise<UsuarioLinha[]> => {
+      const consulta = supabase
+        .from('profiles')
+        .select('id, nome, email, ativo, arquivado_em')
+        .order('nome');
+      // `is('arquivado_em', null)` e nao `neq`: em SQL, comparar com nulo
+      // nunca da verdadeiro, e a lista voltaria vazia.
+      if (!verArquivados) consulta.is('arquivado_em', null);
+
       const [{ data: perfis, error: e1 }, { data: papeis, error: e2 }] = await Promise.all([
-        supabase.from('profiles').select('id, nome, email, ativo').order('nome'),
+        consulta,
         supabase.from('user_roles').select('user_id, role'),
       ]);
       if (e1) throw e1;
@@ -91,6 +111,7 @@ export function useUsuarios() {
         nome: p.nome,
         email: p.email,
         ativo: p.ativo ?? true,
+        arquivado_em: p.arquivado_em ?? null,
         role: papelDe.get(p.id) ?? null,
       }));
     },
@@ -212,15 +233,51 @@ export function useUsuarios() {
       chamarAdminUsuarios({ acao: 'excluir', user_id: userId }),
     onSuccess: (resultado) => {
       invalidar();
+      // Dizer QUAL caminho o sistema tomou importa: "excluído" e "arquivado"
+      // são coisas diferentes, e quem clicou precisa saber que o histórico
+      // continua lá — senão vai procurar a venda achando que sumiu.
+      if (resultado?.modo === 'arquivado') {
+        toast({
+          title: 'Usuário arquivado',
+          description:
+            `${resultado?.nome ?? 'A pessoa'} saiu da lista e perdeu o acesso, mas ` +
+            `${resultado?.preservado ?? 'o histórico'} continua no sistema, com o nome dela. ` +
+            'Para ver de novo, use "Mostrar arquivados".',
+          variant: 'success',
+        });
+      } else {
+        toast({
+          title: 'Usuário excluído',
+          description: `${resultado?.nome ?? 'A conta'} não tinha nenhum movimento e foi apagada de vez.`,
+          variant: 'success',
+        });
+      }
+    },
+    onError: (error: unknown) => {
       toast({
-        title: 'Usuário excluído',
-        description: `${resultado?.nome ?? 'A conta'} não existe mais no sistema.`,
+        title: 'Não foi possível excluir',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  /** Traz de volta para a lista quem foi arquivado por engano. */
+  const desarquivarUsuario = useMutation({
+    mutationFn: async (userId: string) =>
+      chamarAdminUsuarios({ acao: 'desarquivar', user_id: userId }),
+    onSuccess: () => {
+      invalidar();
+      toast({
+        title: 'De volta à lista',
+        description:
+          'A pessoa voltou a aparecer, mas continua INATIVA — voltar para a lista é uma coisa, voltar a ter acesso é outra. Ligue "Ativo" se for o caso.',
         variant: 'success',
       });
     },
     onError: (error: unknown) => {
       toast({
-        title: 'Não foi possível excluir',
+        title: 'Não foi possível trazer de volta',
         description: error instanceof Error ? error.message : 'Erro desconhecido',
         variant: 'destructive',
       });
@@ -235,6 +292,7 @@ export function useUsuarios() {
     criarUsuario,
     redefinirSenha,
     excluirUsuario,
+    desarquivarUsuario,
   };
 }
 

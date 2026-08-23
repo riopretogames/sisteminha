@@ -1629,6 +1629,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          arquivado_em: string | null
           ativo: boolean | null
           avatar_url: string | null
           created_at: string | null
@@ -1641,6 +1642,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          arquivado_em?: string | null
           ativo?: boolean | null
           avatar_url?: string | null
           created_at?: string | null
@@ -1653,6 +1655,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          arquivado_em?: string | null
           ativo?: boolean | null
           avatar_url?: string | null
           created_at?: string | null

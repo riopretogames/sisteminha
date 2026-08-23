@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Loader2, Search, ShieldCheck, UserCog, RotateCcw, MessageSquare,
-  Plus, KeyRound, Eye, EyeOff, Dices, Trash2, AlertTriangle,
+  Plus, KeyRound, Eye, EyeOff, Dices, Trash2, AlertTriangle, Archive, Undo2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -55,6 +55,7 @@ interface PermissaoCatalogo {
 }
 
 export default function Usuarios() {
+  const [verArquivados, setVerArquivados] = useState(false);
   const {
     usuarios,
     definirPapel,
@@ -63,7 +64,8 @@ export default function Usuarios() {
     criarUsuario,
     redefinirSenha,
     excluirUsuario,
-  } = useUsuarios();
+    desarquivarUsuario,
+  } = useUsuarios(verArquivados);
   const { can } = useAuth();
   const podeGerenciar = can(PERMISSIONS.USERS_MANAGE);
   const [busca, setBusca] = useState('');
@@ -91,14 +93,23 @@ export default function Usuarios() {
         }
       />
 
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-        <Input
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Procurar por nome ou e-mail..."
-          className="pl-9"
-        />
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[220px] flex-1">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Procurar por nome ou e-mail..."
+            className="pl-9"
+          />
+        </div>
+        <Button
+          variant={verArquivados ? 'default' : 'outline'}
+          onClick={() => setVerArquivados((v) => !v)}
+        >
+          <Archive className="mr-2 h-4 w-4" />
+          {verArquivados ? 'Ocultar arquivados' : 'Mostrar arquivados'}
+        </Button>
       </div>
 
       {usuarios.isLoading ? (
@@ -123,12 +134,14 @@ export default function Usuarios() {
                   <Badge
                     variant="secondary"
                     className={
-                      u.ativo
-                        ? 'bg-emerald-500/10 text-emerald-600'
-                        : 'bg-muted text-muted-foreground'
+                      u.arquivado_em
+                        ? 'bg-amber-500/10 text-amber-700'
+                        : u.ativo
+                          ? 'bg-emerald-500/10 text-emerald-600'
+                          : 'bg-muted text-muted-foreground'
                     }
                   >
-                    {u.ativo ? 'Ativo' : 'Inativo'}
+                    {u.arquivado_em ? 'Arquivado' : u.ativo ? 'Ativo' : 'Inativo'}
                   </Badge>
                 </div>
 
@@ -137,10 +150,22 @@ export default function Usuarios() {
                     <ShieldCheck className="h-3.5 w-3.5" />
                     {rotuloDoPapel(u.role)}
                   </span>
-                  <Button size="sm" variant="outline" onClick={() => setEditando(u)}>
-                    <UserCog className="mr-1.5 h-3.5 w-3.5" />
-                    Gerenciar
-                  </Button>
+                  {u.arquivado_em ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => desarquivarUsuario.mutate(u.id)}
+                      disabled={desarquivarUsuario.isPending}
+                    >
+                      <Undo2 className="mr-1.5 h-3.5 w-3.5" />
+                      Trazer de volta
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => setEditando(u)}>
+                      <UserCog className="mr-1.5 h-3.5 w-3.5" />
+                      Gerenciar
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -227,7 +252,6 @@ function BlocoExcluir({
 
   const temRastro = (historico?.total ?? 0) > 0;
   const ultimoAdmin = historico?.e_ultimo_admin === true;
-  const bloqueado = temRastro || ultimoAdmin;
 
   const PARTES: [keyof NonNullable<typeof historico>, string][] = [
     ['vendas', 'venda(s)'],
@@ -247,40 +271,61 @@ function BlocoExcluir({
     <div
       className={cn(
         'rounded-lg border p-3',
-        bloqueado ? 'border-border' : 'border-destructive/40 bg-destructive/5',
+        ultimoAdmin ? 'border-border' : 'border-destructive/40 bg-destructive/5',
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-medium">Excluir do sistema</p>
+          <p className="text-sm font-medium">
+            {temRastro ? 'Tirar da lista' : 'Excluir do sistema'}
+          </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {ultimoAdmin
-              ? 'Este é o último administrador ativo. Excluí-lo trancaria todo mundo do lado de fora, sem ninguém para dar permissão a ninguém.'
+              ? 'Este é o último administrador ativo. Tirá-lo trancaria todo mundo do lado de fora, sem ninguém para dar permissão a ninguém.'
               : temRastro
-                ? `Não dá: existem ${resumo} no nome desta pessoa. Apagar deixaria esses registros sem autor para sempre. Use Desativar aqui embaixo — tira o acesso na hora e preserva o histórico.`
-                : 'Esta pessoa não tem nenhum movimento no sistema, então dá para apagar sem quebrar nada. Não tem volta.'}
+                ? `Sai da lista e perde o acesso — mas ${resumo} continua no sistema, com o nome dele. É de propósito: sem o cadastro, a venda antiga ficaria sem ninguém, e nunca mais daria para saber quem atendeu.`
+                : 'Esta pessoa não tem nenhum movimento no sistema, então o cadastro é apagado de vez. Não tem volta.'}
           </p>
         </div>
-        {!bloqueado && !confirmando && (
+        {!ultimoAdmin && !confirmando && (
           <Button
             size="sm"
             variant="destructive"
             className="flex-shrink-0"
             onClick={() => setConfirmando(true)}
           >
-            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-            Excluir
+            {temRastro ? (
+              <>
+                <Archive className="mr-1.5 h-3.5 w-3.5" />
+                Arquivar
+              </>
+            ) : (
+              <>
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                Excluir
+              </>
+            )}
           </Button>
         )}
       </div>
 
-      {!bloqueado && confirmando && (
+      {!ultimoAdmin && confirmando && (
         <div className="mt-3 rounded-md border border-destructive/40 bg-background p-3">
           <p className="flex items-start gap-2 text-sm">
             <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-destructive" />
             <span>
-              Apagar <strong>{nome}</strong> de vez? A conta de acesso e o cadastro somem,
-              e isso não tem como desfazer.
+              {temRastro ? (
+                <>
+                  Tirar <strong>{nome}</strong> da lista? O acesso acaba na hora. O que
+                  ele já fez continua registrado, e você pode trazê-lo de volta em
+                  &quot;Mostrar arquivados&quot;.
+                </>
+              ) : (
+                <>
+                  Apagar <strong>{nome}</strong> de vez? A conta e o cadastro somem, e isso
+                  não tem como desfazer.
+                </>
+              )}
             </span>
           </p>
           <div className="mt-3 flex justify-end gap-2">
@@ -294,7 +339,7 @@ function BlocoExcluir({
             </Button>
             <Button size="sm" variant="destructive" onClick={onExcluir} disabled={excluindo}>
               {excluindo && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-              Apagar de vez
+              {temRastro ? 'Arquivar' : 'Apagar de vez'}
             </Button>
           </div>
         </div>

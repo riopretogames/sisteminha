@@ -117,7 +117,10 @@ export default function DashboardMetas() {
         // Não existe FK declarada entre vendas.vendedor_id e profiles — busca
         // à parte e junta no client por id (mesmo padrão de itens órfãos já
         // usado em DashboardVenda.tsx).
-        supabase.from('profiles').select('id, nome'),
+        // Quem foi arquivado saiu da loja: nao entra em meta de equipe. (A tela
+        // de Logs faz o contrario de proposito -- la o nome do arquivado
+        // precisa aparecer para o historico nao ficar anonimo.)
+        supabase.from('profiles').select('id, nome').is('arquivado_em', null),
       ]);
       if (metasRes.error) throw metasRes.error;
       if (vendasRes.error) throw vendasRes.error;

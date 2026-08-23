@@ -220,35 +220,82 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── QUEM TEM RASTRO É ARQUIVADO, NÃO APAGADO ──────────────────────────
+    //
+    // Decisão do Felipe em 23/08: tem que dar para tirar qualquer um da tela,
+    // SEM perder as vendas e OS que a pessoa fez.
+    //
+    // Apagar de verdade não serviria: `profiles.id` aponta para a conta de
+    // acesso em cascata, então apagar a conta apaga o cadastro, e aí
+    // `vendas.vendedor_id` vira NULL — a venda fica sem ninguém, para sempre,
+    // e o banco faz isso sem reclamar. Arquivar mantém o cadastro no lugar, e
+    // toda venda antiga segue mostrando quem atendeu.
     if (Number(h.total ?? 0) > 0) {
+      const { error: erroArquivar } = await comoUsuario
+        .from('profiles')
+        .update({ arquivado_em: new Date().toISOString() })
+        .eq('id', userId);
+
+      if (erroArquivar) {
+        // O gatilho do último administrador manda a mensagem pronta; erro de
+        // permissão do RLS vira uma frase que quem atende entende.
+        const m = erroArquivar.message ?? '';
+        return erro(
+          /row-level security|policy/i.test(m)
+            ? 'Seu perfil de acesso não permite alterar usuários.'
+            : m,
+          409,
+        );
+      }
+
       const ROTULOS: Record<string, string> = {
         vendas: 'venda(s)',
         ordens_servico: 'ordem(ns) de serviço',
         movimentos_estoque: 'movimentação(ões) de estoque',
-        caixa: 'abertura(s)/fechamento(s) de caixa',
+        caixa: 'abertura(s) de caixa',
         entradas_mercadoria: 'entrada(s) de mercadoria',
-        auditoria: 'registro(s) no histórico do sistema',
+        auditoria: 'registro(s) no histórico',
       };
       const partes = Object.entries(ROTULOS)
         .filter(([chave]) => Number(h[chave] ?? 0) > 0)
         .map(([chave, rotulo]) => `${h[chave]} ${rotulo}`);
 
-      return erro(
-        `Não dá para excluir ${alvo.nome}: existem ${partes.join(', ')} no nome dele. ` +
-          'Apagar deixaria esses registros sem autor para sempre — ninguém mais saberia quem atendeu. ' +
-          'Use Desativar: tira o acesso na hora e preserva o histórico.',
-        409,
-      );
+      return responder({
+        id: userId,
+        nome: alvo.nome,
+        modo: 'arquivado',
+        preservado: partes.join(', '),
+      });
     }
 
-    // Apagar da conta de acesso derruba o cadastro junto (o vínculo é em
-    // cascata), então uma chamada resolve as duas coisas.
+    // Sem rastro nenhum: apaga de verdade. Não há o que preservar, e cadastro
+    // morto acumulado no banco é sujeira. A conta de acesso leva o cadastro
+    // junto pela cascata, então uma chamada resolve as duas coisas.
     const { error: erroExcluir } = await comoServidor.auth.admin.deleteUser(userId);
     if (erroExcluir) {
       return erro('Não foi possível excluir: ' + (erroExcluir.message ?? ''), 500);
     }
 
-    return responder({ id: userId, nome: alvo.nome });
+    return responder({ id: userId, nome: alvo.nome, modo: 'apagado' });
+  }
+
+  // ── Trazer de volta alguém arquivado ─────────────────────────────────────
+  //
+  // Arquivar sem desarquivar seria uma porta só de ida: a pessoa some da lista
+  // e ninguém mais a alcança para corrigir o engano.
+  if (acao === 'desarquivar') {
+    const userId = String(corpo.user_id ?? '');
+    if (!userId) return erro('Informe quem trazer de volta.');
+
+    const { error: erroVolta } = await comoUsuario
+      .from('profiles')
+      .update({ arquivado_em: null })
+      .eq('id', userId);
+    if (erroVolta) return erro('Não foi possível trazer de volta: ' + erroVolta.message, 500);
+
+    // Continua INATIVO de propósito: voltar para a lista é uma coisa, voltar a
+    // ter acesso ao sistema é outra, e quem decide isso é quem está olhando.
+    return responder({ id: userId });
   }
 
   return erro('Ação desconhecida.');
