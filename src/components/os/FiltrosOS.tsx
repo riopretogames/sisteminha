@@ -52,7 +52,7 @@ export function FiltrosOS({ valores, onChange, tecnicos = [], resultados }: Prop
 
   return (
     <Card className="mb-6 overflow-hidden">
-      <div className="flex items-center justify-between gap-2 bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2.5 text-white">
+      <div className="flex items-center justify-between gap-2 bg-slate-800 px-4 py-2.5 text-white dark:bg-slate-700">
           <p className="flex items-center gap-2 text-sm font-semibold">
             <Filter className="h-4 w-4" />
             Filtros

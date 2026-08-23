@@ -531,10 +531,10 @@ function DialogNovoUsuario({
         </div>
 
         <div className="flex justify-end gap-2 pt-2">
-          <Button variant="outline" onClick={onFechar} disabled={salvando}>
+          <Button variant="cancelar" onClick={onFechar} disabled={salvando}>
             Cancelar
           </Button>
-          <Button disabled={!podeSalvar} onClick={confirmar}>
+          <Button variant="sucesso" disabled={!podeSalvar} onClick={confirmar}>
             {salvando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Criar usuário
           </Button>
@@ -722,7 +722,7 @@ function DialogUsuario({
                   >
                     Cancelar
                   </Button>
-                  <Button
+                  <Button variant="sucesso"
                     size="sm"
                     disabled={senhaNova.length < SENHA_MINIMA || trocandoSenha}
                     onClick={() => {
@@ -942,7 +942,7 @@ function MotivoExcecao({
           className="text-sm"
         />
         <div className="flex justify-end">
-          <Button
+          <Button variant="sucesso"
             size="sm"
             disabled={salvando}
             onClick={() => {

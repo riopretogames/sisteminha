@@ -549,10 +549,10 @@ function DialogNovaEntrada({ onFechar }: { onFechar: () => void }) {
         </div>
 
         <div className="flex justify-end gap-2 pt-2">
-          <Button variant="outline" onClick={onFechar} disabled={salvar.isPending}>
+          <Button variant="cancelar" onClick={onFechar} disabled={salvar.isPending}>
             Cancelar
           </Button>
-          <Button disabled={!podeSalvar} onClick={() => salvar.mutate()}>
+          <Button variant="sucesso" disabled={!podeSalvar} onClick={() => salvar.mutate()}>
             {salvar.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Dar entrada
           </Button>

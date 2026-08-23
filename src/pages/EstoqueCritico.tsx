@@ -268,7 +268,7 @@ export default function EstoqueCritico() {
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRepondo(null)}>Cancelar</Button>
+            <Button variant="cancelar" onClick={() => setRepondo(null)}>Cancelar</Button>
             <Button onClick={confirmarReposicao} disabled={salvando}>
               {salvando ? 'Salvando…' : 'Confirmar reposição'}
             </Button>

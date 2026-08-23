@@ -262,7 +262,7 @@ export function TitulosPage({ natureza }: { natureza: NaturezaTitulo }) {
                 <Button variant="outline" onClick={() => setAberto(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={salvar} disabled={criar.isPending}>
+                <Button variant="sucesso" onClick={salvar} disabled={criar.isPending}>
                   {criar.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Salvar
                 </Button>

@@ -406,7 +406,7 @@ export default function FinanceiroCaixa() {
                   <Button variant="outline" onClick={() => setMovAberto(false)}>
                     Cancelar
                   </Button>
-                  <Button onClick={() => lancar.mutate()} disabled={lancar.isPending}>
+                  <Button variant="sucesso" onClick={() => lancar.mutate()} disabled={lancar.isPending}>
                     {lancar.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Lançar
                   </Button>

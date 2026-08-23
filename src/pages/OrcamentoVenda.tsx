@@ -272,7 +272,7 @@ export default function OrcamentoVenda() {
                 <RotateCcw className="mr-2 h-4 w-4" />
                 Nova simulação
               </Button>
-              <Button
+              <Button variant="neutra"
                 className="flex-1"
                 disabled={cart.length === 0}
                 onClick={() => window.print()}

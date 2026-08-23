@@ -43,9 +43,12 @@
     --muted: 210 40% 96%;
     --muted-foreground: 215 16% 47%;
 
-    /* Accent */
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
+    /* Accent - o DESTAQUE (aba ativa, linha em foco, item selecionado).
+       Ate 23/08 era cinza: destacar nao destacava nada, e o Felipe notou
+       ("muitas coisas sem cores tambem"). Agora e um azul bem claro --
+       aparece sem gritar, e continua legivel com texto escuro em cima. */
+    --accent: 214 95% 93%;
+    --accent-foreground: 217 91% 30%;
 
     /* Border & Input */
     --border: 214 32% 91%;
@@ -165,7 +168,10 @@
   }
   .status-aguardando-peca,
   .status-aguardando-aprovacao {
-    @apply bg-orange-500/10 text-orange-600 border-orange-500/20;
+    /* Ambar, nao laranja: sao os dois estados em que a OS esta parada
+       esperando alguem de fora. Aqui a cor SIGNIFICA -- e o aviso. O laranja
+       que saiu em 23/08 foi o decorativo, das barras de filtro. */
+    @apply bg-amber-500/10 text-amber-700 border-amber-500/20 dark:text-amber-400;
   }
   .status-em-reparo {
     @apply bg-violet-500/10 text-violet-600 border-violet-500/20;
@@ -200,6 +206,9 @@
     @apply bg-gradient-to-br from-green-500 to-emerald-600;
   }
   .kpi-estoque {
-    @apply bg-gradient-to-br from-orange-500 to-amber-600;
+    /* Era laranja ate 23/08. Saiu a pedido do Felipe, e o ciano entrou por
+       ser a unica cor ainda sem significado no sistema -- assim nao briga
+       com o verde (dinheiro), o roxo (bancada) nem o ambar (aviso). */
+    @apply bg-gradient-to-br from-cyan-500 to-teal-600;
   }
 }

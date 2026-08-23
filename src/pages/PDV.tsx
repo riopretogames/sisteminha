@@ -1412,7 +1412,7 @@ export default function PDV() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={cancelarCheckout}>
+            <Button variant="cancelar" onClick={cancelarCheckout}>
               Cancelar
             </Button>
             <Button

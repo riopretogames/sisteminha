@@ -339,7 +339,7 @@ export default function ComprovanteVenda() {
               Térmica 80mm
             </button>
           </div>
-          <Button onClick={() => window.print()}>
+          <Button variant="neutra" onClick={() => window.print()}>
             <Printer className="mr-2 h-4 w-4" />
             Imprimir
           </Button>

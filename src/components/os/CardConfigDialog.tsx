@@ -90,7 +90,7 @@ export function CardConfigDialog({ open, onOpenChange }: CardConfigDialogProps) 
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSave}>Salvar</Button>
+            <Button variant="sucesso" onClick={handleSave}>Salvar</Button>
           </div>
         </DialogFooter>
       </DialogContent>

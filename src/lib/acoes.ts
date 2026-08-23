@@ -9,11 +9,27 @@
  * -----------------------------------------------------------------------------
  * O padrão
  * -----------------------------------------------------------------------------
- *   VERDE     confirmar, aprovar, concluir, finalizar, receber
+ *   VERDE     SALVAR, confirmar, aprovar, concluir, finalizar, receber
+ *   AZUL      criar/abrir algo novo (Nova venda, Nova OS, Novo usuário)
  *   VERMELHO  cancelar, excluir, recusar, bloquear, estornar
- *   ÂMBAR     interromper sem destruir: colocar em espera, devolver para a fila
- *   AZUL      ação principal e neutra da tela (abrir OS, nova venda, salvar)
+ *   ÂMBAR     avisos, e ação que interrompe sem destruir (colocar em espera)
+ *   PRETO     ação neutra de peso: imprimir, exportar, gerar
  *   CINZA     ação secundária (voltar, fechar, limpar filtro)
+ *
+ * -----------------------------------------------------------------------------
+ * O que mudou em 23/08, e por quê
+ * -----------------------------------------------------------------------------
+ * O Felipe olhou o sistema e disse: "tem muitos botões em azul". Estava certo,
+ * e a causa era esta regra: até aqui o AZUL cobria "ação principal E salvar".
+ * Salvar é a ação mais comum do sistema inteiro — enquanto ela foi azul, quase
+ * todo botão era azul, e a cor deixou de dizer qualquer coisa.
+ *
+ * Salvar passou para o VERDE. O azul ficou só para começar coisa nova, que é
+ * um punhado de botões. Entrou o PRETO para o que não confirma nem desfaz
+ * (imprimir, exportar), e o âmbar assumiu também os avisos.
+ *
+ * Contado antes da mudança: 121 botões azuis, 1 verde, 0 âmbar. A regra
+ * existia desde 09/08 e quase nunca tinha sido aplicada.
  *
  * -----------------------------------------------------------------------------
  * Como usar
@@ -47,7 +63,15 @@ export const VARIANTE_POR_ACAO = {
   aguardar: 'alerta',
   devolver: 'alerta',
 
+  salvar: 'sucesso',
+
+  criar: 'default',
+  abrir: 'default',
   principal: 'default',
+
+  imprimir: 'neutra',
+  exportar: 'neutra',
+
   secundaria: 'outline',
 } as const;
 

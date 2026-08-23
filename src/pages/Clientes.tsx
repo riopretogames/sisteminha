@@ -171,7 +171,7 @@ export default function Clientes() {
               />
               {!search && podeGerenciar && (
                 <div className="flex justify-center pb-8">
-                  <Button onClick={abrirNovo}>
+                  <Button variant="sucesso" onClick={abrirNovo}>
                     <Plus className="mr-2 h-4 w-4" />
                     Cadastrar Cliente
                   </Button>

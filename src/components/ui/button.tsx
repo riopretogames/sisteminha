@@ -15,12 +15,26 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        // Verde = confirmar, aprovar, concluir. Regra do Felipe (09/08): a cor
-        // do botão ensina o que ele faz, no sistema inteiro. Ver `lib/acoes.ts`.
+        // Verde = SALVAR, confirmar, aprovar, concluir. Regra do Felipe
+        // (09/08, revista em 23/08): a cor do botão ensina o que ele faz, no
+        // sistema inteiro. Ver `lib/acoes.ts`.
+        //
+        // Em 23/08 o "salvar" MUDOU de azul para verde, e essa troca sozinha
+        // resolve o "tudo azul": salvar é a ação mais comum do sistema, então
+        // enquanto ela foi azul, quase todo botão era azul.
         sucesso: "bg-emerald-600 text-white hover:bg-emerald-700",
         // Âmbar = ação que interrompe sem destruir (recusar orçamento, colocar
         // em espera). Nem verde, nem vermelho.
         alerta: "bg-amber-500 text-white hover:bg-amber-600",
+        // Preto = ação neutra de peso: imprimir, exportar, gerar. Não confirma
+        // nada e não desfaz nada, mas também não é secundária.
+        neutra: "bg-slate-800 text-white hover:bg-slate-900",
+        // Vermelho contornado = CANCELAR de diálogo. É vermelho, como o Felipe
+        // pediu, sem competir com o botão principal ao lado: sair de um
+        // formulário não é o mesmo peso que apagar um cadastro, e dois botões
+        // sólidos brigando fazem a pessoa clicar no errado com pressa.
+        cancelar:
+          "border border-destructive/40 bg-transparent text-destructive hover:bg-destructive/10",
       },
       size: {
         default: "h-10 px-4 py-2",
