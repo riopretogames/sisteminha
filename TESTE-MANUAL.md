@@ -1,6 +1,6 @@
 # O que só você pode testar
 
-**Tempo: 1h20 a 1h40.** São 22 testes.
+**Tempo: 1h40 a 2h.** São 28 testes.
 
 Este documento é diferente do `ROTEIRO-DE-TESTE.md`. Aquele tem 61 passos e
 cobre o sistema inteiro — mas **46 deles já foram conferidos no código e no
@@ -220,6 +220,64 @@ Nada disso pode ser verificado sem olhar o papel (ou a prévia de impressão).
   **Configurações > Minha Empresa**.
   *Essas telas usavam um atalho de programação que foi removido. A remoção foi
   verificada, mas é o tipo de mudança que só a tela confirma.*
+
+---
+
+## Parte 5 — Entrada de mercadoria (20 min)
+
+Tela nova, feita em 23/08 em cima do que você me contou sobre como a loja
+recebe. A lógica eu testei no banco e as onze verificações passaram — falta a
+tela. Faça esta parte como **administrador**.
+
+Antes de começar: precisa existir pelo menos **um fornecedor cadastrado** em
+Cadastros > Fornecedores. Se não tiver, cadastre um qualquer.
+
+- [ ] **23. Anote o antes**
+  Em **Estoque > Produtos**, escolha um produto que **tenha estoque e tenha
+  custo**. Anote no papel: o **nome**, quantas **unidades** tem, e o **custo**.
+  *Sem esse número anotado, os dois testes seguintes não têm como ser
+  conferidos.*
+
+- [ ] **24. Dar entrada**
+  Abra **Estoque > Entrada de Mercadoria** e clique em **Nova entrada**.
+  Escolha o fornecedor, **deixe a nota fiscal em branco**, procure o produto do
+  teste 23 e adicione. Ponha quantidade **10** e preço de compra bem diferente
+  do custo atual (se o custo é R$ 20, ponha R$ 50).
+  **Tem que acontecer:** aparece uma linha embaixo do item avisando que o custo
+  vai passar de X para Y, **antes** de você salvar — e Y fica **entre** o custo
+  antigo e o preço novo, nunca igual ao preço novo.
+  Salve.
+  **Tem que acontecer:** aviso verde, e a entrada aparece na lista como
+  `EM0001`, com a coluna Nota fiscal dizendo **"ainda não chegou"**.
+
+- [ ] **25. Conferir o estoque e o custo**
+  Volte em **Estoque > Produtos** e ache o produto.
+  **Tem que acontecer:** o estoque é o que você anotou **+ 10**, e o custo é o
+  valor Y que a tela avisou — **não** o preço que você digitou.
+  *Este é o coração da decisão que você tomou hoje. Se o custo tivesse virado
+  os R$ 50 cheios, tudo que já estava na prateleira passaria a "valer" R$ 50 e
+  sua margem apareceria errada.*
+
+- [ ] **26. A compra caiu no financeiro, já paga**
+  Abra **Financeiro > Contas a Pagar** (ou Títulos).
+  **Tem que acontecer:** existe um lançamento **"Compra de mercadoria EM0001"**
+  no valor de 10 × o preço que você digitou, com status **pago**, apontando
+  para o fornecedor, e a observação dizendo **"Nota fiscal ainda não
+  recebida"**.
+
+- [ ] **27. Divergência não trava a entrada**
+  Faça outra entrada. Adicione um produto e, no campo **"Veio diferente do
+  pedido?"**, escreva `Vieram 2 a menos`.
+  **Tem que acontecer:** o sistema **deixa salvar normalmente** — não bloqueia.
+  Na lista, a entrada aparece com uma tarja **divergência**.
+  **NÃO PODE:** o sistema recusar a entrada.
+  *A mercadoria já está fisicamente na loja. Se o sistema segurasse a entrada,
+  o estoque na tela mentiria sobre o que tem na prateleira.*
+
+- [ ] **28. Entrada sem produto nenhum é barrada**
+  Comece uma entrada nova, escolha o fornecedor e **não adicione nenhum
+  produto**.
+  **Tem que acontecer:** o botão **Dar entrada** fica desabilitado.
 
 ---
 
