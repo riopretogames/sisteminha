@@ -11,6 +11,10 @@ import {
   ListChecks,
   AlarmClock,
   Clock,
+  Hammer,
+  Cog,
+  Ban,
+  Coins,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -18,7 +22,15 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { PageHeader } from '@/components/PageHeader';
 import { moeda, data as formatarData } from '@/lib/format';
-import { agrupar, porValor, porQuantidade, lider, horarioDePico, faixaDeHora } from '@/lib/ranking';
+import {
+  agrupar,
+  porValor,
+  porQuantidade,
+  chaveDeTexto,
+  lider,
+  horarioDePico,
+  faixaDeHora,
+} from '@/lib/ranking';
 import { TabelaRanking, CardIndicador } from '@/components/dashboards/TabelaRanking';
 
 /**
@@ -47,6 +59,7 @@ interface OSRow {
   updated_at: string | null;
   data_finalizacao: string | null;
   status: string;
+  reparo_inviavel: boolean | null;
   total_orcamento: number | null;
   valor_final_pago: number | null;
   tecnico_id: string | null;
@@ -54,6 +67,23 @@ interface OSRow {
   equipamento_id: string | null;
   equipamento: { descricao: string } | null;
   clientes: { nome: string } | null;
+  itens: ItemOSRow[] | null;
+}
+
+/**
+ * Um item lancado na OS.
+ *
+ * A diferenca entre peca e servico e so o `produto_id`: peca aponta para o
+ * cadastro de produto, servico vem com ele NULO e o nome so no texto. Nao
+ * existe `servico_id` -- a tela deixa puxar do catalogo, mas grava o nome
+ * copiado, entao o ranking de servico agrupa por texto.
+ */
+interface ItemOSRow {
+  descricao: string | null;
+  produto_id: string | null;
+  quantidade: number | null;
+  preco_cobrado: number | null;
+  horas_mao_obra: number | null;
 }
 
 /**
@@ -85,8 +115,11 @@ const ROTULO_ETAPA: Record<string, string> = {
 const rotuloEtapa = (chave: string) =>
   ROTULO_ETAPA[chave] ?? chave.replace(/_/g, ' ');
 
+// Numa linha so: o TypeScript le este texto literalmente para saber o formato
+// do resultado. `itens:vw_os_itens(...)` obedece a regra de custo protegido --
+// leitura de item de OS passa SEMPRE pela view, mesmo sem pedir custo.
 const CAMPOS =
-  'id, numero_os, created_at, updated_at, data_finalizacao, status, total_orcamento, valor_final_pago, tecnico_id, tecnico:profiles!service_orders_tecnico_id_fkey(nome), equipamento_id, equipamento:catalogos!service_orders_equipamento_id_fkey(descricao), clientes(nome)';
+  'id, numero_os, created_at, updated_at, data_finalizacao, status, reparo_inviavel, total_orcamento, valor_final_pago, tecnico_id, tecnico:profiles!service_orders_tecnico_id_fkey(nome), equipamento_id, equipamento:catalogos!service_orders_equipamento_id_fkey(descricao), clientes(nome), itens:vw_os_itens(descricao, produto_id, quantidade, preco_cobrado, horas_mao_obra)';
 
 export default function DashboardAssistencia() {
   // Mesma disciplina do painel de Venda: `new Date()` uma vez só, no mount.
@@ -183,6 +216,62 @@ export default function DashboardAssistencia() {
     .map((o) => ({ os: o, dias: diasEntre(o.created_at, limites.agora.toISOString()) }));
 
   const pico = horarioDePico(abertasSemana.map((o) => o.created_at));
+
+  // ── Serviço e peça ──────────────────────────────────────────────────────
+  //
+  // A diferença é só o `produto_id`: preenchido = peça do estoque, vazio =
+  // mão de obra. Mesmo critério que a ficha da OS usa para montar o orçamento,
+  // de propósito — dois critérios diferentes dariam dois valores diferentes
+  // para a mesma OS.
+  //
+  // ⚠️ As colunas `total_pecas` e `total_mao_obra` de `service_orders` NÃO são
+  // usadas aqui: elas existem no schema mas nenhuma migration as preenche.
+  // Somá-las mostraria R$ 0,00 no painel com a bancada cheia de serviço.
+  const itensEntregues = entreguesSemana.flatMap((o) => o.itens ?? []);
+  const totalDoItem = (i: ItemOSRow) =>
+    Number(i.preco_cobrado ?? 0) * Number(i.quantidade ?? 1);
+
+  const totalMaoObra = itensEntregues
+    .filter((i) => i.produto_id == null)
+    .reduce((soma, i) => soma + totalDoItem(i), 0);
+  const totalPecas = itensEntregues
+    .filter((i) => i.produto_id != null)
+    .reduce((soma, i) => soma + totalDoItem(i), 0);
+
+  // Serviço é texto livre: a tela deixa puxar do catálogo mas grava só o nome
+  // copiado, sem guardar qual foi. `chaveDeTexto` junta "Troca de tela",
+  // "troca de tela " e "TROCA DE TELA" numa linha só — senão o carro-chefe da
+  // bancada apareceria três vezes, cada uma com um terço do movimento.
+  const servicosRealizados = porQuantidade(
+    agrupar(
+      itensEntregues.filter((i) => i.produto_id == null),
+      {
+        chave: (i) => chaveDeTexto(i.descricao),
+        nome: (i) => i.descricao,
+        quantidade: (i) => Number(i.quantidade ?? 1),
+        valor: (i) => totalDoItem(i),
+      },
+    ),
+  );
+
+  // Peça agrupa pelo cadastro, não pelo texto: aqui o vínculo existe de
+  // verdade e não depende de como alguém digitou.
+  const pecasUsadas = porQuantidade(
+    agrupar(
+      itensEntregues.filter((i) => i.produto_id != null),
+      {
+        chave: (i) => i.produto_id,
+        nome: (i) => i.descricao,
+        quantidade: (i) => Number(i.quantidade ?? 1),
+        valor: (i) => totalDoItem(i),
+      },
+    ),
+  );
+
+  // Reparo inviável: aparelho que não tinha conserto. Não é fracasso do
+  // técnico — é diagnóstico. Mas uma taxa alta demais diz alguma coisa sobre
+  // o que a loja está aceitando na bancada.
+  const inviaveisSemana = semana.filter((o) => o.reparo_inviavel === true).length;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -283,6 +372,45 @@ export default function DashboardAssistencia() {
         />
       </div>
 
+      <div className="grid gap-4 md:grid-cols-3">
+        <CardIndicador
+          titulo="Mão de Obra da Semana"
+          faixa="kpi-vendas"
+          icone={<Hammer className="h-4 w-4" />}
+          carregando={isLoading}
+          valor={moeda(totalMaoObra)}
+          detalhe={
+            totalMaoObra + totalPecas > 0
+              ? `${((totalMaoObra / (totalMaoObra + totalPecas)) * 100).toFixed(0)}% do serviço entregue`
+              : 'Nenhum serviço lançado nesta semana'
+          }
+        />
+        <CardIndicador
+          titulo="Peças da Semana"
+          faixa="kpi-estoque"
+          icone={<Coins className="h-4 w-4" />}
+          carregando={isLoading}
+          valor={moeda(totalPecas)}
+          detalhe={
+            totalMaoObra + totalPecas > 0
+              ? `${((totalPecas / (totalMaoObra + totalPecas)) * 100).toFixed(0)}% do serviço entregue`
+              : 'Nenhuma peça lançada nesta semana'
+          }
+        />
+        <CardIndicador
+          titulo="Reparos Inviáveis"
+          faixa="kpi-os"
+          icone={<Ban className="h-4 w-4" />}
+          carregando={isLoading}
+          valor={String(inviaveisSemana)}
+          detalhe={
+            inviaveisSemana > 0
+              ? 'Aparelhos sem conserto possível nesta semana'
+              : 'Nenhum aparelho sem conserto nesta semana'
+          }
+        />
+      </div>
+
       {/* OS paradas: o alerta operacional que nenhum total mensal mostra */}
       <Card>
         <CardHeader>
@@ -375,6 +503,30 @@ export default function DashboardAssistencia() {
           rotuloValor="Em orçamento"
           vazio="Nenhum aparelho deu entrada nesta semana."
           icone={<Smartphone className="h-12 w-12" />}
+          carregando={isLoading}
+        />
+
+        <TabelaRanking
+          titulo="Serviços Mais Realizados"
+          descricao="A mão de obra lançada nas OS entregues nesta semana, ordenada por quantidade."
+          linhas={servicosRealizados}
+          rotuloNome="Serviço"
+          rotuloQuantidade="Vezes"
+          rotuloValor="Cobrado"
+          vazio="Nenhum serviço lançado nas OS entregues nesta semana."
+          icone={<Cog className="h-12 w-12" />}
+          carregando={isLoading}
+        />
+
+        <TabelaRanking
+          titulo="Peças Mais Usadas"
+          descricao="O que saiu do estoque para a bancada nas OS entregues nesta semana."
+          linhas={pecasUsadas}
+          rotuloNome="Peça"
+          rotuloQuantidade="Usadas"
+          rotuloValor="Cobrado"
+          vazio="Nenhuma peça lançada nas OS entregues nesta semana."
+          icone={<Hammer className="h-12 w-12" />}
           carregando={isLoading}
         />
 

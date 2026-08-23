@@ -1,6 +1,6 @@
 # O que só você pode testar
 
-**Tempo: 2h a 2h20.** São 35 testes.
+**Tempo: 2h10 a 2h30.** São 37 testes.
 
 Este documento é diferente do `ROTEIRO-DE-TESTE.md`. Aquele tem 61 passos e
 cobre o sistema inteiro — mas **46 deles já foram conferidos no código e no
@@ -281,7 +281,7 @@ Cadastros > Fornecedores. Se não tiver, cadastre um qualquer.
 
 ---
 
-## Parte 6 — Os dois painéis (20 min)
+## Parte 6 — Os dois painéis (30 min)
 
 Telas de 23/08. As contas eu testei — 73 testes automáticos, mais uma
 devolução de mentira criada no banco só para medir o abatimento. O que falta é
@@ -348,6 +348,30 @@ Faça como **administrador**.
   Agora**.
   *Se você não entregou nenhuma OS esta semana, Melhor Técnico e Tempo Médio
   aparecem com um traço. Isso é o certo, não é falha.*
+
+- [ ] **36. Serviços, peças e mão de obra**
+  Ainda na Assistência, role até **Serviços Mais Realizados**, **Peças Mais
+  Usadas** e os cards **Mão de Obra da Semana** / **Peças da Semana**.
+  **ATENÇÃO — provavelmente vai estar quase tudo vazio, e isso NÃO é falha.**
+  Conferi no banco: existem 13 OS, mas **um único item lançado** nelas todas
+  (uma limpeza de R$ 150). Sem peça ou serviço lançado na ficha da OS, não há
+  o que somar.
+  **Para testar de verdade:** abra uma OS, clique em **Lançar item**, e lance
+  **um serviço** (ex.: `Troca de tela`, R$ 200) e **uma peça** do estoque.
+  Entregue essa OS. Volte ao painel e aperte `F5`.
+  **Tem que acontecer:** o serviço aparece em Serviços Mais Realizados, a peça
+  em Peças Mais Usadas, e os dois cards se dividem — mão de obra de um lado,
+  peça do outro, cada um com a sua porcentagem.
+
+- [ ] **37. Variação de digitação conta junto**
+  Em duas OS diferentes, lance o mesmo serviço escrito diferente: numa
+  `Troca de tela`, na outra `troca de tela ` (com espaço no fim, minúsculo).
+  Entregue as duas e volte ao painel.
+  **Tem que acontecer:** aparece **uma linha só**, com **2 vezes** — não duas
+  linhas de 1.
+  *O sistema guarda o serviço como texto digitado, não como um item do
+  cadastro. Sem juntar as variações, o serviço mais feito da loja apareceria
+  espalhado em três linhas e nenhuma delas pareceria importante.*
 
 ---
 

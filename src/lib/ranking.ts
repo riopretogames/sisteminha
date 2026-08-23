@@ -75,6 +75,29 @@ export function porValor(linhas: readonly LinhaRanking[]): LinhaRanking[] {
   );
 }
 
+/**
+ * Chave para agrupar texto digitado à mão.
+ *
+ * O serviço lançado numa OS é TEXTO LIVRE: a tela deixa puxar do catálogo,
+ * mas não guarda qual foi — copia o nome e pronto. Então "Troca de tela",
+ * "troca de tela " e "TROCA DE TELA" chegam aqui como três coisas, e um
+ * ranking cru mostraria o mesmo serviço em três linhas, cada uma com um terço
+ * do movimento — escondendo justamente que ele é o carro-chefe da bancada.
+ *
+ * Junta ignorando maiúscula, acento e espaço sobrando. Não tenta adivinhar
+ * mais que isso: "troca de tela" e "trocar tela" continuam separados, porque
+ * corrigir digitação por semelhança erra e ninguém entende por quê.
+ */
+export function chaveDeTexto(texto: string | null | undefined): string {
+  if (!texto) return '';
+  return texto
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
 /** Uma saída de dinheiro que precisa ser abatida de alguém do ranking. */
 export interface Desconto {
   chave: string;

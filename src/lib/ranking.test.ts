@@ -7,6 +7,7 @@ import {
   participacao,
   horarioDePico,
   descontar,
+  chaveDeTexto,
   faixaDeHora,
   type LinhaRanking,
 } from './ranking';
@@ -170,6 +171,52 @@ describe('descontar', () => {
 
   it('sem devolução nenhuma, devolve o mesmo ranking', () => {
     expect(descontar(linhas, [])).toEqual(linhas);
+  });
+});
+
+describe('chaveDeTexto', () => {
+  it('junta variações de digitação do mesmo serviço', () => {
+    const iguais = ['Troca de tela', 'troca de tela ', 'TROCA DE TELA', '  Troca  de  tela'];
+    const chaves = new Set(iguais.map(chaveDeTexto));
+    expect(chaves.size).toBe(1);
+  });
+
+  it('ignora acento', () => {
+    expect(chaveDeTexto('Manutenção')).toBe(chaveDeTexto('manutencao'));
+    expect(chaveDeTexto('Reparo elétrico')).toBe(chaveDeTexto('REPARO ELETRICO'));
+  });
+
+  it('não junta serviços que só são parecidos', () => {
+    // Corrigir digitação por semelhança erra, e ninguém entende por quê.
+    expect(chaveDeTexto('troca de tela')).not.toBe(chaveDeTexto('trocar tela'));
+    expect(chaveDeTexto('limpeza')).not.toBe(chaveDeTexto('limpeza profunda'));
+  });
+
+  it('devolve vazio para nulo, vazio ou só espaço', () => {
+    expect(chaveDeTexto(null)).toBe('');
+    expect(chaveDeTexto(undefined)).toBe('');
+    expect(chaveDeTexto('   ')).toBe('');
+  });
+
+  it('serve como chave no agrupar, juntando as variações numa linha só', () => {
+    const linhas = agrupar(
+      [
+        { desc: 'Troca de tela', preco: 300 },
+        { desc: 'troca de tela ', preco: 250 },
+        { desc: 'Limpeza', preco: 80 },
+      ],
+      {
+        chave: (i: { desc: string; preco: number }) => chaveDeTexto(i.desc),
+        nome: (i) => i.desc,
+        valor: (i) => i.preco,
+      },
+    );
+    expect(linhas).toHaveLength(2);
+    const tela = linhas.find((l) => l.chave === 'troca de tela')!;
+    expect(tela.quantidade).toBe(2);
+    expect(tela.valor).toBe(550);
+    // Mostra a primeira forma encontrada, com a acentuação de quem digitou.
+    expect(tela.nome).toBe('Troca de tela');
   });
 });
 
