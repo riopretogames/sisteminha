@@ -1,6 +1,6 @@
 # O que só você pode testar
 
-**Tempo: 1h30 a 1h50.** São 32 testes.
+**Tempo: 1h a 1h20.** São 25 testes.
 
 Este documento é diferente do `ROTEIRO-DE-TESTE.md`. Aquele tem 61 passos e
 cobre o sistema inteiro — mas **46 deles já foram conferidos no código e no
@@ -14,8 +14,8 @@ quando alguém de verdade clica.
 **Em 23/08 esta lista encolheu de novo.** Passei a conseguir abrir as telas do
 sistema num navegador de mentira, com o perfil que eu quiser — então tudo que
 era "entre como Vendedor e veja se some a coluna de custo" virou teste
-automático, que roda em dois segundos toda vez. São 25 verificações de tela
-que saíram das suas mãos.
+automático, que roda em dois segundos toda vez. São 48 verificações de tela
+que saíram das suas mãos — incluindo todos os números dos painéis.
 
 **Você não precisa mais criar um segundo usuário nem usar janela anônima.**
 
@@ -252,97 +252,37 @@ Cadastros > Fornecedores. Se não tiver, cadastre um qualquer.
 
 ---
 
-## Parte 6 — Os dois painéis (30 min)
+## Parte 6 — Os dois painéis (10 min)
 
-Telas de 23/08. As contas eu testei — 73 testes automáticos, mais uma
-devolução de mentira criada no banco só para medir o abatimento. O que falta é
-ver na tela, com os seus números.
+Esta parte encolheu de 7 passos para 2. Os números dos painéis viraram teste
+automático em 23/08: melhor vendedor, ranking com devolução abatida,
+categorias, horário de pico, aparelhos parados com as cores certas, e o
+agrupamento de serviço escrito de jeitos diferentes.
 
-Faça como **administrador**.
+O que sobrou é o que a máquina não sabe julgar: **se o número faz sentido com
+a sua realidade**. Eu testo com dados de mentira; você olha os de verdade.
 
-- [ ] **24. Dashboard de Vendas: os cards novos**
-  Abra **Dashboards > Venda** e role até a segunda fileira de cards.
-  **Tem que acontecer:** aparecem **Melhor Vendedor da Semana** (com o nome e
-  quantas vendas) e **Horário de Pico** (uma faixa tipo "14h às 15h").
-  **NÃO PODE:** aparecer alguém chamado "Sem nome" no melhor vendedor.
-  *Venda sem vendedor preenchido é ignorada de propósito — um funcionário
-  fantasma disputando o primeiro lugar seria pior que não mostrar.*
+- [ ] **24. Os dois painéis abrem e os números fecham**
+  Abra **Dashboards > Venda** e **Dashboards > Assistência**.
+  **Tem que acontecer:** os dois abrem com dados.
+  Agora some no papel o faturamento de todos os vendedores da tabela
+  **Ranking de Vendedores** e compare com o card **Vendas da Semana**.
+  **Tem que acontecer:** batem.
+  *Se não baterem, a diferença é o que foi vendido sem vendedor preenchido —
+  me diga de quanto foi, é uma informação útil por si só.*
+  Na Assistência, confira se **Tempo Médio de Reparo** e **Aparelhos Parados**
+  batem com o que você sabe da bancada.
 
-- [ ] **25. A conta do ranking fecha**
-  Na mesma tela, some no papel o faturamento de **todos** os vendedores da
-  tabela **Ranking de Vendedores** e compare com o card **Vendas da Semana**.
-  **Tem que acontecer:** os dois valores batem.
-  *Se não baterem, a diferença é exatamente o que foi vendido sem vendedor
-  preenchido. Me diga de quanto foi.*
-
-- [ ] **26. Devolução desconta de quem vendeu — o teste mais importante desta parte**
-  Anote o faturamento de um vendedor no ranking. Agora vá em
-  **Venda > Troca e Devolução** e faça uma **devolução** de uma venda **daquele
-  vendedor**. Volte ao Dashboard de Venda e aperte `F5`.
-  **Tem que acontecer:** o valor daquele vendedor **caiu exatamente o valor
-  devolvido**, e o de todos os outros ficou igual.
-  **NÃO PODE:** o valor continuar o mesmo, ou o desconto respingar em outro
-  vendedor.
-  *Você me corrigiu nisso hoje: eu tinha deixado sem descontar, alegando que
-  não dava para saber de quem descontar. Dava — a devolução guarda a venda de
-  origem, e a venda guarda o vendedor. **Este teste é a prova disso.***
-  *Nunca houve uma devolução de verdade neste banco: a sua será a primeira.*
-
-- [ ] **27. Categorias e formas de pagamento**
-  Ainda no Dashboard de Venda, olhe **Categorias Mais Vendidas** e **Como o
-  Cliente Paga**.
-  **Tem que acontecer:** as duas tabelas têm conteúdo e a coluna **Fatia**
-  mostra uma barrinha com a porcentagem. As porcentagens de cada tabela somam
-  perto de 100%.
-
-- [ ] **28. Dashboard de Assistência abre**
-  Abra **Dashboards > Assistência** — é um item novo no menu.
-  **Tem que acontecer:** a tela abre com quatro cards no topo (Entraram Hoje,
-  Entregues na Semana, Ticket Médio da OS, Na Bancada Agora).
-  **Se o item não aparecer no menu**, saia e entre de novo no sistema: a
-  permissão é nova e é lida quando a página carrega. Se ainda assim não
-  aparecer, me avise.
-
-- [ ] **29. Aparelhos parados há mais tempo**
-  Role até o quadro **Aparelhos Parados Há Mais Tempo**.
-  **Tem que acontecer:** lista as OS que ainda não foram entregues, da mais
-  antiga para a mais nova, com quantos dias cada uma está parada. Passou de 7
-  dias fica **laranja**, passou de 15 fica **vermelho**.
-  *Este quadro ignora o recorte de semana de propósito: o aparelho esquecido
-  do mês passado é justamente o que precisa aparecer.*
-
-- [ ] **30. Técnico, tempo de reparo e fila**
-  Ainda na Assistência, confira **Melhor Técnico da Semana**, **Tempo Médio de
-  Reparo** e a tabela **Fila por Etapa**.
-  **Tem que acontecer:** o tempo médio faz sentido com a realidade da bancada,
-  e a soma da coluna **OS** da Fila por Etapa bate com o card **Na Bancada
-  Agora**.
-  *Se você não entregou nenhuma OS esta semana, Melhor Técnico e Tempo Médio
-  aparecem com um traço. Isso é o certo, não é falha.*
-
-- [ ] **31. Serviços, peças e mão de obra**
-  Ainda na Assistência, role até **Serviços Mais Realizados**, **Peças Mais
-  Usadas** e os cards **Mão de Obra da Semana** / **Peças da Semana**.
-  **ATENÇÃO — provavelmente vai estar quase tudo vazio, e isso NÃO é falha.**
-  Conferi no banco: existem 13 OS, mas **um único item lançado** nelas todas
-  (uma limpeza de R$ 150). Sem peça ou serviço lançado na ficha da OS, não há
-  o que somar.
-  **Para testar de verdade:** abra uma OS, clique em **Lançar item**, e lance
-  **um serviço** (ex.: `Troca de tela`, R$ 200) e **uma peça** do estoque.
-  Entregue essa OS. Volte ao painel e aperte `F5`.
-  **Tem que acontecer:** o serviço aparece em Serviços Mais Realizados, a peça
-  em Peças Mais Usadas, e os dois cards se dividem — mão de obra de um lado,
-  peça do outro, cada um com a sua porcentagem.
-
-- [ ] **32. Variação de digitação conta junto**
-  Em duas OS diferentes, lance o mesmo serviço escrito diferente: numa
-  `Troca de tela`, na outra `troca de tela ` (com espaço no fim, minúsculo).
-  Entregue as duas e volte ao painel.
-  **Tem que acontecer:** aparece **uma linha só**, com **2 vezes** — não duas
-  linhas de 1.
-  *O sistema guarda o serviço como texto digitado, não como um item do
-  cadastro. Sem juntar as variações, o serviço mais feito da loja apareceria
-  espalhado em três linhas e nenhuma delas pareceria importante.*
+- [ ] **25. Fazer uma devolução de verdade**
+  Anote o faturamento de um vendedor no ranking. Vá em **Venda > Troca e
+  Devolução** e faça uma **devolução** de uma venda **daquele vendedor**. Volte
+  ao painel e aperte `F5`.
+  **Tem que acontecer:** o valor dele caiu **exatamente o valor devolvido**, e
+  o dos outros ficou igual.
+  *A regra está testada automaticamente, mas com dados de mentira. **Nunca
+  houve uma devolução de verdade neste banco** — a sua será a primeira, e é a
+  única forma de saber se a tela de Troca e Devolução grava tudo que o painel
+  espera encontrar.*
 
 ---
 
