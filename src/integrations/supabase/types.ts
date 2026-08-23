@@ -2916,6 +2916,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      historico_do_usuario: { Args: { _user_id: string }; Returns: Json }
       minhas_permissoes: { Args: never; Returns: string[] }
       proximo_numero_documento: {
         Args: { _documento: string; _tenant: string }

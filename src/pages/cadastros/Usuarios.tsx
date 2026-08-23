@@ -2,14 +2,19 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Loader2, Search, ShieldCheck, UserCog, RotateCcw, MessageSquare,
-  Plus, KeyRound, Eye, EyeOff, Dices,
+  Plus, KeyRound, Eye, EyeOff, Dices, Trash2, AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { ROLES, ROLE_LABELS, PERMISSIONS, type Role, type Permission, rotuloDoPapel } from '@/config/permissions';
 import { useAuth } from '@/hooks/useAuth';
 import { PageHeader, Vazio } from '@/components/PageHeader';
-import { useUsuarios, useExcecoes, type UsuarioLinha } from '@/hooks/useUsuarios';
+import {
+  useUsuarios,
+  useExcecoes,
+  useHistoricoUsuario,
+  type UsuarioLinha,
+} from '@/hooks/useUsuarios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -50,8 +55,15 @@ interface PermissaoCatalogo {
 }
 
 export default function Usuarios() {
-  const { usuarios, definirPapel, definirAtivo, renomear, criarUsuario, redefinirSenha } =
-    useUsuarios();
+  const {
+    usuarios,
+    definirPapel,
+    definirAtivo,
+    renomear,
+    criarUsuario,
+    redefinirSenha,
+    excluirUsuario,
+  } = useUsuarios();
   const { can } = useAuth();
   const podeGerenciar = can(PERMISSIONS.USERS_MANAGE);
   const [busca, setBusca] = useState('');
@@ -155,7 +167,137 @@ export default function Usuarios() {
           onNome={(nome) => renomear.mutate({ userId: editando.id, nome })}
           onSenha={(senha) => redefinirSenha.mutate({ userId: editando.id, senha })}
           trocandoSenha={redefinirSenha.isPending}
+          onExcluir={() =>
+            excluirUsuario.mutate(editando.id, { onSuccess: () => setEditando(null) })
+          }
+          excluindo={excluirUsuario.isPending}
         />
+      )}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Excluir usuário — a única ação desta tela que não tem volta.
+ *
+ * O sistema só deixa apagar quem não deixou NENHUM rastro: sem venda, sem OS,
+ * sem movimentação de estoque, sem caixa. O motivo é que `vendas.vendedor_id`
+ * e os campos equivalentes da OS ficam VAZIOS quando a pessoa some — a venda
+ * continua lá, sem ninguém, e nunca mais dá para responder "quem atendeu?".
+ * Pior: o banco não reclama disso, faz em silêncio.
+ *
+ * Por isso a tela conta o rastro e explica ANTES, em vez de deixar clicar e
+ * devolver erro. Para quem saiu da loja, o caminho é Desativar, logo abaixo.
+ */
+function BlocoExcluir({
+  nome,
+  historico,
+  carregando,
+  confirmando,
+  setConfirmando,
+  onExcluir,
+  excluindo,
+}: {
+  nome: string;
+  historico?: {
+    vendas: number;
+    ordens_servico: number;
+    movimentos_estoque: number;
+    caixa: number;
+    entradas_mercadoria: number;
+    auditoria: number;
+    total: number;
+    e_ultimo_admin: boolean;
+  };
+  carregando: boolean;
+  confirmando: boolean;
+  setConfirmando: (v: boolean) => void;
+  onExcluir: () => void;
+  excluindo: boolean;
+}) {
+  if (carregando) {
+    return (
+      <div className="rounded-lg border p-3 text-sm text-muted-foreground">
+        Conferindo o histórico desta pessoa…
+      </div>
+    );
+  }
+
+  const temRastro = (historico?.total ?? 0) > 0;
+  const ultimoAdmin = historico?.e_ultimo_admin === true;
+  const bloqueado = temRastro || ultimoAdmin;
+
+  const PARTES: [keyof NonNullable<typeof historico>, string][] = [
+    ['vendas', 'venda(s)'],
+    ['ordens_servico', 'ordem(ns) de serviço'],
+    ['movimentos_estoque', 'movimentação(ões) de estoque'],
+    ['caixa', 'abertura(s) de caixa'],
+    ['entradas_mercadoria', 'entrada(s) de mercadoria'],
+    ['auditoria', 'registro(s) no histórico'],
+  ];
+  const resumo = historico
+    ? PARTES.filter(([k]) => Number(historico[k]) > 0)
+        .map(([k, rotulo]) => `${historico[k]} ${rotulo}`)
+        .join(', ')
+    : '';
+
+  return (
+    <div
+      className={cn(
+        'rounded-lg border p-3',
+        bloqueado ? 'border-border' : 'border-destructive/40 bg-destructive/5',
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium">Excluir do sistema</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {ultimoAdmin
+              ? 'Este é o último administrador ativo. Excluí-lo trancaria todo mundo do lado de fora, sem ninguém para dar permissão a ninguém.'
+              : temRastro
+                ? `Não dá: existem ${resumo} no nome desta pessoa. Apagar deixaria esses registros sem autor para sempre. Use Desativar aqui embaixo — tira o acesso na hora e preserva o histórico.`
+                : 'Esta pessoa não tem nenhum movimento no sistema, então dá para apagar sem quebrar nada. Não tem volta.'}
+          </p>
+        </div>
+        {!bloqueado && !confirmando && (
+          <Button
+            size="sm"
+            variant="destructive"
+            className="flex-shrink-0"
+            onClick={() => setConfirmando(true)}
+          >
+            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+            Excluir
+          </Button>
+        )}
+      </div>
+
+      {!bloqueado && confirmando && (
+        <div className="mt-3 rounded-md border border-destructive/40 bg-background p-3">
+          <p className="flex items-start gap-2 text-sm">
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-destructive" />
+            <span>
+              Apagar <strong>{nome}</strong> de vez? A conta de acesso e o cadastro somem,
+              e isso não tem como desfazer.
+            </span>
+          </p>
+          <div className="mt-3 flex justify-end gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setConfirmando(false)}
+              disabled={excluindo}
+            >
+              Cancelar
+            </Button>
+            <Button size="sm" variant="destructive" onClick={onExcluir} disabled={excluindo}>
+              {excluindo && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+              Apagar de vez
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -366,6 +508,8 @@ function DialogUsuario({
   onNome,
   onSenha,
   trocandoSenha,
+  onExcluir,
+  excluindo,
 }: {
   usuario: UsuarioLinha;
   onFechar: () => void;
@@ -374,10 +518,17 @@ function DialogUsuario({
   onNome: (nome: string) => void;
   onSenha: (senha: string) => void;
   trocandoSenha: boolean;
+  onExcluir: () => void;
+  excluindo: boolean;
 }) {
   const { can } = useAuth();
   const [senhaNova, setSenhaNova] = useState('');
   const [trocandoAberto, setTrocandoAberto] = useState(false);
+  const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
+  // Conta o rastro da pessoa ao ABRIR a ficha, para a tela poder dizer que
+  // não dá para excluir antes do clique. Botão que existe só para recusar
+  // ensina a ignorar aviso.
+  const { data: historico, isLoading: carregandoHistorico } = useHistoricoUsuario(usuario.id);
   // Ver e editar o cadastro é `users.manage`; trocar o PERFIL é
   // `roles.manage`. São concedidas separadamente, então a tela pergunta as
   // duas em vez de supor que quem entrou pode tudo.
@@ -540,6 +691,18 @@ function DialogUsuario({
               </div>
             )}
           </div>
+
+          {/* Excluir de vez. Separado do resto de propósito: é a única
+              ação desta tela que não tem volta. */}
+          <BlocoExcluir
+            nome={usuario.nome}
+            historico={historico}
+            carregando={carregandoHistorico}
+            confirmando={confirmandoExclusao}
+            setConfirmando={setConfirmandoExclusao}
+            onExcluir={onExcluir}
+            excluindo={excluindo}
+          />
 
           <div className="flex items-center justify-between rounded-lg border p-3">
             <div>

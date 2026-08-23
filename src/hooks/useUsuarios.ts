@@ -200,7 +200,72 @@ export function useUsuarios() {
     },
   });
 
-  return { usuarios, definirPapel, definirAtivo, renomear, criarUsuario, redefinirSenha };
+  /**
+   * Apaga a conta de vez.
+   *
+   * O servidor recusa quem tem qualquer rastro no sistema — venda, OS,
+   * movimentação, caixa. Desativar continua sendo o caminho de quem saiu da
+   * loja; isto aqui serve para limpar cadastro de teste e engano de digitação.
+   */
+  const excluirUsuario = useMutation({
+    mutationFn: async (userId: string) =>
+      chamarAdminUsuarios({ acao: 'excluir', user_id: userId }),
+    onSuccess: (resultado) => {
+      invalidar();
+      toast({
+        title: 'Usuário excluído',
+        description: `${resultado?.nome ?? 'A conta'} não existe mais no sistema.`,
+        variant: 'success',
+      });
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: 'Não foi possível excluir',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  return {
+    usuarios,
+    definirPapel,
+    definirAtivo,
+    renomear,
+    criarUsuario,
+    redefinirSenha,
+    excluirUsuario,
+  };
+}
+
+/**
+ * Quanto rastro a pessoa deixou no sistema.
+ *
+ * A tela consulta isto ao abrir a ficha para poder DIZER que não dá para
+ * excluir, em vez de deixar clicar e devolver erro. Botão que existe só para
+ * recusar ensina a ignorar aviso.
+ */
+export function useHistoricoUsuario(userId: string | null) {
+  return useQuery({
+    queryKey: ['historico-usuario', userId],
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('historico_do_usuario', {
+        _user_id: userId!,
+      });
+      if (error) throw error;
+      return (data ?? {}) as {
+        vendas: number;
+        ordens_servico: number;
+        movimentos_estoque: number;
+        caixa: number;
+        entradas_mercadoria: number;
+        auditoria: number;
+        total: number;
+        e_ultimo_admin: boolean;
+      };
+    },
+  });
 }
 
 /** Exceções de permissão de UMA pessoa. */

@@ -182,5 +182,74 @@ Deno.serve(async (req) => {
     return responder({ id: userId, nome: alvo.nome });
   }
 
+  // ── Excluir usuário ──────────────────────────────────────────────────────
+  //
+  // Só passa quem não deixou NENHUM rastro no sistema. O caminho normal para
+  // quem saiu da loja continua sendo desativar: tira o acesso na hora e
+  // preserva tudo que a pessoa fez.
+  if (acao === 'excluir') {
+    const userId = String(corpo.user_id ?? '');
+    if (!userId) return erro('Informe quem excluir.');
+
+    // Excluir a si mesmo derruba a própria sessão no meio da operação e deixa
+    // a tela num estado que ninguém consegue explicar.
+    if (userId === quemPediu) {
+      return erro('Você não pode excluir a sua própria conta.');
+    }
+
+    const { data: alvo, error: erroAlvo } = await comoUsuario
+      .from('profiles')
+      .select('id, nome')
+      .eq('id', userId)
+      .maybeSingle();
+    if (erroAlvo) return erro('Não consegui localizar esse usuário.', 500);
+    if (!alvo) return erro('Esse usuário não é da sua loja.', 404);
+
+    const { data: historico, error: erroHistorico } = await comoUsuario.rpc(
+      'historico_do_usuario',
+      { _user_id: userId },
+    );
+    if (erroHistorico) return erro('Não consegui conferir o histórico dele.', 500);
+
+    const h = (historico ?? {}) as Record<string, number | boolean>;
+
+    if (h.e_ultimo_admin === true) {
+      return erro(
+        'Esse é o último administrador ativo da loja. Excluí-lo trancaria todo mundo do lado de fora, sem ninguém para dar permissão a ninguém.',
+        409,
+      );
+    }
+
+    if (Number(h.total ?? 0) > 0) {
+      const ROTULOS: Record<string, string> = {
+        vendas: 'venda(s)',
+        ordens_servico: 'ordem(ns) de serviço',
+        movimentos_estoque: 'movimentação(ões) de estoque',
+        caixa: 'abertura(s)/fechamento(s) de caixa',
+        entradas_mercadoria: 'entrada(s) de mercadoria',
+        auditoria: 'registro(s) no histórico do sistema',
+      };
+      const partes = Object.entries(ROTULOS)
+        .filter(([chave]) => Number(h[chave] ?? 0) > 0)
+        .map(([chave, rotulo]) => `${h[chave]} ${rotulo}`);
+
+      return erro(
+        `Não dá para excluir ${alvo.nome}: existem ${partes.join(', ')} no nome dele. ` +
+          'Apagar deixaria esses registros sem autor para sempre — ninguém mais saberia quem atendeu. ' +
+          'Use Desativar: tira o acesso na hora e preserva o histórico.',
+        409,
+      );
+    }
+
+    // Apagar da conta de acesso derruba o cadastro junto (o vínculo é em
+    // cascata), então uma chamada resolve as duas coisas.
+    const { error: erroExcluir } = await comoServidor.auth.admin.deleteUser(userId);
+    if (erroExcluir) {
+      return erro('Não foi possível excluir: ' + (erroExcluir.message ?? ''), 500);
+    }
+
+    return responder({ id: userId, nome: alvo.nome });
+  }
+
   return erro('Ação desconhecida.');
 });
