@@ -1,6 +1,6 @@
 # O que só você pode testar
 
-**Tempo: 1h40 a 2h.** São 28 testes.
+**Tempo: 2h a 2h20.** São 35 testes.
 
 Este documento é diferente do `ROTEIRO-DE-TESTE.md`. Aquele tem 61 passos e
 cobre o sistema inteiro — mas **46 deles já foram conferidos no código e no
@@ -278,6 +278,76 @@ Cadastros > Fornecedores. Se não tiver, cadastre um qualquer.
   Comece uma entrada nova, escolha o fornecedor e **não adicione nenhum
   produto**.
   **Tem que acontecer:** o botão **Dar entrada** fica desabilitado.
+
+---
+
+## Parte 6 — Os dois painéis (20 min)
+
+Telas de 23/08. As contas eu testei — 73 testes automáticos, mais uma
+devolução de mentira criada no banco só para medir o abatimento. O que falta é
+ver na tela, com os seus números.
+
+Faça como **administrador**.
+
+- [ ] **29. Dashboard de Vendas: os cards novos**
+  Abra **Dashboards > Venda** e role até a segunda fileira de cards.
+  **Tem que acontecer:** aparecem **Melhor Vendedor da Semana** (com o nome e
+  quantas vendas) e **Horário de Pico** (uma faixa tipo "14h às 15h").
+  **NÃO PODE:** aparecer alguém chamado "Sem nome" no melhor vendedor.
+  *Venda sem vendedor preenchido é ignorada de propósito — um funcionário
+  fantasma disputando o primeiro lugar seria pior que não mostrar.*
+
+- [ ] **30. A conta do ranking fecha**
+  Na mesma tela, some no papel o faturamento de **todos** os vendedores da
+  tabela **Ranking de Vendedores** e compare com o card **Vendas da Semana**.
+  **Tem que acontecer:** os dois valores batem.
+  *Se não baterem, a diferença é exatamente o que foi vendido sem vendedor
+  preenchido. Me diga de quanto foi.*
+
+- [ ] **31. Devolução desconta de quem vendeu — o teste mais importante desta parte**
+  Anote o faturamento de um vendedor no ranking. Agora vá em
+  **Venda > Troca e Devolução** e faça uma **devolução** de uma venda **daquele
+  vendedor**. Volte ao Dashboard de Venda e aperte `F5`.
+  **Tem que acontecer:** o valor daquele vendedor **caiu exatamente o valor
+  devolvido**, e o de todos os outros ficou igual.
+  **NÃO PODE:** o valor continuar o mesmo, ou o desconto respingar em outro
+  vendedor.
+  *Você me corrigiu nisso hoje: eu tinha deixado sem descontar, alegando que
+  não dava para saber de quem descontar. Dava — a devolução guarda a venda de
+  origem, e a venda guarda o vendedor. **Este teste é a prova disso.***
+  *Nunca houve uma devolução de verdade neste banco: a sua será a primeira.*
+
+- [ ] **32. Categorias e formas de pagamento**
+  Ainda no Dashboard de Venda, olhe **Categorias Mais Vendidas** e **Como o
+  Cliente Paga**.
+  **Tem que acontecer:** as duas tabelas têm conteúdo e a coluna **Fatia**
+  mostra uma barrinha com a porcentagem. As porcentagens de cada tabela somam
+  perto de 100%.
+
+- [ ] **33. Dashboard de Assistência abre**
+  Abra **Dashboards > Assistência** — é um item novo no menu.
+  **Tem que acontecer:** a tela abre com quatro cards no topo (Entraram Hoje,
+  Entregues na Semana, Ticket Médio da OS, Na Bancada Agora).
+  **Se o item não aparecer no menu**, saia e entre de novo no sistema: a
+  permissão é nova e é lida quando a página carrega. Se ainda assim não
+  aparecer, me avise.
+
+- [ ] **34. Aparelhos parados há mais tempo**
+  Role até o quadro **Aparelhos Parados Há Mais Tempo**.
+  **Tem que acontecer:** lista as OS que ainda não foram entregues, da mais
+  antiga para a mais nova, com quantos dias cada uma está parada. Passou de 7
+  dias fica **laranja**, passou de 15 fica **vermelho**.
+  *Este quadro ignora o recorte de semana de propósito: o aparelho esquecido
+  do mês passado é justamente o que precisa aparecer.*
+
+- [ ] **35. Técnico, tempo de reparo e fila**
+  Ainda na Assistência, confira **Melhor Técnico da Semana**, **Tempo Médio de
+  Reparo** e a tabela **Fila por Etapa**.
+  **Tem que acontecer:** o tempo médio faz sentido com a realidade da bancada,
+  e a soma da coluna **OS** da Fila por Etapa bate com o card **Na Bancada
+  Agora**.
+  *Se você não entregou nenhuma OS esta semana, Melhor Técnico e Tempo Médio
+  aparecem com um traço. Isso é o certo, não é falha.*
 
 ---
 
