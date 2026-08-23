@@ -8,6 +8,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
   CommandDialog,
@@ -19,12 +21,20 @@ import {
 } from '@/components/ui/command';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
+import { useAvisos } from '@/hooks/useAvisos';
 import { PERMISSIONS } from '@/config/permissions';
 import { flattenLinks } from '@/config/menu';
 
 export function AppHeader() {
   const [searchOpen, setSearchOpen] = useState(false);
   const navigate = useNavigate();
+
+  // Avisos de verdade, perguntados ao banco. Nao existe tabela de
+  // notificacao de proposito: aviso guardado precisa de alguem que apague,
+  // e o primeiro esquecimento deixa o sino avisando de problema resolvido.
+  const { data: avisosData, isLoading: carregandoAvisos } = useAvisos();
+  const avisos = avisosData ?? [];
+  const temUrgente = avisos.some((a) => a.peso === 'urgente');
   const { can } = useAuth();
 
   // Keyboard shortcut for search (Ctrl+K)
@@ -97,13 +107,54 @@ export function AppHeader() {
             </DropdownMenu>
           )}
 
-          {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            <Badge className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 text-[10px] flex items-center justify-center">
-              3
-            </Badge>
-          </Button>
+          {/* Avisos.
+              O numero vem da contagem de verdade -- ate 23/08 era um "3"
+              digitado no codigo, e o sino nao abria nada. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative" aria-label="Avisos">
+                <Bell className="h-5 w-5" />
+                {avisos.length > 0 && (
+                  <Badge
+                    className={`absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full p-0 text-[10px] ${
+                      temUrgente ? 'bg-destructive text-destructive-foreground' : ''
+                    }`}
+                  >
+                    {avisos.length}
+                  </Badge>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80">
+              <DropdownMenuLabel>
+                {avisos.length > 0 ? 'O que precisa de atencao' : 'Avisos'}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {avisos.length === 0 ? (
+                <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                  {carregandoAvisos ? 'Conferindo...' : 'Nada pendente. Loja em dia.'}
+                </div>
+              ) : (
+                avisos.map((aviso) => (
+                  <DropdownMenuItem
+                    key={aviso.id}
+                    onClick={() => navigate(aviso.caminho)}
+                    className="flex flex-col items-start gap-0.5 py-2.5"
+                  >
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <span
+                        className={`h-2 w-2 flex-shrink-0 rounded-full ${
+                          aviso.peso === 'urgente' ? 'bg-destructive' : 'bg-amber-500'
+                        }`}
+                      />
+                      {aviso.titulo}
+                    </span>
+                    <span className="pl-4 text-xs text-muted-foreground">{aviso.detalhe}</span>
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
