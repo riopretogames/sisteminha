@@ -1239,7 +1239,7 @@ o arquivo antes de assumir.
     R$ 600 nascido pago apontando para o fornecedor, observação avisando que a
     nota não chegou, divergência marcada sem bloquear, e recusa com mensagem
     clara quando não há permissão. `npm run check` limpo (46 testes).
-    **Falta conferir na tela** — Parte 5 do `TESTE-MANUAL.md`.
+    **Falta conferir na tela** — Parte 5 do `TESTE-DO-SISTEMINHA.md`.
   - **Tags de Cliente** — ✅ *resolvido em 08/08, achado pelo Felipe*: o
     catálogo `tag_cliente` tinha 4 marcações editáveis (VIP, Fiel,
     Atacado, Atenção) e a ficha do cliente oferecia **3 fixas no
@@ -1600,7 +1600,7 @@ o arquivo antes de assumir.
   **Conferido:** chamada sem crachá é recusada; chamada com a chave pública
   tentando criar um administrador é recusada pela própria função (não só pelo
   portão do Supabase); `npm run check` limpo. **Falta conferir na tela** — a
-  Parte 1 do `TESTE-MANUAL.md` foi reescrita em torno disso, e agora consegue
+  Parte 1 do `TESTE-DO-SISTEMINHA.md` foi reescrita em torno disso, e agora consegue
   testar o que antes era impossível: que um Vendedor **não** consegue criar
   usuário.
 
@@ -2014,7 +2014,7 @@ que tem em estoque.
 
 ## Conferência do roteiro de teste por código, e 3 bugs achados (22/08)
 
-Ninguém conseguiu logar no sistema pra percorrer o `ROTEIRO-DE-TESTE.md` na
+Ninguém conseguiu logar no sistema pra percorrer o `TESTE-DO-SISTEMINHA.md` na
 tela (login ainda não é automatizável), então os 56 passos foram conferidos
 por **14 agentes lendo o código-fonte e as migrations do banco de verdade**
 — cada um cuidando de um pedaço do roteiro — e cada resultado passou por uma
@@ -2110,7 +2110,7 @@ provável achar problema.
 - Passo 37 (Fluxo de Caixa): o comportamento sempre esteve certo; só o texto
   do passo, escrito de manhã de 21/08, ficou com os rótulos antigos depois
   que o passo 47 (Bloco 11, tarde do mesmo dia) os atualizou. Corrigido o
-  texto do próprio `ROTEIRO-DE-TESTE.md`, sem mudança de código.
+  texto do próprio `TESTE-DO-SISTEMINHA.md`, sem mudança de código.
 
 ---
 
