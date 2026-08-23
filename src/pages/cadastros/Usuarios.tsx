@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { ROLES, ROLE_LABELS, PERMISSIONS, type Role, type Permission, rotuloDoPapel } from '@/config/permissions';
 import { useAuth } from '@/hooks/useAuth';
+import { useAtalhosDeDialogo } from '@/hooks/useAtalhosDeDialogo';
 import { PageHeader, Vazio } from '@/components/PageHeader';
 import {
   useUsuarios,
@@ -445,9 +446,19 @@ function DialogNovoUsuario({
   const podeSalvar =
     nome.trim().length > 0 && emailOk && senha.length >= SENHA_MINIMA && !salvando;
 
+  const confirmar = () =>
+    onCriar({
+      nome: nome.trim(),
+      email: email.trim(),
+      senha,
+      papel: podeTrocarPapel ? papel : ('' as Role),
+    });
+
+  const refAtalhos = useAtalhosDeDialogo({ podeConfirmar: podeSalvar, onConfirmar: confirmar });
+
   return (
     <Dialog open onOpenChange={(aberto) => !aberto && onFechar()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent ref={refAtalhos} className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Novo usuário</DialogTitle>
           <DialogDescription>
@@ -523,17 +534,7 @@ function DialogNovoUsuario({
           <Button variant="outline" onClick={onFechar} disabled={salvando}>
             Cancelar
           </Button>
-          <Button
-            disabled={!podeSalvar}
-            onClick={() =>
-              onCriar({
-                nome: nome.trim(),
-                email: email.trim(),
-                senha,
-                papel: podeTrocarPapel ? papel : ('' as Role),
-              })
-            }
-          >
+          <Button disabled={!podeSalvar} onClick={confirmar}>
             {salvando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Criar usuário
           </Button>

@@ -40,6 +40,7 @@ import {
   telefoneIdentifica,
   soDigitos,
 } from '@/lib/documento';
+import { useAtalhosDeDialogo } from '@/hooks/useAtalhosDeDialogo';
 
 /**
  * Cadastro de cliente — a ficha completa.
@@ -250,9 +251,19 @@ export function ClienteFormDialog({
     onOpenChange(false);
   };
 
+  // Enter confirma o cadastro. `impedimentos` e a mesma condicao do botao,
+  // entao o atalho respeita exatamente a validacao que o clique respeita.
+  const refAtalhos = useAtalhosDeDialogo({
+    podeConfirmar: !salvando && impedimentos.length === 0,
+    onConfirmar: salvar,
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[760px]">
+      <DialogContent
+        ref={refAtalhos}
+        className="max-h-[90vh] overflow-y-auto sm:max-w-[760px]"
+      >
         <DialogHeader>
           <DialogTitle>{editando ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
           <DialogDescription>

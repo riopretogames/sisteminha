@@ -40,6 +40,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
 import { PageHeader, Vazio } from '@/components/PageHeader';
+import { useAtalhosDeDialogo } from '@/hooks/useAtalhosDeDialogo';
 
 /**
  * Formas de Pagamento.
@@ -283,6 +284,13 @@ export default function FormasPagamento() {
     }
   };
 
+  // Enter confirma o cadastro, com a MESMA condicao do botao -- o atalho nao
+  // pode passar por cima de uma validacao que o clique respeita.
+  const refAtalhos = useAtalhosDeDialogo({
+    podeConfirmar: !saving,
+    onConfirmar: handleSave,
+  });
+
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
@@ -407,7 +415,7 @@ export default function FormasPagamento() {
 
       {/* Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[520px]">
+        <DialogContent ref={refAtalhos} className="sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle>
               {editando ? 'Editar Forma de Pagamento' : 'Nova Forma de Pagamento'}

@@ -34,6 +34,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import { mascaraCpfCnpj, mascaraTelefone, mascaraCep } from '@/lib/documento';
+import { useAtalhosDeDialogo } from '@/hooks/useAtalhosDeDialogo';
 
 /**
  * Cadastro de Fornecedores.
@@ -293,6 +294,13 @@ export default function Fornecedores() {
     );
   });
 
+  // Enter confirma o cadastro, com a MESMA condicao do botao -- o atalho nao
+  // pode passar por cima de uma validacao que o clique respeita.
+  const refAtalhos = useAtalhosDeDialogo({
+    podeConfirmar: !saving,
+    onConfirmar: handleSave,
+  });
+
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
@@ -422,7 +430,7 @@ export default function Fornecedores() {
 
       {/* Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-[600px]">
+        <DialogContent ref={refAtalhos} className="max-h-[88vh] overflow-y-auto sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>
               {editingFornecedor ? 'Editar Fornecedor' : 'Novo Fornecedor'}

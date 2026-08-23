@@ -21,6 +21,7 @@ import {
 import { PageHeader, Vazio } from '@/components/PageHeader';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { useAtalhosDeDialogo } from '@/hooks/useAtalhosDeDialogo';
 import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
 import { moeda, data as formatarData, hojeISO, paraNumero } from '@/lib/format';
@@ -332,9 +333,19 @@ function DialogNovaEntrada({ onFechar }: { onFechar: () => void }) {
     ) &&
     !salvar.isPending;
 
+  // A busca de produto abre uma lista de sugestoes; o hook ja recusa o Enter
+  // enquanto ela estiver aberta, entao escolher um produto nao salva a entrada.
+  const refAtalhos = useAtalhosDeDialogo({
+    podeConfirmar: podeSalvar,
+    onConfirmar: () => salvar.mutate(),
+  });
+
   return (
     <Dialog open onOpenChange={(aberto) => !aberto && onFechar()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+      <DialogContent
+        ref={refAtalhos}
+        className="max-h-[90vh] overflow-y-auto sm:max-w-3xl"
+      >
         <DialogHeader>
           <DialogTitle>Nova entrada de mercadoria</DialogTitle>
           <DialogDescription>

@@ -33,6 +33,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { mascaraCpfCnpj, mascaraTelefone, mascaraCep } from '@/lib/documento';
+import { useAtalhosDeDialogo } from '@/hooks/useAtalhosDeDialogo';
 
 /**
  * Cadastro de Transportadoras.
@@ -240,6 +241,13 @@ export default function Transportadoras() {
     );
   });
 
+  // Enter confirma o cadastro, com a MESMA condicao do botao -- o atalho nao
+  // pode passar por cima de uma validacao que o clique respeita.
+  const refAtalhos = useAtalhosDeDialogo({
+    podeConfirmar: !saving,
+    onConfirmar: handleSave,
+  });
+
   return (
     <div className="mx-auto max-w-5xl space-y-6 animate-fade-in">
       <PageHeader
@@ -378,7 +386,7 @@ export default function Transportadoras() {
 
       {/* Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent ref={refAtalhos} className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>
               {editingTransportadora ? 'Editar Transportadora' : 'Nova Transportadora'}
