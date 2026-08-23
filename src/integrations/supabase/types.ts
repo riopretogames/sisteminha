@@ -701,6 +701,125 @@ export type Database = {
           },
         ]
       }
+      entradas_mercadoria: {
+        Row: {
+          created_at: string
+          data_entrada: string
+          fornecedor_id: string
+          id: string
+          numero: string
+          numero_nota: string | null
+          observacao: string | null
+          tem_divergencia: boolean
+          tenant_id: string
+          titulo_id: string | null
+          total: number
+          usuario_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          data_entrada?: string
+          fornecedor_id: string
+          id?: string
+          numero: string
+          numero_nota?: string | null
+          observacao?: string | null
+          tem_divergencia?: boolean
+          tenant_id: string
+          titulo_id?: string | null
+          total?: number
+          usuario_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          data_entrada?: string
+          fornecedor_id?: string
+          id?: string
+          numero?: string
+          numero_nota?: string | null
+          observacao?: string | null
+          tem_divergencia?: boolean
+          tenant_id?: string
+          titulo_id?: string | null
+          total?: number
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entradas_mercadoria_fornecedor_id_fkey"
+            columns: ["fornecedor_id"]
+            isOneToOne: false
+            referencedRelation: "fornecedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entradas_mercadoria_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entradas_mercadoria_titulo_id_fkey"
+            columns: ["titulo_id"]
+            isOneToOne: false
+            referencedRelation: "titulos_financeiros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      entradas_mercadoria_itens: {
+        Row: {
+          created_at: string
+          custo_unitario: number
+          divergencia: string | null
+          entrada_id: string
+          id: string
+          produto_id: string
+          quantidade: number
+        }
+        Insert: {
+          created_at?: string
+          custo_unitario: number
+          divergencia?: string | null
+          entrada_id: string
+          id?: string
+          produto_id: string
+          quantidade: number
+        }
+        Update: {
+          created_at?: string
+          custo_unitario?: number
+          divergencia?: string | null
+          entrada_id?: string
+          id?: string
+          produto_id?: string
+          quantidade?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entradas_mercadoria_itens_entrada_id_fkey"
+            columns: ["entrada_id"]
+            isOneToOne: false
+            referencedRelation: "entradas_mercadoria"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entradas_mercadoria_itens_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entradas_mercadoria_itens_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       entradas_produto: {
         Row: {
           created_at: string | null
@@ -2802,7 +2921,20 @@ export type Database = {
         Args: { _documento: string; _tenant: string }
         Returns: string
       }
+      proximo_numero_entrada: { Args: { _tenant: string }; Returns: string }
+      proximo_numero_os: { Args: { _tenant: string }; Returns: string }
       proximo_numero_venda: { Args: { _tenant: string }; Returns: string }
+      registrar_entrada_mercadoria: {
+        Args: {
+          _categoria_id?: string
+          _data_entrada?: string
+          _fornecedor_id: string
+          _itens: Json
+          _numero_nota?: string
+          _observacao?: string
+        }
+        Returns: string
+      }
       registrar_entrada_produto_troca: {
         Args: {
           _condicao_id: string

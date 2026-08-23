@@ -125,6 +125,10 @@ export const MENU: MenuRoot[] = [
     permission: PERMISSIONS.INVENTORY_VIEW,
     children: [
       { kind: 'link', id: 'est-produtos', label: 'Produtos', path: '/estoque', element: 'Estoque', permission: PERMISSIONS.INVENTORY_VIEW },
+      // Pede `inventory.adjust`, nao `inventory.view`: dar entrada digita
+      // preco de compra. A tela exige TAMBEM `inventory.cost.view` e diz
+      // isso na cara quando falta, em vez de abrir vazia.
+      { kind: 'link', id: 'est-entrada', label: 'Entrada de Mercadoria', path: '/estoque/entrada', element: 'EntradaMercadoria', permission: PERMISSIONS.INVENTORY_ADJUST },
       { kind: 'link', id: 'est-mov', label: 'Movimentações', path: '/estoque/movimentacoes', element: 'EstoqueMovimentacoes', permission: PERMISSIONS.INVENTORY_VIEW },
       { kind: 'link', id: 'est-critico', label: 'Estoque Crítico', path: '/estoque/critico', element: 'EstoqueCritico', permission: PERMISSIONS.INVENTORY_VIEW },
     ],

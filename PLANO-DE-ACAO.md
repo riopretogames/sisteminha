@@ -1185,14 +1185,61 @@ o arquivo antes de assumir.
     específica (Cartão Crédito, Cartão Crédito - Taxa, Link de Pagamento,
     Shopee etc.), não mais só pela categoria ampla do enum que misturava
     as quatro numa linha só.
-  - [ ] **Fornecedores** — não alimenta compra/entrada de estoque.
-    **Conferido em 18/08, ainda vale** — não existe hoje nenhuma tela de
-    compra/recebimento de mercadoria no sistema. **Nota**: diferente dos
-    outros achados desta rodada, este não é um ajuste pontual — é uma
-    funcionalidade inteira que nunca foi construída (fluxo de "chegou
-    mercadoria do fornecedor X, dá entrada no estoque"). Fica registrado
-    como pendente de escopo, não como algo pra corrigir sem conversar
-    antes sobre como esse fluxo deveria funcionar na prática da loja.
+  - [x] ✅ **Resolvido em 23/08.** Fornecedores não alimentava
+    compra/entrada de estoque. Diferente de todo o resto do plano, este não
+    era ajuste pontual — era uma funcionalidade inteira que nunca existiu, e
+    por isso ficou parado de propósito desde 18/08: **sem saber como a loja
+    recebe mercadoria de verdade, qualquer tela seria chute.** O Felipe
+    respondeu em 23/08, e cada resposta virou uma decisão de desenho:
+
+    | Ele disse | O que virou no sistema |
+    |---|---|
+    | Chega "somente produto" | Número da nota fiscal é **opcional** — exigir travaria quem está com a caixa aberta esperando um papel que chega dias depois |
+    | Tem "conferência" | A tela registra **o que chegou de verdade**, não o que era esperado |
+    | Divergência "reportar o setor de compra" | Divergência **não bloqueia**: a mercadoria já está na loja, segurar a entrada faria o sistema mentir sobre a prateleira. Marca, sinaliza e deixa passar |
+    | "Sim o custo atualiza" | Custo **médio ponderado** (decisão dele no mesmo dia, ver abaixo) |
+    | "Conta paga" | Título nasce **quitado** na data da entrada, ajustável depois no Financeiro |
+
+    **Por que custo médio e não o último preço pago.** No teste real: um
+    produto com 1209 unidades a R$ 1,00 recebeu 12 a R$ 50,00 e o custo foi
+    para R$ 1,48. Com "último preço" iria para R$ 50,00 — as 1209 unidades
+    antigas passariam a "valer" 50 vezes mais sem ninguém ter pago isso, e a
+    margem de todas elas ficaria falsa. Vale lembrar que
+    `produtos.margem_percent` é calculada a partir do custo, então esse
+    número aparece direto na tela de Estoque.
+
+    Migration `20260823110000`: tabelas `entradas_mercadoria` e
+    `entradas_mercadoria_itens`, numeração própria (`EM0001`, sem reiniciar
+    por mês, mesmo padrão de OV e OS) e a função
+    `registrar_entrada_mercadoria`, que faz **numa transação só** o que são
+    quatro coisas: soma o estoque, recalcula o custo médio, grava a
+    movimentação e lança a compra paga no financeiro. Fossem quatro chamadas
+    soltas do navegador, uma queda de rede no meio deixaria o estoque somado
+    e a conta não lançada — ou o custo alterado sem a mercadoria ter entrado.
+
+    Cuidados que valem registrar:
+    - **`FOR UPDATE` no produto**: duas entradas do mesmo produto ao mesmo
+      tempo calculariam a média em cima do mesmo saldo antigo, e uma
+      sobrescreveria a outra.
+    - **Estoque zerado ou negativo** (alguém vendeu antes de dar entrada) não
+      tem passado para ponderar: o custo novo vale sozinho, sem dividir por
+      zero.
+    - **A tela exige `inventory.adjust` E `inventory.cost.view`** juntas, no
+      banco e na tela. Não adianta esconder coluna: cada linha da entrada é um
+      preço de compra. Quando falta uma, a tela **diz qual falta** em vez de
+      abrir vazia — o modo de falha que já mordeu quatro telas deste sistema.
+    - **Escrita não tem policy nenhuma**, de propósito: só a função grava.
+      Insert solto pelo navegador somaria estoque sem lançar o financeiro.
+
+    **Conferido no banco de produção** com transação revertida, simulando um
+    administrador logado (`set_config('request.jwt.claims'...)`, porque dentro
+    de migration `auth.uid()` é nulo e a função recusaria — corretamente).
+    Onze verificações, todas passaram: número `EM0001`, estoque somou 12,
+    custo virou a média exata, 2 movimentações do tipo entrada, título de
+    R$ 600 nascido pago apontando para o fornecedor, observação avisando que a
+    nota não chegou, divergência marcada sem bloquear, e recusa com mensagem
+    clara quando não há permissão. `npm run check` limpo (46 testes).
+    **Falta conferir na tela** — Parte 5 do `TESTE-MANUAL.md`.
   - **Tags de Cliente** — ✅ *resolvido em 08/08, achado pelo Felipe*: o
     catálogo `tag_cliente` tinha 4 marcações editáveis (VIP, Fiel,
     Atacado, Atenção) e a ficha do cliente oferecia **3 fixas no
@@ -2372,10 +2419,10 @@ aplicar.
 1. **Testar o sistema de ponta a ponta**, cadastrando dados reais pela
    tela (clientes, produtos, vendas, troca, ordens de serviço) — é o
    próximo passo combinado com o Felipe, depois desta revisão.
-2. **Fornecedores não alimentar compra/entrada de estoque** — o único
-   achado 🔴 restante que não é ajuste pontual, é feature nova (não existe
-   fluxo de recebimento de mercadoria hoje). Precisa de conversa sobre como
-   esse fluxo deveria funcionar antes de qualquer código.
+2. ~~**Fornecedores não alimentar compra/entrada de estoque**~~ — ✅
+   **feito em 23/08**, depois de o Felipe explicar como a loja recebe de
+   verdade. Era o último 🔴 que não era ajuste pontual. Ver a seção de
+   Estoque para o desenho e o porquê de cada escolha.
 3. **O restante dos achados 🟠/🔵** de cada área, na ordem que fizer mais
    sentido pro seu dia a dia — nenhum quebra o uso diário sozinho.
 4. **🔴 O banco continuar sem backup** segue sendo o risco maior que
