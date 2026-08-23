@@ -8,9 +8,13 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   PackageSearch,
+  Medal,
+  Users,
+  Tags,
+  Clock,
+  CreditCard,
 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { PageHeader } from '@/components/PageHeader';
 import { moeda } from '@/lib/format';
@@ -19,6 +23,15 @@ import {
   somarDevolucoes,
   type DevolucaoRow,
 } from '@/lib/faturamento';
+import {
+  agrupar,
+  porValor,
+  porQuantidade,
+  lider,
+  horarioDePico,
+  faixaDeHora,
+} from '@/lib/ranking';
+import { TabelaRanking, CardIndicador } from '@/components/dashboards/TabelaRanking';
 
 /**
  * Dashboard de Vendas — "olha só como tá indo agora".
@@ -36,7 +49,7 @@ interface ItemVendaRow {
   produto_id: string;
   quantidade: number;
   total: number;
-  produtos: { nome: string } | null;
+  produtos: { nome: string; categoria: string | null } | null;
 }
 
 interface VendaRow {
@@ -46,19 +59,17 @@ interface VendaRow {
   /** NULL em toda venda comum (usa `total`). Só a venda nova de uma troca
    *  preenche — ver TrocaDevolucao.tsx e VendasHistorico.tsx. */
   valor_faturamento_real: number | null;
+  /** Pode ser NULL: venda antiga importada, ou balcão sem atribuição. O
+   *  ranking ignora essas em vez de inventar um vendedor "sem nome". */
+  vendedor_id: string | null;
+  vendedor: { nome: string } | null;
   itens_venda: ItemVendaRow[] | null;
+  pagamentos_venda: { valor: number; formas_pagamento: { descricao: string } | null }[] | null;
 }
 
 /** Dinheiro novo que essa venda representou de verdade — ver
  *  RelatorioVendas.tsx, mesma lógica. */
 const faturamentoReal = (v: VendaRow) => Number(v.valor_faturamento_real ?? v.total ?? 0);
-
-interface ProdutoAgregado {
-  produtoId: string;
-  nome: string;
-  quantidade: number;
-  receita: number;
-}
 
 const NOMES_DIA_SEMANA = [
   'Segunda-feira',
@@ -113,7 +124,14 @@ export default function DashboardVenda() {
       const [resVendas, devolucoes] = await Promise.all([
         supabase
           .from('vendas')
-          .select('id, created_at, total, valor_faturamento_real, itens_venda(produto_id, quantidade, total, produtos:vw_produtos(nome))')
+          // Numa linha só: o TypeScript lê este texto literalmente para saber o
+          // formato do resultado. Quebrado com `+`, o retorno vira "erro
+          // genérico" e engano de nome de coluna passa batido.
+          //
+          // `produtos:vw_produtos(...)` é a regra de custo protegido — leitura
+          // de produto passa SEMPRE pela view, mesmo sem pedir custo. O apelido
+          // mantém a chave `produtos` no JSON.
+          .select('id, created_at, total, valor_faturamento_real, vendedor_id, vendedor:profiles(nome), itens_venda(produto_id, quantidade, total, produtos:vw_produtos(nome, categoria)), pagamentos_venda(valor, formas_pagamento(descricao))')
           .gte('created_at', desde)
           .neq('status', 'cancelado'),
         buscarDevolucoesDesde(desde),
@@ -167,29 +185,60 @@ export default function DashboardVenda() {
     totalPorDia[0]
   );
 
-  // Agrega itens_venda das vendas da semana por produto — mesmo padrão de
-  // agregação client-side usado em IeComercial.tsx.
-  const topProdutos: ProdutoAgregado[] = (() => {
-    const porProduto = new Map<string, ProdutoAgregado>();
-    for (const venda of vendasSemana) {
-      for (const item of venda.itens_venda ?? []) {
-        if (!item.produtos) continue; // item órfão (produto excluído) — ignora
+  const itensDaSemana = vendasSemana.flatMap((v) => v.itens_venda ?? []);
 
-        const atual = porProduto.get(item.produto_id) ?? {
-          produtoId: item.produto_id,
-          nome: item.produtos.nome,
-          quantidade: 0,
-          receita: 0,
-        };
-        atual.quantidade += item.quantidade;
-        atual.receita += Number(item.total ?? 0);
-        porProduto.set(item.produto_id, atual);
-      }
-    }
-    return Array.from(porProduto.values())
-      .sort((a, b) => b.quantidade - a.quantidade)
-      .slice(0, 5);
-  })();
+  // Produto: item órfão (produto excluído do cadastro) fica de fora — sem o
+  // cadastro não há nome para mostrar.
+  const topProdutos = porQuantidade(
+    agrupar(itensDaSemana, {
+      chave: (i) => (i.produtos ? i.produto_id : null),
+      nome: (i) => i.produtos?.nome,
+      quantidade: (i) => i.quantidade,
+      valor: (i) => Number(i.total ?? 0),
+    }),
+  );
+
+  const topCategorias = porValor(
+    agrupar(itensDaSemana, {
+      chave: (i) => i.produtos?.categoria,
+      nome: (i) => i.produtos?.categoria,
+      quantidade: (i) => i.quantidade,
+      valor: (i) => Number(i.total ?? 0),
+    }),
+  );
+
+  /**
+   * Ranking de vendedores da semana.
+   *
+   * ⚠️ Este ranking NÃO desconta devolução, e os cards lá em cima descontam —
+   * então os dois totais não batem, de propósito. O motivo é que a devolução
+   * não guarda quem fez a venda original: descontá-la de alguém seria chute.
+   * Para "quanto a loja faturou", vale o card; aqui vale "quem fechou venda".
+   */
+  const rankingVendedores = porValor(
+    agrupar(vendasSemana, {
+      chave: (v) => v.vendedor_id,
+      nome: (v) => v.vendedor?.nome,
+      valor: (v) => faturamentoReal(v),
+    }),
+  );
+  const melhorVendedor = lider(rankingVendedores);
+
+  const formasPagamento = porValor(
+    agrupar(
+      vendasSemana.flatMap((v) => v.pagamentos_venda ?? []),
+      {
+        chave: (p) => p.formas_pagamento?.descricao,
+        nome: (p) => p.formas_pagamento?.descricao,
+        valor: (p) => Number(p.valor ?? 0),
+      },
+    ),
+  );
+
+  // Hora em que mais se fecha venda na semana. Serve para escala de equipe:
+  // saber que o movimento é das 14h às 16h vale mais, na prática, que saber
+  // o total do dia.
+  const pico = horarioDePico(vendasSemana.map((v) => v.created_at));
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -285,52 +334,83 @@ export default function DashboardVenda() {
         </Card>
       </div>
 
-      {/* Top 5 produtos mais vendidos esta semana */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Top 5 Produtos Mais Vendidos Esta Semana</CardTitle>
-          <CardDescription>
-            Quantidade e receita por produto, somando os itens das vendas de segunda até hoje.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            </div>
-          ) : topProdutos.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <PackageSearch className="h-12 w-12 text-muted-foreground/50" />
-              <p className="mt-2 text-sm text-muted-foreground">
-                Nenhum produto vendido nesta semana ainda.
-              </p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[1%]">#</TableHead>
-                  <TableHead>Produto</TableHead>
-                  <TableHead className="text-right">Qtd. vendida</TableHead>
-                  <TableHead className="text-right">Receita</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {topProdutos.map((p, i) => (
-                  <TableRow key={p.produtoId}>
-                    <TableCell className="font-medium text-muted-foreground">{i + 1}</TableCell>
-                    <TableCell className="font-medium">{p.nome}</TableCell>
-                    <TableCell className="text-right tabular-nums">{p.quantidade}</TableCell>
-                    <TableCell className="text-right font-medium tabular-nums">
-                      {moeda(p.receita)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      {/* Segunda fileira: quem vendeu mais e quando a loja enche */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <CardIndicador
+          titulo="Melhor Vendedor da Semana"
+          faixa="kpi-vendas"
+          icone={<Medal className="h-4 w-4" />}
+          carregando={isLoading}
+          valor={melhorVendedor ? moeda(melhorVendedor.valor) : '—'}
+          detalhe={
+            melhorVendedor
+              ? `${melhorVendedor.nome} · ${melhorVendedor.quantidade} venda(s)`
+              : 'Nenhuma venda com vendedor registrado nesta semana'
+          }
+        />
+        <CardIndicador
+          titulo="Horário de Pico"
+          faixa="kpi-caixa"
+          icone={<Clock className="h-4 w-4" />}
+          carregando={isLoading}
+          valor={pico ? faixaDeHora(pico.hora) : '—'}
+          detalhe={
+            pico
+              ? `${pico.quantidade} venda(s) fecharam nessa faixa esta semana`
+              : 'Sem vendas nesta semana ainda'
+          }
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <TabelaRanking
+          titulo="Ranking de Vendedores"
+          descricao="Quem fechou venda de segunda até hoje. Não desconta devolução — para o faturamento da loja, veja os cards acima."
+          linhas={rankingVendedores}
+          rotuloNome="Vendedor"
+          rotuloQuantidade="Vendas"
+          rotuloValor="Faturamento"
+          vazio="Nenhuma venda com vendedor registrado nesta semana."
+          icone={<Users className="h-12 w-12" />}
+          carregando={isLoading}
+        />
+
+        <TabelaRanking
+          titulo="Categorias Mais Vendidas"
+          descricao="Onde o dinheiro entrou, por tipo de produto, nas vendas desta semana."
+          linhas={topCategorias}
+          rotuloNome="Categoria"
+          rotuloQuantidade="Peças"
+          rotuloValor="Receita"
+          vazio="Nenhum produto vendido nesta semana ainda."
+          icone={<Tags className="h-12 w-12" />}
+          carregando={isLoading}
+        />
+
+        <TabelaRanking
+          titulo="Produtos Mais Vendidos"
+          descricao="Ordenado por quantidade — o que mais sai da prateleira, de segunda até hoje."
+          linhas={topProdutos}
+          rotuloNome="Produto"
+          rotuloQuantidade="Qtd. vendida"
+          rotuloValor="Receita"
+          vazio="Nenhum produto vendido nesta semana ainda."
+          icone={<PackageSearch className="h-12 w-12" />}
+          carregando={isLoading}
+        />
+
+        <TabelaRanking
+          titulo="Como o Cliente Paga"
+          descricao="Formas de pagamento usadas nas vendas desta semana."
+          linhas={formasPagamento}
+          rotuloNome="Forma"
+          rotuloQuantidade="Usos"
+          rotuloValor="Valor"
+          vazio="Nenhum pagamento registrado nesta semana."
+          icone={<CreditCard className="h-12 w-12" />}
+          carregando={isLoading}
+        />
+      </div>
     </div>
   );
 }

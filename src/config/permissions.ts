@@ -16,6 +16,7 @@ export const PERMISSIONS = {
   DASHBOARDS_SALES_VIEW: 'dashboards.sales.view',
   DASHBOARDS_STOCK_VIEW: 'dashboards.stock.view',
   DASHBOARDS_GOALS_VIEW: 'dashboards.goals.view',
+  DASHBOARDS_SERVICE_VIEW: 'dashboards.service.view',
 
   BI_STOCK_VIEW: 'bi.stock.view',
   BI_COMMERCIAL_VIEW: 'bi.commercial.view',

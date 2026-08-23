@@ -80,6 +80,7 @@ export const MENU: MenuRoot[] = [
         label: 'Dashboards Operacionais',
         children: [
           { kind: 'link', id: 'dash-venda', label: 'Venda', path: '/dashboards/venda', element: 'DashboardVenda', permission: PERMISSIONS.DASHBOARDS_SALES_VIEW },
+          { kind: 'link', id: 'dash-assistencia', label: 'Assistência', path: '/dashboards/assistencia', element: 'DashboardAssistencia', permission: PERMISSIONS.DASHBOARDS_SERVICE_VIEW },
           { kind: 'link', id: 'dash-estoque', label: 'Estoque', path: '/dashboards/estoque', element: 'DashboardEstoque', permission: PERMISSIONS.DASHBOARDS_STOCK_VIEW },
           { kind: 'link', id: 'dash-metas', label: 'Metas', path: '/dashboards/metas', element: 'DashboardMetas', permission: PERMISSIONS.DASHBOARDS_GOALS_VIEW },
         ],
