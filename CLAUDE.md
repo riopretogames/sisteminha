@@ -156,8 +156,20 @@ O que isso significa para código novo:
   e "12345678900" são o mesmo CPF. A regra mora na função
   `public.somente_digitos` — front e banco usam a mesma, de propósito.
 - **Documento e telefone recusam** (índice `clientes_documento_unico` e gatilho
-  `trg_cliente_telefone_repetido`, migration `20260808150000`). **Nome igual só
-  avisa** — dois "João Silva" podem ser duas pessoas.
+  `trg_cliente_telefone_repetido`, migration `20260808150000`).
+- **Nome igual TRAVA o cadastro cru** — revisto pelo Felipe em 23/08, depois de
+  testar: *"dá para criar quantos quiser com o mesmo nome"*. Até ali nome só
+  avisava.
+
+  A trava vale para o cadastro de nome e mais nada. **Informar telefone ou CPF
+  libera**, e isso é o ponto da regra, não uma brecha: dois "João Silva" de
+  verdade existem, e uma loja que não consegue cadastrar o segundo acaba com
+  "Joao Silva 2" no sistema — pior que duas fichas, porque ninguém acha depois
+  nem por nome nem por telefone.
+
+  A regra mora em `lib/clienteDuplicado.ts`, com 8 testes. Editar ficha
+  existente nunca é travado: sem isso não daria para corrigir o nome de quem já
+  está cadastrado.
 - Toda porta que cria cliente tem que **procurar antes de gravar**, com
   `buscar_clientes_semelhantes`, e oferecer o cadastro encontrado. Recusar sem
   oferecer saída é tela quebrada para quem está atendendo.

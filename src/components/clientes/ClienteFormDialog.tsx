@@ -41,6 +41,7 @@ import {
   soDigitos,
 } from '@/lib/documento';
 import { useAtalhosDeDialogo } from '@/hooks/useAtalhosDeDialogo';
+import { podeGravarClienteNovo } from '@/lib/clienteDuplicado';
 
 /**
  * Cadastro de cliente — a ficha completa.
@@ -225,6 +226,29 @@ export function ClienteFormDialog({
         return;
       }
 
+      // NOME REPETIDO SEM MAIS NADA NÃO CRIA CADASTRO NOVO.
+      //
+      // Decisão do Felipe em 23/08, depois de testar: "dá para criar quantos
+      // quiser com o mesmo nome". Até aqui, nome igual só avisava — regra que
+      // ele mesmo tinha definido em 08/08 e agora reviu.
+      //
+      // A trava é só para o cadastro CRU: nome e mais nada. É esse que nasce
+      // do balcão com pressa, e é ele que vira duplicata.
+      //
+      // Informar telefone ou CPF libera, e isso é de propósito: dois "João
+      // Silva" de verdade existem, e recusar sempre faria a equipe contornar
+      // escrevendo "Joao Silva 2" — que é pior que duas fichas, porque nem
+      // dá para achar depois.
+      if (!podeGravarClienteNovo(form, achados.length > 0, editando)) {
+        toast({
+          title: 'Já existe alguém com esse nome',
+          description:
+            'Use o cadastro que aparece acima. Se for outra pessoa mesmo, informe o telefone ou o CPF dela — aí o sistema aceita como cadastro novo.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const origemDescricao = listaOrigens.find((o) => o.id === form.origem_id)?.descricao;
 
       const salvo = editando
@@ -321,7 +345,9 @@ export function ClienteFormDialog({
               ))}
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              Se for outra pessoa, pode cadastrar normalmente.
+              Se for a mesma pessoa, use o cadastro acima. Se for outra, informe o
+              <strong> telefone ou o CPF</strong> dela — sem isso, o sistema não cria
+              um segundo cadastro com o mesmo nome.
             </p>
           </div>
         )}

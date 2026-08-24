@@ -1551,6 +1551,24 @@ o arquivo antes de assumir.
 
 ## Configurações, Permissões e Minha Empresa
 
+- [ ] 🆕 **Pedido do Felipe em 23/08, no teste do passo 1: linha do tempo do
+  produto.** Hoje a ficha do produto não guarda **quem cadastrou**, e ele
+  escreveu: *"adicionar também a pessoa que cadastrou o produto também é muito
+  importante (linha do tempo do produto)"*.
+
+  A OS já tem linha do tempo desde 22/08 (abertura, troca de etapa, aprovação,
+  cada uma com hora e autor). O produto não tem nada: dá para ver o estoque de
+  hoje, mas não quem criou a ficha, quem mudou o preço nem quando.
+
+  O material já existe pela metade: `movimentos_estoque` guarda usuário e data
+  de toda entrada e saída, e a tabela `auditoria` guarda alteração com autor.
+  Falta juntar isso numa aba da ficha do produto, no mesmo formato da OS —
+  e provavelmente gravar o autor da CRIAÇÃO, que hoje ninguém registra.
+
+  **Não fazer sem conversar antes**: decidir o que entra na linha do tempo
+  (só preço e custo? qualquer campo? entrada e saída de estoque também?) muda
+  bastante o tamanho do trabalho.
+
 - [x] ✅ **Resolvido em 22/08 — 🆕 pedido do Felipe no dia.** Não dava para
   criar usuário dentro do sistema: a tela de Usuários trazia um aviso
   mandando criar no painel do Supabase. O motivo era real — criar conta de
