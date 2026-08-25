@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { estoqueCritico } from '@/lib/estoque';
+import { hojeISO } from '@/lib/format';
 
 /**
  * Os avisos do sininho.
@@ -51,7 +52,11 @@ export function useAvisos() {
     refetchInterval: 60_000,
     queryFn: async (): Promise<Aviso[]> => {
       const agora = Date.now();
-      const hojeISO = new Date().toISOString().slice(0, 10);
+      // `hojeISO()` do lib, e NÃO `toISOString()`: aquele devolve a data em
+      // UTC. Como o Brasil é UTC-3, das 21h à meia-noite a data de UTC já é a
+      // de amanhã — e a conta que vence HOJE apareceria como vencida, em
+      // vermelho, todo dia no fim do expediente.
+      const hoje = hojeISO();
       const avisos: Aviso[] = [];
 
       const [produtos, ordens, titulos, caixas] = await Promise.all([
@@ -70,7 +75,7 @@ export function useAvisos() {
               .select('id, valor, vencimento')
               .eq('natureza', 'pagar')
               .eq('status', 'aberto')
-              .lt('vencimento', hojeISO)
+              .lt('vencimento', hoje)
           : Promise.resolve({ data: [], error: null }),
         veCaixa
           ? supabase.from('caixa_sessoes').select('id, aberto_em').eq('status', 'aberto')

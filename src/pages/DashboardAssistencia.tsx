@@ -161,20 +161,32 @@ export default function DashboardAssistencia() {
   const abertasHoje = semana.filter((o) => new Date(o.created_at) >= limites.inicioHoje);
   const abertasSemana = semana.filter((o) => new Date(o.created_at) >= limites.inicioSemana);
 
-  /** Quando a OS foi entregue. `data_finalizacao` é o certo; `updated_at` é o
-   *  socorro para OS antiga, gravada antes de esse campo existir. */
-  const entregaEm = (o: OSRow) => o.data_finalizacao ?? o.updated_at ?? o.created_at;
+  /**
+   * Quando a OS foi entregue.
+   *
+   * SÓ `data_finalizacao`. A versão anterior caía para `updated_at` quando ele
+   * era nulo, e isso datava errado: `updated_at` muda a cada edição da OS, não
+   * só na entrega. Uma OS entregue em julho, com uma observação corrigida
+   * hoje, entrava no faturamento DESTA semana, no ranking do técnico e no
+   * tempo médio de reparo — com uma duração de meses puxando a média.
+   *
+   * Entrega sem data fica de fora das contas da semana, e isso é o certo: não
+   * dá para afirmar quando ela aconteceu.
+   */
+  const entregaEm = (o: OSRow) => o.data_finalizacao;
 
-  const entreguesSemana = semana.filter(
-    (o) => o.status === 'entregue' && new Date(entregaEm(o)) >= limites.inicioSemana,
-  );
+  const entreguesSemana = semana.filter((o) => {
+    if (o.status !== 'entregue') return false;
+    const quando = entregaEm(o);
+    return quando !== null && new Date(quando) >= limites.inicioSemana;
+  });
 
   const faturamentoSemana = entreguesSemana.reduce((soma, o) => soma + rendimento(o), 0);
   const ticketMedio = entreguesSemana.length > 0 ? faturamentoSemana / entreguesSemana.length : null;
 
   // Só as entregues entram na média de tempo: OS aberta ainda não terminou, e
   // incluí-la puxaria a média para baixo justamente quando a bancada atrasa.
-  const temposDeReparo = entreguesSemana.map((o) => diasEntre(o.created_at, entregaEm(o)));
+  const temposDeReparo = entreguesSemana.map((o) => diasEntre(o.created_at, entregaEm(o)!));
   const tempoMedio =
     temposDeReparo.length > 0
       ? temposDeReparo.reduce((a, b) => a + b, 0) / temposDeReparo.length

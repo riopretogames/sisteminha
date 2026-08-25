@@ -450,7 +450,26 @@ function DialogNovaEntrada({ onFechar }: { onFechar: () => void }) {
                   const custoNovo = paraNumero(i.custoUnitario);
                   const estoque = i.produto.estoque_atual ?? 0;
                   const custoAtual = i.produto.custo ?? 0;
-                  const medio = custoMedio(estoque, custoAtual, qtd, custoNovo);
+                  // Conta TODAS as linhas deste mesmo produto na entrada, não
+                  // só esta. O banco processa as linhas em sequência, então
+                  // calcular cada uma isolada prometia um custo que não
+                  // acontece: duas linhas de 10 un a R$ 20 sobre 10 un a
+                  // R$ 10 mostrariam R$ 15,00 nas duas, e o banco grava
+                  // R$ 16,67.
+                  const linhasDoProduto = itens.filter((x) => x.produto.id === i.produto.id);
+                  const qtdTotal = linhasDoProduto.reduce(
+                    (soma, x) => soma + paraNumero(x.quantidade),
+                    0,
+                  );
+                  const gastoTotal = linhasDoProduto.reduce(
+                    (soma, x) => soma + paraNumero(x.quantidade) * paraNumero(x.custoUnitario),
+                    0,
+                  );
+                  const medio =
+                    qtdTotal > 0
+                      ? custoMedio(estoque, custoAtual, qtdTotal, gastoTotal / qtdTotal)
+                      : custoAtual;
+                  const repetido = linhasDoProduto.length > 1;
                   const mudouCusto = qtd > 0 && medio !== custoAtual;
 
                   return (
@@ -506,8 +525,9 @@ function DialogNovaEntrada({ onFechar }: { onFechar: () => void }) {
                         <p className="mt-2 text-xs text-muted-foreground">
                           Custo deste produto passa de <strong>{moeda(custoAtual)}</strong>{' '}
                           para <strong>{moeda(medio)}</strong> — média entre as {estoque}{' '}
-                          unidade(s) que já estavam na prateleira e as {qtd} que estão
-                          chegando. Isso muda a margem de todas elas.
+                          unidade(s) que já estavam na prateleira e as {qtdTotal} que estão
+                          chegando{repetido ? ' nesta entrada (somando as linhas repetidas deste produto)' : ''}.
+                          Isso muda a margem de todas elas.
                         </p>
                       )}
 

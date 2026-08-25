@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { enterDeveConfirmar } from '@/lib/atalhos';
 
 /**
@@ -21,8 +21,21 @@ import { enterDeveConfirmar } from '@/lib/atalhos';
  * de graça o caso de um diálogo abrir outro por cima: o de dentro recebe a
  * tecla primeiro e marca como tratada, então o de fora não confirma junto.
  *
- * Quando a ação apaga algo, passe `perigoso: true` — aí o Enter não dispara e
- * a pessoa precisa clicar. Ver `lib/atalhos.ts` para o porquê de cada recusa.
+ * ⚠️ POR QUE O REF É UM CALLBACK, E NÃO UM `useRef`
+ *
+ * A primeira versão usava `useRef` e lia `alvo.current` dentro de um efeito
+ * com dependência `[ativo]`. Isso funcionava só nos diálogos que já nascem
+ * abertos. Nos que ficam montados com o diálogo FECHADO — que são a maioria,
+ * `<Dialog open={estado}>` — o conteúdo ainda não existe no DOM quando o
+ * efeito roda: `current` é null, o efeito desiste, e como nada muda a
+ * dependência, ele nunca roda de novo. O atalho ficava morto e ninguém
+ * percebia, porque não dá erro nenhum: a tecla simplesmente não faz nada.
+ *
+ * Com callback ref, o React chama a função no instante em que o elemento
+ * entra no DOM. Guardar isso em estado faz o efeito rodar aí, e só aí.
+ *
+ * Quando a ação apaga algo, passe `perigoso: true` — o Enter não dispara e a
+ * pessoa precisa clicar. Ver `lib/atalhos.ts` para o porquê de cada recusa.
  */
 export function useAtalhosDeDialogo({
   onConfirmar,
@@ -35,7 +48,7 @@ export function useAtalhosDeDialogo({
   perigoso?: boolean;
   ativo?: boolean;
 }) {
-  const alvo = useRef<HTMLDivElement>(null);
+  const [elemento, setElemento] = useState<HTMLDivElement | null>(null);
 
   // As opções vão para um ref porque mudam a cada tecla digitada
   // (`podeConfirmar` depende do que está preenchido). Sem isso o ouvinte seria
@@ -44,7 +57,6 @@ export function useAtalhosDeDialogo({
   opcoes.current = { onConfirmar, podeConfirmar, perigoso };
 
   useEffect(() => {
-    const elemento = alvo.current;
     if (!elemento || !ativo) return;
 
     function aoTeclar(evento: KeyboardEvent) {
@@ -85,9 +97,9 @@ export function useAtalhosDeDialogo({
 
     elemento.addEventListener('keydown', aoTeclar);
     return () => elemento.removeEventListener('keydown', aoTeclar);
-  }, [ativo]);
+  }, [elemento, ativo]);
 
-  return alvo;
+  return useCallback((node: HTMLDivElement | null) => setElemento(node), []);
 }
 
 /**
