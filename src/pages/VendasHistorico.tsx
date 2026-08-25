@@ -39,7 +39,9 @@ interface Venda {
    *  o produto trocado duas vezes no faturamento. Ver TrocaDevolucao.tsx. */
   valor_faturamento_real: number | null;
   vendedor_id: string | null;
-  clientes: { nome: string } | null;
+  subtotal: number | null;
+  descontos: number | null;
+  clientes: { nome: string; telefone: string | null; cpf_cnpj: string | null } | null;
   vendedor: { nome: string } | null;
   /** Só o necessário para os filtros de produto e número de série. O detalhe
    *  completo dos itens continua sendo buscado ao abrir a venda. */
@@ -55,8 +57,17 @@ interface ItemVenda {
   id: string;
   quantidade: number;
   preco_unitario: number;
+  desconto: number | null;
   total: number;
-  produtos: { nome: string } | null;
+  produtos: {
+    nome: string;
+    imei_serial: string | null;
+    marca: string | null;
+    modelo: string | null;
+    categoria: string | null;
+    cor: { descricao: string } | null;
+    memoria: { descricao: string } | null;
+  } | null;
 }
 
 interface PagamentoVenda {
@@ -64,6 +75,19 @@ interface PagamentoVenda {
   forma: keyof typeof FORMAS_PAGAMENTO;
   valor: number;
   parcelas: number;
+  created_at: string;
+  /** Nome cadastrado da forma ("Cartão Crédito - Taxa"), quando existe. O
+   *  campo `forma` é o tipo amplo; este é o que a loja escolheu. */
+  formas_pagamento: { descricao: string } | null;
+}
+
+/** Aparelho que o cliente entregou como parte do pagamento. */
+interface EntradaTroca {
+  id: string;
+  valor_entrada: number;
+  observacoes: string | null;
+  created_at: string;
+  produtos: { nome: string; imei_serial: string | null; preco: number | null } | null;
 }
 
 /** Uma mudança de status depois de criada (ex.: cancelamento). A maioria das
@@ -138,7 +162,8 @@ export default function VendasHistorico() {
         // manter a chave `produtos`.
         .select(
           `id, numero_venda, created_at, status, total, valor_faturamento_real, vendedor_id,
-           clientes(nome),
+           subtotal, descontos,
+           clientes(nome, telefone, cpf_cnpj),
            vendedor:profiles!vendas_vendedor_id_fkey(nome),
            itens_venda(produtos:vw_produtos(nome, imei_serial)),
            pagamentos_venda(forma),
@@ -192,15 +217,20 @@ export default function VendasHistorico() {
       pagamentos: PagamentoVenda[];
       historicoStatus: HistoricoStatusVenda[];
       devolucoesDetalhe: DevolucaoDetalhe[];
+      entradas: EntradaTroca[];
     }> => {
-      const [itensRes, pagamentosRes, historicoRes, devolucoesRes] = await Promise.all([
+      const [itensRes, pagamentosRes, historicoRes, devolucoesRes, entradasRes] =
+        await Promise.all([
         supabase
           .from('itens_venda')
-          .select('id, quantidade, preco_unitario, total, produtos:vw_produtos(nome)')
+          // Numa linha so: o TypeScript le este texto literalmente. Cor e
+          // memoria sao itens de catalogo, por isso o join; marca e modelo
+          // ja vem como texto na view.
+          .select('id, quantidade, preco_unitario, desconto, total, produtos:vw_produtos(nome, imei_serial, marca, modelo, categoria, cor:catalogos!produtos_cor_id_fkey(descricao), memoria:catalogos!produtos_memoria_id_fkey(descricao))')
           .eq('venda_id', vendaAberta!.id),
         supabase
           .from('pagamentos_venda')
-          .select('id, forma, valor, parcelas')
+          .select('id, forma, valor, parcelas, created_at, formas_pagamento(descricao)')
           .eq('venda_id', vendaAberta!.id),
         supabase
           .from('venda_status_historico')
@@ -212,20 +242,43 @@ export default function VendasHistorico() {
           .select('id, numero_devolucao, usuario_id, motivo, valor_devolvido_cliente, valor_cliente_pagou_a_mais, created_at')
           .eq('venda_original_id', vendaAberta!.id)
           .order('created_at', { ascending: true }),
+        // Aparelho recebido como parte do pagamento. Nao aparecia na ficha em
+        // lugar nenhum -- so o valor entrava, somado aos pagamentos, sem
+        // dizer O QUE a loja recebeu em troca.
+        supabase
+          .from('entradas_produto')
+          .select('id, valor_entrada, observacoes, created_at, produtos:vw_produtos(nome, imei_serial, preco)')
+          .eq('venda_id', vendaAberta!.id)
+          .order('created_at', { ascending: true }),
       ]);
       if (itensRes.error) throw itensRes.error;
       if (pagamentosRes.error) throw pagamentosRes.error;
       if (historicoRes.error) throw historicoRes.error;
       if (devolucoesRes.error) throw devolucoesRes.error;
+      if (entradasRes.error) throw entradasRes.error;
       return {
         itens: (itensRes.data ?? []) as unknown as ItemVenda[],
         pagamentos: (pagamentosRes.data ?? []) as unknown as PagamentoVenda[],
         historicoStatus: (historicoRes.data ?? []) as unknown as HistoricoStatusVenda[],
         devolucoesDetalhe: (devolucoesRes.data ?? []) as unknown as DevolucaoDetalhe[],
+        entradas: (entradasRes.data ?? []) as unknown as EntradaTroca[],
       };
     },
     enabled: !!vendaAberta,
   });
+
+  // Somas que a ficha mostra separadas do total. Ficam aqui, e não dentro do
+  // JSX, para o cálculo não repetir a cada redesenho da tela.
+  const totalEntradas = (detalhe?.entradas ?? []).reduce(
+    (soma, e) => soma + Number(e.valor_entrada ?? 0),
+    0,
+  );
+  // Nome comprido de propósito: já existe um `totalDevolvido` nesta tela, que
+  // soma TODAS as vendas do filtro para o rodapé. Este é só o da venda aberta.
+  const devolvidoDestaVenda = (detalhe?.devolucoesDetalhe ?? []).reduce(
+    (soma, d) => soma + Number(d.valor_devolvido_cliente ?? 0),
+    0,
+  );
 
   // Junta as três fontes (criação, mudança de status, devolução) numa lista
   // só, em ordem de hora — é a "linha do tempo" que o Felipe pediu (22/08)
@@ -428,40 +481,164 @@ export default function VendasHistorico() {
       )}
 
       <Dialog open={!!vendaAberta} onOpenChange={(open) => !open && setVendaAberta(null)}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[680px]">
           <DialogHeader>
             <DialogTitle>Venda {vendaAberta?.numero_venda}</DialogTitle>
           </DialogHeader>
           {carregandoDetalhe ? (
             <div className="py-8 text-center text-muted-foreground">Carregando…</div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-5">
+              {/* Quem, quando, por quanto. Antes era preciso abrir o cadastro
+                  do cliente para ver um telefone — no meio de um atendimento
+                  em que a pergunta costuma ser "liga pra ele". */}
+              <div className="grid gap-x-6 gap-y-2 rounded-lg border p-3 text-sm sm:grid-cols-2">
+                <Campo rotulo="Cliente" valor={vendaAberta?.clientes?.nome ?? '—'} />
+                <Campo rotulo="Vendedor" valor={vendaAberta?.vendedor?.nome ?? '—'} />
+                <Campo rotulo="Telefone" valor={vendaAberta?.clientes?.telefone || '—'} />
+                <Campo rotulo="CPF/CNPJ" valor={vendaAberta?.clientes?.cpf_cnpj || 'Não informado'} />
+                <Campo rotulo="Data" valor={vendaAberta ? dataHora(vendaAberta.created_at) : '—'} />
+                <Campo rotulo="Situação" valor={vendaAberta?.status ?? '—'} />
+              </div>
+
+              {/* Os valores separados. O total sozinho esconde o que aconteceu:
+                  desconto dado, aparelho aceito na troca, dinheiro devolvido. */}
+              <div className="rounded-lg border p-3">
+                <p className="mb-2 text-sm font-medium text-muted-foreground">Valores</p>
+                <div className="space-y-1 text-sm">
+                  {Number(vendaAberta?.subtotal ?? 0) > 0 && (
+                    <Linha rotulo="Subtotal" valor={moeda(Number(vendaAberta?.subtotal))} />
+                  )}
+                  {Number(vendaAberta?.descontos ?? 0) > 0 && (
+                    <Linha
+                      rotulo="Desconto"
+                      valor={`- ${moeda(Number(vendaAberta?.descontos))}`}
+                      classe="text-destructive"
+                    />
+                  )}
+                  {totalEntradas > 0 && (
+                    <Linha rotulo="Recebido em troca" valor={moeda(totalEntradas)} />
+                  )}
+                  {devolvidoDestaVenda > 0 && (
+                    <Linha
+                      rotulo="Devolvido ao cliente"
+                      valor={`- ${moeda(devolvidoDestaVenda)}`}
+                      classe="text-destructive"
+                    />
+                  )}
+                  <div className="mt-1 flex justify-between border-t pt-1.5 font-semibold">
+                    <span>Total da venda</span>
+                    <span>{moeda(Number(vendaAberta?.total ?? 0))}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Produtos, com o que identifica o aparelho. Sem IMEI e número
+                  de série, não dá para saber QUAL unidade foi vendida quando
+                  o cliente volta com defeito. */}
               <div>
                 <p className="mb-2 text-sm font-medium text-muted-foreground">Produtos</p>
-                <div className="space-y-1.5">
-                  {detalhe?.itens.map((item) => (
-                    <div key={item.id} className="flex justify-between text-sm">
-                      <span>
-                        {item.quantidade}× {item.produtos?.nome ?? '—'}
-                      </span>
-                      <span className="font-medium">{moeda(Number(item.total))}</span>
-                    </div>
-                  ))}
+                <div className="space-y-2">
+                  {detalhe?.itens.map((item) => {
+                    const p = item.produtos;
+                    const detalhes = [
+                      p?.marca,
+                      p?.modelo,
+                      p?.cor?.descricao,
+                      p?.memoria?.descricao,
+                    ].filter(Boolean);
+                    return (
+                      <div key={item.id} className="rounded-md border p-2.5">
+                        <div className="flex justify-between gap-3">
+                          <span className="text-sm font-medium">
+                            {item.quantidade}× {p?.nome ?? '—'}
+                          </span>
+                          <span className="whitespace-nowrap text-sm font-medium">
+                            {moeda(Number(item.total))}
+                          </span>
+                        </div>
+                        {detalhes.length > 0 && (
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {detalhes.join(' · ')}
+                          </p>
+                        )}
+                        {p?.imei_serial && (
+                          <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                            IMEI/Série: {p.imei_serial}
+                          </p>
+                        )}
+                        {Number(item.desconto ?? 0) > 0 && (
+                          <p className="mt-0.5 text-xs text-destructive">
+                            Desconto de {moeda(Number(item.desconto))} nesta linha
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
                   {!detalhe?.itens.length && (
                     <p className="text-sm text-muted-foreground">Nenhum item.</p>
                   )}
                 </div>
               </div>
+
+              {/* Aparelho recebido como parte do pagamento. Não aparecia em
+                  lugar nenhum da ficha: só o valor entrava, somado aos
+                  pagamentos, sem dizer O QUE a loja levou em troca. */}
+              {(detalhe?.entradas?.length ?? 0) > 0 && (
+                <div>
+                  <p className="mb-2 text-sm font-medium text-muted-foreground">
+                    Recebido em troca
+                  </p>
+                  <div className="space-y-2">
+                    {detalhe?.entradas.map((e) => (
+                      <div key={e.id} className="rounded-md border p-2.5">
+                        <div className="flex justify-between gap-3">
+                          <span className="text-sm font-medium">{e.produtos?.nome ?? '—'}</span>
+                          <span className="whitespace-nowrap text-sm font-medium">
+                            {moeda(Number(e.valor_entrada))}
+                          </span>
+                        </div>
+                        {e.produtos?.imei_serial && (
+                          <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                            IMEI/Série: {e.produtos.imei_serial}
+                          </p>
+                        )}
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {Number(e.produtos?.preco ?? 0) > 0
+                            ? `Para revender por ${moeda(Number(e.produtos?.preco))}`
+                            : 'Sem preço de revenda definido — está esperando revisão'}
+                        </p>
+                        {e.observacoes && (
+                          <p className="mt-0.5 text-xs text-muted-foreground">{e.observacoes}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Pagamentos, com a hora de cada lançamento: numa venda paga em
+                  duas formas, é o que mostra em que ordem entraram. */}
               <div>
                 <p className="mb-2 text-sm font-medium text-muted-foreground">Pagamentos</p>
                 <div className="space-y-1.5">
-                  {detalhe?.pagamentos.map((p) => (
-                    <div key={p.id} className="flex justify-between text-sm">
+                  {detalhe?.pagamentos.map((pg) => (
+                    <div key={pg.id} className="flex flex-wrap justify-between gap-x-3 text-sm">
                       <span>
-                        {FORMAS_PAGAMENTO[p.forma]?.label ?? p.forma}
-                        {p.parcelas > 1 ? ` (${p.parcelas}x)` : ''}
+                        {pg.formas_pagamento?.descricao ??
+                          FORMAS_PAGAMENTO[pg.forma]?.label ??
+                          pg.forma}
+                        {pg.parcelas > 1 && (
+                          <span className="text-muted-foreground">
+                            {' '}
+                            — {pg.parcelas}x de {moeda(Number(pg.valor) / pg.parcelas)}
+                          </span>
+                        )}
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          {dataHora(pg.created_at)}
+                        </span>
                       </span>
-                      <span className="font-medium">{moeda(Number(p.valor))}</span>
+                      <span className="font-medium">{moeda(Number(pg.valor))}</span>
                     </div>
                   ))}
                   {!detalhe?.pagamentos.length && (
@@ -469,6 +646,7 @@ export default function VendasHistorico() {
                   )}
                 </div>
               </div>
+
               {/* Linha do tempo — hora de criação, cada mudança de status e
                   cada devolução, com quem fez. Pedido do Felipe em 22/08:
                   sem isso, essa informação só aparecia (misturada com o
@@ -508,6 +686,36 @@ export default function VendasHistorico() {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
+/** Rótulo em cima, valor embaixo — o formato do cabeçalho da ficha. */
+function Campo({ rotulo, valor }: { rotulo: string; valor: string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{rotulo}</p>
+      <p className="font-medium">{valor}</p>
+    </div>
+  );
+}
+
+/** Linha de valor: nome à esquerda, dinheiro à direita. */
+function Linha({
+  rotulo,
+  valor,
+  classe = '',
+}: {
+  rotulo: string;
+  valor: string;
+  classe?: string;
+}) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-muted-foreground">{rotulo}</span>
+      <span className={classe}>{valor}</span>
     </div>
   );
 }
