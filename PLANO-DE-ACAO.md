@@ -1551,6 +1551,34 @@ o arquivo antes de assumir.
 
 ## Configurações, Permissões e Minha Empresa
 
+- [ ] 🆕 **Pedido do Felipe em 24/08, no passo 11: a ficha da venda está pobre
+  demais.** Ele colou a tela do SISTEMA ANTIGO como modelo, e a diferença é
+  grande. O que o antigo mostra e o sisteminha não:
+
+  - **Histórico de alteração da venda** — cada mudança de situação com autor e
+    hora ("Em produção", "Aguardando cobrança", "Cobrança realizada",
+    "Finalizado"). É a linha do tempo que a OS ganhou em 22/08 e a venda não
+    tem.
+  - **Valores separados**: entrada de produtos, valor pago, valor restante,
+    desconto total, taxa de parcela, taxa de frete, valor de devolução. Hoje o
+    sisteminha mostra o total e pouco mais.
+  - **Detalhe do produto na venda**: IMEI, número de série, cor, memória,
+    bateria, tipo de preço (varejo/atacado).
+  - **Detalhe do pagamento**: valor da parcela, quantidade de parcelas, taxa
+    da parcela, data e hora do lançamento.
+  - **Detalhe da entrada por troca**: se tem defeito, IMEI, número de série,
+    observação.
+  - Telefone e CPF do cliente na própria ficha, sem precisar abrir o cadastro.
+
+  Boa parte do dado **já existe no banco** e só não é mostrada. O que não
+  existe é o histórico de alteração da venda — precisaria de uma tabela nova,
+  no mesmo padrão de `os_status_historico`.
+
+  **Conversar antes sobre uma coisa:** a venda no sisteminha não tem "situação"
+  como no sistema antigo (Em produção → Aguardando cobrança → Finalizado). Ou
+  se cria esse fluxo, ou o histórico registra só as alterações de valor e
+  pagamento. São trabalhos de tamanhos bem diferentes.
+
 - [ ] 🆕 **Pedido do Felipe em 23/08, no teste do passo 1: linha do tempo do
   produto.** Hoje a ficha do produto não guarda **quem cadastrou**, e ele
   escreveu: *"adicionar também a pessoa que cadastrou o produto também é muito
@@ -1564,6 +1592,11 @@ o arquivo antes de assumir.
   de toda entrada e saída, e a tabela `auditoria` guarda alteração com autor.
   Falta juntar isso numa aba da ficha do produto, no mesmo formato da OS —
   e provavelmente gravar o autor da CRIAÇÃO, que hoje ninguém registra.
+
+  **Complemento de 24/08, no passo 8:** ele quer especificamente que
+  *desligar o "Apto à Venda" apareça na linha do tempo, com quem desligou*.
+  Isso é um caso forte: tirar produto da venda some com ele da vitrine, e hoje
+  ninguém sabe quem fez nem por quê.
 
   **Não fazer sem conversar antes**: decidir o que entra na linha do tempo
   (só preço e custo? qualquer campo? entrada e saída de estoque também?) muda

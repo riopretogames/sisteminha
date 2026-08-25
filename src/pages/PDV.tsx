@@ -128,6 +128,9 @@ interface EntradaProdutoTroca {
   memoriaId: string;
   imeiSerial: string;
   valorEntrada: number;
+  /** Por quanto a loja pretende revender. 0 = ainda não sabe, e o produto
+   *  nasce sem preço, como era antes de 25/08. */
+  precoVenda: number;
 }
 
 const ENTRADA_PRODUTO_VAZIA = {
@@ -140,6 +143,7 @@ const ENTRADA_PRODUTO_VAZIA = {
   memoriaId: '',
   imeiSerial: '',
   valorEntrada: '',
+  precoVenda: '',
 };
 
 export default function PDV() {
@@ -535,7 +539,23 @@ export default function PDV() {
       toast({ title: 'Informe o valor de entrada', variant: 'destructive' });
       return;
     }
-    setEntradasProduto([...entradasProduto, { ...novaEntrada, nome: novaEntrada.nome.trim(), valorEntrada: valor }]);
+    // Preço de revenda é OPCIONAL: em branco vira 0 e o produto nasce sem
+    // preço, para revisão depois. Obrigar travaria o balcão com fila quando o
+    // vendedor não souber quanto vale o aparelho na hora.
+    const precoRevenda = parseFloat(novaEntrada.precoVenda);
+    if (novaEntrada.precoVenda.trim() && (Number.isNaN(precoRevenda) || precoRevenda < 0)) {
+      toast({ title: 'Preço de revenda inválido', variant: 'destructive' });
+      return;
+    }
+    setEntradasProduto([
+      ...entradasProduto,
+      {
+        ...novaEntrada,
+        nome: novaEntrada.nome.trim(),
+        valorEntrada: valor,
+        precoVenda: Number.isNaN(precoRevenda) ? 0 : precoRevenda,
+      },
+    ]);
     setNovaEntrada(ENTRADA_PRODUTO_VAZIA);
     setShowEntradaProduto(false);
   };
@@ -677,6 +697,11 @@ export default function PDV() {
             _memoria_id: (entrada.memoriaId || null) as unknown as string,
             _imei_serial: (entrada.imeiSerial.trim() || null) as unknown as string,
             _valor_entrada: entrada.valorEntrada,
+            // 0 = o vendedor não soube dizer. Vai como NULL para o banco
+            // deixar o produto com preço zero, esperando a revisão.
+            _preco_venda: (entrada.precoVenda > 0
+              ? entrada.precoVenda
+              : null) as unknown as number,
           });
 
           if (entradaError) throw entradaError;
@@ -1359,21 +1384,44 @@ export default function PDV() {
                     value={novaEntrada.imeiSerial}
                     onChange={(e) => setNovaEntrada({ ...novaEntrada, imeiSerial: e.target.value })}
                   />
-                  <div className="flex gap-2">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="Valor de entrada (R$)"
-                      value={novaEntrada.valorEntrada}
-                      onChange={(e) => setNovaEntrada({ ...novaEntrada, valorEntrada: e.target.value })}
-                      className="flex-1"
-                    />
-                    <Button onClick={addEntradaProduto}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">
+                        Quanto vale para nós <span className="text-destructive">*</span>
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0,00"
+                        value={novaEntrada.valorEntrada}
+                        onChange={(e) => setNovaEntrada({ ...novaEntrada, valorEntrada: e.target.value })}
+                      />
+                      <p className="text-[11px] leading-tight text-muted-foreground">
+                        O que abate da venda. Vira o custo do produto.
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">Por quanto vamos vender</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="deixe vazio se não souber"
+                        value={novaEntrada.precoVenda}
+                        onChange={(e) => setNovaEntrada({ ...novaEntrada, precoVenda: e.target.value })}
+                      />
+                      <p className="text-[11px] leading-tight text-muted-foreground">
+                        Você está com o aparelho na mão agora.
+                      </p>
+                    </div>
                   </div>
+                  <Button onClick={addEntradaProduto} className="w-full">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Adicionar à troca
+                  </Button>
                   <p className="text-xs text-muted-foreground">
-                    Entra no estoque como inativo — alguém precisa revisar e definir o preço de revenda antes dele aparecer pra venda.
+                    Entra no estoque como <strong>inativo</strong>, esperando alguém revisar. Se
+                    você não puser o preço de revenda agora, ele nasce valendo R$ 0,00 — e quem
+                    revisar precisa lembrar de arrumar.
                   </p>
                 </div>
               )}

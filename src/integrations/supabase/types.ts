@@ -2950,6 +2950,7 @@ export type Database = {
           _modelo_id: string
           _nome: string
           _observacoes?: string
+          _preco_venda?: number
           _valor_entrada: number
           _venda_id: string
         }
