@@ -17,7 +17,7 @@ abrindo mão.
 
 ## O que já roda sozinho
 
-O sistema tem **190 testes automáticos** que rodam a cada mudança. Eles cobrem
+O sistema tem **207 testes automáticos** que rodam a cada mudança. Eles cobrem
 as contas (faturamento, devolução, custo médio, ranking) e o comportamento das
 telas por perfil — inclusive o pior defeito que este sistema já teve, a tela de
 Estoque ficando branca para quem não vê custo.
@@ -587,6 +587,12 @@ você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda
   **Tem que acontecer:** Cada clique traz um aviso vermelho apontando **um** campo faltando, na ordem da tela, e a página rola até ele. São obrigatórios: cliente, equipamento, IMEI/nº de série, marca, modelo, problema informado, a resposta da senha, quem recebeu e o prazo. Respondendo `Sim` na senha e deixando os dois campos vazios, também não abre. Com tudo preenchido, a OS abre normalmente.
   *Por que importa: até 27/08 dava para abrir OS só com cliente e defeito — sem marca, sem modelo, sem número de série. Esse registro parece registro e não é: quando o cliente volta com o aparelho, ninguém prova qual era, e o técnico descobre na bancada que não tem a senha para testar o reparo.*
   > 🔎 **A pergunta da senha é obrigatória, a senha não.** Aparelho sem senha existe e é normal — o que não pode é ninguém ter perguntado. Marcar "Não tem senha" fica gravado na ficha, e é diferente de campo em branco.
+
+- [ ] **🔴 81. A ficha da venda abre de todo lugar (e só para quem pode)**
+  **O que fazer:** Abra **Venda > Pagamentos** e clique numa linha. Feche a ficha e repare no que acontece na hora de fechar. Depois faça o mesmo em **Relatórios > Relatório de Vendas**. Em **Relatórios > Relatório de OS**, clique numa linha. Em **Relatórios > Relatório de Estoque**, clique numa linha. Por fim abra **Estoque > Movimentações**: olhe a coluna **Origem** e a coluna **Quem fez**, e clique num `Venda OV000…`.
+  **Tem que acontecer:** Em Pagamentos e no Relatório de Vendas abre a **mesma ficha** do Histórico — cliente, telefone, CPF, vendedor, valores separados, produtos com IMEI, pagamentos com hora e linha do tempo. Ao fechar, a janela some **sem piscar nenhuma mensagem de erro**. No Relatório de OS a linha leva para a ficha da OS; no de Estoque, para a ficha do produto. Em Movimentações, a Origem aparece escrita como **"Venda OV0006"** (não `venda:OV0006`), a coluna **Quem fez** mostra o nome de quem mexeu no estoque, e clicar na origem abre a ficha daquela venda.
+  *Por que importa: era o pedido do 27/08 — a mesma venda aparecia em quatro telas e só numa dava para abrir. E o "quem é o cliente, que hora, qual colaborador" do estoque não estava no relatório de estoque (que é uma fotografia de saldos, sem data e sem pessoa): está em Movimentações, e é lá que foi resolvido.*
+  > 🔎 **Teste também o crachá, se puder:** entre com um usuário de perfil **Gerente Técnico** e abra o Relatório de Vendas. A linha **não pode** abrir ficha nenhuma — esse perfil não tem acesso ao módulo Venda, e a ficha mostra produto, IMEI, desconto e formas de pagamento. Isso escapou na primeira versão e foi pego na revisão do mesmo dia.
 
 ---
 

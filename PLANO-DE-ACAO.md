@@ -1621,6 +1621,20 @@ o arquivo antes de assumir.
   **Próximo passo:** repetir o passo 7 e copiar a segunda linha do aviso
   vermelho.
 
+- [ ] ⚪ 🆕 **Voltar de uma ficha perde o período do relatório.** Notado na
+  revisão de 28/08, quando as linhas dos relatórios viraram clicáveis.
+
+  O período escolhido (ex.: "julho inteiro") vive só na memória da tela, não no
+  endereço. Quem abre uma OS ou um produto a partir do relatório e clica em
+  voltar cai no relatório com o mês corrente de novo, e precisa refazer o
+  filtro. Some com isso: o botão "Voltar" da ficha da OS leva sempre para a
+  lista de Ordens de Serviço, não para o relatório de onde a pessoa veio.
+
+  Não é defeito novo — só ficou visível agora que dá para sair do relatório.
+  A correção honesta é guardar o período no endereço (`?de=&ate=`), o que
+  também faria o link do relatório filtrado ser compartilhável. Vale fazer
+  junto com o "voltar para onde eu estava".
+
 - [ ] 🟠 🆕 **Cada loja escolher os campos obrigatórios da OS.** Pedido do
   Felipe em 27/08, junto com a lista do que passou a ser obrigatório:
   *"eu acho que deveria ser selecionável isso dentro do próprio sistema,

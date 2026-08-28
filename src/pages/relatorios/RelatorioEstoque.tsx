@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { estoqueCritico } from '@/lib/estoque';
@@ -23,6 +24,10 @@ interface LinhaProduto {
 export default function RelatorioEstoque() {
   const [periodo, setPeriodo] = usePeriodo();
   const { can } = useAuth();
+  const navigate = useNavigate();
+  // Mesma história do Relatório de OS: a ficha do produto exige
+  // `inventory.view`, que nem todo mundo com `reports.view` tem.
+  const podeAbrirProduto = can(PERMISSIONS.INVENTORY_VIEW);
   const vecusto = can(PERMISSIONS.INVENTORY_COST_VIEW);
 
   const { data, isLoading } = useQuery({
@@ -137,6 +142,7 @@ export default function RelatorioEstoque() {
       onPeriodoChange={setPeriodo}
       ocultarPeriodo
       vazio="Nenhum produto ativo cadastrado."
+      aoClicarLinha={podeAbrirProduto ? (p) => navigate(`/estoque/${p.id}`) : undefined}
       indicadores={
         <>
           <Indicador
