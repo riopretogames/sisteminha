@@ -40,6 +40,8 @@ interface Props {
   placeholder?: string;
   /** Deixa a pessoa cadastrar item novo daqui. Ligado por padrão. */
   permiteCriar?: boolean;
+  /** Marca o rótulo com o asterisco vermelho de campo obrigatório. */
+  obrigatorio?: boolean;
   disabled?: boolean;
   id?: string;
 }
@@ -51,6 +53,7 @@ export function CampoCatalogo({
   label,
   placeholder = 'Selecione...',
   permiteCriar = true,
+  obrigatorio = false,
   disabled,
   id,
 }: Props) {
@@ -90,7 +93,12 @@ export function CampoCatalogo({
 
   return (
     <div className="space-y-2">
-      {label && <Label htmlFor={id}>{label}</Label>}
+      {label && (
+        <Label htmlFor={id}>
+          {label}
+          {obrigatorio && <span className="text-destructive"> *</span>}
+        </Label>
+      )}
       <Popover open={aberto} onOpenChange={setAberto}>
         <PopoverTrigger asChild>
           <Button

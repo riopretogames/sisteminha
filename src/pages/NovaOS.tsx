@@ -36,6 +36,7 @@ import { OS_PRIORITY } from '@/lib/constants';
 import { soDigitos } from '@/lib/documento';
 import { cn } from '@/lib/utils';
 import { OS_STATUS_INICIAL } from '@/config/osStatus';
+import { faltandoParaAbrirOS } from '@/lib/osObrigatorios';
 
 /**
  * Abertura de Ordem de Serviço — o check-in do aparelho.
@@ -76,6 +77,26 @@ interface Pessoa {
 type OsPrioridade = 'baixa' | 'normal' | 'alta' | 'urgente';
 type OsTipo = 'paga' | 'garantia' | 'cortesia';
 
+/**
+ * Onde cada campo obrigatório mora na tela.
+ *
+ * Serve para o aviso de "falta o modelo" rolar a página até o modelo. Sem
+ * isso, numa página longa como esta, o atendente lê o aviso e fica procurando
+ * o campo — que é como se aprende a odiar o sistema.
+ */
+const CAMPO_NA_TELA: Record<string, string> = {
+  cliente_id: 'cliente',
+  equipamento_id: 'equipamento',
+  numero_serie: 'numero_serie',
+  marca_id: 'marca',
+  modelo_id: 'modelo',
+  defeito_cliente: 'defeito',
+  tem_senha: 'tem-senha',
+  senha_aparelho: 'senha',
+  vendedor_id: 'vendedor',
+  prazo_previsto: 'prazo',
+};
+
 const FORM_VAZIO = {
   equipamento_id: '',
   marca_id: '',
@@ -84,6 +105,9 @@ const FORM_VAZIO = {
   memoria_id: '',
   numero_serie: '',
   defeito_cliente: '',
+  // "O aparelho tem senha?" — vazio significa que ninguém perguntou ainda, e
+  // é isso que a abertura barra. Ver src/lib/osObrigatorios.ts.
+  tem_senha: '' as '' | 'sim' | 'nao',
   senha_aparelho: '',
   senha_padrao: '',
   anotacoes_checkin: '',
@@ -165,6 +189,31 @@ export default function NovaOS() {
     prazo_previsto: prazoEmDias(TIPOS_DE_REPARO[0].dias),
   }));
 
+  /**
+   * "Quem recebeu" nasce com quem está logado.
+   *
+   * Pedido do Felipe em 27/08: *"se tá no login do Felipe, logicamente quem
+   * recebeu foi o Felipe"*. Continua trocável — o balcão empresta a máquina o
+   * tempo todo —, mas o caso comum deixa de custar um clique.
+   *
+   * Duas condições, e as duas custaram um teste que falhou antes de eu
+   * entender:
+   *
+   *   1. Só preenche o que está VAZIO. Se o atendente já escolheu outra
+   *      pessoa, mexer aqui desfaria a escolha dele.
+   *   2. Só depois que a lista de pessoas chegou do banco. Escolher alguém
+   *      que ainda não está na lista faz o campo se limpar sozinho — o
+   *      componente descarta valor que não corresponde a nenhuma opção, e o
+   *      resultado é o campo em branco justamente na tela em que ele agora é
+   *      obrigatório. A lista vem por consulta, então no primeiro instante
+   *      ela está vazia SEMPRE, não só no teste.
+   */
+  useEffect(() => {
+    const eu = user?.profile?.id;
+    if (!eu || !pessoas.some((p) => p.id === eu)) return;
+    setForm((f) => (f.vendedor_id ? f : { ...f, vendedor_id: eu }));
+  }, [user?.profile?.id, pessoas]);
+
   // Os três blocos do check-in, cada um guardando ids do catálogo.
   const [defeitos, setDefeitos] = useState<string[]>([]);
   const [acessorios, setAcessorios] = useState<string[]>([]);
@@ -223,22 +272,37 @@ export default function NovaOS() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedCliente) {
+    // A lista do que é obrigatório mora em src/lib/osObrigatorios.ts, com
+    // testes. Aqui a tela só avisa o primeiro que falta: despejar sete avisos
+    // de uma vez faz o atendente fechar todos sem ler.
+    const falta = faltandoParaAbrirOS({
+      cliente_id: selectedCliente?.id ?? '',
+      equipamento_id: form.equipamento_id,
+      numero_serie: form.numero_serie,
+      marca_id: form.marca_id,
+      modelo_id: form.modelo_id,
+      defeito_cliente: form.defeito_cliente,
+      defeitos_marcados: defeitos,
+      tem_senha: form.tem_senha,
+      senha_aparelho: form.senha_aparelho,
+      senha_padrao: form.senha_padrao,
+      vendedor_id: form.vendedor_id,
+      prazo_previsto: form.prazo_previsto,
+    });
+
+    if (falta.length > 0) {
+      const primeiro = falta[0];
       toast({
-        title: 'Cliente obrigatório',
-        description: 'Selecione o cliente dono do aparelho.',
+        title: primeiro.titulo,
+        description:
+          falta.length === 1
+            ? primeiro.comoResolver
+            : `${primeiro.comoResolver} (faltam ${falta.length} campos)`,
         variant: 'destructive',
       });
-      return;
-    }
-
-    // Defeito relatado continua obrigatório: OS sem defeito é OS que ninguém
-    // sabe pra que serve quando chega na bancada.
-    if (!form.defeito_cliente.trim() && defeitos.length === 0) {
-      toast({
-        title: 'Falta o defeito',
-        description: 'Marque um sintoma no checklist ou descreva o problema relatado.',
-        variant: 'destructive',
+      document.getElementById(CAMPO_NA_TELA[primeiro.campo] ?? '')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
       });
       return;
     }
@@ -290,8 +354,12 @@ export default function NovaOS() {
 
             numero_serie: form.numero_serie.trim() || null,
             defeito_cliente: defeitoTexto,
-            senha_aparelho: form.senha_aparelho.trim() || null,
-            senha_padrao: form.senha_padrao || null,
+            // Respondeu "não tem senha"? O que estiver digitado é resto de
+            // quem mudou de ideia no meio — não vai para a ficha.
+            tem_senha: form.tem_senha === 'sim',
+            senha_aparelho:
+              form.tem_senha === 'sim' ? form.senha_aparelho.trim() || null : null,
+            senha_padrao: form.tem_senha === 'sim' ? form.senha_padrao || null : null,
             anotacoes_checkin: form.anotacoes_checkin.trim() || null,
             observacoes: form.observacoes.trim() || null,
             tecnico_id: form.tecnico_id || null,
@@ -380,10 +448,13 @@ export default function NovaOS() {
           </CardHeader>
           <CardContent className="flex flex-wrap items-end gap-3">
             <div className="min-w-[260px] flex-1 space-y-2">
-              <Label>Dono do aparelho *</Label>
+              <Label htmlFor="cliente">
+                Dono do aparelho<span className="text-destructive"> *</span>
+              </Label>
               <Popover open={clienteOpen} onOpenChange={setClienteOpen}>
                 <PopoverTrigger asChild>
                   <Button
+                    id="cliente"
                     type="button"
                     variant="outline"
                     role="combobox"
@@ -494,13 +565,16 @@ export default function NovaOS() {
               <CampoCatalogo
                 id="equipamento"
                 tipo="os_equipamento"
+                obrigatorio
                 label="Equipamento"
                 placeholder="Celular, Console, Controle..."
                 valor={form.equipamento_id}
                 onChange={(v) => alterar('equipamento_id', v)}
               />
               <div className="space-y-2">
-                <Label htmlFor="numero_serie">IMEI / Nº de Série</Label>
+                <Label htmlFor="numero_serie">
+                  IMEI / Nº de Série<span className="text-destructive"> *</span>
+                </Label>
                 <Input
                   id="numero_serie"
                   value={form.numero_serie}
@@ -514,6 +588,7 @@ export default function NovaOS() {
               <CampoCatalogo
                 id="marca"
                 tipo="os_marca"
+                obrigatorio
                 label="Marca"
                 valor={form.marca_id}
                 onChange={(v) => alterar('marca_id', v)}
@@ -521,6 +596,7 @@ export default function NovaOS() {
               <CampoCatalogo
                 id="modelo"
                 tipo="os_modelo"
+                obrigatorio
                 label="Modelo"
                 valor={form.modelo_id}
                 onChange={(v) => alterar('modelo_id', v)}
@@ -556,7 +632,9 @@ export default function NovaOS() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="defeito">Problema informado pelo cliente</Label>
+              <Label htmlFor="defeito">
+                Problema informado pelo cliente<span className="text-destructive"> *</span>
+              </Label>
               <Textarea
                 id="defeito"
                 value={form.defeito_cliente}
@@ -619,30 +697,62 @@ export default function NovaOS() {
         </Card>
 
         {/* ── Senhas ───────────────────────────────────────────────────── */}
+        {/* A pergunta vem antes dos campos, e é obrigatória: aparelho sem
+            senha existe e é normal, mas "ninguém perguntou" não pode passar.
+            Pedido do Felipe em 27/08. */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Senhas do aparelho</CardTitle>
+            <CardTitle className="text-base">Senha do aparelho</CardTitle>
             <p className="text-sm text-muted-foreground">
               Sem a senha, o técnico não testa o reparo — e o aparelho volta pro balcão à toa.
             </p>
           </CardHeader>
-          <CardContent className="grid gap-6 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="senha">Senha digitada</Label>
-              <Input
-                id="senha"
-                value={form.senha_aparelho}
-                onChange={(e) => alterar('senha_aparelho', e.target.value)}
-                placeholder="PIN, senha alfanumérica, conta Google..."
-              />
+          <CardContent className="space-y-6">
+            <div className="space-y-2" id="tem-senha">
+              <Label>
+                O aparelho tem senha?<span className="text-destructive"> *</span>
+              </Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={form.tem_senha === 'sim' ? 'default' : 'outline'}
+                  onClick={() => alterar('tem_senha', 'sim')}
+                >
+                  Sim
+                </Button>
+                <Button
+                  type="button"
+                  variant={form.tem_senha === 'nao' ? 'default' : 'outline'}
+                  onClick={() => alterar('tem_senha', 'nao')}
+                >
+                  Não tem senha
+                </Button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Senha de desenho</Label>
-              <SenhaPadrao
-                valor={form.senha_padrao}
-                onChange={(v) => alterar('senha_padrao', v)}
-              />
-            </div>
+
+            {form.tem_senha === 'sim' && (
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="senha">Senha digitada</Label>
+                  <Input
+                    id="senha"
+                    value={form.senha_aparelho}
+                    onChange={(e) => alterar('senha_aparelho', e.target.value)}
+                    placeholder="PIN, senha alfanumérica, conta Google..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Senha de desenho</Label>
+                  <SenhaPadrao
+                    valor={form.senha_padrao}
+                    onChange={(v) => alterar('senha_padrao', v)}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground sm:col-span-2">
+                  Uma das duas basta — a digitada ou o desenho.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -653,16 +763,19 @@ export default function NovaOS() {
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="vendedor">Quem recebeu (balcão)</Label>
+              <Label htmlFor="vendedor">
+                Quem recebeu (balcão)<span className="text-destructive"> *</span>
+              </Label>
               <Select
                 value={form.vendedor_id || 'nenhum'}
                 onValueChange={(v) => alterar('vendedor_id', v === 'nenhum' ? '' : v)}
               >
                 <SelectTrigger id="vendedor">
-                  <SelectValue placeholder="Não informado" />
+                  <SelectValue placeholder="Quem está atendendo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="nenhum">Não informado</SelectItem>
+                  {/* Sem opção "não informado": o campo é obrigatório e já
+                      nasce com quem está logado. */}
                   {pessoas.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.nome}
@@ -693,7 +806,9 @@ export default function NovaOS() {
             </div>
 
             <div className="space-y-2 sm:col-span-2">
-              <Label>Prazo prometido</Label>
+              <Label htmlFor="prazo">
+                Prazo prometido<span className="text-destructive"> *</span>
+              </Label>
               <div className="flex flex-wrap gap-2">
                 {TIPOS_DE_REPARO.map((tipo) => {
                   const escolhido = form.prazo_previsto === prazoEmDias(tipo.dias);

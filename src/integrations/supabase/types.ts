@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.17"
   }
   graphql_public: {
     Tables: {
@@ -1851,6 +1851,7 @@ export type Database = {
           status: string | null
           suspeita_tecnica: string | null
           tecnico_id: string | null
+          tem_senha: boolean | null
           tenant_id: string
           tipo: Database["public"]["Enums"]["os_tipo"] | null
           total_mao_obra: number | null
@@ -1894,6 +1895,7 @@ export type Database = {
           status?: string | null
           suspeita_tecnica?: string | null
           tecnico_id?: string | null
+          tem_senha?: boolean | null
           tenant_id: string
           tipo?: Database["public"]["Enums"]["os_tipo"] | null
           total_mao_obra?: number | null
@@ -1937,6 +1939,7 @@ export type Database = {
           status?: string | null
           suspeita_tecnica?: string | null
           tecnico_id?: string | null
+          tem_senha?: boolean | null
           tenant_id?: string
           tipo?: Database["public"]["Enums"]["os_tipo"] | null
           total_mao_obra?: number | null
