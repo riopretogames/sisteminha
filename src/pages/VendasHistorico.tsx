@@ -41,7 +41,11 @@ interface Venda {
   vendedor_id: string | null;
   subtotal: number | null;
   descontos: number | null;
-  clientes: { nome: string; telefone: string | null; cpf_cnpj: string | null } | null;
+  /** `telefones` no plural, e é uma lista: o cadastro guarda o principal e o
+   *  extra na mesma coluna. Pedir `telefone` no singular derruba a consulta
+   *  INTEIRA — não é o telefone que vem vazio, é que nenhuma venda vem. Foi o
+   *  que deixou esta tela em branco entre 25 e 27/08. */
+  clientes: { nome: string; telefones: string[] | null; cpf_cnpj: string | null } | null;
   vendedor: { nome: string } | null;
   /** Só o necessário para os filtros de produto e número de série. O detalhe
    *  completo dos itens continua sendo buscado ao abrir a venda. */
@@ -163,7 +167,7 @@ export default function VendasHistorico() {
         .select(
           `id, numero_venda, created_at, status, total, valor_faturamento_real, vendedor_id,
            subtotal, descontos,
-           clientes(nome, telefone, cpf_cnpj),
+           clientes(nome, telefones, cpf_cnpj),
            vendedor:profiles!vendas_vendedor_id_fkey(nome),
            itens_venda(produtos:vw_produtos(nome, imei_serial)),
            pagamentos_venda(forma),
@@ -495,7 +499,10 @@ export default function VendasHistorico() {
               <div className="grid gap-x-6 gap-y-2 rounded-lg border p-3 text-sm sm:grid-cols-2">
                 <Campo rotulo="Cliente" valor={vendaAberta?.clientes?.nome ?? '—'} />
                 <Campo rotulo="Vendedor" valor={vendaAberta?.vendedor?.nome ?? '—'} />
-                <Campo rotulo="Telefone" valor={vendaAberta?.clientes?.telefone || '—'} />
+                <Campo
+                  rotulo="Telefone"
+                  valor={vendaAberta?.clientes?.telefones?.filter(Boolean).join(' · ') || '—'}
+                />
                 <Campo rotulo="CPF/CNPJ" valor={vendaAberta?.clientes?.cpf_cnpj || 'Não informado'} />
                 <Campo rotulo="Data" valor={vendaAberta ? dataHora(vendaAberta.created_at) : '—'} />
                 <Campo rotulo="Situação" valor={vendaAberta?.status ?? '—'} />
