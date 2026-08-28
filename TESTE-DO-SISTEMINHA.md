@@ -17,7 +17,7 @@ abrindo mão.
 
 ## O que já roda sozinho
 
-O sistema tem **152 testes automáticos** que rodam a cada mudança. Eles cobrem
+O sistema tem **190 testes automáticos** que rodam a cada mudança. Eles cobrem
 as contas (faturamento, devolução, custo médio, ranking) e o comportamento das
 telas por perfil — inclusive o pior defeito que este sistema já teve, a tela de
 Estoque ficando branca para quem não vê custo.
@@ -67,14 +67,15 @@ não derrube os seguintes.
   *Por que importa: é o cadastro de fila — se o sistema exigir CPF ou telefone, o vendedor com cliente esperando desiste e a venda sai sem cliente nenhum.*
   > 🔎 **Corrigido em 22/08:** o aviso não saía verde — o sistema só tinha duas cores de aviso, cinza (neutro) e vermelho (erro). Felipe decidiu criar a terceira cor; agora este e todos os avisos de sucesso do sistema saem verdes de verdade.
 
-- [ ] **⚪ 3. Cliente repetido: CPF e telefone recusam, nome igual só avisa**
-  **O que fazer (três tentativas seguidas, todas em Novo Cliente):**
+- [ ] **⚪ 3. Cliente repetido: CPF e telefone recusam, nome igual trava**
+  **O que fazer (quatro tentativas seguidas, todas em Novo Cliente):**
   a) Nome `Adriana Teste`, CPF `910.000.000-01`, aperte **Tab**. Olhe o topo da janela e o botão Cadastrar. Clique em **Usar este cadastro**.
   b) Novo Cliente de novo: nome `Teste Telefone`, telefone `17910000001`, **Tab**. Olhe o topo. Clique em **Cancelar**.
-  c) Novo Cliente de novo: nome exatamente `Bruno Tavares`, **Tab**, sem CPF nem telefone. Olhe o topo. Clique em **Cancelar**.
+  c) Novo Cliente de novo: nome exatamente `Bruno Tavares`, **Tab**, sem CPF nem telefone. Olhe o topo e clique em **Cadastrar**.
   d) Por fim, no campo de busca da lista de clientes digite `91000000001`, depois `910.000.000-01`, depois `17910000001`.
-  **Tem que acontecer:** Em (a) e (b), tarja **VERMELHA** "Este cliente já está cadastrado" apontando *Adriana Prado — mesmo CPF/CNPJ* / *mesmo telefone*, com o botão **Cadastrar apagado** (não clica); "Usar este cadastro" abre a ficha da Adriana Prado. Em (c), tarja **AMARELA** "Já existe alguém com esse mesmo nome" e o botão **Cadastrar continua ativo**. Em (d), as três buscas trazem a mesma Adriana Prado — a pontuação digitada não pode fazer diferença.
+  **Tem que acontecer:** Em (a) e (b), tarja **VERMELHA** "Este cliente já está cadastrado" apontando *Adriana Prado — mesmo CPF/CNPJ* / *mesmo telefone*, com o botão **Cadastrar apagado** (não clica); "Usar este cadastro" abre a ficha da Adriana Prado. Em (c), tarja **AMARELA** "Já existe alguém com esse mesmo nome", o botão Cadastrar continua clicável — mas o clique **não cria nada**: sai um aviso vermelho "Já existe alguém com esse nome" mandando usar o cadastro de cima ou informar telefone/CPF. Em (d), as três buscas trazem a mesma Adriana Prado — a pontuação digitada não pode fazer diferença.
   *Por que importa: cliente duplicado quebra histórico, garantia e cobrança; e se a busca exigir a pontuação exata, o atendente não acha e cadastra a mesma pessoa de novo.*
+  > 🔎 **Mudou em 24/08:** até o seu teste de 23/08, nome igual só avisava e o cadastro nascia assim mesmo — foi você quem disse *"dá para criar quantos quiser com o mesmo nome, isso tá errado"*. Agora trava. O passo **72** testa a outra metade da regra nova: informar telefone ou CPF libera o homônimo de verdade.
 
 - [ ] **⚪ 4. Item novo numa Lista do Sistema aparece sozinho no cadastro — e desativar não apaga o antigo**
   **O que fazer:** Abra **Cadastros > Listas do Sistema**, aba **Cliente** (a lista *Origens do Cliente* já vem selecionada). Digite `TikTok Teste` e aperte Enter. Clique em **Tornar padrão** ao lado dele. Vá em **Cadastros > Clientes > Novo Cliente**, role até **Relacionamento** e olhe o campo **Como conheceu a loja**; preencha o nome `Teste TikTok 21-08` e **Cadastrar**. Agora volte em Listas do Sistema e **desligue a chavinha** do "TikTok Teste". Volte em Clientes, ache `Teste TikTok 21-08`, três pontinhos > **Editar**, role até "Como conheceu a loja". Feche em **Cancelar** e abra um **Novo Cliente** para olhar a mesma lista.
@@ -531,6 +532,61 @@ Este bloco é rápido — uns 15 minutos — e cobre o que você mais vai olhar 
   *Por que importa: o sistema guarda o serviço como texto digitado, não como
   item de cadastro. Sem juntar as variações, o serviço mais feito da loja
   apareceria espalhado e nenhuma linha pareceria importante.*
+
+---
+
+## Bloco 16 — O que mudou depois do seu último teste (24 e 25/08)
+
+Este bloco é o trabalho feito **depois** de você fechar o teste de 23/08. São
+três coisas novas, quatro defeitos que a revisão pegou antes de você e um que
+você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda.
+
+- [ ] **🔴 72. Homônimo de verdade passa: o telefone é que libera**
+  **O que fazer:** Em **Cadastros > Clientes > Novo Cliente**, digite o nome exatamente `Bruno Tavares` e **Tab** — a mesma tentativa do passo 3, que agora trava. Sem fechar a janela, preencha o **telefone** `17999990072` e clique em **Cadastrar**. Depois repita tudo com um terceiro `Bruno Tavares`, mas dessa vez ponha um telefone pela metade, só `1799999` (6 dígitos), e clique em Cadastrar.
+  **Tem que acontecer:** Com o telefone completo, **cadastra normalmente** (aviso verde, a janela fecha, o cliente entra na lista) — a tarja amarela pode continuar na tela até o momento de salvar, isso é esperado. Com o telefone pela metade, **não cadastra**: sai o mesmo aviso vermelho "Já existe alguém com esse nome".
+  *Por que importa: é o outro lado da trava do passo 3. Se só travasse, a loja resolveria escrevendo "Bruno Tavares 2" — pior que duas fichas, porque ninguém acha depois nem por nome nem por telefone. Meia dúzia de dígitos não distingue ninguém, por isso não vale como prova de que é outra pessoa.*
+
+- [ ] **🔴 73. Troca: o aparelho recebido já nasce com preço de revenda**
+  **O que fazer:** Abra **Venda > Nova Venda**, ponha um produto no carrinho e escolha um cliente. Role até **Produto recebido em troca** e clique em **Adicionar**. Preencha: descrição `PS4 Slim Teste 27-08`, IMEI/série `TESTE2708`, **Quanto vale para nós** `200`, **Por quanto vamos vender** `450`. Clique em **Adicionar à troca**, complete o pagamento do que faltar e **Confirme a Venda**. Depois vá em **Estoque > Produtos**, ponha o filtro **Apto à Venda** em **Não** (ou limpe o filtro) e ache o `PS4 Slim Teste 27-08`.
+  **Tem que acontecer:** O produto existe, **inativo** (esperando revisão), com **custo R$ 200,00** e **preço R$ 450,00** — margem positiva, não −100%. A venda fechou sem erro nenhum.
+  *Por que importa: até 25/08 o preço nascia ZERO e alguém precisava lembrar de arrumar depois — que é justamente o que não acontece em loja cheia. Enquanto está zerado, aquele item aparece com margem de −100% nos relatórios e, se alguém ativar sem reparar, entra na vitrine valendo nada. E há um motivo a mais para este passo ser essencial: a primeira versão desta mudança no banco estava escrita errada e teria quebrado a venda com o cliente na frente. Foi corrigida e conferida, mas **nunca rodou numa venda de verdade** — a sua será a primeira.*
+
+- [ ] **⚪ 74. A ficha da venda mostra o que o banco já guardava**
+  **O que fazer:** Em **Venda > Histórico de Vendas**, clique na linha da venda que você acabou de fazer no passo 73.
+  **Tem que acontecer:** A ficha mostra, sem você abrir mais nada: no cabeçalho **cliente, telefone, CPF/CNPJ, vendedor, data e situação**; em **Valores**, as linhas separadas de **Subtotal, Desconto, Recebido em troca, Devolvido ao cliente** e o **Total da venda**; no produto vendido, **IMEI/Série, marca, modelo, cor e memória** quando o cadastro tiver; uma seção **Recebido em troca** com o `PS4 Slim Teste 27-08`, o IMEI e a frase *"Para revender por R$ 450,00"*; e cada pagamento com **hora** e, se for parcelado, **"3x de R$ …"**.
+  *Por que importa: é a tela que você abre quando o cliente liga. Antes, ver o telefone dele exigia sair e abrir o cadastro no meio do atendimento, e o aparelho recebido na troca não aparecia em lugar nenhum — só o valor entrava somado aos pagamentos, sem dizer O QUE a loja levou.*
+
+- [ ] **⚪ 75. A tecla Enter salva o cadastro (5 telas que estavam mudas)**
+  **O que fazer:** Em cada uma destas cinco telas, abra a janela de cadastro novo, preencha só o campo obrigatório e aperte **Enter** em vez de clicar no botão: **Cadastros > Clientes**, **Fornecedores**, **Transportadoras**, **Formas de Pagamento** e **Serviços**.
+  **Tem que acontecer:** Nas cinco, o Enter salva — mesmo comportamento do clique.
+  *Por que importa: o atalho existia desde antes, mas estava morto em 5 das 7 telas, e nada denunciava: não dá erro nem aviso, a tecla simplesmente não faz nada. Quem cadastra o dia inteiro aprende a apertar Enter e não entende por que às vezes "não pega".*
+
+- [ ] **⚪ 76. Mesmo produto em duas linhas da mesma entrada: o aviso de custo bate com o que o banco grava**
+  **O que fazer:** Escolha um produto que já tenha estoque e anote o **custo atual** e a **quantidade** dele. Abra **Estoque > Entrada de Mercadoria** e adicione **o mesmo produto duas vezes**, cada linha com a mesma quantidade e um custo unitário bem diferente do atual (ex.: 10 unidades a R$ 20,00 em cada linha). Anote o **custo médio prometido** no aviso das linhas. Confirme a entrada e volte em **Estoque > Produtos** para ver o custo do produto.
+  **Tem que acontecer:** O valor que o aviso prometeu é **o mesmo** que ficou gravado no produto. Com o produto repetido, o texto do aviso diz que está *somando as linhas repetidas deste produto*.
+  *Por que importa: essa tela existe só para avisar o que vai acontecer com o custo antes de você confirmar. Cada linha calculava sozinha, ignorando a outra do mesmo produto — prometia R$ 15,00 e o banco gravava R$ 16,67. Aviso que erra é pior que aviso nenhum, porque você decide confiando nele.*
+
+- [ ] **⚪ 77. OS antiga editada hoje NÃO entra no faturamento desta semana**
+  **O que fazer:** Anote o **faturamento da semana** e o **tempo médio de reparo** em **Dashboards > Assistência**. Abra uma OS **já entregue há bastante tempo** (mês passado, se houver), edite qualquer coisa boba — uma observação — e salve. Volte ao painel e aperte `F5`.
+  **Tem que acontecer:** Os números **não mudam**. A OS antiga continua fora da semana.
+  *Por que importa: até 25/08, mexer numa OS velha fazia ela ser contada como entregue hoje — entrava no faturamento da semana, no ticket médio, no ranking do técnico e no tempo médio de reparo, este último com uma duração de meses puxando a média. Corrigir uma observação não pode mexer no dinheiro da semana.*
+
+- [ ] **⚪ 78. Conta que vence hoje não aparece como vencida no fim do expediente**
+  **O que fazer:** Este passo só prova alguma coisa **depois das 21h** — antes disso o defeito não aparecia mesmo. Deixe uma conta cadastrada com vencimento **hoje** em **Financeiro > Contas a Pagar** e, no fim do dia, olhe o **sino de avisos** no topo.
+  **Tem que acontecer:** A conta de hoje aparece como **a vencer**, nunca como vencida.
+  *Por que importa: o sino usava o horário de Londres para saber que dia é hoje. Como o Brasil está 3 horas atrás, das 21h à meia-noite o sistema já achava que era amanhã e pintava de vermelho, todo santo dia, contas que ainda estavam em dia. Aviso que grita sem motivo é aviso que a equipe aprende a ignorar — e aí o vencido de verdade passa batido.*
+
+- [ ] **🔴 79. O Histórico de Vendas volta a listar as vendas**
+  **O que fazer:** Abra **Venda > Histórico de Vendas** sem mexer em filtro nenhum.
+  **Tem que acontecer:** As vendas do período aparecem na tabela, e os três cartões de cima (Vendas listadas, Faturamento, Ticket médio) mostram números de verdade — não `0`.
+  *Por que importa: entre 25 e 27/08 essa tela ficou **completamente vazia**, e quem olhasse ia jurar que a loja não tinha vendido nada. A causa: eu pedi ao banco a coluna `telefone` do cliente, mas ela se chama `telefones` (a loja guarda o principal e o extra na mesma). Nome de coluna errado faz o banco recusar a consulta inteira — não é que o telefone vinha vazio, é que **nenhuma venda vinha**. Achado por você em 27/08, testando.*
+  > 🔎 **Por que nada avisou:** a tela pede a lista, o banco recusa, e o React não tem o que mostrar — então desenha "Nenhuma venda encontrada", que é exatamente o que ele desenharia se a loja realmente não tivesse vendido. Erro de banco e resultado vazio ficam idênticos na tela. Depois de corrigir, passei as **90 consultas do sistema** pelo mesmo teste, uma a uma, contra o banco de verdade: nenhuma outra é recusada.
+
+- [ ] **🔴 80. Abrir OS: o sistema cobra o que a loja exige**
+  **O que fazer:** Abra **Assistência > Nova OS** e clique em **Abrir Ordem de Serviço** com tudo em branco. Vá preenchendo conforme ele reclamar. Repare em três coisas no caminho: (a) o campo **Quem recebeu** já vem com o seu nome; (b) o bloco de senha começa perguntando **"O aparelho tem senha?"** e os campos de senha só aparecem depois do **Sim**; (c) o **Técnico responsável** continua aceitando "Definir depois". No fim, responda `Não tem senha` e abra a OS.
+  **Tem que acontecer:** Cada clique traz um aviso vermelho apontando **um** campo faltando, na ordem da tela, e a página rola até ele. São obrigatórios: cliente, equipamento, IMEI/nº de série, marca, modelo, problema informado, a resposta da senha, quem recebeu e o prazo. Respondendo `Sim` na senha e deixando os dois campos vazios, também não abre. Com tudo preenchido, a OS abre normalmente.
+  *Por que importa: até 27/08 dava para abrir OS só com cliente e defeito — sem marca, sem modelo, sem número de série. Esse registro parece registro e não é: quando o cliente volta com o aparelho, ninguém prova qual era, e o técnico descobre na bancada que não tem a senha para testar o reparo.*
+  > 🔎 **A pergunta da senha é obrigatória, a senha não.** Aparelho sem senha existe e é normal — o que não pode é ninguém ter perguntado. Marcar "Não tem senha" fica gravado na ficha, e é diferente de campo em branco.
 
 ---
 

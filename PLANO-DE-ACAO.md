@@ -1602,6 +1602,54 @@ o arquivo antes de assumir.
   (só preço e custo? qualquer campo? entrada e saída de estoque também?) muda
   bastante o tamanho do trabalho.
 
+- [ ] 🔴 🆕 **Repor estoque pela tela de Estoque Crítico dá erro.** Achado do
+  Felipe no teste do passo 7, em 23/08 — a anotação só chegou até mim em
+  27/08, porque ficou guardada no navegador dele: *"Erro ao repor estoque,
+  não tá dando certo"*.
+
+  **Ainda sem diagnóstico, e por um motivo bobo:** "Erro ao repor estoque" é
+  só o título do aviso; a causa vem escrita embaixo, na mesma tarja, e essa
+  linha não foi copiada. Sem ela é chute.
+
+  O que já foi descartado em 27/08, conferindo direto no banco: a função
+  `ajustar_estoque_produto` existe, aceita exatamente os parâmetros que a
+  tela manda e responde certo (testada com um produto inexistente — devolveu
+  "Produto não encontrado"). A consulta que monta a lista também é válida.
+  Sobra: permissão do usuário, o INSERT na auditoria de movimento, ou algo
+  no produto daquele teste.
+
+  **Próximo passo:** repetir o passo 7 e copiar a segunda linha do aviso
+  vermelho.
+
+- [ ] 🟠 🆕 **Cada loja escolher os campos obrigatórios da OS.** Pedido do
+  Felipe em 27/08, junto com a lista do que passou a ser obrigatório:
+  *"eu acho que deveria ser selecionável isso dentro do próprio sistema,
+  porque a intenção um dia vai ser vender esse sistema e a pessoa pode
+  escolher de acordo com a necessidade dela"*.
+
+  A lista de hoje é a da Rio Preto Games e está fixa no código, mas num lugar
+  só (`src/lib/osObrigatorios.ts`), de propósito — trocar "sempre obrigatório"
+  por "obrigatório se a loja marcou" mexe nesse arquivo e numa tela de
+  configuração, não em dez lugares.
+
+  O que falta decidir antes de fazer: onde a loja marca isso (uma aba nova em
+  Configurações? dentro de Listas do Sistema?), e se a escolha vale por
+  tipo de equipamento — número de série faz sentido em celular e console, e
+  quase nenhum em fonte ou cabo. Provavelmente é aí que mora o valor real.
+
+- [ ] 🟠 🆕 **Relatório de Vendas: o CSV leva pouca coisa.** Felipe no teste
+  do passo 38, em 23/08: *"porém extrai muito poucos dados"*.
+
+  O CSV de hoje é o que está na tela. Falta decidir o que mais entra —
+  candidatos naturais, todos já gravados no banco: cliente com telefone e
+  CPF, forma de pagamento e parcelas, itens da venda com IMEI/série, custo e
+  margem (para quem tem permissão de ver custo), desconto, e o que veio de
+  troca. O trabalho é escolher as colunas, não descobrir os dados.
+
+  Conversar antes: planilha com uma linha por venda e planilha com uma linha
+  por item são coisas diferentes, e a segunda é a que serve para conferir
+  margem.
+
 - [x] ✅ **Resolvido em 22/08 — 🆕 pedido do Felipe no dia.** Não dava para
   criar usuário dentro do sistema: a tela de Usuários trazia um aviso
   mandando criar no painel do Supabase. O motivo era real — criar conta de
