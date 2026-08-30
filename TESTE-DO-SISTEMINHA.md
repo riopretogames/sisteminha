@@ -17,7 +17,7 @@ abrindo mão.
 
 ## O que já roda sozinho
 
-O sistema tem **253 testes automáticos** que rodam a cada mudança. Eles cobrem
+O sistema tem **266 testes automáticos** que rodam a cada mudança. Eles cobrem
 as contas (faturamento, devolução, custo médio, ranking) e o comportamento das
 telas por perfil — inclusive o pior defeito que este sistema já teve, a tela de
 Estoque ficando branca para quem não vê custo.
@@ -605,6 +605,12 @@ você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda
   **Tem que acontecer:** As colunas aparecem, nesta ordem, como **1 · Entrada / Análise**, **2a · Aguardando aprovação**, **2b · Aguardando Peça**, **3 · Aprovado / Executar**, **4 · Terceirizada**, **5 · Finalizado** e **6 · Entregue** — cada uma com o número na frente, nenhuma sem número, e a Terceirizada aparecendo uma vez só. O número também acompanha a etapa na lista em tabela e no filtro de status. Em Gerenciar Status dá para trocar o número de qualquer etapa (é texto: aceita "2b"). A OS movida para Terceirizada fica lá e continua aparecendo normalmente.
   *Por que importa: a numeração é como a equipe fala das etapas no dia a dia ("tá na 2b"). E Terceirizada é situação real que o sistema não sabia registrar: até agora, aparelho que saiu para outra empresa consertar ficava parado em "Aprovado / Executar" como se estivesse na bancada — quem olhasse o quadro não tinha como saber que o aparelho nem estava na loja.*
   > 🔎 **A Terceirizada é a 4**, entre Aprovado e Finalizado: é o aparelho que já teve o serviço aprovado e saiu da loja para outra empresa fazer. Se algum número não estiver batendo, ou aparecer etapa repetida, dá para acertar em **Gerenciar Status** sem precisar de mim — a coluna **Nº** é editável e aceita texto ("2b").
+
+- [ ] **🔴 84. Botão "Iniciar reparo" — a hora em que o aparelho vai para a bancada**
+  **O que fazer:** Entre com um usuário **Técnico** e abra uma OS que esteja em **1 · Entrada / Análise**. No topo da ficha, clique em **Iniciar reparo** e confirme. Depois recarregue a página e role até a **Linha do tempo**. Por fim, entre com um usuário **Vendedor** e abra a mesma OS, e depois uma OS que ainda não teve reparo iniciado.
+  **Tem que acontecer:** O técnico vê o botão; ao confirmar, sai o aviso verde **"Reparo iniciado"** e o botão dá lugar a **"Reparo iniciado em <data e hora> por <nome>"**. Na linha do tempo aparece **"Reparo iniciado na bancada"** com a hora e o nome. O vendedor **vê o registro** (ele precisa saber que o aparelho está na mesa de alguém) mas **não vê o botão** na OS que ainda não começou. A OS **continua na mesma etapa** — o quadro não muda.
+  *Por que importa: é o passo que o seu organograma chama de "reparo começa aqui". Sem ele, "faz três dias que está na análise" não distingue o aparelho que ninguém pegou do que está aberto na bancada desde ontem — um é atraso de fila, o outro é trabalho em andamento, e hoje os dois contam igual.*
+  > 🔎 **A trava está no banco, não só na tela.** Esconder o botão do vendedor seria decoração: quem tivesse permissão de editar OS poderia marcar o início pela API, e o registro passaria a dizer que o vendedor estava com o aparelho aberto na mesa. Quem grava é uma função do banco que exige a permissão de bancada.
 
 ---
 

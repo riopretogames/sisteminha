@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { SenhaPadraoLeitura } from '@/components/os/SenhaPadrao';
 import { TrocarEtapaOS } from '@/components/os/TrocarEtapaOS';
+import { IniciarReparo } from '@/components/os/IniciarReparo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -153,6 +154,10 @@ interface OSCompleta {
    *  evento — sem ele a linha começava na primeira troca de etapa, e a
    *  abertura, que é o momento mais consultado, ficava de fora. */
   vendedor_id: string | null;
+  /** Quando o aparelho foi para a bancada, e com quem. NULL = ainda na fila.
+   *  Não é etapa: a OS segue em Entrada/Análise. Ver components/os/IniciarReparo. */
+  reparo_iniciado_em: string | null;
+  reparo_iniciado_por: string | null;
   clientes: { nome: string; telefones: string[] } | null;
   /** Marcações do check-in, com o item de catálogo que cada uma representa. */
   os_checklist: { catalogo_id: string; catalogos: { descricao: string; tipo: string } | null }[];
@@ -423,7 +428,8 @@ export default function OSDetalhe() {
           `id, numero_os, status, tipo, prioridade, marca, modelo, cor, memoria, numero_serie,
            defeito_cliente, observacoes, anotacoes_checkin, senha_aparelho, senha_padrao,
            prazo_previsto, garantia_dias, total_orcamento, valor_final_pago, data_finalizacao,
-           created_at, vendedor_id, clientes(nome, telefones),
+           created_at, vendedor_id, reparo_iniciado_em, reparo_iniciado_por,
+           clientes(nome, telefones),
            os_checklist(catalogo_id, catalogos(descricao, tipo)),
            tecnico_id, tecnico:profiles!service_orders_tecnico_id_fkey(nome),
            suspeita_tecnica, constatacao_tecnica, risco_informado_em, reparo_inviavel`
@@ -506,6 +512,19 @@ export default function OSDetalhe() {
           statusNovo: null as string | null,
           descricao: 'OS aberta',
         },
+        // O início do reparo não é troca de etapa, então não está no
+        // histórico de status — mas é justamente o evento que explica por que
+        // a OS ficou parada dois dias e depois andou em uma hora.
+        ...(os.reparo_iniciado_em
+          ? [{
+              id: 'reparo-iniciado',
+              created_at: os.reparo_iniciado_em,
+              usuario_id: os.reparo_iniciado_por,
+              statusAnterior: null as string | null,
+              statusNovo: null as string | null,
+              descricao: 'Reparo iniciado na bancada',
+            }]
+          : []),
         ...(historico ?? []).map((h) => ({
           id: h.id,
           created_at: h.created_at,
@@ -667,6 +686,17 @@ export default function OSDetalhe() {
           <div className="flex flex-wrap items-center gap-2">
             {/* Mover a etapa daqui: abrir uma OS nova cai nesta tela, e antes
                 era preciso voltar à lista só para avançar o fluxo. */}
+            {/* "Reparo começa aqui" — organograma do Felipe, 30/08. Fica antes
+                das ações de etapa porque, no processo, é o primeiro botão que o
+                técnico encosta depois de puxar a OS. */}
+            <IniciarReparo
+              osId={os.id}
+              status={os.status}
+              reparoIniciadoEm={os.reparo_iniciado_em}
+              nomeDeQuemIniciou={nomeUsuario(os.reparo_iniciado_por)}
+              onMudou={() => queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] })}
+            />
+
             <TrocarEtapaOS
               osId={os.id}
               numeroOs={os.numero_os}

@@ -1888,6 +1888,8 @@ export type Database = {
           observacoes: string | null
           prazo_previsto: string | null
           prioridade: Database["public"]["Enums"]["os_prioridade"] | null
+          reparo_iniciado_em: string | null
+          reparo_iniciado_por: string | null
           reparo_inviavel: boolean
           risco_informado_em: string | null
           senha_aparelho: string | null
@@ -1932,6 +1934,8 @@ export type Database = {
           observacoes?: string | null
           prazo_previsto?: string | null
           prioridade?: Database["public"]["Enums"]["os_prioridade"] | null
+          reparo_iniciado_em?: string | null
+          reparo_iniciado_por?: string | null
           reparo_inviavel?: boolean
           risco_informado_em?: string | null
           senha_aparelho?: string | null
@@ -1976,6 +1980,8 @@ export type Database = {
           observacoes?: string | null
           prazo_previsto?: string | null
           prioridade?: Database["public"]["Enums"]["os_prioridade"] | null
+          reparo_iniciado_em?: string | null
+          reparo_iniciado_por?: string | null
           reparo_inviavel?: boolean
           risco_informado_em?: string | null
           senha_aparelho?: string | null
@@ -2967,6 +2973,7 @@ export type Database = {
         Returns: boolean
       }
       historico_do_usuario: { Args: { _user_id: string }; Returns: Json }
+      iniciar_reparo_os: { Args: { _os_id: string }; Returns: string }
       minhas_permissoes: { Args: never; Returns: string[] }
       proximo_numero_documento: {
         Args: { _documento: string; _tenant: string }

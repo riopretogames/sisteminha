@@ -67,10 +67,16 @@ describe('Entrada de Mercadoria por perfil', () => {
   });
 
   it('com movimentação mas SEM ver custo: também avisa, e diz que falta o custo', async () => {
-    // Caso sutil: o técnico tem `inventory.adjust`, mas não vê custo. A tela
+    // Caso sutil: alguém que PODE movimentar estoque mas não vê custo. A tela
     // inteira é sobre preço de compra, então não adianta abrir escondendo
     // coluna — teria que esconder tudo.
-    await abrir({ perfil: 'tecnico' });
+    //
+    // O cenário é montado à mão de propósito. Este teste dizia "o técnico tem
+    // inventory.adjust", e ele NÃO tem: a lista de permissões usada aqui
+    // estava desatualizada em relação ao banco, e o caso passava apoiado numa
+    // premissa falsa. Hoje quem tem movimentação sem custo é uma exceção por
+    // usuário — que é exatamente o que `extras` representa.
+    await abrir({ perfil: 'tecnico', extras: ['inventory.adjust'] });
 
     await waitFor(() => {
       expect(screen.getByText(/não está liberada para o seu perfil/i)).toBeInTheDocument();
