@@ -37,7 +37,11 @@
  * Desde 30/08 cada etapa tem um número de exibição, ditado pelo Felipe:
  *
  *   1 Entrada/Análise · 2a Aguardando aprovação · 2b Aguardando Peça ·
- *   3 Aprovado/Executar · 4 Finalizado · 5 Entregue · 6 Terceirizada
+ *   2c Terceirizada · 3 Aprovado/Executar · 4 Finalizado · 5 Entregue
+ *
+ * As três "2" são a mesma fase com caminhos diferentes: o aparelho parado
+ * esperando alguém de fora — o cliente que não respondeu, a peça que não
+ * chegou, a empresa que está com o aparelho.
  *
  * Ele mora em `os_status_config.numero` (texto, editável em Gerenciar Status),
  * NÃO aqui: "2a" e "2b" são a mesma fase com dois caminhos, o que não cabe no

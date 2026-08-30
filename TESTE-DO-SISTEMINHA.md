@@ -602,9 +602,9 @@ você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda
 
 - [ ] **⚪ 83. As etapas da assistência agora têm número — e existe a Terceirizada**
   **O que fazer:** Abra **Ordem de Serviço > Ordens de Serviço** no modo quadro. Olhe o cabeçalho de cada coluna. Depois abra **Gerenciar Status** e procure a coluna **Nº** ao lado do nome de cada etapa. Por fim, arraste uma OS para a coluna **Terceirizada**.
-  **Tem que acontecer:** As colunas aparecem como **1 · Entrada / Análise**, **2a · Aguardando aprovação**, **2b · Aguardando Peça**, **3 · Aprovado / Executar**, **4 · Finalizado**, **5 · Entregue** e **6 · Terceirizada**. O número também acompanha a etapa na lista em tabela e no filtro de status. Em Gerenciar Status dá para trocar o número de qualquer etapa (é texto: aceita "2b"). A OS movida para Terceirizada fica lá e continua aparecendo normalmente.
+  **Tem que acontecer:** As colunas aparecem como **1 · Entrada / Análise**, **2a · Aguardando aprovação**, **2b · Aguardando Peça**, **2c · Terceirizada** (logo ao lado da Peça), **3 · Aprovado / Executar**, **4 · Finalizado** e **5 · Entregue**. O número também acompanha a etapa na lista em tabela e no filtro de status. Em Gerenciar Status dá para trocar o número de qualquer etapa (é texto: aceita "2b"). A OS movida para Terceirizada fica lá e continua aparecendo normalmente.
   *Por que importa: a numeração é como a equipe fala das etapas no dia a dia ("tá na 2b"). E Terceirizada é situação real que o sistema não sabia registrar: até agora, aparelho que saiu para outra empresa consertar ficava parado em "Aprovado / Executar" como se estivesse na bancada — quem olhasse o quadro não tinha como saber que o aparelho nem estava na loja.*
-  > 🔎 **Terceirizada está na última coluna** porque foi assim que você numerou (6). Se na prática ficar melhor no meio do quadro, ao lado de Aguardando Peça, é só mudar a ordem em Gerenciar Status — não precisa mexer no sistema.
+  > 🔎 **Terceirizada ficou ao lado de Aguardando Peça**, a seu pedido: as duas contam a mesma coisa — o aparelho parado dependendo de alguém de fora. Por isso o número dela virou **2c** e não 6: numeração fora de ordem no meio do quadro é pior que numeração nenhuma. Se preferir outro número, muda em Gerenciar Status num clique.
 
 ---
 
