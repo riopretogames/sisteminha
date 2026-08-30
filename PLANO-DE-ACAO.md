@@ -2130,10 +2130,20 @@ que tem em estoque.
 
 **🔵 Observação de cadastro**
 
-- [ ] 🆕 **21/08 — A etapa de OS "tercerizada" está escrita errado** (o certo é
-  "terceirizada"). Não está no código: é item cadastrado pela loja em
-  Gerenciar Status, então corrige-se pela própria tela, sem migration. Fica
-  anotado porque aparece no Kanban e em relatório, à vista do cliente.
+- [x] ✅ **Resolvido em 30/08 — a etapa de OS "tercerizada" estava escrita
+  errado** (o certo é "terceirizada"), anotado desde 21/08.
+
+  Ela cobrou caro antes de ser corrigida. Em 30/08 criei uma etapa
+  "Terceirizada" a pedido do Felipe sem saber que a loja já tinha essa — com a
+  grafia errada. Ficaram duas no quadro. Pior: as duas migrations seguintes
+  procuravam a etapa por `label LIKE 'terceiriz%'`, que **não casa com
+  "tercerizada"** — então elas não numeraram nem desativaram nada, e teriam
+  terminado "com sucesso" sem consertar coisa alguma. Quem pegou isso foi a
+  revisão adversarial do SQL, lendo justamente esta linha do plano.
+
+  Corrigido junto: o nome na tela virou "Terceirizada"; a chave interna
+  continua com o erro de propósito, porque ela é contrato do código, das
+  automações e do histórico das OS que já passaram por ali.
 
 ---
 
