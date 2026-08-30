@@ -9,16 +9,25 @@
  *
  * Por que a regra mora aqui, e não espalhada pelos `if` da tela:
  *
- *   • ela é testável sem abrir o navegador — 12 testes hoje;
- *   • ela vai virar configuração. O pedido do Felipe no mesmo dia foi que a
- *     loja pudesse ESCOLHER o que é obrigatório, porque um dia o sisteminha
- *     vai ser vendido para outras lojas e cada uma trabalha de um jeito.
- *     Com a lista num lugar só, trocar "sempre obrigatório" por "obrigatório
- *     se a loja marcou" mexe num arquivo, não em dez telas.
+ *   • ela é testável sem abrir o navegador;
+ *   • ela VIROU configuração em 30/08, e a previsão se pagou: a lista deixou
+ *     de ser fixa e passou a vir de Configurações > Campos Obrigatórios,
+ *     mexendo só neste arquivo. Sem `exigidos`, vale o padrão de fábrica
+ *     (`src/config/camposObrigatorios.ts`), que é a lista de 27/08.
  *
- * O TÉCNICO fica de fora de propósito: quem recebe no balcão quase nunca sabe
- * quem vai consertar, e exigir ali só faria o atendente escolher qualquer um.
+ * O TÉCNICO fica de fora do padrão de propósito: quem recebe no balcão quase
+ * nunca sabe quem vai consertar. A loja que quiser exigir agora pode.
  */
+
+import { padraoDoFormulario } from '@/config/camposObrigatorios';
+
+/**
+ * O que esta loja exige. Sem isto, vale o padrão de fábrica — que é como o
+ * sistema se comportava antes de a configuração existir.
+ */
+export type Exigidos = Record<string, boolean>;
+
+const PADRAO_DA_CASA: Exigidos = padraoDoFormulario('os');
 
 /** Os campos da abertura que esta regra enxerga. */
 export interface DadosDaOS {
@@ -62,9 +71,15 @@ export interface CampoFaltando {
  * aponta para o fim da página quando o começo está vazio faz ele rolar duas
  * vezes.
  */
-export function faltandoParaAbrirOS(dados: DadosDaOS): CampoFaltando[] {
+export function faltandoParaAbrirOS(
+  dados: DadosDaOS,
+  exigidos: Exigidos = PADRAO_DA_CASA,
+): CampoFaltando[] {
   const falta: CampoFaltando[] = [];
+  const exige = (campo: string) => exigidos[campo] === true;
 
+  // Cliente e defeito não consultam a configuração: o banco recusa OS sem
+  // eles, então nenhuma loja pode desligá-los (ver `fixo` no catálogo).
   if (!dados.cliente_id) {
     falta.push({
       campo: 'cliente_id',
@@ -73,7 +88,7 @@ export function faltandoParaAbrirOS(dados: DadosDaOS): CampoFaltando[] {
     });
   }
 
-  if (!dados.equipamento_id) {
+  if (exige('equipamento_id') && !dados.equipamento_id) {
     falta.push({
       campo: 'equipamento_id',
       titulo: 'Falta o equipamento',
@@ -81,7 +96,7 @@ export function faltandoParaAbrirOS(dados: DadosDaOS): CampoFaltando[] {
     });
   }
 
-  if (!dados.numero_serie.trim()) {
+  if (exige('numero_serie') && !dados.numero_serie.trim()) {
     falta.push({
       campo: 'numero_serie',
       titulo: 'Falta o IMEI / nº de série',
@@ -91,7 +106,7 @@ export function faltandoParaAbrirOS(dados: DadosDaOS): CampoFaltando[] {
     });
   }
 
-  if (!dados.marca_id) {
+  if (exige('marca_id') && !dados.marca_id) {
     falta.push({
       campo: 'marca_id',
       titulo: 'Falta a marca',
@@ -99,7 +114,7 @@ export function faltandoParaAbrirOS(dados: DadosDaOS): CampoFaltando[] {
     });
   }
 
-  if (!dados.modelo_id) {
+  if (exige('modelo_id') && !dados.modelo_id) {
     falta.push({
       campo: 'modelo_id',
       titulo: 'Falta o modelo',
@@ -117,7 +132,7 @@ export function faltandoParaAbrirOS(dados: DadosDaOS): CampoFaltando[] {
     });
   }
 
-  if (dados.tem_senha !== 'sim' && dados.tem_senha !== 'nao') {
+  if (exige('tem_senha') && dados.tem_senha !== 'sim' && dados.tem_senha !== 'nao') {
     falta.push({
       campo: 'tem_senha',
       titulo: 'Falta responder sobre a senha',
@@ -141,7 +156,7 @@ export function faltandoParaAbrirOS(dados: DadosDaOS): CampoFaltando[] {
     });
   }
 
-  if (!dados.vendedor_id) {
+  if (exige('vendedor_id') && !dados.vendedor_id) {
     falta.push({
       campo: 'vendedor_id',
       titulo: 'Falta quem recebeu',
@@ -149,7 +164,7 @@ export function faltandoParaAbrirOS(dados: DadosDaOS): CampoFaltando[] {
     });
   }
 
-  if (!dados.prazo_previsto) {
+  if (exige('prazo_previsto') && !dados.prazo_previsto) {
     falta.push({
       campo: 'prazo_previsto',
       titulo: 'Falta o prazo prometido',
@@ -161,6 +176,6 @@ export function faltandoParaAbrirOS(dados: DadosDaOS): CampoFaltando[] {
 }
 
 /** Atalho de leitura para a tela: dá para abrir a OS? */
-export function podeAbrirOS(dados: DadosDaOS): boolean {
-  return faltandoParaAbrirOS(dados).length === 0;
+export function podeAbrirOS(dados: DadosDaOS, exigidos: Exigidos = PADRAO_DA_CASA): boolean {
+  return faltandoParaAbrirOS(dados, exigidos).length === 0;
 }

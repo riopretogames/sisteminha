@@ -1635,21 +1635,33 @@ o arquivo antes de assumir.
   também faria o link do relatório filtrado ser compartilhável. Vale fazer
   junto com o "voltar para onde eu estava".
 
-- [ ] 🟠 🆕 **Cada loja escolher os campos obrigatórios da OS.** Pedido do
-  Felipe em 27/08, junto com a lista do que passou a ser obrigatório:
-  *"eu acho que deveria ser selecionável isso dentro do próprio sistema,
-  porque a intenção um dia vai ser vender esse sistema e a pessoa pode
-  escolher de acordo com a necessidade dela"*.
+- [x] ✅ **Feito em 30/08 — cada loja escolhe os campos obrigatórios.** Pedido
+  do Felipe em 27/08 (OS) e repetido em 28/08 (cliente): *"quero poder
+  escolher quais campos exijo, porque quero vender esse sistema para várias
+  pessoas. Tem loja para quem é importante ter o Instagram; para mim não é"*.
 
-  A lista de hoje é a da Rio Preto Games e está fixa no código, mas num lugar
-  só (`src/lib/osObrigatorios.ts`), de propósito — trocar "sempre obrigatório"
-  por "obrigatório se a loja marcou" mexe nesse arquivo e numa tela de
-  configuração, não em dez lugares.
+  **Configurações > Campos Obrigatórios**, com uma aba por formulário
+  (cadastro de cliente e abertura de OS) e uma chavinha por campo. A exigência
+  vale ao cadastrar E ao editar — decisão dele no dia, para as fichas antigas
+  incompletas irem sendo completadas quando alguém mexe nelas.
 
-  O que falta decidir antes de fazer: onde a loja marca isso (uma aba nova em
-  Configurações? dentro de Listas do Sistema?), e se a escolha vale por
-  tipo de equipamento — número de série faz sentido em celular e console, e
-  quase nenhum em fonte ou cabo. Provavelmente é aí que mora o valor real.
+  **A tabela guarda só a exceção** (`campos_obrigatorios`, migration
+  20260830100000). Sem linha, vale o padrão do código — então a Rio Preto
+  Games não sentiu nada no dia em que subiu, e campo criado daqui a seis meses
+  nasce com o padrão valendo para todas as lojas, sem migration de correção.
+
+  Três campos não podem ser desligados por ninguém (nome do cliente, cliente
+  da OS e defeito relatado): são NOT NULL no banco, e deixar desligar criaria
+  um botão que produz erro técnico em inglês no lugar de aviso em português.
+
+  Campo escondido nunca é cobrado: data de nascimento e gênero somem quando o
+  cliente é empresa, e CPF vira CNPJ — por isso o documento tem duas chavinhas
+  separadas, uma para cada tipo de pessoa.
+
+  **O que ficou de fora, e vale conversar depois:** a exigência não vale por
+  tipo de equipamento. Número de série faz sentido em celular e console e
+  quase nenhum em cabo ou fonte, e hoje a escolha é uma só para toda OS. É
+  provavelmente aí que mora o próximo passo desta ideia.
 
 - [ ] 🟠 🆕 **Relatório de Vendas: o CSV leva pouca coisa.** Felipe no teste
   do passo 38, em 23/08: *"porém extrai muito poucos dados"*.

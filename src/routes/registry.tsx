@@ -74,6 +74,7 @@ export const PAGES: Record<string, Page> = {
   /* ── Configurações ──────────────────────────────────────────────────────── */
   ConfigPerfis: lazy(() => import('@/pages/configuracoes/ConfigPerfis')),
   ConfigPreferencias: lazy(() => import('@/pages/configuracoes/ConfigPreferencias')),
+  ConfigCamposObrigatorios: lazy(() => import('@/pages/configuracoes/ConfigCamposObrigatorios')),
   ConfigLogs: lazy(() => import('@/pages/configuracoes/ConfigLogs')),
 
   /* ── Ainda não construídas ──────────────────────────────────────────────────

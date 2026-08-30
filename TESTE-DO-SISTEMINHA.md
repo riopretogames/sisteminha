@@ -17,7 +17,7 @@ abrindo mão.
 
 ## O que já roda sozinho
 
-O sistema tem **207 testes automáticos** que rodam a cada mudança. Eles cobrem
+O sistema tem **247 testes automáticos** que rodam a cada mudança. Eles cobrem
 as contas (faturamento, devolução, custo médio, ranking) e o comportamento das
 telas por perfil — inclusive o pior defeito que este sistema já teve, a tela de
 Estoque ficando branca para quem não vê custo.
@@ -593,6 +593,12 @@ você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda
   **Tem que acontecer:** Em Pagamentos e no Relatório de Vendas abre a **mesma ficha** do Histórico — cliente, telefone, CPF, vendedor, valores separados, produtos com IMEI, pagamentos com hora e linha do tempo. Ao fechar, a janela some **sem piscar nenhuma mensagem de erro**. No Relatório de OS a linha leva para a ficha da OS; no de Estoque, para a ficha do produto. Em Movimentações, a Origem aparece escrita como **"Venda OV0006"** (não `venda:OV0006`), a coluna **Quem fez** mostra o nome de quem mexeu no estoque, e clicar na origem abre a ficha daquela venda.
   *Por que importa: era o pedido do 27/08 — a mesma venda aparecia em quatro telas e só numa dava para abrir. E o "quem é o cliente, que hora, qual colaborador" do estoque não estava no relatório de estoque (que é uma fotografia de saldos, sem data e sem pessoa): está em Movimentações, e é lá que foi resolvido.*
   > 🔎 **Teste também o crachá, se puder:** entre com um usuário de perfil **Gerente Técnico** e abra o Relatório de Vendas. A linha **não pode** abrir ficha nenhuma — esse perfil não tem acesso ao módulo Venda, e a ficha mostra produto, IMEI, desconto e formas de pagamento. Isso escapou na primeira versão e foi pego na revisão do mesmo dia.
+
+- [ ] **🔴 82. Escolher o que é obrigatório em cada cadastro**
+  **O que fazer:** Abra **Configurações > Campos Obrigatórios**. Na aba **Cadastro de cliente**, ligue a chavinha do **Instagram**. Vá em **Cadastros > Clientes > Novo Cliente**, preencha só o nome e clique em **Cadastrar**. Preencha o Instagram e salve. Volte à configuração, **desligue** o Instagram e ligue o **Telefone / WhatsApp**; cadastre outro cliente só com o nome. Por fim, abra a aba **Abertura de Ordem de Serviço**, desligue o **IMEI / Nº de série**, e abra uma OS sem preencher esse campo.
+  **Tem que acontecer:** Com o Instagram ligado, salvar só com o nome traz aviso vermelho **"Falta o Instagram"**, e o campo ganha asterisco na tela. Preenchido, salva. Com o telefone ligado, o aviso passa a ser o do telefone — e o Instagram deixa de ser cobrado. Na OS, com o IMEI desligado, a ordem abre sem ele; o asterisco some do campo. Tente desligar o **Nome completo**: a chavinha está travada, com um cadeado e a explicação do porquê.
+  *Por que importa: é a peça que o sistema precisa para ser vendido a outras lojas — cada uma exige o que faz sentido para ela. E a sua loja não mudou: sem mexer em nada, o cliente continua exigindo só o nome e a OS continua com a lista de 27/08.*
+  > 🔎 **Vale ao cadastrar e ao editar**, decisão sua no dia. Ou seja: abrir uma ficha antiga incompleta e salvar vai cobrar o que estiver ligado. É de propósito — é assim que as fichas velhas vão sendo completadas.
 
 ---
 

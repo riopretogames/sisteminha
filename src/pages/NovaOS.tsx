@@ -37,6 +37,7 @@ import { soDigitos } from '@/lib/documento';
 import { cn } from '@/lib/utils';
 import { OS_STATUS_INICIAL } from '@/config/osStatus';
 import { faltandoParaAbrirOS } from '@/lib/osObrigatorios';
+import { useCamposObrigatorios } from '@/hooks/useCamposObrigatorios';
 
 /**
  * Abertura de Ordem de Serviço — o check-in do aparelho.
@@ -173,6 +174,9 @@ export default function NovaOS() {
   const { toast } = useToast();
   const { user, can } = useAuth();
   const podeCadastrarCliente = can(PERMISSIONS.REGISTRY_CUSTOMERS_MANAGE);
+  // O que ESTA loja exige. Configurável em Configurações > Campos
+  // Obrigatórios; sem configuração, vale o padrão de 27/08.
+  const { exige, exigencias } = useCamposObrigatorios('os');
 
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [pessoas, setPessoas] = useState<Pessoa[]>([]);
@@ -275,7 +279,8 @@ export default function NovaOS() {
     // A lista do que é obrigatório mora em src/lib/osObrigatorios.ts, com
     // testes. Aqui a tela só avisa o primeiro que falta: despejar sete avisos
     // de uma vez faz o atendente fechar todos sem ler.
-    const falta = faltandoParaAbrirOS({
+    const falta = faltandoParaAbrirOS(
+      {
       cliente_id: selectedCliente?.id ?? '',
       equipamento_id: form.equipamento_id,
       numero_serie: form.numero_serie,
@@ -288,7 +293,9 @@ export default function NovaOS() {
       senha_padrao: form.senha_padrao,
       vendedor_id: form.vendedor_id,
       prazo_previsto: form.prazo_previsto,
-    });
+      },
+      exigencias,
+    );
 
     if (falta.length > 0) {
       const primeiro = falta[0];
@@ -565,7 +572,7 @@ export default function NovaOS() {
               <CampoCatalogo
                 id="equipamento"
                 tipo="os_equipamento"
-                obrigatorio
+                obrigatorio={exige('equipamento_id')}
                 label="Equipamento"
                 placeholder="Celular, Console, Controle..."
                 valor={form.equipamento_id}
@@ -573,7 +580,8 @@ export default function NovaOS() {
               />
               <div className="space-y-2">
                 <Label htmlFor="numero_serie">
-                  IMEI / Nº de Série<span className="text-destructive"> *</span>
+                  IMEI / Nº de Série
+                  {exige('numero_serie') && <span className="text-destructive"> *</span>}
                 </Label>
                 <Input
                   id="numero_serie"
@@ -588,7 +596,7 @@ export default function NovaOS() {
               <CampoCatalogo
                 id="marca"
                 tipo="os_marca"
-                obrigatorio
+                obrigatorio={exige('marca_id')}
                 label="Marca"
                 valor={form.marca_id}
                 onChange={(v) => alterar('marca_id', v)}
@@ -596,7 +604,7 @@ export default function NovaOS() {
               <CampoCatalogo
                 id="modelo"
                 tipo="os_modelo"
-                obrigatorio
+                obrigatorio={exige('modelo_id')}
                 label="Modelo"
                 valor={form.modelo_id}
                 onChange={(v) => alterar('modelo_id', v)}
@@ -710,7 +718,8 @@ export default function NovaOS() {
           <CardContent className="space-y-6">
             <div className="space-y-2" id="tem-senha">
               <Label>
-                O aparelho tem senha?<span className="text-destructive"> *</span>
+                O aparelho tem senha?
+                {exige('tem_senha') && <span className="text-destructive"> *</span>}
               </Label>
               <div className="flex gap-2">
                 <Button
@@ -764,7 +773,8 @@ export default function NovaOS() {
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="vendedor">
-                Quem recebeu (balcão)<span className="text-destructive"> *</span>
+                Quem recebeu (balcão)
+                {exige('vendedor_id') && <span className="text-destructive"> *</span>}
               </Label>
               <Select
                 value={form.vendedor_id || 'nenhum'}
@@ -807,7 +817,8 @@ export default function NovaOS() {
 
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="prazo">
-                Prazo prometido<span className="text-destructive"> *</span>
+                Prazo prometido
+                {exige('prazo_previsto') && <span className="text-destructive"> *</span>}
               </Label>
               <div className="flex flex-wrap gap-2">
                 {TIPOS_DE_REPARO.map((tipo) => {

@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   graphql_public: {
     Tables: {
@@ -286,6 +286,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "caixa_sessoes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campos_obrigatorios: {
+        Row: {
+          campo: string
+          created_at: string
+          definido_por: string | null
+          formulario: string
+          motivo: string | null
+          obrigatorio: boolean
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          campo: string
+          created_at?: string
+          definido_por?: string | null
+          formulario: string
+          motivo?: string | null
+          obrigatorio: boolean
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          campo?: string
+          created_at?: string
+          definido_por?: string | null
+          formulario?: string
+          motivo?: string | null
+          obrigatorio?: boolean
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campos_obrigatorios_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
