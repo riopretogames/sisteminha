@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PERMISSIONS } from '@/config/permissions';
 import { OS_ETAPAS, OS_CANCELADO } from '@/config/osStatus';
 import { confirmarReaberturaDeOSEntregue } from '@/lib/reabrirOS';
+import { acaoParaAvancar } from '@/lib/acaoDaEtapa';
 import { EntregarOSDialog } from '@/components/os/EntregarOSDialog';
 
 /**
@@ -143,6 +144,13 @@ export function TrocarEtapaOS({ osId, numeroOs, statusAtual, tipo, totalOrcament
    *
    * Qualquer outra transição segue direto pro `mudar` de sempre.
    */
+  /**
+   * O nome do passo, como o processo o chama (ver lib/acaoDaEtapa.ts). Quando
+   * a passagem não tem nome próprio — etapa extra que a loja criou —, volta
+   * para "Avançar para <etapa>", que é o certo ali.
+   */
+  const acao = proxima ? acaoParaAvancar(statusAtual, proxima.key) : undefined;
+
   const irPara = (novoStatus: string) => {
     // Reabrir OS entregue: avisa o que continua lançado no financeiro antes
     // de deixar seguir. O porquê está em `lib/reabrirOS.ts`, junto do texto.
@@ -160,6 +168,12 @@ export function TrocarEtapaOS({ osId, numeroOs, statusAtual, tipo, totalOrcament
       setDialogEntregaAberto(true);
       return;
     }
+    // Passo que marca hora e não se desfaz sem explicação pede confirmação:
+    // o organograma escreve "reparo começa aqui" e "laudo enviado ao cliente".
+    if (novoStatus === proxima?.key && acao?.confirmar) {
+      if (!window.confirm(acao.confirmar)) return;
+    }
+
     mudar(novoStatus);
   };
 
@@ -180,7 +194,7 @@ export function TrocarEtapaOS({ osId, numeroOs, statusAtual, tipo, totalOrcament
           ) : (
             <ArrowRight className="mr-2 h-4 w-4" />
           )}
-          Avançar para {proxima.label}
+          {acao?.rotulo ?? `Avançar para ${proxima.label}`}
         </Button>
       )}
 
