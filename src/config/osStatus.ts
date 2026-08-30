@@ -26,8 +26,22 @@
  * Entra na loja → laudo → orçamento com o cliente → cliente aprovou → serviço
  * pronto → cliente retirou e pagou.
  *
- * A loja pode criar outras etapas no meio (existe "Aguardando peça", por
- * exemplo). Essas cinco é que não podem faltar.
+ * A loja pode criar outras etapas no meio. Hoje existem duas, criadas por ela e
+ * não por esta lista: **Aguardando peça** e **Terceirizada** (o aparelho saiu
+ * da loja para outra empresa consertar — microsoldagem, garantia de fabricante,
+ * serviço especializado). Essas cinco é que não podem faltar.
+ *
+ * -----------------------------------------------------------------------------
+ * O número da etapa
+ * -----------------------------------------------------------------------------
+ * Desde 30/08 cada etapa tem um número de exibição, ditado pelo Felipe:
+ *
+ *   1 Entrada/Análise · 2a Aguardando aprovação · 2b Aguardando Peça ·
+ *   3 Aprovado/Executar · 4 Finalizado · 5 Entregue · 6 Terceirizada
+ *
+ * Ele mora em `os_status_config.numero` (texto, editável em Gerenciar Status),
+ * NÃO aqui: "2a" e "2b" são a mesma fase com dois caminhos, o que não cabe no
+ * inteiro de `etapa` — e `etapa` é contrato de código e das automações do n8n.
  */
 
 export const OS_ETAPAS = {

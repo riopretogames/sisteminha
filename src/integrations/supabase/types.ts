@@ -1408,6 +1408,7 @@ export type Database = {
           id: string
           key: string
           label: string
+          numero: string | null
           ordem: number
           sistema: boolean
           tenant_id: string
@@ -1422,6 +1423,7 @@ export type Database = {
           id?: string
           key: string
           label: string
+          numero?: string | null
           ordem?: number
           sistema?: boolean
           tenant_id: string
@@ -1436,6 +1438,7 @@ export type Database = {
           id?: string
           key?: string
           label?: string
+          numero?: string | null
           ordem?: number
           sistema?: boolean
           tenant_id?: string

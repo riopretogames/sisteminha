@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { nomeDaEtapa } from '@/lib/etapaDaOS';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { OSKanbanCard } from './OSKanbanCard';
@@ -57,7 +58,9 @@ export function OSKanbanColumn({
     >
       {/* Header */}
       <div className="p-3 border-b flex items-center justify-between">
-        <Badge className={status.color}>{status.label}</Badge>
+        {/* O número vem antes do nome: é assim que a loja fala da etapa
+            ("tá na 2b"). Etapa sem número aparece só com o nome. */}
+        <Badge className={status.color}>{nomeDaEtapa(status)}</Badge>
         <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
           {orders.length}
         </span>

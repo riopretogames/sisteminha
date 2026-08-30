@@ -17,7 +17,7 @@ abrindo mão.
 
 ## O que já roda sozinho
 
-O sistema tem **247 testes automáticos** que rodam a cada mudança. Eles cobrem
+O sistema tem **253 testes automáticos** que rodam a cada mudança. Eles cobrem
 as contas (faturamento, devolução, custo médio, ranking) e o comportamento das
 telas por perfil — inclusive o pior defeito que este sistema já teve, a tela de
 Estoque ficando branca para quem não vê custo.
@@ -599,6 +599,12 @@ você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda
   **Tem que acontecer:** Com o Instagram ligado, salvar só com o nome traz aviso vermelho **"Falta o Instagram"**, e o campo ganha asterisco na tela. Preenchido, salva. Com o telefone ligado, o aviso passa a ser o do telefone — e o Instagram deixa de ser cobrado. Na OS, com o IMEI desligado, a ordem abre sem ele; o asterisco some do campo. Tente desligar o **Nome completo**: a chavinha está travada, com um cadeado e a explicação do porquê.
   *Por que importa: é a peça que o sistema precisa para ser vendido a outras lojas — cada uma exige o que faz sentido para ela. E a sua loja não mudou: sem mexer em nada, o cliente continua exigindo só o nome e a OS continua com a lista de 27/08.*
   > 🔎 **Vale ao cadastrar e ao editar**, decisão sua no dia. Ou seja: abrir uma ficha antiga incompleta e salvar vai cobrar o que estiver ligado. É de propósito — é assim que as fichas velhas vão sendo completadas.
+
+- [ ] **⚪ 83. As etapas da assistência agora têm número — e existe a Terceirizada**
+  **O que fazer:** Abra **Ordem de Serviço > Ordens de Serviço** no modo quadro. Olhe o cabeçalho de cada coluna. Depois abra **Gerenciar Status** e procure a coluna **Nº** ao lado do nome de cada etapa. Por fim, arraste uma OS para a coluna **Terceirizada**.
+  **Tem que acontecer:** As colunas aparecem como **1 · Entrada / Análise**, **2a · Aguardando aprovação**, **2b · Aguardando Peça**, **3 · Aprovado / Executar**, **4 · Finalizado**, **5 · Entregue** e **6 · Terceirizada**. O número também acompanha a etapa na lista em tabela e no filtro de status. Em Gerenciar Status dá para trocar o número de qualquer etapa (é texto: aceita "2b"). A OS movida para Terceirizada fica lá e continua aparecendo normalmente.
+  *Por que importa: a numeração é como a equipe fala das etapas no dia a dia ("tá na 2b"). E Terceirizada é situação real que o sistema não sabia registrar: até agora, aparelho que saiu para outra empresa consertar ficava parado em "Aprovado / Executar" como se estivesse na bancada — quem olhasse o quadro não tinha como saber que o aparelho nem estava na loja.*
+  > 🔎 **Terceirizada está na última coluna** porque foi assim que você numerou (6). Se na prática ficar melhor no meio do quadro, ao lado de Aguardando Peça, é só mudar a ordem em Gerenciar Status — não precisa mexer no sistema.
 
 ---
 

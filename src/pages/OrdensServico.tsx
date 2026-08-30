@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { nomeDaEtapa } from '@/lib/etapaDaOS';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus,
@@ -360,7 +361,7 @@ export default function OrdensServico() {
             >
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
-                  <Badge className={config.color}>{config.label}</Badge>
+                  <Badge className={config.color}>{nomeDaEtapa(config)}</Badge>
                   <span className="text-2xl font-bold">{count}</span>
                 </div>
               </CardContent>
@@ -390,7 +391,7 @@ export default function OrdensServico() {
               .filter((s) => s.ativo)
               .map((config) => (
                 <SelectItem key={config.key} value={config.key}>
-                  {config.label}
+                  {nomeDaEtapa(config)}
                 </SelectItem>
               ))}
           </SelectContent>
