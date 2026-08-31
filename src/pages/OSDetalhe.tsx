@@ -859,6 +859,7 @@ export default function OSDetalhe() {
             <IniciarNaBancada
               osId={os.id}
               status={os.status}
+              laudoAprovado={os.laudo_aprovado}
               diagnosticoIniciadoEm={os.diagnostico_iniciado_em}
               execucaoIniciadaEm={os.execucao_iniciada_em}
               nomeDeQuemIniciouDiagnostico={nomeUsuario(os.diagnostico_iniciado_por)}
@@ -1210,7 +1211,9 @@ export default function OSDetalhe() {
                 )}
                 {Number(os?.total_orcamento ?? 0) > 0
                   ? `A OS ficou valendo ${moeda(Number(os?.total_orcamento))} — a taxa de análise, cobrada na retirada.`
-                  : 'A loja não cobra taxa de análise, então a OS ficou sem valor.'}
+                  : 'A loja não cobra taxa de análise, então a OS ficou sem valor.'}{' '}
+                {os?.status === OS_ETAPAS.APROVADO &&
+                  'Falta remontar o aparelho e marcar Reparo concluído para ele ficar pronto para retirada.'}
                 {os?.laudo_motivo_recusa && (
                   <>
                     {' '}

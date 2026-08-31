@@ -55,6 +55,22 @@ export function OSKanbanCard({ order, config, statusConfig, onClick }: OSKanbanC
           )}
         </div>
 
+        {/* A recusa aparece SEMPRE, sem opção para desligar — diferente dos
+            outros campos do cartão.
+
+            O motivo: desde 01/09 a OS recusada anda pelas mesmas colunas da
+            aprovada (o aparelho volta para a bancada para ser remontado). Sem
+            esta marca, o cartão de um aparelho que NÃO vai ser consertado fica
+            idêntico ao de um que vai, lado a lado na coluna "Aprovado /
+            Executar" — e o técnico só descobre abrindo a ficha, ou não
+            descobre. É o tipo de aviso que não pode depender de alguém ter
+            ligado a opção certa na configuração do cartão. */}
+        {order.laudo_aprovado === false && (
+          <Badge variant="destructive" className="w-full justify-center">
+            Cliente não aprovou — remontar
+          </Badge>
+        )}
+
         {/* Cliente */}
         {config.cliente_nome && (
           <div className="flex items-center gap-2 text-sm">

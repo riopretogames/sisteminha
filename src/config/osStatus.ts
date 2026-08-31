@@ -109,7 +109,22 @@ export const OS_STATUS_INICIAL: OsEtapa = OS_ETAPAS.AGUARDANDO_ANALISE;
  * Etapa extra criada pela loja (tipo "Aguardando peça") não entra: só as
  * etapas fixas dizem, com certeza, que houve aprovação. Errar para menos aqui
  * é melhor do que prometer caixa que não vem.
+ *
+ * **A etapa sozinha deixou de bastar em 01/09.** A OS recusada passou a andar
+ * pela MESMA esteira do reparo aprovado — ela vai para "Aprovado / Executar"
+ * (o técnico precisa remontar o aparelho, que voltou aberto do diagnóstico) e
+ * de lá para "Finalizado". Ou seja: as duas etapas que aqui significavam "o
+ * cliente disse sim" agora também abrigam quem disse não, e o número passaria
+ * a prometer caixa de reparo que ninguém vai fazer.
+ *
+ * Quem sabe a verdade é `laudo_aprovado`, que a decisão grava: FALSE é recusa
+ * explícita. NULL não atrapalha — é a OS antiga, de antes de a decisão ser
+ * registrada, e continua valendo pela etapa como sempre valeu.
  */
-export function osOrcamentoAprovado(status: string | null | undefined): boolean {
+export function osOrcamentoAprovado(
+  status: string | null | undefined,
+  laudoAprovado?: boolean | null,
+): boolean {
+  if (laudoAprovado === false) return false;
   return status === OS_ETAPAS.APROVADO || status === OS_ETAPAS.FINALIZADO;
 }

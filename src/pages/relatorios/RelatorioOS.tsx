@@ -21,6 +21,8 @@ interface LinhaOS {
   modelo: string | null;
   total_orcamento: number;
   valor_final_pago: number | null;
+  /** FALSE = o cliente recusou o orçamento. Ver osOrcamentoAprovado. */
+  laudo_aprovado: boolean | null;
   clientes: { nome: string } | null;
 }
 
@@ -112,7 +114,7 @@ export default function RelatorioOS() {
       const { data, error } = await supabase
         .from('service_orders')
         .select(
-          'id, numero_os, created_at, data_finalizacao, status, marca, modelo, total_orcamento, valor_final_pago, clientes(nome)',
+          'id, numero_os, created_at, data_finalizacao, status, marca, modelo, total_orcamento, valor_final_pago, laudo_aprovado, clientes(nome)',
         )
         .gte('created_at', periodo.de)
         .lte('created_at', `${periodo.ate}T23:59:59`)
@@ -133,10 +135,15 @@ export default function RelatorioOS() {
   // inclusive as que nem tinham laudo, e chamava isso de "Aprovado, ainda não
   // recebido" — superestimava o caixa futuro com dinheiro que ainda dependia
   // de o cliente dizer sim.
+  // O `laudo_aprovado` junto não é detalhe: desde 01/09 a OS recusada anda
+  // pelas mesmas etapas da aprovada (ela volta para a bancada para ser
+  // remontada), então a etapa sozinha diria que o cliente aprovou.
   const orcadoEmAberto = linhas
-    .filter((o) => osOrcamentoAprovado(o.status))
+    .filter((o) => osOrcamentoAprovado(o.status, o.laudo_aprovado))
     .reduce((acc, o) => acc + Number(o.total_orcamento ?? 0), 0);
-  const qtdAprovadas = linhas.filter((o) => osOrcamentoAprovado(o.status)).length;
+  const qtdAprovadas = linhas.filter(
+    (o) => osOrcamentoAprovado(o.status, o.laudo_aprovado),
+  ).length;
 
   /**
    * Quanto tempo o conserto leva, na média — só de OS já finalizada.

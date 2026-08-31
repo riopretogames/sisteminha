@@ -168,15 +168,21 @@ describe('A resposta do cliente ao laudo', () => {
       .toBeInTheDocument();
   });
 
-  it('avisa que o aparelho precisa ser remontado antes de voltar', async () => {
-    // O organograma tem esse passo, o sistema não tinha onde dizê-lo: a OS
-    // recusada vai direto para "Finalizado" (pronto para retirada) com o
-    // aparelho ainda aberto na bancada.
+  it('conta o caminho de verdade: a OS volta para a bancada, não para a prateleira', async () => {
+    // Decisão do Felipe (01/09): recusou, a OS vai para "Aprovado / Executar",
+    // o técnico remonta o aparelho e marca Reparo concluído — só então ele
+    // fica pronto para retirada. Antes disso o diálogo dizia que o aparelho já
+    // ficava pronto, e o vendedor podia combinar a retirada com o cliente para
+    // o dia seguinte, com o aparelho ainda aberto na bancada.
     await montar();
 
     fireEvent.click(screen.getByRole('button', { name: /cliente não aprovou/i }));
 
-    expect(await screen.findByText(/precisa ser remontado/i)).toBeInTheDocument();
+    // "Volta para a bancada" aparece duas vezes: no texto do dinheiro e no
+    // bloco do que acontece em seguida. As duas frases importam.
+    expect(await screen.findAllByText(/volta para a bancada/i)).toHaveLength(2);
+    expect(await screen.findByText(/remontar o aparelho/i)).toBeInTheDocument();
+    expect(await screen.findAllByText(/reparo concluído/i)).not.toHaveLength(0);
     expect(await screen.findByText(/voltam sozinhas para o estoque/i)).toBeInTheDocument();
   });
 

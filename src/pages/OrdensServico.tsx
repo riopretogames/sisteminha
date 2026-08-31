@@ -100,6 +100,7 @@ export default function OrdensServico() {
           status,
           tipo,
           prioridade,
+          laudo_aprovado,
           total_orcamento,
           tecnico_id,
           prazo_previsto,
@@ -124,6 +125,7 @@ export default function OrdensServico() {
           status: order.status || OS_STATUS_INICIAL,
           tipo: order.tipo as ServiceOrder['tipo'],
           prioridade: (order.prioridade || 'normal') as OsPrioridade,
+          laudo_aprovado: order.laudo_aprovado,
           total_orcamento: order.total_orcamento || 0,
           tecnico_id: order.tecnico_id,
           // O card mostra o NOME do técnico. Antes a consulta trazia só o id, e

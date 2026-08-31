@@ -37,6 +37,12 @@ import { dataHora } from '@/lib/format';
 interface Props {
   osId: string;
   status: string;
+  /**
+   * FALSE = o cliente recusou o orçamento. Esta OS está em "Aprovado /
+   * Executar" mesmo assim, porque o aparelho voltou aberto do diagnóstico e
+   * precisa ser remontado — mas não há execução para iniciar.
+   */
+  laudoAprovado: boolean | null;
   diagnosticoIniciadoEm: string | null;
   execucaoIniciadaEm: string | null;
   /** Nomes já resolvidos pela ficha, que tem a lista de perfis. */
@@ -70,6 +76,7 @@ const FASES = {
 export function IniciarNaBancada({
   osId,
   status,
+  laudoAprovado,
   diagnosticoIniciadoEm,
   execucaoIniciadaEm,
   nomeDeQuemIniciouDiagnostico,
@@ -123,6 +130,29 @@ export function IniciarNaBancada({
   // lugar do que dá para fazer AGORA; o quando-começou tem lugar próprio na
   // linha do tempo da ficha, que já mostra os dois marcos.
   if (!fase) return null;
+
+  /**
+   * OS recusada parada na etapa da bancada: não existe execução para começar.
+   *
+   * Decisão do Felipe em 01/09: a OS recusada volta pela MESMA esteira — vai
+   * para "Aprovado / Executar", o técnico remonta o aparelho e aperta Reparo
+   * concluído. Sem esta linha, o técnico veria "Iniciar a execução" e ficaria
+   * na dúvida se deve consertar um serviço que o cliente não quis; e a marca
+   * de hora que o botão grava contaria como tempo de reparo um trabalho que
+   * não é reparo.
+   */
+  if (laudoAprovado === false && status === OS_ETAPAS.APROVADO) {
+    return (
+      <p className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+        <Wrench className="h-3.5 w-3.5 shrink-0" />
+        <span>
+          <strong className="text-foreground">Cliente não aprovou.</strong> Não há serviço a
+          executar — remonte o aparelho e marque <em>Reparo concluído</em> para ele ficar pronto
+          para retirada.
+        </span>
+      </p>
+    );
+  }
 
   // Já começou: o botão dá lugar ao registro, para TODO MUNDO — o vendedor
   // também precisa saber que o aparelho está na mesa de alguém, e desde quando.

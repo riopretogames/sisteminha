@@ -186,6 +186,12 @@ export function OSTableView({ orders, statuses, loading, onStatusChange, podeApr
                           {diasAtraso}d atrasada
                         </Badge>
                       )}
+                      {/* Mesma razão do cartão do quadro: a OS recusada anda
+                          pelas mesmas etapas da aprovada, então sem a marca ela
+                          se confunde com o reparo que vai acontecer. */}
+                      {order.laudo_aprovado === false && (
+                        <Badge variant="destructive">Não aprovada</Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>

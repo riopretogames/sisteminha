@@ -1681,10 +1681,10 @@ o arquivo antes de assumir.
     dois textos foram acertados; se alguém "corrigir" isso de volta achando
     que é bug, é este parágrafo que responde.
 
-  Efeito colateral que vale saber: a OS recusada deixou de ir para "cancelado"
-  e passou a ir para "finalizado" — o aparelho fica pronto para retirada. Quem
-  marca a recusa continua sendo registrado (`laudo_aprovado = false` e o
+  Efeito colateral que vale saber: a OS recusada deixou de ir para "cancelado".
+  Quem marca a recusa continua sendo registrado (`laudo_aprovado = false` e o
   motivo), então "cancelado" voltou a ser só a saída de emergência que era.
+  (Para onde ela passou a ir mudou de novo em 01/09 — ver a seção da revisão.)
 
   O valor recusado é preservado em `valor_orcado_recusado`: é ele que conta a
   história ("recusou um reparo de R$ 450 e pagou R$ 80 de análise").
@@ -2439,11 +2439,38 @@ antigo continua aberto ao lado dele.** O botão registra; o caminho antigo não.
    sucesso e o valor voltava sozinho ao antigo. Agora o campo aparece travado,
    com a razão escrita, e o erro de verdade chega quando existe.
 
-8. **O aparelho voltava desmontado.** A OS recusada vai direto para
-   "Finalizado" — pronto para retirada —, e o organograma tem entre os dois um
-   passo que o sistema não tinha onde dizer: remontar o aparelho, que saiu
-   aberto do diagnóstico. O diálogo da recusa passou a lembrar disso, junto com
-   o aviso de que as peças voltam sozinhas para o estoque.
+8. **O aparelho voltava desmontado.** A OS recusada ia direto para
+   "Finalizado" — que neste sistema quer dizer *pronto para o cliente buscar*.
+   Mas ele não está pronto: veio do diagnóstico, ou seja, está ABERTO na
+   bancada. O sistema avisava "pode buscar" com o aparelho em pedaços, e a loja
+   só descobria no balcão, com o cliente na frente.
+
+   Levei ao Felipe porque a correção mudava o que a equipe vê no quadro, e ele
+   fechou: *"vai para finalizado quando o técnico terminar de montar, clicando
+   em reparo concluído, e depois entregue quando o vendedor marcar retirado"*.
+   É o que o `PROCESSO-ORDEM-DE-SERVICO.md` já descrevia.
+
+   **O caminho da OS recusada, agora igual ao do reparo aprovado:**
+
+   | Passo | Quem | O que acontece |
+   |---|---|---|
+   | Cliente não aprova | Vendedor | A OS vai para **Etapa 3 — Aprovado / Executar**, marcada como "não aprovada". As peças voltam ao estoque. |
+   | Remonta o aparelho | Técnico | Aperta **Reparo concluído** → **Etapa 5 — Finalizado** |
+   | Vem buscar | Vendedor | Marca retirado → **Etapa 6 — Entregue**, cobrando a taxa pelo caixa |
+
+   Não foi criada etapa "Recusado" ao lado: coluna nova é coluna que a equipe
+   esquece de olhar, e o processo do Felipe é explícito em manter o recusado na
+   mesma esteira. Em troca, a recusa ficou **visível onde a pessoa está
+   olhando** — selo vermelho no cartão do quadro e na lista, e na ficha o
+   técnico lê "não há serviço a executar, remonte o aparelho" no lugar do botão
+   de iniciar execução, que ali convidaria a consertar o que o cliente recusou.
+
+   **Bônus que só apareceu por causa disso:** o Relatório de OS contava a OS
+   recusada como **orçamento aprovado**. Ele decidia isso pela etapa, e as duas
+   etapas que significavam "o cliente disse sim" passaram a abrigar quem disse
+   não — a loja veria como caixa futuro o reparo de R$ 450 que ninguém vai
+   fazer, quando o que entra são R$ 80. Já era assim desde 31/08 e a revisão
+   não tinha pego.
 
 **🟡 Menores, corrigidos junto**
 

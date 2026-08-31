@@ -22,7 +22,10 @@ import { moeda } from '@/lib/format';
  * fala com o cliente.
  *
  *   Aprovou    → a OS vai para a bancada executar.
- *   Não aprovou → o MOTIVO é obrigatório, e a OS é encerrada.
+ *   Não aprovou → o MOTIVO é obrigatório, e a OS vai para a bancada TAMBÉM —
+ *                 para o técnico remontar o aparelho, que voltou aberto do
+ *                 diagnóstico. Só depois de ele marcar "Reparo concluído" é
+ *                 que o aparelho fica pronto para retirada.
  *
  * Por que o motivo é obrigatório: é a informação mais valiosa que uma recusa
  * deixa. Preço alto, prazo longo, cliente achou que não compensa consertar —
@@ -95,7 +98,7 @@ export function DecisaoDoLaudo({ osId, status, tipo, totalOrcamento, onMudou }: 
         title: aprovado ? 'Laudo aprovado' : 'Recusa registrada',
         description: aprovado
           ? 'A OS foi para a bancada executar o serviço.'
-          : 'Peças devolvidas ao estoque. Remonte o aparelho e combine a retirada com o cliente.',
+          : 'A OS foi para a bancada e as peças voltaram ao estoque. Remonte o aparelho e marque Reparo concluído.',
       });
       setRecusaAberta(false);
       setMotivo('');
@@ -155,20 +158,23 @@ export function DecisaoDoLaudo({ osId, status, tipo, totalOrcamento, onMudou }: 
             <DialogDescription>
               {cobraTaxa ? (
                 <>
-                  A OS passa a valer <strong>{moeda(taxa)}</strong> — a taxa de análise —, e o
-                  aparelho fica pronto para o cliente retirar. Ele paga esse valor na retirada,
+                  A OS passa a valer <strong>{moeda(taxa)}</strong> — a taxa de análise —, e volta
+                  para a bancada: o técnico remonta o aparelho e marca <em>Reparo concluído</em>,
+                  e aí sim ele fica pronto para retirada. O cliente paga a taxa quando buscar,
                   pelo mesmo caminho de qualquer outra OS. O valor recusado fica guardado na ficha.
                 </>
               ) : tipo !== 'paga' ? (
                 <>
-                  A OS vai para a retirada <strong>sem valor</strong>: esta é uma OS de{' '}
+                  A OS sai <strong>sem valor</strong>: esta é uma OS de{' '}
                   {tipo === 'garantia' ? 'garantia' : 'cortesia'}, e a loja não cobra análise
-                  nelas. O valor recusado fica guardado na ficha.
+                  nelas. Ela volta para a bancada, o técnico remonta o aparelho e marca{' '}
+                  <em>Reparo concluído</em>. O valor recusado fica guardado na ficha.
                 </>
               ) : (
                 <>
-                  A OS vai para a retirada <strong>sem valor</strong>: esta loja não cobra taxa de
-                  análise. Dá para mudar isso em Configurações &gt; Preferências do Sistema.
+                  A OS sai <strong>sem valor</strong>: esta loja não cobra taxa de análise (dá
+                  para mudar em Configurações &gt; Preferências do Sistema). Ela volta para a
+                  bancada, o técnico remonta o aparelho e marca <em>Reparo concluído</em>.
                 </>
               )}
             </DialogDescription>
@@ -194,9 +200,11 @@ export function DecisaoDoLaudo({ osId, status, tipo, totalOrcamento, onMudou }: 
               antes de clicar: o aparelho está aberto na bancada, e as peças que
               o técnico separou voltam para a prateleira. */}
           <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
-            <strong>Antes de devolver:</strong> o aparelho precisa ser remontado — ele saiu
-            aberto do diagnóstico. As peças lançadas nesta OS voltam sozinhas para o estoque
-            quando você registrar a recusa.
+            <strong>O que acontece em seguida:</strong> a OS volta para a bancada (etapa
+            &quot;Aprovado / Executar&quot;, marcada como não aprovada) para o técnico remontar o
+            aparelho — ele saiu aberto do diagnóstico. Quando o técnico marcar{' '}
+            <em>Reparo concluído</em>, o aparelho fica pronto para retirada. As peças lançadas
+            nesta OS voltam sozinhas para o estoque.
           </div>
 
           <DialogFooter>

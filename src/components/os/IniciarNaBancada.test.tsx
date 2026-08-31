@@ -49,6 +49,7 @@ async function montar(opcoes: {
   status?: string;
   iniciadoEm?: string | null;
   execucaoEm?: string | null;
+  laudoAprovado?: boolean | null;
 }) {
   mockCan.mockImplementation(montarCan({ perfil: opcoes.perfil }));
   mockRpc.mockResolvedValue({ data: '2026-08-30T10:00:00', error: null });
@@ -59,6 +60,7 @@ async function montar(opcoes: {
     <IniciarNaBancada
       osId="os-1"
       status={opcoes.status ?? OS_ETAPAS.AGUARDANDO_ANALISE}
+      laudoAprovado={opcoes.laudoAprovado ?? null}
       diagnosticoIniciadoEm={opcoes.iniciadoEm ?? null}
       execucaoIniciadaEm={opcoes.execucaoEm ?? null}
       nomeDeQuemIniciouDiagnostico="Joao Tecnico"
@@ -160,6 +162,48 @@ describe('Botões de começar na bancada', () => {
 
     expect(screen.queryByRole('button', { name: /iniciar/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/aguardando a bancada/i)).not.toBeInTheDocument();
+  });
+
+  describe('a OS que o cliente não aprovou', () => {
+    it('não oferece "Iniciar a execução" — não há serviço a executar', async () => {
+      // Decisão do Felipe (01/09): a OS recusada volta pela MESMA esteira e
+      // para em "Aprovado / Executar", porque o aparelho voltou aberto do
+      // diagnóstico e precisa ser remontado. O botão de iniciar execução ali
+      // convidaria o técnico a consertar o que o cliente recusou — e a marca
+      // de hora contaria como tempo de reparo um trabalho que não é reparo.
+      await montar({
+        perfil: 'tecnico',
+        status: OS_ETAPAS.APROVADO,
+        laudoAprovado: false,
+      });
+
+      expect(screen.queryByRole('button', { name: /iniciar a execução/i }))
+        .not.toBeInTheDocument();
+    });
+
+    it('diz o que fazer no lugar: remontar e marcar Reparo concluído', async () => {
+      await montar({
+        perfil: 'tecnico',
+        status: OS_ETAPAS.APROVADO,
+        laudoAprovado: false,
+      });
+
+      expect(await screen.findByText(/cliente não aprovou/i)).toBeInTheDocument();
+      expect(await screen.findByText(/remonte o aparelho/i)).toBeInTheDocument();
+    });
+
+    it('a OS aprovada de verdade continua com o botão', async () => {
+      // O contrário do teste acima: sem ele, esconder o botão para todo mundo
+      // passaria despercebido.
+      await montar({
+        perfil: 'tecnico',
+        status: OS_ETAPAS.APROVADO,
+        laudoAprovado: true,
+      });
+
+      expect(await screen.findByRole('button', { name: /iniciar a execução/i }))
+        .toBeInTheDocument();
+    });
   });
 
   it('depois que a OS passou da bancada, o registro sai da barra de ações', async () => {

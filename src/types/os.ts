@@ -42,6 +42,16 @@ export interface ServiceOrder {
   /** Paga cobra na entrega (exige os_pagamentos); garantia/cortesia não cobram nada. */
   tipo: 'paga' | 'garantia' | 'cortesia';
   prioridade: OsPrioridade;
+  /**
+   * O cliente aprovou o orçamento? TRUE sim, FALSE não, NULL ainda não
+   * respondeu (ou é OS de antes de a decisão ser registrada, 31/08).
+   *
+   * A lista e o quadro precisam disto porque a OS RECUSADA anda pelas mesmas
+   * etapas da aprovada (decisão do Felipe, 01/09: o aparelho volta para a
+   * bancada para ser remontado). Sem a marca, o cartão de um aparelho que não
+   * vai ser consertado fica idêntico ao de um que vai — na mesma coluna.
+   */
+  laudo_aprovado: boolean | null;
   total_orcamento: number;
   tecnico_id: string | null;
   tecnico_nome?: string | null;
