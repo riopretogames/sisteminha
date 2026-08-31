@@ -1621,8 +1621,19 @@ o arquivo antes de assumir.
   **Próximo passo:** repetir o passo 7 e copiar a segunda linha do aviso
   vermelho.
 
-- [ ] 🟠 🆕 **Lançamento de serviço na OS: falta o resumo e os "valores
-  complementares".** Pedido do Felipe em 31/08, comparando o sisteminha com o
+- [x] ✅ **Feito em 31/08 — o lançamento na OS ganhou os quatro tipos, o resumo
+  e o aviso de divergência.** Peça do estoque, peça comprada no fornecedor no
+  dia, serviço e "outro custo" (frete, terceirização) são quatro coisas
+  diferentes na conta, e agora cada linha diz qual é. O resumo mostra os três
+  grupos e o total; o orçamento avisa quando discorda do que está lançado.
+
+  Fica registrado o que motivou: até aqui o sistema decidia o tipo olhando se
+  a linha tinha produto do estoque. A peça comprada no dia quebrava essa
+  conta — ela é peça e não tem produto — e entrava como mão de obra, inflando
+  o faturamento de serviço da loja.
+
+- [x] ~~🟠 Lançamento de serviço na OS: falta o resumo e os "valores
+  complementares".~~ (o texto original, resolvido acima) Pedido do Felipe em 31/08, comparando o sisteminha com o
   sistema antigo: *"a tela de adicionar serviço tem que ser uma coisa mais
   complexa, tá muito simplesinho"*.
 

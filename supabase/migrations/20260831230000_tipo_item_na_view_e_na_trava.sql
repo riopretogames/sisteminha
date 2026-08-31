@@ -4,6 +4,13 @@
 --
 -- Conserto do meu próprio erro, na mesma hora em que ele apareceu.
 --
+-- NOTA DE NUMERAÇÃO: nasceu como 20260831200000 e foi renumerada para 230000.
+-- Duas sessões trabalhando no mesmo dia renumeraram a migration que CRIA a
+-- coluna , e ela terminou em 210000 — depois desta. Rodando o
+-- projeto do zero, esta aqui falharia, porque a view cita uma coluna que ainda
+-- não existiria. O banco de hoje está certo (as duas já rodaram, na ordem
+-- certa); o que estava errado era a ordem para quem reconstruísse tudo.
+--
 -- A migration anterior (20260831180000) criou `service_order_items.tipo_item`
 -- e parou aí. Só que essa é UMA DAS QUATRO TABELAS com custo protegido, e o
 -- CLAUDE.md avisa exatamente sobre isso — em duas frentes que eu ignorei:
