@@ -69,9 +69,18 @@ Repare que a Etapa 1 é uma etapa só, com duas metades: o vendedor no balcão
    - o que será feito (desmontagem completa, testes de bancada);
    - a taxa de **R$ 80,00**;
    - o prazo de **1 a 3 dias úteis** (sábado não conta);
-   - a regra do dinheiro: se aprovar o reparo, os R$ 80 abatem do total; se
-     reprovar, ou se a loja concluir que não compensa consertar, paga os
-     R$ 80 na retirada.
+   - a regra do dinheiro: **o laudo eletrônico só é cobrado quando o cliente
+     recusa**. Aprovou o serviço, paga o valor que está no laudo e mais nada —
+     limpeza de R$ 180 é R$ 180. Reprovou, ou a loja concluiu que não compensa
+     consertar, paga os R$ 80 na retirada.
+
+   > [!warning] "Os R$ 80 abatem" é conversa de venda, não é conta
+   > O vendedor pode (e deve) dizer ao cliente que a taxa abate — é assim que
+   > se vende o laudo. Mas **o abatimento é fictício**: o valor do laudo já é o
+   > valor final, e o sistema não subtrai nada de orçamento aprovado. Felipe,
+   > 01/09: *"tecnicamente a gente abate e dá um desconto, mas é fictício, é só
+   > técnica de marketing"*. Quem for programar: se aparecer código tirando os
+   > R$ 80 de um orçamento aprovado, é bug, não regra.
 
 3. Vendedor cria a OS.
 
@@ -135,6 +144,7 @@ existe.
       aguardando retirada.
 
     Na retirada, o cliente paga os R$ 80 do laudo em vez do valor do serviço.
+    É o único momento em que a taxa é cobrada de verdade.
 
 O registro do motivo não é burocracia: é o que permite saber depois se o
 cliente recusou por preço, por prazo, ou porque decidiu comprar outro

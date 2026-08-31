@@ -39,6 +39,8 @@ import { cn } from '@/lib/utils';
 import { OS_STATUS_INICIAL } from '@/config/osStatus';
 import { faltandoParaAbrirOS } from '@/lib/osObrigatorios';
 import { useCamposObrigatorios } from '@/hooks/useCamposObrigatorios';
+import { useTaxaDeAnalise } from '@/hooks/useTaxaDeAnalise';
+import { moeda } from '@/lib/format';
 
 /**
  * Abertura de Ordem de Serviço — o check-in do aparelho.
@@ -183,6 +185,10 @@ export default function NovaOS() {
   // O que ESTA loja exige. Configurável em Configurações > Campos
   // Obrigatórios; sem configuração, vale o padrão de 27/08.
   const { exige, exigencias } = useCamposObrigatorios('os');
+  // O valor que o vendedor vai dizer ao cliente daqui a dez segundos. Vem da
+  // configuração da loja, não escrito na tela: quem comprar o sisteminha cobra
+  // outro valor, e o lembrete não pode continuar dizendo 80.
+  const { taxa: taxaDeAnalise } = useTaxaDeAnalise();
 
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [pessoas, setPessoas] = useState<Pessoa[]>([]);
@@ -807,11 +813,23 @@ export default function NovaOS() {
                     <p className="font-medium">Combine com o cliente antes de fechar a OS:</p>
                     <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">
                       <li>a análise é completa, com o aparelho aberto na bancada;</li>
-                      <li>a taxa de análise é de <strong>R$ 80,00</strong>;</li>
-                      <li>o prazo do laudo é de <strong>1 a 3 dias úteis</strong>;</li>
                       <li>
-                        se ele aprovar o serviço, a taxa <strong>é abatida</strong> do valor;
-                        se recusar, os R$ 80 são cobrados na retirada.
+                        a taxa de análise é de <strong>{moeda(taxaDeAnalise)}</strong>;
+                      </li>
+                      <li>o prazo do laudo é de <strong>1 a 3 dias úteis</strong>;</li>
+                      {/* A regra do dinheiro, dita do jeito que o Felipe explicou em
+                          01/09: aprovou, paga só o serviço — a taxa não soma nem
+                          desconta. "Abater o laudo" é como a loja vende isso ao
+                          cliente, e é a mesma coisa dita de outro jeito. Escrito
+                          assim de propósito: a versão antiga ("a taxa é abatida do
+                          valor") fazia parecer que o sistema faz uma conta, e ele
+                          não faz nenhuma. */}
+                      <li>
+                        se ele aprovar, paga <strong>só o valor do serviço</strong> — a taxa não
+                        soma (é o que a loja chama de abater o laudo);
+                      </li>
+                      <li>
+                        se recusar, paga <strong>{moeda(taxaDeAnalise)}</strong> na retirada.
                       </li>
                     </ul>
                   </>

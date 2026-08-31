@@ -41,9 +41,12 @@ vi.mock('@/integrations/supabase/client', () => ({
   },
 }));
 
-async function abrirTela() {
+async function abrirTela(opcoes: { taxa?: number } = {}) {
   mockCan.mockImplementation(montarCan({ perfil: 'admin' }));
   mockSupabase.atual = bancoFalso({
+    // A taxa que ESTA loja cobra. 137 em vez de 80 de propósito: com 80, o
+    // teste passaria igual se a tela voltasse a ter o valor escrito no código.
+    tenants: [{ id: 'loja-1', taxa_analise: opcoes.taxa ?? 137 }],
     clientes: [{ id: 'c1', nome: 'Adriana Prado', telefones: ['17910000001'] }],
     // Duas coisas de propósito aqui:
     //   • `ativo: true` — a tela busca pessoas com .eq('ativo', true);
@@ -128,16 +131,34 @@ describe('Abertura de OS: o que a tela exige', () => {
       expect(chave).toBeChecked();
     });
 
-    it('ligada, lembra o vendedor da taxa, do prazo e do abatimento', async () => {
+    it('ligada, lembra o vendedor da taxa da LOJA, do prazo e do que cobrar', async () => {
       await abrirTela();
 
       // O lembrete é o roteiro do que dizer AGORA: depois que o cliente vai
       // embora, essa conversa fica cara.
       expect(await screen.findByText(/combine com o cliente antes de fechar a OS/i))
         .toBeInTheDocument();
-      expect(screen.getByText(/R\$ 80,00/)).toBeInTheDocument();
+      // O valor vem da configuração da loja. Estava escrito "R$ 80,00" na
+      // tela: a loja que cobrasse outro valor tinha o vendedor prometendo 80.
+      //
+      // Aparece duas vezes de propósito — quanto é a taxa, e quanto o cliente
+      // paga se recusar. São as duas frases que o vendedor fala.
+      expect(await screen.findAllByText(/137,00/)).toHaveLength(2);
       expect(screen.getByText(/1 a 3 dias úteis/i)).toBeInTheDocument();
-      expect(screen.getByText(/é abatida/i)).toBeInTheDocument();
+    });
+
+    it('não promete desconto: aprovou, paga só o serviço', async () => {
+      // Regra do Felipe (31/08, reforçada em 01/09): o laudo eletrônico só é
+      // cobrado quando o cliente RECUSA. Aprovou, paga o valor do laudo e mais
+      // nada — limpeza de R$ 180 é R$ 180. O "abate os R$ 80" que a loja fala
+      // ao cliente é conversa de venda, e o sistema não faz conta nenhuma.
+      //
+      // O texto antigo dizia "a taxa é abatida do valor", que faz parecer
+      // subtração. Este teste existe para o texto não voltar.
+      await abrirTela();
+
+      expect(await screen.findByText(/só o valor do serviço/i)).toBeInTheDocument();
+      expect(screen.queryByText(/é abatida do valor/i)).not.toBeInTheDocument();
     });
 
     it('desligada, o lembrete vira o do serviço tabelado', async () => {

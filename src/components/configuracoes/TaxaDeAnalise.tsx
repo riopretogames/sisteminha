@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useTaxaDeAnalise } from '@/hooks/useTaxaDeAnalise';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,19 +48,12 @@ export function TaxaDeAnalise() {
    */
   const podeSalvar = can(PERMISSIONS.COMPANY_EDIT);
 
-  const { data: taxaSalva, isLoading } = useQuery({
-    queryKey: ['taxa-analise', tenantId],
-    queryFn: async (): Promise<number> => {
-      const { data, error } = await supabase
-        .from('tenants')
-        .select('taxa_analise')
-        .eq('id', tenantId!)
-        .maybeSingle();
-      if (error) throw error;
-      return Number(data?.taxa_analise ?? 0);
-    },
-    enabled: !!tenantId,
-  });
+  // Lê pelo mesmo lugar que as outras duas telas (o lembrete da abertura da OS
+  // e o diálogo da recusa). Antes cada uma perguntava por conta própria, com
+  // nome de cache diferente — então salvar aqui não chegava nas outras até a
+  // pessoa recarregar a página, e o vendedor podia dizer 80 ao cliente com a
+  // loja já cobrando 100.
+  const { taxa: taxaSalva, carregando: isLoading } = useTaxaDeAnalise();
 
   const salvar = useMutation({
     mutationFn: async (novo: number) => {
@@ -83,7 +77,7 @@ export function TaxaDeAnalise() {
       }
     },
     onSuccess: (_d, novo) => {
-      queryClient.invalidateQueries({ queryKey: ['taxa-analise', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['taxa-analise-da-loja'] });
       setValor(null);
       toast({
         variant: 'success',

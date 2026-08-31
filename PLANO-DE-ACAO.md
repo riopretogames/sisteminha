@@ -1672,6 +1672,15 @@ o arquivo antes de assumir.
     que é o que ele já viu no relatório. Era a dúvida mais cara das três, e a
     resposta dele apagou o trabalho inteiro.
 
+    Reforçado em 01/09, quando o documento do processo apareceu dizendo o
+    contrário ("os R$ 80 abatem do total"): *"o laudo eletrônico só é cobrado
+    quando o cliente recusa. Quando aprova, é cobrado o valor que está no
+    laudo — limpeza R$ 180, cobra R$ 180. Tecnicamente a gente abate e dá um
+    desconto, mas é fictício, é só técnica de marketing."* Ou seja: o
+    abatimento existe na **conversa de venda** e não existe na **conta**. Os
+    dois textos foram acertados; se alguém "corrigir" isso de volta achando
+    que é bug, é este parágrafo que responde.
+
   Efeito colateral que vale saber: a OS recusada deixou de ir para "cancelado"
   e passou a ir para "finalizado" — o aparelho fica pronto para retirada. Quem
   marca a recusa continua sendo registrado (`laudo_aprovado = false` e o

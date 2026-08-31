@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Check, Loader2, Lock, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,6 +7,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/useAuth';
+import { useTaxaDeAnalise } from '@/hooks/useTaxaDeAnalise';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { PERMISSIONS } from '@/config/permissions';
@@ -56,23 +56,14 @@ export function DecisaoDoLaudo({ osId, status, tipo, totalOrcamento, onMudou }: 
    * Só é lida quando o diálogo de recusa abre: é o único momento em que o
    * número importa, e quem só aprova nunca precisa dele.
    */
-  const { data: taxa } = useQuery({
-    queryKey: ['taxa-analise-da-loja'],
-    queryFn: async (): Promise<number> => {
-      const { data, error } = await supabase.from('tenants').select('taxa_analise').maybeSingle();
-      if (error) throw error;
-      return Number(data?.taxa_analise ?? 0);
-    },
-    enabled: recusaAberta,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { taxa } = useTaxaDeAnalise({ habilitado: recusaAberta });
 
   /**
    * Garantia e cortesia não passam pelo caixa na entrega — então recusa nelas
    * não cobra nada, e o diálogo não pode prometer cobrança. O banco faz a
    * mesma conta (migration 20260901120000); aqui é só para o texto não mentir.
    */
-  const cobraTaxa = tipo === 'paga' && (taxa ?? 0) > 0;
+  const cobraTaxa = tipo === 'paga' && taxa > 0;
 
   // Só faz sentido enquanto a OS espera a resposta.
   if (status !== OS_ETAPAS.AGUARDANDO_APROVACAO) return null;
@@ -164,7 +155,7 @@ export function DecisaoDoLaudo({ osId, status, tipo, totalOrcamento, onMudou }: 
             <DialogDescription>
               {cobraTaxa ? (
                 <>
-                  A OS passa a valer <strong>{moeda(taxa ?? 0)}</strong> — a taxa de análise —, e o
+                  A OS passa a valer <strong>{moeda(taxa)}</strong> — a taxa de análise —, e o
                   aparelho fica pronto para o cliente retirar. Ele paga esse valor na retirada,
                   pelo mesmo caminho de qualquer outra OS. O valor recusado fica guardado na ficha.
                 </>
@@ -218,7 +209,7 @@ export function DecisaoDoLaudo({ osId, status, tipo, totalOrcamento, onMudou }: 
               onClick={() => registrar(false, motivo)}
             >
               {salvando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {taxa && taxa > 0 ? `Registrar recusa e cobrar ${moeda(taxa)}` : 'Registrar recusa'}
+              {cobraTaxa ? `Registrar recusa e cobrar ${moeda(taxa)}` : 'Registrar recusa'}
             </Button>
           </DialogFooter>
         </DialogContent>
