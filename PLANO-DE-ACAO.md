@@ -1602,6 +1602,80 @@ o arquivo antes de assumir.
   (só preço e custo? qualquer campo? entrada e saída de estoque também?) muda
   bastante o tamanho do trabalho.
 
+- [ ] 🔴 🆕 **Repor estoque pela tela de Estoque Crítico dá erro.** Achado do
+  Felipe no teste do passo 7, em 23/08 — a anotação só chegou até mim em
+  27/08, porque ficou guardada no navegador dele: *"Erro ao repor estoque,
+  não tá dando certo"*.
+
+  **Ainda sem diagnóstico, e por um motivo bobo:** "Erro ao repor estoque" é
+  só o título do aviso; a causa vem escrita embaixo, na mesma tarja, e essa
+  linha não foi copiada. Sem ela é chute.
+
+  O que já foi descartado em 27/08, conferindo direto no banco: a função
+  `ajustar_estoque_produto` existe, aceita exatamente os parâmetros que a
+  tela manda e responde certo (testada com um produto inexistente — devolveu
+  "Produto não encontrado"). A consulta que monta a lista também é válida.
+  Sobra: permissão do usuário, o INSERT na auditoria de movimento, ou algo
+  no produto daquele teste.
+
+  **Próximo passo:** repetir o passo 7 e copiar a segunda linha do aviso
+  vermelho.
+
+- [ ] ⚪ 🆕 **Voltar de uma ficha perde o período do relatório.** Notado na
+  revisão de 28/08, quando as linhas dos relatórios viraram clicáveis.
+
+  O período escolhido (ex.: "julho inteiro") vive só na memória da tela, não no
+  endereço. Quem abre uma OS ou um produto a partir do relatório e clica em
+  voltar cai no relatório com o mês corrente de novo, e precisa refazer o
+  filtro. Some com isso: o botão "Voltar" da ficha da OS leva sempre para a
+  lista de Ordens de Serviço, não para o relatório de onde a pessoa veio.
+
+  Não é defeito novo — só ficou visível agora que dá para sair do relatório.
+  A correção honesta é guardar o período no endereço (`?de=&ate=`), o que
+  também faria o link do relatório filtrado ser compartilhável. Vale fazer
+  junto com o "voltar para onde eu estava".
+
+- [x] ✅ **Feito em 30/08 — cada loja escolhe os campos obrigatórios.** Pedido
+  do Felipe em 27/08 (OS) e repetido em 28/08 (cliente): *"quero poder
+  escolher quais campos exijo, porque quero vender esse sistema para várias
+  pessoas. Tem loja para quem é importante ter o Instagram; para mim não é"*.
+
+  **Configurações > Campos Obrigatórios**, com uma aba por formulário
+  (cadastro de cliente e abertura de OS) e uma chavinha por campo. A exigência
+  vale ao cadastrar E ao editar — decisão dele no dia, para as fichas antigas
+  incompletas irem sendo completadas quando alguém mexe nelas.
+
+  **A tabela guarda só a exceção** (`campos_obrigatorios`, migration
+  20260830100000). Sem linha, vale o padrão do código — então a Rio Preto
+  Games não sentiu nada no dia em que subiu, e campo criado daqui a seis meses
+  nasce com o padrão valendo para todas as lojas, sem migration de correção.
+
+  Três campos não podem ser desligados por ninguém (nome do cliente, cliente
+  da OS e defeito relatado): são NOT NULL no banco, e deixar desligar criaria
+  um botão que produz erro técnico em inglês no lugar de aviso em português.
+
+  Campo escondido nunca é cobrado: data de nascimento e gênero somem quando o
+  cliente é empresa, e CPF vira CNPJ — por isso o documento tem duas chavinhas
+  separadas, uma para cada tipo de pessoa.
+
+  **O que ficou de fora, e vale conversar depois:** a exigência não vale por
+  tipo de equipamento. Número de série faz sentido em celular e console e
+  quase nenhum em cabo ou fonte, e hoje a escolha é uma só para toda OS. É
+  provavelmente aí que mora o próximo passo desta ideia.
+
+- [ ] 🟠 🆕 **Relatório de Vendas: o CSV leva pouca coisa.** Felipe no teste
+  do passo 38, em 23/08: *"porém extrai muito poucos dados"*.
+
+  O CSV de hoje é o que está na tela. Falta decidir o que mais entra —
+  candidatos naturais, todos já gravados no banco: cliente com telefone e
+  CPF, forma de pagamento e parcelas, itens da venda com IMEI/série, custo e
+  margem (para quem tem permissão de ver custo), desconto, e o que veio de
+  troca. O trabalho é escolher as colunas, não descobrir os dados.
+
+  Conversar antes: planilha com uma linha por venda e planilha com uma linha
+  por item são coisas diferentes, e a segunda é a que serve para conferir
+  margem.
+
 - [x] ✅ **Resolvido em 22/08 — 🆕 pedido do Felipe no dia.** Não dava para
   criar usuário dentro do sistema: a tela de Usuários trazia um aviso
   mandando criar no painel do Supabase. O motivo era real — criar conta de
@@ -2056,10 +2130,20 @@ que tem em estoque.
 
 **🔵 Observação de cadastro**
 
-- [ ] 🆕 **21/08 — A etapa de OS "tercerizada" está escrita errado** (o certo é
-  "terceirizada"). Não está no código: é item cadastrado pela loja em
-  Gerenciar Status, então corrige-se pela própria tela, sem migration. Fica
-  anotado porque aparece no Kanban e em relatório, à vista do cliente.
+- [x] ✅ **Resolvido em 30/08 — a etapa de OS "tercerizada" estava escrita
+  errado** (o certo é "terceirizada"), anotado desde 21/08.
+
+  Ela cobrou caro antes de ser corrigida. Em 30/08 criei uma etapa
+  "Terceirizada" a pedido do Felipe sem saber que a loja já tinha essa — com a
+  grafia errada. Ficaram duas no quadro. Pior: as duas migrations seguintes
+  procuravam a etapa por `label LIKE 'terceiriz%'`, que **não casa com
+  "tercerizada"** — então elas não numeraram nem desativaram nada, e teriam
+  terminado "com sucesso" sem consertar coisa alguma. Quem pegou isso foi a
+  revisão adversarial do SQL, lendo justamente esta linha do plano.
+
+  Corrigido junto: o nome na tela virou "Terceirizada"; a chave interna
+  continua com o erro de propósito, porque ela é contrato do código, das
+  automações e do histórico das OS que já passaram por ali.
 
 ---
 

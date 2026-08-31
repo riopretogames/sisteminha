@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.5"
   }
   graphql_public: {
     Tables: {
@@ -286,6 +286,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "caixa_sessoes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campos_obrigatorios: {
+        Row: {
+          campo: string
+          created_at: string
+          definido_por: string | null
+          formulario: string
+          motivo: string | null
+          obrigatorio: boolean
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          campo: string
+          created_at?: string
+          definido_por?: string | null
+          formulario: string
+          motivo?: string | null
+          obrigatorio: boolean
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          campo?: string
+          created_at?: string
+          definido_por?: string | null
+          formulario?: string
+          motivo?: string | null
+          obrigatorio?: boolean
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campos_obrigatorios_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -1367,6 +1408,7 @@ export type Database = {
           id: string
           key: string
           label: string
+          numero: string | null
           ordem: number
           sistema: boolean
           tenant_id: string
@@ -1381,6 +1423,7 @@ export type Database = {
           id?: string
           key: string
           label: string
+          numero?: string | null
           ordem?: number
           sistema?: boolean
           tenant_id: string
@@ -1395,6 +1438,7 @@ export type Database = {
           id?: string
           key?: string
           label?: string
+          numero?: string | null
           ordem?: number
           sistema?: boolean
           tenant_id?: string
@@ -1844,6 +1888,8 @@ export type Database = {
           observacoes: string | null
           prazo_previsto: string | null
           prioridade: Database["public"]["Enums"]["os_prioridade"] | null
+          reparo_iniciado_em: string | null
+          reparo_iniciado_por: string | null
           reparo_inviavel: boolean
           risco_informado_em: string | null
           senha_aparelho: string | null
@@ -1851,6 +1897,7 @@ export type Database = {
           status: string | null
           suspeita_tecnica: string | null
           tecnico_id: string | null
+          tem_senha: boolean | null
           tenant_id: string
           tipo: Database["public"]["Enums"]["os_tipo"] | null
           total_mao_obra: number | null
@@ -1887,6 +1934,8 @@ export type Database = {
           observacoes?: string | null
           prazo_previsto?: string | null
           prioridade?: Database["public"]["Enums"]["os_prioridade"] | null
+          reparo_iniciado_em?: string | null
+          reparo_iniciado_por?: string | null
           reparo_inviavel?: boolean
           risco_informado_em?: string | null
           senha_aparelho?: string | null
@@ -1894,6 +1943,7 @@ export type Database = {
           status?: string | null
           suspeita_tecnica?: string | null
           tecnico_id?: string | null
+          tem_senha?: boolean | null
           tenant_id: string
           tipo?: Database["public"]["Enums"]["os_tipo"] | null
           total_mao_obra?: number | null
@@ -1930,6 +1980,8 @@ export type Database = {
           observacoes?: string | null
           prazo_previsto?: string | null
           prioridade?: Database["public"]["Enums"]["os_prioridade"] | null
+          reparo_iniciado_em?: string | null
+          reparo_iniciado_por?: string | null
           reparo_inviavel?: boolean
           risco_informado_em?: string | null
           senha_aparelho?: string | null
@@ -1937,6 +1989,7 @@ export type Database = {
           status?: string | null
           suspeita_tecnica?: string | null
           tecnico_id?: string | null
+          tem_senha?: boolean | null
           tenant_id?: string
           tipo?: Database["public"]["Enums"]["os_tipo"] | null
           total_mao_obra?: number | null
@@ -2920,6 +2973,7 @@ export type Database = {
         Returns: boolean
       }
       historico_do_usuario: { Args: { _user_id: string }; Returns: Json }
+      iniciar_reparo_os: { Args: { _os_id: string }; Returns: string }
       minhas_permissoes: { Args: never; Returns: string[] }
       proximo_numero_documento: {
         Args: { _documento: string; _tenant: string }

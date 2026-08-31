@@ -1,9 +1,13 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { moeda, data as fmtData } from '@/lib/format';
 import { totalDevolvidoNoPeriodo } from '@/lib/faturamento';
 import { Indicador } from '@/components/PageHeader';
 import { RelatorioShell, usePeriodo, type Coluna } from './RelatorioShell';
+import { useAuth } from '@/hooks/useAuth';
+import { PERMISSIONS } from '@/config/permissions';
+import { FichaDaVenda } from '@/components/vendas/FichaDaVenda';
 
 interface LinhaVenda {
   id: string;
@@ -78,6 +82,21 @@ const COLUNAS: Coluna<LinhaVenda>[] = [
 
 export default function RelatorioVendas() {
   const [periodo, setPeriodo] = usePeriodo();
+  // Clicar numa linha abre a MESMA ficha do Histórico de Vendas. Antes a
+  // linha era morta: o relatório dizia quanto, e para saber o que o
+  // cliente levou era preciso ir a outra tela e procurar de novo.
+  const [vendaAberta, setVendaAberta] = useState<string | null>(null);
+
+  /**
+   * O relatório abre com `reports.view`; a ficha é conteúdo do módulo Venda e
+   * exige `sales.view`. Sem esta conferência, o Gerente Técnico — que tem
+   * relatórios e NÃO tem venda — passaria a ver produtos, IMEI, descontos,
+   * formas de pagamento e a linha do tempo de cada venda só clicando na
+   * linha. O banco não segura isso: a policy de leitura de `vendas` filtra
+   * por loja, não por permissão.
+   */
+  const { can } = useAuth();
+  const podeVerVenda = can(PERMISSIONS.SALES_VIEW);
 
   const { data, isLoading } = useQuery({
     queryKey: ['rel-vendas', periodo],
@@ -126,6 +145,7 @@ export default function RelatorioVendas() {
   const maiorVenda = vendasValidas.reduce((maior, v) => Math.max(maior, faturamentoReal(v)), 0);
 
   return (
+    <>
     <RelatorioShell
       titulo="Relatório de Vendas"
       hint="Todas as vendas do período, com desconto e total. Venda cancelada aparece na lista mas fica fora das somas. O indicador Faturamento vai um passo além do rodapé: ele também desconta o dinheiro devolvido a cliente no período, que não é linha desta tabela."
@@ -136,6 +156,7 @@ export default function RelatorioVendas() {
       periodo={periodo}
       onPeriodoChange={setPeriodo}
       rotuloTotal="Total (sem canceladas)"
+      aoClicarLinha={podeVerVenda ? (v) => setVendaAberta(v.id) : undefined}
       indicadores={
         <>
           <Indicador rotulo="Faturamento" valor={moeda(faturamento)} tom="positivo" />
@@ -177,5 +198,7 @@ export default function RelatorioVendas() {
         </>
       }
     />
+    <FichaDaVenda vendaId={vendaAberta} aoFechar={() => setVendaAberta(null)} />
+    </>
   );
 }

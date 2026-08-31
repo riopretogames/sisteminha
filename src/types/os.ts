@@ -17,6 +17,12 @@ export interface StatusConfig {
   sistema?: boolean;
   /** Posição na esteira oficial (1 a 5). Nulo em etapa extra da loja. */
   etapa?: number | null;
+  /**
+   * O número como a loja fala da etapa ("1", "2a", "2b"). É rótulo de tela,
+   * editável junto com o nome — quem manda no código é `etapa`. Pedido do
+   * Felipe em 30/08. Vazio = a etapa aparece só com o nome.
+   */
+  numero?: string | null;
   created_at: string;
   updated_at: string;
 }

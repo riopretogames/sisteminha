@@ -42,6 +42,8 @@ import {
 } from '@/lib/documento';
 import { useAtalhosDeDialogo } from '@/hooks/useAtalhosDeDialogo';
 import { podeGravarClienteNovo } from '@/lib/clienteDuplicado';
+import { faltandoNoCliente } from '@/lib/clienteObrigatorios';
+import { useCamposObrigatorios } from '@/hooks/useCamposObrigatorios';
 
 /**
  * Cadastro de cliente — a ficha completa.
@@ -74,6 +76,11 @@ interface Props {
   onUsarExistente?: (clienteId: string) => void;
 }
 
+/** O asterisco vermelho, que agora depende do que a loja configurou. */
+function Obrigatorio({ quando }: { quando: boolean }) {
+  return quando ? <span className="text-destructive"> *</span> : null;
+}
+
 export function ClienteFormDialog({
   open,
   onOpenChange,
@@ -97,7 +104,16 @@ export function ClienteFormDialog({
   const [salvando, setSalvando] = useState(false);
 
   const editando = Boolean(cliente);
+  // O que ESTA loja exige, de Configurações > Campos Obrigatórios. Sem
+  // configuração, só o nome — como sempre foi.
+  const { exige, exigencias } = useCamposObrigatorios('cliente');
   const pessoaFisica = form.tipo_pessoa === 'fisica';
+  // A frase do topo prometia "só o nome é obrigatório". Virou mentira no
+  // dia em que a loja pôde exigir mais — e tela que promete o que não
+  // cumpre é pior do que tela sem explicação nenhuma.
+  const temMaisExigencias = Object.entries(exigencias).some(
+    ([campo, exigido]) => exigido && campo !== 'nome',
+  );
 
   // Só documento e telefone são recusados pelo banco. Nome igual é aviso.
   const impedimentos = semelhantes.filter((s) => s.motivo !== 'nome');
@@ -184,11 +200,52 @@ export function ClienteFormDialog({
     }));
 
   const salvar = async () => {
-    if (!form.nome.trim()) {
+    // A lista do que é exigido mora em lib/clienteObrigatorios.ts, com testes,
+    // e vem da configuração da loja. Cobra UM campo por vez: sete avisos de
+    // uma vez fazem a pessoa fechar todos sem ler.
+    //
+    // Vale ao cadastrar E ao editar — decisão do Felipe em 30/08. Assim as
+    // fichas antigas incompletas vão sendo completadas quando alguém mexe
+    // nelas, em vez de ficarem para sempre pela metade.
+    const faltando = faltandoNoCliente(
+      {
+        tipo_pessoa: form.tipo_pessoa,
+        nome: form.nome,
+        cpf_cnpj: form.cpf_cnpj,
+        rg: form.rg,
+        inscricao_estadual: form.inscricao_estadual,
+        data_nascimento: form.data_nascimento,
+        genero: form.genero,
+        telefone: form.telefone,
+        telefone_extra: form.telefone_extra,
+        email: form.email,
+        instagram: form.instagram,
+        site: form.site,
+        cep: form.cep,
+        logradouro: form.logradouro,
+        numero: form.numero,
+        bairro: form.bairro,
+        municipio: form.municipio,
+        estado: form.estado,
+        origem_id: form.origem_id,
+        motivo_compra_id: form.motivo_compra_id,
+      },
+      exigencias,
+    );
+
+    if (faltando.length > 0) {
+      const primeiro = faltando[0];
       toast({
-        title: 'Nome obrigatório',
-        description: pessoaFisica ? 'Informe o nome do cliente.' : 'Informe a razão social.',
+        title: primeiro.titulo,
+        description:
+          faltando.length === 1
+            ? primeiro.comoResolver
+            : `${primeiro.comoResolver} (faltam ${faltando.length} campos)`,
         variant: 'destructive',
+      });
+      document.getElementById(primeiro.campo)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
       });
       return;
     }
@@ -293,7 +350,9 @@ export function ClienteFormDialog({
           <DialogDescription>
             {editando
               ? 'Atualize a ficha do cliente.'
-              : 'Só o nome é obrigatório — o resto pode ser completado depois.'}
+              : temMaisExigencias
+                ? 'Os campos com * são obrigatórios nesta loja. O resto pode ser completado depois.'
+                : 'Só o nome é obrigatório — o resto pode ser completado depois.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -388,7 +447,15 @@ export function ClienteFormDialog({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="cpf_cnpj">{pessoaFisica ? 'CPF' : 'CNPJ'}</Label>
+                <Label htmlFor="cpf_cnpj">
+                  {pessoaFisica ? 'CPF' : 'CNPJ'}
+                  <Obrigatorio
+                    quando={exige(
+                      pessoaFisica ? 'cpf_cnpj' : 'cpf_cnpj_empresa',
+                      pessoaFisica ? 'pessoa_fisica' : 'pessoa_juridica',
+                    )}
+                  />
+                </Label>
                 <Input
                   id="cpf_cnpj"
                   value={form.cpf_cnpj}
@@ -452,7 +519,10 @@ export function ClienteFormDialog({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="telefone">Telefone / WhatsApp</Label>
+                <Label htmlFor="telefone">
+                  Telefone / WhatsApp
+                  <Obrigatorio quando={exige('telefone')} />
+                </Label>
                 <Input
                   id="telefone"
                   value={form.telefone}
@@ -476,7 +546,10 @@ export function ClienteFormDialog({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="email">E-mail</Label>
+                <Label htmlFor="email">
+                  E-mail
+                  <Obrigatorio quando={exige('email')} />
+                </Label>
                 <Input
                   id="email"
                   type="email"
@@ -486,7 +559,10 @@ export function ClienteFormDialog({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="instagram">Instagram</Label>
+                <Label htmlFor="instagram">
+                  Instagram
+                  <Obrigatorio quando={exige('instagram')} />
+                </Label>
                 <Input
                   id="instagram"
                   value={form.instagram}
@@ -543,7 +619,10 @@ export function ClienteFormDialog({
 
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
-                <Label htmlFor="numero">Número</Label>
+                <Label htmlFor="numero">
+                  Número
+                  <Obrigatorio quando={exige('numero')} />
+                </Label>
                 <Input
                   id="numero"
                   value={form.numero}

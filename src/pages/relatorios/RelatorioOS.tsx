@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { moeda, data as fmtData } from '@/lib/format';
@@ -6,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Indicador } from '@/components/PageHeader';
 import { useOsStatuses } from '@/hooks/useOsStatuses';
 import { RelatorioShell, usePeriodo, type Coluna } from './RelatorioShell';
+import { useAuth } from '@/hooks/useAuth';
+import { PERMISSIONS } from '@/config/permissions';
 import { OS_ETAPAS, OS_CANCELADO, osEmAndamento, osOrcamentoAprovado } from '@/config/osStatus';
 
 interface LinhaOS {
@@ -94,6 +97,12 @@ const criarColunas = (
 
 export default function RelatorioOS() {
   const [periodo, setPeriodo] = usePeriodo();
+  const navigate = useNavigate();
+  // O relatório abre com `reports.view`, mas a ficha da OS exige
+  // `orders.view`. Sem esta conferência, quem só tem relatório clicaria e
+  // cairia na tela cinza de sem acesso — que parece defeito do sistema.
+  const { can } = useAuth();
+  const podeAbrirOS = can(PERMISSIONS.ORDERS_VIEW);
   const { getStatusConfig } = useOsStatuses();
   const colunas = useMemo(() => criarColunas(getStatusConfig), [getStatusConfig]);
 
@@ -160,6 +169,7 @@ export default function RelatorioOS() {
       isLoading={isLoading}
       periodo={periodo}
       onPeriodoChange={setPeriodo}
+      aoClicarLinha={podeAbrirOS ? (os) => navigate(`/os/${os.id}`) : undefined}
       indicadores={
         <>
           <Indicador rotulo="OS abertas" valor={String(linhas.length)} />

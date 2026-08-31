@@ -3,7 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { moeda, data as fmtData } from '@/lib/format';
 import { Indicador } from '@/components/PageHeader';
 import { FORMAS_PAGAMENTO } from '@/lib/constants';
+import { useState } from 'react';
 import { RelatorioShell, usePeriodo, type Coluna } from './relatorios/RelatorioShell';
+import { FichaDaVenda } from '@/components/vendas/FichaDaVenda';
 
 /**
  * Vendas > Pagamentos — conferência de caixa por FORMA de pagamento, não por
@@ -101,6 +103,10 @@ const COLUNAS: Coluna<LinhaPagamento>[] = [
 
 export default function VendasPagamentos() {
   const [periodo, setPeriodo] = usePeriodo();
+  // Cada linha é um PAGAMENTO, mas a ficha que abre é a da VENDA inteira
+  // — numa venda paga em duas formas, as duas linhas levam à mesma ficha,
+  // e é lá que dá para ver por que o valor da linha não é o total.
+  const [vendaAberta, setVendaAberta] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['vendas-pagamentos', periodo.de, periodo.ate],
@@ -227,6 +233,7 @@ export default function VendasPagamentos() {
   );
 
   return (
+    <>
     <RelatorioShell
       titulo="Vendas — Pagamentos"
       hint="Conferência de caixa: cada pagamento recebido no período em uma linha (não cada venda), pra bater com a maquininha e o PIX."
@@ -237,6 +244,7 @@ export default function VendasPagamentos() {
       periodo={periodo}
       onPeriodoChange={setPeriodo}
       vazio="Nenhum pagamento recebido neste período."
+      aoClicarLinha={(l) => setVendaAberta(l.vendaId)}
       indicadores={
         <>
           <Indicador
@@ -292,5 +300,7 @@ export default function VendasPagamentos() {
         </>
       }
     />
+    <FichaDaVenda vendaId={vendaAberta} aoFechar={() => setVendaAberta(null)} />
+    </>
   );
 }

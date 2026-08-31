@@ -204,6 +204,7 @@ export function StatusManagerDialog({
             tenant_id: tenantId,
             key: status.key,
             label: status.label,
+            numero: status.numero ?? null,
             color: status.color,
             icon: status.icon,
             ordem: status.ordem,
@@ -215,6 +216,7 @@ export function StatusManagerDialog({
             .from('os_status_config')
             .update({
               label: status.label,
+              numero: status.numero ?? null,
               color: status.color,
               ordem: status.ordem,
               ativo: status.ativo,
@@ -281,7 +283,20 @@ export function StatusManagerDialog({
                   </Button>
                 </div>
 
-                <div className="flex-1 grid grid-cols-3 gap-3">
+                <div className="flex-1 grid grid-cols-[70px_1fr_1fr] gap-3">
+                  <div>
+                    {/* O número como a loja fala da etapa ("tá na 2b"). Texto,
+                        e não conta, porque "2a" e "2b" são a mesma fase com
+                        dois caminhos — pedido do Felipe em 30/08. */}
+                    <Label className="text-xs text-muted-foreground">Nº</Label>
+                    <Input
+                      value={status.numero ?? ''}
+                      onChange={(e) => handleUpdateStatus(index, 'numero', e.target.value)}
+                      placeholder="2b"
+                      className="h-8"
+                    />
+                  </div>
+
                   <div>
                     <Label className="text-xs text-muted-foreground">Nome</Label>
                     <Input

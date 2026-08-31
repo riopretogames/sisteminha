@@ -125,6 +125,7 @@ export function RelatorioShell<T>({
   vazio,
   ocultarPeriodo,
   rotuloTotal,
+  aoClicarLinha,
 }: {
   titulo: string;
   hint: string;
@@ -149,6 +150,16 @@ export function RelatorioShell<T>({
    * deixa o critério visível em vez de o leitor ter que adivinhar.
    */
   rotuloTotal?: string;
+  /**
+   * O que fazer quando alguém clica numa linha. Opcional de propósito.
+   *
+   * Pedido do Felipe em 27/08: no Histórico de Vendas a linha abre a ficha da
+   * venda, e nos relatórios *"não consigo clicar, não abre as informações"*.
+   * Este esqueleto é usado por sete telas, e nem toda linha tem para onde
+   * levar — relatório financeiro é lançamento, não documento. Quem passa esta
+   * função ganha o clique; quem não passa continua exatamente como antes.
+   */
+  aoClicarLinha?: (linha: T) => void;
 }) {
   const { can } = useAuth();
   const temTotais = colunas.some((c) => c.somar);
@@ -208,7 +219,11 @@ export function RelatorioShell<T>({
             </TableHeader>
             <TableBody>
               {dados.map((linha, i) => (
-                <TableRow key={i}>
+                <TableRow
+                  key={i}
+                  className={aoClicarLinha ? 'cursor-pointer' : undefined}
+                  onClick={aoClicarLinha ? () => aoClicarLinha(linha) : undefined}
+                >
                   {colunas.map((c) => (
                     <TableCell
                       key={c.chave}

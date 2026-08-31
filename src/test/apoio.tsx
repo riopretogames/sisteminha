@@ -21,25 +21,40 @@ import type { Permission } from '@/config/permissions';
 /** Permissões de cada perfil, como estão no banco (migration 20260801000002). */
 export const PERMISSOES_POR_PERFIL: Record<string, string[]> = {
   administrador: ['*'],
+  // As listas abaixo são cópia do que está NO BANCO (migrations
+  // 20260801000002, 20260809150000, 20260809160000 e 20260823120000).
+  //
+  // Elas estavam desatualizadas e isso escondia comportamento real: o mock
+  // dizia que o técnico não tinha `orders.diagnose` (tem) e que o vendedor não
+  // tinha `orders.edit`/`orders.approve` (ganhou em 09/08, quando o Felipe
+  // decidiu que "o vendedor opera a OS inteira"). Teste apoiado em permissão
+  // que o banco não dá é teste que passa sem provar nada.
   vendedor: [
+    'home.view',
     'dashboards.view',
     'dashboards.sales.view',
     'dashboards.goals.view',
     'inventory.view',
-    'sales.create',
     'sales.view',
-    'registry.customers.view',
+    'sales.create',
+    'orders.view',
+    'orders.create',
+    'orders.edit',
+    'orders.approve',
+    'orders.deliver',
+    'registry.view',
     'registry.customers.manage',
-    'service.view',
   ],
   tecnico: [
+    'home.view',
     'dashboards.view',
     'dashboards.stock.view',
     'dashboards.service.view',
     'inventory.view',
-    'inventory.adjust',
-    'service.view',
-    'service.edit',
+    'orders.view',
+    'orders.edit',
+    'orders.diagnose',
+    'registry.view',
   ],
 };
 

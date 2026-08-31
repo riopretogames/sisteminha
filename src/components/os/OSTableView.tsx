@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { nomeDaEtapa } from '@/lib/etapaDaOS';
 import {
   MoreHorizontal,
   ClipboardList,
@@ -203,13 +204,13 @@ export function OSTableView({ orders, statuses, loading, onStatusChange, podeApr
                     >
                       <SelectTrigger className="w-44 h-8">
                         <Badge className={statusConfig.color}>
-                          {statusConfig.label}
+                          {nomeDaEtapa(statusConfig)}
                         </Badge>
                       </SelectTrigger>
                       <SelectContent>
                         {opcoesDeStatus.map((config) => (
                           <SelectItem key={config.key} value={config.key}>
-                            <Badge className={config.color}>{config.label}</Badge>
+                            <Badge className={config.color}>{nomeDaEtapa(config)}</Badge>
                           </SelectItem>
                         ))}
                       </SelectContent>

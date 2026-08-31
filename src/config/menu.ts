@@ -265,6 +265,7 @@ export const MENU: MenuRoot[] = [
     children: [
       { kind: 'link', id: 'cfg-perfis', label: 'Perfis e Permissões', path: '/configuracoes/perfis', element: 'ConfigPerfis', permission: PERMISSIONS.ROLES_MANAGE },
       { kind: 'link', id: 'cfg-prefs', label: 'Preferências do Sistema', path: '/configuracoes/preferencias', element: 'ConfigPreferencias', permission: PERMISSIONS.SETTINGS_EDIT },
+      { kind: 'link', id: 'cfg-campos', label: 'Campos Obrigatórios', path: '/configuracoes/campos-obrigatorios', element: 'ConfigCamposObrigatorios', permission: PERMISSIONS.SETTINGS_EDIT },
       { kind: 'link', id: 'cfg-logs', label: 'Logs / Auditoria', path: '/configuracoes/logs', element: 'ConfigLogs', permission: PERMISSIONS.AUDIT_VIEW },
     ],
   },
