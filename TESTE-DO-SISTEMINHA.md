@@ -17,7 +17,7 @@ abrindo mão.
 
 ## O que já roda sozinho
 
-O sistema tem **286 testes automáticos** que rodam a cada mudança. Eles cobrem
+O sistema tem **302 testes automáticos** que rodam a cada mudança. Eles cobrem
 as contas (faturamento, devolução, custo médio, ranking) e o comportamento das
 telas por perfil — inclusive o pior defeito que este sistema já teve, a tela de
 Estoque ficando branca para quem não vê custo.
@@ -629,6 +629,12 @@ você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda
   **Tem que acontecer:** No cadastro, a peça entra numa lista com a quantidade, o estoque de hoje e — para quem vê custo — quanto ela custa, com o total das peças pelo preço de hoje. Na OS, ao escolher o serviço, aparece um aviso **"Este serviço já leva N peça(s)"** com nome, quantidade e preço de cada uma, e em vermelho se faltar estoque. Ao lançar, a OS ganha **uma linha do serviço e uma linha de cada peça**, com o estoque já descontado.
   *Por que importa: antes eram dois lançamentos separados e o segundo é o que se esquece. Esquecer a peça tira ela do estoque da conta e faz aquele serviço parecer muito mais lucrativo do que é.*
   > 🔎 **O custo do serviço deixou de ser um número digitado.** Ele passa a ser a soma das peças com o preço de HOJE — antes, a peça encarecia e o custo do serviço continuava dizendo o preço do ano passado, sem ninguém perceber.
+
+- [ ] **🔴 88. Os quatro tipos de lançamento na OS, o resumo e o aviso do orçamento**
+  **O que fazer:** Abra uma OS e clique em **Adicionar item**. Repare que agora há **quatro abas**: Peça do estoque, Peça comprada, Serviço e Outro custo. Lance uma de cada: uma peça do estoque, uma **peça comprada** (ex.: `Tela comprada no fornecedor`, R$ 380), um serviço e um **outro custo** (ex.: `Frete da peça`, R$ 40). Olhe o resumo que aparece acima da lista. Depois vá ao bloco **Valor do orçamento**, digite um valor diferente da soma e veja o que acontece.
+  **Tem que acontecer:** O resumo mostra quatro números — **Peças**, **Mão de obra**, **Outros custos** e **Total** —, com a peça comprada somando em **Peças** (não em mão de obra). A peça comprada **não mexe no estoque**, e o aviso ao salvar diz isso. Com o orçamento diferente da soma, aparece uma tarja amarela dizendo os dois valores e a diferença, com o lembrete de que desconto combinado é motivo legítimo. O botão **Usar soma dos itens** ajusta num clique.
+  *Por que importa: peça que a loja compra no fornecedor no dia era lançada como "serviço avulso" — e aí ela inflava o faturamento de mão de obra e sumia do custo de peça em todo relatório. Frete e terceirização, idem.*
+  > 🔎 **O orçamento e os itens podem divergir com razão** — desconto, pacote fechado. O que não podia é ninguém saber: esse número vira a conta a receber, e a diferença aparecia no caixa, não na tela.
 
 ---
 
