@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Wrench } from 'lucide-react';
+import { Loader2, Wrench, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -7,54 +7,121 @@ import { supabase } from '@/integrations/supabase/client';
 import { PERMISSIONS } from '@/config/permissions';
 import { OS_ETAPAS } from '@/config/osStatus';
 import { dataHora } from '@/lib/format';
-import { INICIAR_REPARO } from '@/lib/acaoDaEtapa';
 
 /**
- * "Iniciar reparo" — o momento em que o aparelho sai da fila e vai para a mesa.
+ * Os dois botões de "começar" da bancada, do organograma do Felipe (30/08).
  *
- * Vem do organograma do processo (Felipe, 30/08), onde o passo aparece com
- * duas frases escritas ao lado: *"só o perfil Técnico vê este botão"* e
- * *"reparo começa aqui"*.
+ *   ETAPA 1 (Entrada / Análise) → **Iniciar reparo**
+ *       "reparo começa aqui": o aparelho sai da fila e vai para a mesa, o
+ *       técnico desmonta, investiga e monta o laudo.
  *
- * O que ele NÃO faz: mudar a etapa. A OS continua em "Entrada / Análise"
- * enquanto o técnico desmonta e investiga — o quadro não ganha coluna nova.
- * O que se marca é a HORA, e é isso que hoje falta para responder a pergunta
- * de todo dia: "faz três dias que está na análise" não distingue o aparelho
- * que ninguém pegou do que está aberto na bancada desde ontem.
+ *   ETAPA 3 (Aprovado / Executar) → **Iniciar a execução**
+ *       o cliente aprovou; agora é fazer o serviço.
  *
- * A trava de perfil está no banco também (função `iniciar_reparo_os`, exige
- * `orders.diagnose`). Aqui só se decide o que aparece na tela.
+ * São dois momentos com o mesmo aparelho, e a distância entre eles é o tempo
+ * em que a OS ficou parada esperando o cliente responder. Guardar só um faria
+ * o tempo de reparo da loja incluir a espera do cliente — que não é trabalho
+ * da bancada e não deveria contar contra ela.
+ *
+ * NENHUM DOS DOIS MUDA A ETAPA. O quadro continua igual; o que se marca é a
+ * hora e o nome de quem pegou.
+ *
+ * Por que o botão pode não aparecer, em ordem:
+ *   1. a OS não está numa das duas etapas (em "Aguardando aprovação" ninguém
+ *      começa nada — o aparelho está esperando resposta);
+ *   2. já foi iniciado (aí aparece o registro no lugar);
+ *   3. quem está olhando não trabalha na bancada — e aí aparece uma linha
+ *      dizendo isso, em vez de simplesmente não haver nada na tela.
  */
 
 interface Props {
   osId: string;
   status: string;
   reparoIniciadoEm: string | null;
-  /** Nome de quem começou, já resolvido pela tela — a ficha da OS tem a lista
-   *  de perfis para a linha do tempo. */
-  nomeDeQuemIniciou: string;
+  execucaoIniciadaEm: string | null;
+  /** Nomes já resolvidos pela ficha, que tem a lista de perfis. */
+  nomeDeQuemIniciouReparo: string;
+  nomeDeQuemIniciouExecucao: string;
   onMudou: () => void;
 }
+
+/** O que fazer em cada etapa. Fora do componente: é a regra, não o desenho. */
+const FASES = {
+  [OS_ETAPAS.AGUARDANDO_ANALISE]: {
+    rotulo: 'Iniciar reparo',
+    funcao: 'iniciar_reparo_os',
+    confirmar:
+      'O reparo passa a contar a partir de agora, com o seu nome. ' +
+      'Confirma que vai começar este aparelho?',
+    aviso: 'A partir de agora conta como aparelho na bancada, com o seu nome.',
+    registro: 'Reparo iniciado em',
+  },
+  [OS_ETAPAS.APROVADO]: {
+    rotulo: 'Iniciar a execução',
+    funcao: 'iniciar_execucao_os',
+    confirmar:
+      'O cliente aprovou e o serviço começa agora, com o seu nome. ' +
+      'Confirma que vai executar este reparo?',
+    aviso: 'Execução iniciada, com o seu nome.',
+    registro: 'Execução iniciada em',
+  },
+} as const;
 
 export function IniciarReparo({
   osId,
   status,
   reparoIniciadoEm,
-  nomeDeQuemIniciou,
+  execucaoIniciadaEm,
+  nomeDeQuemIniciouReparo,
+  nomeDeQuemIniciouExecucao,
   onMudou,
 }: Props) {
   const { can } = useAuth();
   const { toast } = useToast();
   const [salvando, setSalvando] = useState(false);
 
-  // Já começou: o botão dá lugar ao registro. Quem chega depois precisa saber
-  // que o aparelho está na mesa de alguém, e desde quando.
-  if (reparoIniciadoEm) {
+  const fase = FASES[status as keyof typeof FASES];
+  const jaIniciado =
+    status === OS_ETAPAS.APROVADO ? execucaoIniciadaEm : reparoIniciadoEm;
+  const nomeDeQuemIniciou =
+    status === OS_ETAPAS.APROVADO ? nomeDeQuemIniciouExecucao : nomeDeQuemIniciouReparo;
+  const daBancada = can(PERMISSIONS.ORDERS_DIAGNOSE);
+
+  const iniciar = async () => {
+    if (!fase) return;
+    if (!window.confirm(fase.confirmar)) return;
+
+    setSalvando(true);
+    try {
+      const { error } = await supabase.rpc(fase.funcao, { _os_id: osId });
+      if (error) throw error;
+
+      toast({ variant: 'success', title: fase.rotulo.replace('Iniciar', 'Iniciado'), description: fase.aviso });
+      onMudou();
+    } catch (erro: unknown) {
+      const msg = erro instanceof Error ? erro.message : 'Tente novamente.';
+      toast({
+        title: `Não foi possível ${fase.rotulo.toLowerCase()}`,
+        description: /privilege|permission|policy/i.test(msg)
+          ? 'Só quem trabalha na bancada pode começar — peça a um administrador a permissão de diagnóstico.'
+          : msg,
+        variant: 'destructive',
+      });
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  /* -- o que a tela mostra, em ordem de precedência ------------------------ */
+
+  // Já começou: o botão dá lugar ao registro, para TODO MUNDO — o vendedor
+  // também precisa saber que o aparelho está na mesa de alguém, e desde quando.
+  if (jaIniciado) {
     return (
       <p className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
         <Wrench className="h-3.5 w-3.5 shrink-0" />
-        Reparo iniciado em{' '}
-        <span className="font-medium text-foreground">{dataHora(reparoIniciadoEm)}</span>
+        {fase?.registro ?? 'Reparo iniciado em'}{' '}
+        <span className="font-medium text-foreground">{dataHora(jaIniciado)}</span>
         {nomeDeQuemIniciou !== '—' && (
           <>
             por <span className="font-medium text-foreground">{nomeDeQuemIniciou}</span>
@@ -64,42 +131,20 @@ export function IniciarReparo({
     );
   }
 
-  // Só a bancada. `orders.diagnose` é a permissão de quem trabalha no
-  // aparelho — hoje Técnico e Gerente Técnico.
-  if (!can(PERMISSIONS.ORDERS_DIAGNOSE)) return null;
+  // Etapa em que ninguém começa nada (esperando o cliente, peça, entregue…).
+  if (!fase) return null;
 
-  // Só faz sentido na entrada, que é onde o organograma põe este passo. Depois
-  // do laudo aprovado o técnico volta ao aparelho, mas aí o passo do processo
-  // é outro ("iniciar a execução"), com botão próprio.
-  if (status !== OS_ETAPAS.AGUARDANDO_ANALISE) return null;
-
-  const iniciar = async () => {
-    if (!window.confirm(INICIAR_REPARO.confirmar)) return;
-
-    setSalvando(true);
-    try {
-      const { error } = await supabase.rpc('iniciar_reparo_os', { _os_id: osId });
-      if (error) throw error;
-
-      toast({
-        variant: 'success',
-        title: 'Reparo iniciado',
-        description: 'A partir de agora conta como aparelho na bancada, com o seu nome.',
-      });
-      onMudou();
-    } catch (erro: unknown) {
-      const msg = erro instanceof Error ? erro.message : 'Tente novamente.';
-      toast({
-        title: 'Não foi possível iniciar o reparo',
-        description: /privilege|permission|policy/i.test(msg)
-          ? 'Só quem trabalha na bancada pode iniciar o reparo.'
-          : msg,
-        variant: 'destructive',
-      });
-    } finally {
-      setSalvando(false);
-    }
-  };
+  // Não é da bancada: em vez de sumir sem explicação — o que faz o dono
+  // procurar um botão que nunca vai achar —, diz de quem é a vez.
+  if (!daBancada) {
+    return (
+      <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Lock className="h-3.5 w-3.5 shrink-0" />
+        Aguardando a bancada: quem tem acesso de diagnóstico é quem aperta
+        &quot;{fase.rotulo}&quot;.
+      </p>
+    );
+  }
 
   return (
     <Button onClick={iniciar} disabled={salvando}>
@@ -108,7 +153,7 @@ export function IniciarReparo({
       ) : (
         <Wrench className="mr-2 h-4 w-4" />
       )}
-      {INICIAR_REPARO.rotulo}
+      {fase.rotulo}
     </Button>
   );
 }

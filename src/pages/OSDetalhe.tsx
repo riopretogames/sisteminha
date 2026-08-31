@@ -158,6 +158,10 @@ interface OSCompleta {
    *  Não é etapa: a OS segue em Entrada/Análise. Ver components/os/IniciarReparo. */
   reparo_iniciado_em: string | null;
   reparo_iniciado_por: string | null;
+  /** O segundo começo: depois do laudo aprovado, quando o serviço é executado.
+   *  A distância entre os dois é o tempo em que a OS esperou o cliente. */
+  execucao_iniciada_em: string | null;
+  execucao_iniciada_por: string | null;
   clientes: { nome: string; telefones: string[] } | null;
   /** Marcações do check-in, com o item de catálogo que cada uma representa. */
   os_checklist: { catalogo_id: string; catalogos: { descricao: string; tipo: string } | null }[];
@@ -429,6 +433,7 @@ export default function OSDetalhe() {
            defeito_cliente, observacoes, anotacoes_checkin, senha_aparelho, senha_padrao,
            prazo_previsto, garantia_dias, total_orcamento, valor_final_pago, data_finalizacao,
            created_at, vendedor_id, reparo_iniciado_em, reparo_iniciado_por,
+           execucao_iniciada_em, execucao_iniciada_por,
            clientes(nome, telefones),
            os_checklist(catalogo_id, catalogos(descricao, tipo)),
            tecnico_id, tecnico:profiles!service_orders_tecnico_id_fkey(nome),
@@ -523,6 +528,16 @@ export default function OSDetalhe() {
               statusAnterior: null as string | null,
               statusNovo: null as string | null,
               descricao: 'Reparo iniciado na bancada',
+            }]
+          : []),
+        ...(os.execucao_iniciada_em
+          ? [{
+              id: 'execucao-iniciada',
+              created_at: os.execucao_iniciada_em,
+              usuario_id: os.execucao_iniciada_por,
+              statusAnterior: null as string | null,
+              statusNovo: null as string | null,
+              descricao: 'Execução iniciada',
             }]
           : []),
         ...(historico ?? []).map((h) => ({
@@ -693,7 +708,9 @@ export default function OSDetalhe() {
               osId={os.id}
               status={os.status}
               reparoIniciadoEm={os.reparo_iniciado_em}
-              nomeDeQuemIniciou={nomeUsuario(os.reparo_iniciado_por)}
+              execucaoIniciadaEm={os.execucao_iniciada_em}
+              nomeDeQuemIniciouReparo={nomeUsuario(os.reparo_iniciado_por)}
+              nomeDeQuemIniciouExecucao={nomeUsuario(os.execucao_iniciada_por)}
               onMudou={() => queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] })}
             />
 

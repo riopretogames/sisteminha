@@ -45,6 +45,7 @@ async function montar(opcoes: {
   perfil: 'tecnico' | 'vendedor' | 'administrador';
   status?: string;
   iniciadoEm?: string | null;
+  execucaoEm?: string | null;
 }) {
   mockCan.mockImplementation(montarCan({ perfil: opcoes.perfil }));
   mockRpc.mockResolvedValue({ data: '2026-08-30T10:00:00', error: null });
@@ -56,7 +57,9 @@ async function montar(opcoes: {
       osId="os-1"
       status={opcoes.status ?? OS_ETAPAS.AGUARDANDO_ANALISE}
       reparoIniciadoEm={opcoes.iniciadoEm ?? null}
-      nomeDeQuemIniciou="Joao Tecnico"
+      execucaoIniciadaEm={opcoes.execucaoEm ?? null}
+      nomeDeQuemIniciouReparo="Joao Tecnico"
+      nomeDeQuemIniciouExecucao="Maria Tecnica"
       onMudou={() => {}}
     />,
   );
@@ -75,9 +78,12 @@ describe('Botão "Iniciar reparo"', () => {
     expect(await screen.findByRole('button', { name: /iniciar reparo/i })).toBeInTheDocument();
   });
 
-  it('o vendedor NÃO vê — quem trabalha na bancada é quem marca', async () => {
+  it('o vendedor não tem o botão — mas fica sabendo de quem é a vez', async () => {
+    // Sumir sem explicação fazia o dono procurar um botão que nunca ia achar.
     await montar({ perfil: 'vendedor' });
+
     expect(screen.queryByRole('button', { name: /iniciar reparo/i })).not.toBeInTheDocument();
+    expect(await screen.findByText(/aguardando a bancada/i)).toBeInTheDocument();
   });
 
   it('clicar chama o banco, que é onde a permissão é conferida de verdade', async () => {
@@ -114,8 +120,42 @@ describe('Botão "Iniciar reparo"', () => {
     });
   });
 
-  it('some quando a OS já passou da entrada: ali o passo do processo é outro', async () => {
-    await montar({ perfil: 'tecnico', status: OS_ETAPAS.APROVADO });
-    expect(screen.queryByRole('button', { name: /iniciar reparo/i })).not.toBeInTheDocument();
+  describe('o segundo começo: executar o que o cliente aprovou', () => {
+    it('em Aprovado / Executar o botão é "Iniciar a execução"', async () => {
+      await montar({ perfil: 'tecnico', status: OS_ETAPAS.APROVADO });
+
+      expect(await screen.findByRole('button', { name: /iniciar a execução/i })).toBeInTheDocument();
+      // E não o da análise: são dois momentos diferentes.
+      expect(screen.queryByRole('button', { name: /^iniciar reparo$/i })).not.toBeInTheDocument();
+    });
+
+    it('chama a função da execução, não a do reparo', async () => {
+      await montar({ perfil: 'tecnico', status: OS_ETAPAS.APROVADO });
+
+      fireEvent.click(screen.getByRole('button', { name: /iniciar a execução/i }));
+
+      await waitFor(() => {
+        expect(mockRpc).toHaveBeenCalledWith('iniciar_execucao_os', { _os_id: 'os-1' });
+      });
+    });
+
+    it('já executando, mostra desde quando e com quem', async () => {
+      await montar({
+        perfil: 'tecnico',
+        status: OS_ETAPAS.APROVADO,
+        execucaoEm: '2026-08-30T14:00:00',
+      });
+
+      expect(await screen.findByText(/execução iniciada em/i)).toBeInTheDocument();
+      expect(screen.getByText('Maria Tecnica')).toBeInTheDocument();
+    });
+  });
+
+  it('em etapa onde ninguém começa nada, não aparece botão nem aviso', async () => {
+    // Aguardando aprovação: o aparelho está esperando o cliente responder.
+    await montar({ perfil: 'tecnico', status: OS_ETAPAS.AGUARDANDO_APROVACAO });
+
+    expect(screen.queryByRole('button', { name: /iniciar/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/aguardando a bancada/i)).not.toBeInTheDocument();
   });
 });

@@ -1874,6 +1874,8 @@ export type Database = {
           defeito_cliente: string
           diagnostico_tecnico: string | null
           equipamento_id: string | null
+          execucao_iniciada_em: string | null
+          execucao_iniciada_por: string | null
           garantia_dias: number
           garantia_meses: number
           id: string
@@ -1920,6 +1922,8 @@ export type Database = {
           defeito_cliente: string
           diagnostico_tecnico?: string | null
           equipamento_id?: string | null
+          execucao_iniciada_em?: string | null
+          execucao_iniciada_por?: string | null
           garantia_dias?: number
           garantia_meses?: number
           id?: string
@@ -1966,6 +1970,8 @@ export type Database = {
           defeito_cliente?: string
           diagnostico_tecnico?: string | null
           equipamento_id?: string | null
+          execucao_iniciada_em?: string | null
+          execucao_iniciada_por?: string | null
           garantia_dias?: number
           garantia_meses?: number
           id?: string
@@ -2973,6 +2979,7 @@ export type Database = {
         Returns: boolean
       }
       historico_do_usuario: { Args: { _user_id: string }; Returns: Json }
+      iniciar_execucao_os: { Args: { _os_id: string }; Returns: string }
       iniciar_reparo_os: { Args: { _os_id: string }; Returns: string }
       minhas_permissoes: { Args: never; Returns: string[] }
       proximo_numero_documento: {
