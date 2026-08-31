@@ -168,6 +168,9 @@ interface OSCompleta {
   laudo_decidido_em: string | null;
   laudo_decidido_por: string | null;
   laudo_motivo_recusa: string | null;
+  /** Quanto valia o orçamento recusado. O valor da OS passou a ser a taxa de
+   *  análise, e sem este número a loja saberia que perdeu, mas não quanto. */
+  valor_orcado_recusado: number | null;
   /** O segundo começo: depois do laudo aprovado, quando o serviço é executado.
    *  A distância entre os dois é o tempo em que a OS esperou o cliente. */
   execucao_iniciada_em: string | null;
@@ -251,7 +254,11 @@ export default function OSDetalhe() {
       const { data, error } = await supabase
         .from('vw_os_itens')
         .select(
-          'id, produto_id, descricao, quantidade, preco_cobrado, custo_unitario, horas_mao_obra, garantia_item_meses, produtos:vw_produtos(nome)'
+          // `tipo_item` é o que separa peça, mão de obra e custo repassado.
+          // Ficou de fora quando a coluna nasceu (31/08) e o resumo passou a
+          // chamar de mão de obra toda peça comprada no dia e todo frete —
+          // sem erro nenhum, porque coluna que não vem chega como vazia.
+          'id, produto_id, descricao, quantidade, preco_cobrado, custo_unitario, horas_mao_obra, garantia_item_meses, tipo_item, produtos:vw_produtos(nome)'
         )
         .eq('os_id', id)
         .order('created_at');
@@ -548,6 +555,7 @@ export default function OSDetalhe() {
            prazo_previsto, garantia_dias, total_orcamento, valor_final_pago, data_finalizacao,
            created_at, vendedor_id, diagnostico_iniciado_em, diagnostico_iniciado_por,
            laudo_aprovado, laudo_decidido_em, laudo_decidido_por, laudo_motivo_recusa,
+           valor_orcado_recusado,
            execucao_iniciada_em, execucao_iniciada_por, laudo_eletronico,
            clientes(nome, telefones),
            os_checklist(catalogo_id, catalogos(descricao, tipo)),
@@ -677,6 +685,23 @@ export default function OSDetalhe() {
         })),
       ].sort((a, b) => a.created_at.localeCompare(b.created_at))
     : [];
+
+  /**
+   * O cliente recusou o orçamento?
+   *
+   * Nesse caso o valor da OS NÃO é mais o do reparo: é a taxa de análise, e o
+   * valor recusado foi guardado à parte (ver `registrar_decisao_do_laudo`).
+   * Duas coisas da tela precisam saber disso, e as duas foram escritas por
+   * outra sessão no mesmo dia, sem saber que a recusa existia:
+   *
+   *   • o aviso de divergência, que passaria a acusar TODA OS recusada — e
+   *     aviso que aparece sempre é aviso que a equipe aprende a ignorar;
+   *   • o botão "Usar soma dos itens", que trocaria a taxa de R$ 80 pelo
+   *     reparo de R$ 450 que o cliente recusou. Como a entrega só libera com
+   *     pagamento que cubra o valor, a loja cobraria do cliente um conserto
+   *     que ele não quis e que ninguém fez.
+   */
+  const laudoRecusado = os?.laudo_aprovado === false;
 
   const valorAtual = orcamento ?? (os ? String(os.total_orcamento) : '');
   const mudou = os && parseFloat(valorAtual || '0') !== Number(os.total_orcamento);
@@ -846,6 +871,7 @@ export default function OSDetalhe() {
             <DecisaoDoLaudo
               osId={os.id}
               status={os.status}
+              tipo={os.tipo}
               totalOrcamento={os.total_orcamento}
               onMudou={() => {
                 queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] });
@@ -1143,7 +1169,7 @@ export default function OSDetalhe() {
                   {salvando ? 'Salvando…' : 'Salvar'}
                 </Button>
               )}
-              {podeEditar && !osEncerrada && (itens?.length ?? 0) > 0 && (
+              {podeEditar && !osEncerrada && !laudoRecusado && (itens?.length ?? 0) > 0 && (
                 <Button
                   variant="outline"
                   onClick={() => setOrcamento(somaItens.toFixed(2))}
@@ -1162,7 +1188,7 @@ export default function OSDetalhe() {
                 na tela.
                 Um real de folga porque centavo de arredondamento não é
                 divergência, é ruído. */}
-            {(itens?.length ?? 0) > 0 &&
+            {!laudoRecusado && (itens?.length ?? 0) > 0 &&
               orcamentoDivergeDosItens(Number(valorAtual || 0), somaItens) && (
               <p className="mt-3 rounded-md border border-amber-500/50 bg-amber-500/10 p-2.5 text-sm text-amber-700 dark:text-amber-500">
                 O orçamento está em <strong>{moeda(Number(valorAtual || 0))}</strong> e os itens
@@ -1171,6 +1197,26 @@ export default function OSDetalhe() {
                   ? ` — ${moeda(somaItens - Number(valorAtual || 0))} a mais do que o combinado.`
                   : ` — ${moeda(Number(valorAtual || 0) - somaItens)} a menos do que o combinado.`}{' '}
                 Se foi desconto ou pacote fechado, está certo assim. Se não, use o botão acima.
+              </p>
+            )}
+            {laudoRecusado && (
+              <p className="mt-3 rounded-md border border-border bg-muted/40 p-2.5 text-sm">
+                <strong>Cliente não aprovou.</strong>{' '}
+                {Number(os?.valor_orcado_recusado ?? 0) > 0 && (
+                  <>
+                    O orçamento recusado era de{' '}
+                    <strong>{moeda(Number(os?.valor_orcado_recusado))}</strong>.{' '}
+                  </>
+                )}
+                {Number(os?.total_orcamento ?? 0) > 0
+                  ? `A OS ficou valendo ${moeda(Number(os?.total_orcamento))} — a taxa de análise, cobrada na retirada.`
+                  : 'A loja não cobra taxa de análise, então a OS ficou sem valor.'}
+                {os?.laudo_motivo_recusa && (
+                  <>
+                    {' '}
+                    Motivo: <em>{os.laudo_motivo_recusa}</em>.
+                  </>
+                )}
               </p>
             )}
             {jaFoiEntregue && (

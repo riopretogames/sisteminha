@@ -1898,6 +1898,7 @@ export type Database = {
           numero_os: string
           numero_serie: string | null
           observacoes: string | null
+          pecas_estornadas_em: string | null
           prazo_previsto: string | null
           prioridade: Database["public"]["Enums"]["os_prioridade"] | null
           reparo_inviavel: boolean
@@ -1952,6 +1953,7 @@ export type Database = {
           numero_os: string
           numero_serie?: string | null
           observacoes?: string | null
+          pecas_estornadas_em?: string | null
           prazo_previsto?: string | null
           prioridade?: Database["public"]["Enums"]["os_prioridade"] | null
           reparo_inviavel?: boolean
@@ -2006,6 +2008,7 @@ export type Database = {
           numero_os?: string
           numero_serie?: string | null
           observacoes?: string | null
+          pecas_estornadas_em?: string | null
           prazo_previsto?: string | null
           prioridade?: Database["public"]["Enums"]["os_prioridade"] | null
           reparo_inviavel?: boolean
@@ -3079,6 +3082,15 @@ export type Database = {
       iniciar_diagnostico_os: { Args: { _os_id: string }; Returns: string }
       iniciar_execucao_os: { Args: { _os_id: string }; Returns: string }
       minhas_permissoes: { Args: never; Returns: string[] }
+      mover_pecas_da_os: {
+        Args: {
+          _devolver: boolean
+          _motivo: string
+          _numero_os: string
+          _os_id: string
+        }
+        Returns: undefined
+      }
       proximo_numero_documento: {
         Args: { _documento: string; _tenant: string }
         Returns: string

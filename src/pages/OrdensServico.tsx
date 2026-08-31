@@ -35,6 +35,7 @@ import type { ServiceOrder, StatusConfig, OsPrioridade } from '@/types/os';
 import { OS_ETAPAS, OS_ETAPAS_EM_ORDEM, OS_STATUS_INICIAL, OS_CANCELADO } from '@/config/osStatus';
 import { ordenarOS } from '@/lib/ordenarOS';
 import { confirmarReaberturaDeOSEntregue } from '@/lib/reabrirOS';
+import { passagemPedeDecisaoDoLaudo, AVISO_DECISAO_DO_LAUDO } from '@/lib/decisaoDoLaudo';
 
 export default function OrdensServico() {
   const navigate = useNavigate();
@@ -180,6 +181,18 @@ export default function OrdensServico() {
       ordemAtual?.status === OS_ETAPAS.AGUARDANDO_APROVACAO &&
       newStatus === OS_CANCELADO &&
       !podeAprovar;
+
+    // A resposta do cliente ao laudo passa pelos botões da ficha, que gravam
+    // quem respondeu, quando, e o motivo da recusa — e, na recusa, trocam o
+    // valor da OS pela taxa de análise. Arrastar o cartão de "Aguardando
+    // aprovação" para "Aprovado" ou "Finalizado" chegava no mesmo lugar sem
+    // nada disso: OS aprovada que ninguém aprovou, ou recusada sem motivo
+    // cobrando na retirada o reparo que o cliente não quis. Ver
+    // lib/decisaoDoLaudo.ts.
+    if (ordemAtual && passagemPedeDecisaoDoLaudo(ordemAtual.status, newStatus)) {
+      toast({ ...AVISO_DECISAO_DO_LAUDO, variant: 'destructive' });
+      return;
+    }
 
     if (aprovarBloqueado || recusarBloqueado) {
       toast({

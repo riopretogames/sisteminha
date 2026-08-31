@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { renderizarTela, montarCan, bancoFalso, silenciarConsole } from '@/test/apoio';
 import { OS_ETAPAS } from '@/config/osStatus';
 
@@ -126,6 +126,45 @@ describe('A etapa que o botão de avanço sugere', () => {
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: /avançar|entregar|concluído/i }))
         .not.toBeInTheDocument();
+    });
+  });
+
+  describe('o seletor ao lado, que oferece todas as etapas', () => {
+    /**
+     * Abrir um seletor destes no teste exige teclado: o mouse do jsdom não tem
+     * "pointer capture", que é o que o componente usa para saber que o clique
+     * foi nele. Seta para baixo abre igual.
+     */
+    async function abrirOSeletor(rotuloDaEtapaAtual: RegExp) {
+      // O gatilho aparece antes das etapas chegarem do banco. Abrir cedo mostra
+      // uma lista vazia e o teste passa sem ter olhado nada — por isso a espera
+      // é pelo NOME da etapa atual dentro do gatilho, que só existe depois.
+      const gatilho = await screen.findByRole('combobox');
+      await within(gatilho).findByText(rotuloDaEtapaAtual);
+      fireEvent.keyDown(gatilho, { key: 'ArrowDown' });
+      const opcoes = await screen.findAllByRole('option');
+      return opcoes.map((o) => o.textContent ?? '').join(' | ');
+    }
+
+    it('em Aguardando aprovação, não oferece Aprovado nem Finalizado', async () => {
+      // Era o caminho de fora da decisão do laudo: o botão de avanço sumia,
+      // mas a lista ao lado continuava levando aos mesmos dois destinos sem
+      // registrar quem respondeu, o motivo, nem trocar o valor pela taxa.
+      await abrir(OS_ETAPAS.AGUARDANDO_APROVACAO);
+      const nomes = await abrirOSeletor(/Aguardando aprovação/);
+
+      expect(nomes).not.toMatch(/Aprovado \/ Executar|Finalizado/);
+      // O desvio e a volta atrás continuam ali: um é peça que não chegou, o
+      // outro é conserto de engano.
+      expect(nomes).toMatch(/Aguardando Peça/);
+      expect(nomes).toMatch(/Entrada \/ Análise/);
+    });
+
+    it('em outra etapa, a lista continua inteira', async () => {
+      await abrir(OS_ETAPAS.APROVADO);
+      const nomes = await abrirOSeletor(/Aprovado \/ Executar/);
+
+      expect(nomes).toMatch(/Finalizado/);
     });
   });
 

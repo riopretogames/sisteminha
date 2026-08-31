@@ -21,6 +21,43 @@ import type { Permission } from '@/config/permissions';
 /** Permissões de cada perfil, como estão no banco (migration 20260801000002). */
 export const PERMISSOES_POR_PERFIL: Record<string, string[]> = {
   administrador: ['*'],
+  // Gerente: opera a loja inteira, menos o que é estrutura do sistema. No
+  // banco a regra é escrita assim mesmo — "todas MENOS estas quatro"
+  // (migration 20260801000002) —, e por isso aqui também: lista digitada
+  // envelhece a cada permissão nova, a regra não.
+  gerente: ['*', '!roles.manage', '!settings.edit', '!company.edit', '!users.manage'],
+  // Gerente Técnico: manda na assistência e no que ela consome. Não vê
+  // financeiro nem BI comercial — e este é o perfil que mais aparece nos
+  // testes de custo, porque é o único fora do administrador com
+  // `inventory.cost.view`.
+  gerente_tecnico: [
+    'home.view',
+    'dashboards.view',
+    'dashboards.stock.view',
+    'dashboards.goals.view',
+    'dashboards.service.view',
+    'bi.stock.view',
+    'bi.service.view',
+    'reports.view',
+    'reports.export',
+    'inventory.view',
+    'inventory.create',
+    'inventory.edit',
+    'inventory.adjust',
+    'inventory.cost.view',
+    'orders.view',
+    'orders.create',
+    'orders.edit',
+    'orders.delete',
+    'orders.approve',
+    'orders.diagnose',
+    'registry.view',
+    'registry.customers.manage',
+    'registry.products.manage',
+    'registry.services.manage',
+    'registry.suppliers.manage',
+    'company.view',
+  ],
   // As listas abaixo são cópia do que está NO BANCO (migrations
   // 20260801000002, 20260809150000, 20260809160000 e 20260823120000).
   //
@@ -41,7 +78,6 @@ export const PERMISSOES_POR_PERFIL: Record<string, string[]> = {
     'orders.create',
     'orders.edit',
     'orders.approve',
-    'orders.deliver',
     'registry.view',
     'registry.customers.manage',
   ],
@@ -73,8 +109,14 @@ export function montarCan(u: UsuarioDeTeste) {
   const concedidas = new Set([...doPerfil, ...(u.extras ?? [])]);
   const tiradas = new Set(u.menos ?? []);
 
+  // "!permissao" tira, mesmo com o curinga. É como o banco define o gerente:
+  // todas menos quatro.
+  const excecoesDoPerfil = new Set(
+    doPerfil.filter((k) => k.startsWith('!')).map((k) => k.slice(1)),
+  );
+
   return (p: Permission) => {
-    if (tiradas.has(p)) return false;
+    if (tiradas.has(p) || excecoesDoPerfil.has(p)) return false;
     if (tudo) return true;
     return concedidas.has(p);
   };

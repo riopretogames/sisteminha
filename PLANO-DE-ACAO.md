@@ -2358,6 +2358,101 @@ ser consciente, em vez de por esquecimento.
 
 ---
 
+## Revisão do processo da assistência, e o que ela achou (01/09)
+
+Depois de o organograma do Figma virar botão no sistema (28 a 31/08 — os dois
+botões de início na bancada, a resposta do cliente ao laudo, a taxa de análise,
+os campos obrigatórios configuráveis e a numeração das etapas), passei tudo por
+uma revisão: **42 agentes lendo o código, cada achado desafiado por outro
+tentando derrubá-lo**. Resultado: **25 achados confirmados e 12 refutados** —
+os refutados eram medo, não defeito.
+
+O padrão que apareceu quase em todo achado grave é o mesmo, e vale registrar
+porque vai se repetir: **quando um passo do processo vira botão, o caminho
+antigo continua aberto ao lado dele.** O botão registra; o caminho antigo não.
+
+**🔴 Corrigidos no mesmo dia**
+
+1. **A OS recusada convidava a cobrar o conserto recusado.** Na ficha de uma
+   OS que o cliente não aprovou, aparecia um aviso amarelo dizendo que o
+   orçamento (R$ 80, a taxa) estava R$ 370 abaixo do que os itens somam, e um
+   botão "Usar soma dos itens". Quem clicasse transformava a OS de R$ 80 em
+   R$ 450 — e como a entrega só libera com pagamento que cubra o valor, a loja
+   passaria a cobrar do cliente R$ 450 por um conserto que ele recusou e que
+   nunca foi feito. O aviso e o botão sumiram na OS recusada, e no lugar deles
+   a ficha passou a contar a história: quanto era o orçamento, quanto ficou, e
+   o motivo da recusa.
+
+2. **Dava para aprovar o orçamento sem registrar nada.** O botão "Laudo
+   aprovado" grava quem respondeu, quando e — na recusa — o motivo. Mas
+   arrastar o cartão no quadro de "Aguardando aprovação" para "Aprovado", ou
+   escolher a etapa no seletor da ficha e da lista, chegava no mesmo lugar sem
+   gravar nada. Indo para "Finalizado" era pior: a OS ficava recusada sem
+   motivo, sem a taxa, cobrando o reparo na retirada. As três telas passaram a
+   perguntar à mesma regra (`lib/decisaoDoLaudo.ts`, com testes), e mandam
+   quem tentar pelos botões.
+
+3. **A peça sumia do estoque na recusa.** Até 30/08, recusar CANCELAVA a OS, e
+   era a palavra "cancelado" que devolvia ao estoque a peça que o técnico tinha
+   separado. Com a taxa de análise, a OS recusada passou a ir para "Finalizado"
+   (certo: o cliente busca o aparelho e paga pelo caixa) — e o estorno ficou
+   esperando uma palavra que não vem mais. Resultado: peça comprada, saída da
+   prateleira, conserto não feito, e ela não voltava para lugar nenhum. Era
+   exatamente o defeito corrigido em 22/08, voltando por uma porta lateral.
+   Agora a pergunta que o sistema faz é outra e não depende de palavra: **esta
+   OS vai acontecer?** Se não vai, a peça volta; se voltar a andar, sai de novo.
+
+4. **Desfazer a recusa cobrava errado.** O cliente que recusa e volta atrás no
+   dia seguinte é caso comum de balcão. Movendo a OS de volta, ela continuava
+   valendo os R$ 80 da análise — o reparo de R$ 450 estava guardado e ninguém
+   o trazia de volta. Agora tirar a OS recusada de "Finalizado" desfaz a recusa
+   inteira: o valor volta, a resposta do cliente volta a ser "ainda não
+   respondeu", e o motivo antigo vai para o histórico da OS, onde continua
+   contando a história.
+
+5. **Garantia e cortesia ganhavam uma taxa que nunca seria cobrada.** Elas não
+   passam pelo caixa na entrega, então os R$ 80 escritos ali eram faturamento
+   que nunca aconteceria, atravessando todo relatório da assistência. A taxa
+   passou a valer só em OS paga — no banco e no texto do diálogo.
+
+6. **O custo de compra da peça vazava por uma função nova.** A conta de custo
+   das peças de um serviço (criada em 31/08) respondia para qualquer pessoa
+   logada, inclusive quem não pode ver custo. Ela precisa de privilégio de dono
+   para ler a coluna protegida — e por isso mesmo tem que conferir o crachá
+   antes. Nenhuma tela chamava a função ainda; a porta ficou fechada antes de
+   alguém ligar. **Meia hora depois, o mesmo erro apareceu na correção da peça
+   que volta ao estoque** e foi fechado do mesmo jeito: função que mexe no
+   estoque com privilégio de dono não pode ser chamável por ninguém de fora.
+
+7. **A taxa dizia "salvo" sem ter salvado.** Quem abre Preferências do Sistema
+   precisa de uma permissão, e mudar dados da loja precisa de outra. Faltando a
+   segunda, o banco recusava **em silêncio**: a tela mostrava o verde de
+   sucesso e o valor voltava sozinho ao antigo. Agora o campo aparece travado,
+   com a razão escrita, e o erro de verdade chega quando existe.
+
+8. **O aparelho voltava desmontado.** A OS recusada vai direto para
+   "Finalizado" — pronto para retirada —, e o organograma tem entre os dois um
+   passo que o sistema não tinha onde dizer: remontar o aparelho, que saiu
+   aberto do diagnóstico. O diálogo da recusa passou a lembrar disso, junto com
+   o aviso de que as peças voltam sozinhas para o estoque.
+
+**🟡 Menores, corrigidos junto**
+
+- "Diagnóstico iniciado em 30/08 por Fulano" ficava na barra de ações da OS
+  para sempre — na entregue, na finalizada. A barra é o lugar do que dá para
+  fazer agora; quando começou é assunto da linha do tempo, que já mostra os
+  dois marcos.
+- O painel da assistência contava peça e serviço pelo campo errado, e a ficha
+  da OS não trazia o tipo do item do banco.
+- O valor do orçamento recusado não aparecia em tela nenhuma: ficava guardado
+  e invisível.
+- Os perfis **Gerente** e **Gerente Técnico** não existiam no dublê de
+  permissões dos testes, e o dublê ainda listava uma permissão que foi apagada
+  do sistema em 09/08. Teste apoiado em permissão que o banco não dá é teste
+  que passa sem provar nada.
+
+---
+
 ## O que esta revisão não cobriu
 
 Vale lembrar antes de assumir que "não foi achado" significa "não existe":

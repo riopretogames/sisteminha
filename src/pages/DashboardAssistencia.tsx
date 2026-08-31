@@ -20,6 +20,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
+import { tipoDoItem } from '@/lib/itensDaOS';
 import { PageHeader } from '@/components/PageHeader';
 import { moeda, data as formatarData } from '@/lib/format';
 import {
@@ -119,7 +120,7 @@ const rotuloEtapa = (chave: string) =>
 // do resultado. `itens:vw_os_itens(...)` obedece a regra de custo protegido --
 // leitura de item de OS passa SEMPRE pela view, mesmo sem pedir custo.
 const CAMPOS =
-  'id, numero_os, created_at, updated_at, data_finalizacao, status, reparo_inviavel, total_orcamento, valor_final_pago, tecnico_id, tecnico:profiles!service_orders_tecnico_id_fkey(nome), equipamento_id, equipamento:catalogos!service_orders_equipamento_id_fkey(descricao), clientes(nome), itens:vw_os_itens(descricao, produto_id, quantidade, preco_cobrado, horas_mao_obra)';
+  'id, numero_os, created_at, updated_at, data_finalizacao, status, reparo_inviavel, total_orcamento, valor_final_pago, tecnico_id, tecnico:profiles!service_orders_tecnico_id_fkey(nome), equipamento_id, equipamento:catalogos!service_orders_equipamento_id_fkey(descricao), clientes(nome), itens:vw_os_itens(descricao, produto_id, quantidade, preco_cobrado, horas_mao_obra, tipo_item)';
 
 export default function DashboardAssistencia() {
   // Mesma disciplina do painel de Venda: `new Date()` uma vez só, no mount.
@@ -243,11 +244,22 @@ export default function DashboardAssistencia() {
   const totalDoItem = (i: ItemOSRow) =>
     Number(i.preco_cobrado ?? 0) * Number(i.quantidade ?? 1);
 
+  // Peça x mão de obra vem do TIPO gravado na linha (lib/itensDaOS), não de
+  // "tem produto do estoque". A regra velha jogava em mão de obra a peça
+  // comprada no fornecedor no dia e o custo repassado (frete, terceirização),
+  // porque nenhum dos dois tem produto de estoque — e aí o painel mostrava a
+  // mão de obra maior do que foi e as peças menores.
   const totalMaoObra = itensEntregues
-    .filter((i) => i.produto_id == null)
+    .filter((i) => tipoDoItem(i) === 'servico')
     .reduce((soma, i) => soma + totalDoItem(i), 0);
   const totalPecas = itensEntregues
-    .filter((i) => i.produto_id != null)
+    .filter((i) => tipoDoItem(i) === 'peca')
+    .reduce((soma, i) => soma + totalDoItem(i), 0);
+  // Custo repassado ao cliente (frete da peça, serviço terceirizado): não é
+  // mão de obra da bancada nem peça de estoque, e por isso fica fora das duas
+  // contas acima em vez de inflar uma delas.
+  const totalComplementar = itensEntregues
+    .filter((i) => tipoDoItem(i) === 'complementar')
     .reduce((soma, i) => soma + totalDoItem(i), 0);
 
   // Serviço é texto livre: a tela deixa puxar do catálogo mas grava só o nome
@@ -256,7 +268,9 @@ export default function DashboardAssistencia() {
   // bancada apareceria três vezes, cada uma com um terço do movimento.
   const servicosRealizados = porQuantidade(
     agrupar(
-      itensEntregues.filter((i) => i.produto_id == null),
+      // Só serviço de verdade: "Frete da tela" e "Terceirização" apareciam
+      // nesta lista como se fossem serviço mais feito da bancada.
+      itensEntregues.filter((i) => tipoDoItem(i) === 'servico'),
       {
         chave: (i) => chaveDeTexto(i.descricao),
         nome: (i) => i.descricao,
@@ -270,7 +284,7 @@ export default function DashboardAssistencia() {
   // verdade e não depende de como alguém digitou.
   const pecasUsadas = porQuantidade(
     agrupar(
-      itensEntregues.filter((i) => i.produto_id != null),
+      itensEntregues.filter((i) => tipoDoItem(i) === 'peca' && i.produto_id != null),
       {
         chave: (i) => i.produto_id,
         nome: (i) => i.descricao,

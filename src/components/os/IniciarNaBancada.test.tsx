@@ -161,4 +161,18 @@ describe('Botões de começar na bancada', () => {
     expect(screen.queryByRole('button', { name: /iniciar/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/aguardando a bancada/i)).not.toBeInTheDocument();
   });
+
+  it('depois que a OS passou da bancada, o registro sai da barra de ações', async () => {
+    // Achado em 01/09: a linha "Diagnóstico iniciado em 30/08 por Fulano"
+    // ficava na barra da OS entregue, meses depois. A barra é o lugar do que
+    // dá para fazer agora; quando começou é assunto da linha do tempo da
+    // ficha, que mostra os dois marcos.
+    await montar({
+      perfil: 'tecnico',
+      status: OS_ETAPAS.ENTREGUE,
+      iniciadoEm: '2026-08-30T13:00:00Z',
+    });
+
+    expect(screen.queryByText(/diagnóstico iniciado em/i)).not.toBeInTheDocument();
+  });
 });

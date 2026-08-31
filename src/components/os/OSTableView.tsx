@@ -37,6 +37,7 @@ import { OS_PRIORITY } from '@/lib/constants';
 import type { ServiceOrder, StatusConfig } from '@/types/os';
 import { osAtrasada, diasDeAtraso } from '@/lib/ordenarOS';
 import { OS_ETAPAS, OS_CANCELADO } from '@/config/osStatus';
+import { passagemPedeDecisaoDoLaudo } from '@/lib/decisaoDoLaudo';
 
 interface OSTableViewProps {
   orders: ServiceOrder[];
@@ -156,6 +157,11 @@ export function OSTableView({ orders, statuses, loading, onStatusChange, podeApr
                 // orçamento) — cancelar de outra etapa segue liberado, igual
                 // o banco permite.
                 if (s.key === OS_CANCELADO && decisaoDeOrcamentoBloqueada) return false;
+                // A resposta do cliente ao laudo tem porta própria (os botões
+                // da ficha, que registram motivo e taxa). Escolher "Aprovado"
+                // ou "Finalizado" aqui chegaria no mesmo lugar sem registro
+                // nenhum — ver lib/decisaoDoLaudo.ts.
+                if (passagemPedeDecisaoDoLaudo(order.status, s.key)) return false;
                 return true;
               });
               return (

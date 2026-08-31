@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
+import { PERMISSIONS } from '@/config/permissions';
 import { moeda } from '@/lib/format';
 
 /**
@@ -26,12 +27,25 @@ import { moeda } from '@/lib/format';
  * para a retirada sem valor, e a entrega não pede pagamento.
  */
 export function TaxaDeAnalise() {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const tenantId = user?.profile?.tenant_id ?? null;
 
   const [valor, setValor] = useState<string | null>(null);
+
+  /**
+   * Esta tela abre com "Editar configurações", mas a taxa mora nos dados da
+   * loja — e o banco protege esses dados com OUTRA permissão: "Editar dados da
+   * empresa" (policy "Quem edita empresa atualiza o tenant", migration
+   * 20260801000002).
+   *
+   * Sem conferir aqui, o gerente com uma permissão e não a outra digitava o
+   * valor, clicava em Salvar e recebia um erro que não explica nada. Pior:
+   * ATÉ ONTEM ele nem recebia erro — o banco recusava em silêncio, a tela
+   * dizia "salvo" em verde e o valor voltava ao antigo sozinho.
+   */
+  const podeSalvar = can(PERMISSIONS.COMPANY_EDIT);
 
   const { data: taxaSalva, isLoading } = useQuery({
     queryKey: ['taxa-analise', tenantId],
@@ -49,11 +63,24 @@ export function TaxaDeAnalise() {
 
   const salvar = useMutation({
     mutationFn: async (novo: number) => {
-      const { error } = await supabase
+      // `.select()` no fim não é enfeite: sem ele, um UPDATE barrado pela
+      // regra de segurança do banco volta SEM ERRO e sem ter mudado nada —
+      // a tela dizia "salvo" em verde e o valor voltava sozinho ao antigo.
+      //
+      // A rede de baixo: mesmo com a conferência de permissão na tela, é o
+      // banco que decide. Sem o `.select()`, um UPDATE recusado por ele passa
+      // por sucesso.
+      const { data, error } = await supabase
         .from('tenants')
         .update({ taxa_analise: novo })
-        .eq('id', tenantId!);
+        .eq('id', tenantId!)
+        .select('id');
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(
+          'Seu acesso não permite mudar os dados da loja (permissão "Editar dados da empresa").',
+        );
+      }
     },
     onSuccess: (_d, novo) => {
       queryClient.invalidateQueries({ queryKey: ['taxa-analise', tenantId] });
@@ -72,7 +99,7 @@ export function TaxaDeAnalise() {
       toast({
         title: 'Não foi possível salvar',
         description: /row-level security|policy/i.test(msg)
-          ? 'Seu acesso não permite mudar as configurações da loja.'
+          ? 'Seu acesso não permite mudar os dados da loja (permissão "Editar dados da empresa").'
           : msg,
         variant: 'destructive',
       });
@@ -106,6 +133,7 @@ export function TaxaDeAnalise() {
               step="0.01"
               className="w-40"
               value={digitado}
+              disabled={!podeSalvar}
               onChange={(e) => setValor(e.target.value)}
             />
           </div>
@@ -113,7 +141,7 @@ export function TaxaDeAnalise() {
               (lib/acoes.ts, com teste que cobra). */}
           <Button
             variant="sucesso"
-            disabled={!mudou || salvar.isPending}
+            disabled={!podeSalvar || !mudou || salvar.isPending}
             onClick={() => salvar.mutate(numero)}
           >
             {salvar.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -127,6 +155,12 @@ export function TaxaDeAnalise() {
           Quando ele <strong>aprova</strong>, nada muda — vale o valor do laudo, que é o que ele
           já viu.
         </p>
+        {!podeSalvar && (
+          <p className="text-sm text-muted-foreground">
+            Você pode ver o valor, mas não mudá-lo: a taxa faz parte dos dados da loja, e mudar
+            isso pede a permissão <strong>Editar dados da empresa</strong>.
+          </p>
+        )}
         {atual === 0 && (
           <p className="text-sm text-muted-foreground">
             Hoje está em zero: a loja não cobra análise.

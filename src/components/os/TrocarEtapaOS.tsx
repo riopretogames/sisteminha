@@ -17,6 +17,7 @@ import { PERMISSIONS } from '@/config/permissions';
 import { OS_ETAPAS, OS_CANCELADO } from '@/config/osStatus';
 import { confirmarReaberturaDeOSEntregue } from '@/lib/reabrirOS';
 import { acaoParaAvancar } from '@/lib/acaoDaEtapa';
+import { passagemPedeDecisaoDoLaudo } from '@/lib/decisaoDoLaudo';
 import { corDeBotaoDaEtapa } from '@/lib/cores';
 import { cn } from '@/lib/utils';
 import { EntregarOSDialog } from '@/components/os/EntregarOSDialog';
@@ -128,9 +129,17 @@ export function TrocarEtapaOS({ osId, numeroOs, statusAtual, tipo, totalOrcament
   // OS" continua com a regra estreita de sempre (só some saindo de
   // aguardando_aprovacao), porque é a única saída de cancelamento que o
   // banco de fato trava.
-  const etapasSelecionaveis = aprovarBloqueado
-    ? etapas.filter((s) => s.key !== OS_ETAPAS.APROVADO)
-    : etapas;
+  //
+  // O seletor era o caminho de fora da decisão do laudo: o BOTÃO de avançar já
+  // sumia em "Aguardando aprovação" (acima), mas a lista ao lado continuava
+  // oferecendo "Aprovado" e "Finalizado" — os dois destinos da resposta do
+  // cliente — como escolha crua de etapa, sem registrar quem respondeu nem o
+  // motivo da recusa. Tirar o botão e deixar a lista é não ter tirado nada.
+  const etapasSelecionaveis = etapas.filter((s) => {
+    if (aprovarBloqueado && s.key === OS_ETAPAS.APROVADO) return false;
+    if (passagemPedeDecisaoDoLaudo(statusAtual, s.key)) return false;
+    return true;
+  });
 
   const mudar = async (novoStatus: string) => {
     setSalvando(true);

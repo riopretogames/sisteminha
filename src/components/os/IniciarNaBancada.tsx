@@ -114,13 +114,23 @@ export function IniciarNaBancada({
 
   /* -- o que a tela mostra, em ordem de precedência ------------------------ */
 
+  // Etapa em que ninguém começa nada (esperando o cliente, peça, entregue…).
+  //
+  // Esta pergunta vem ANTES da do registro de propósito, e foi assim que a
+  // revisão de 01/09 achou o defeito: estando depois, a linha "Diagnóstico
+  // iniciado em 30/08 por Fulano" ficava na barra de ações da OS para sempre —
+  // na OS finalizada, na entregue, na que está esperando peça. A barra é o
+  // lugar do que dá para fazer AGORA; o quando-começou tem lugar próprio na
+  // linha do tempo da ficha, que já mostra os dois marcos.
+  if (!fase) return null;
+
   // Já começou: o botão dá lugar ao registro, para TODO MUNDO — o vendedor
   // também precisa saber que o aparelho está na mesa de alguém, e desde quando.
   if (jaIniciado) {
     return (
       <p className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
         <Wrench className="h-3.5 w-3.5 shrink-0" />
-        {fase?.registro ?? 'Diagnóstico iniciado em'}{' '}
+        {fase.registro}{' '}
         <span className="font-medium text-foreground">{dataHora(jaIniciado)}</span>
         {nomeDeQuemIniciou !== '—' && (
           <>
@@ -130,9 +140,6 @@ export function IniciarNaBancada({
       </p>
     );
   }
-
-  // Etapa em que ninguém começa nada (esperando o cliente, peça, entregue…).
-  if (!fase) return null;
 
   // Não é da bancada: em vez de sumir sem explicação — o que faz o dono
   // procurar um botão que nunca vai achar —, diz de quem é a vez.

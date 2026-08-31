@@ -37,11 +37,13 @@ import { moeda } from '@/lib/format';
 interface Props {
   osId: string;
   status: string;
+  /** Paga, garantia ou cortesia — só a paga passa pelo caixa na retirada. */
+  tipo: 'paga' | 'garantia' | 'cortesia';
   totalOrcamento: number;
   onMudou: () => void;
 }
 
-export function DecisaoDoLaudo({ osId, status, totalOrcamento, onMudou }: Props) {
+export function DecisaoDoLaudo({ osId, status, tipo, totalOrcamento, onMudou }: Props) {
   const { can } = useAuth();
   const { toast } = useToast();
   const [salvando, setSalvando] = useState(false);
@@ -64,6 +66,13 @@ export function DecisaoDoLaudo({ osId, status, totalOrcamento, onMudou }: Props)
     enabled: recusaAberta,
     staleTime: 5 * 60 * 1000,
   });
+
+  /**
+   * Garantia e cortesia não passam pelo caixa na entrega — então recusa nelas
+   * não cobra nada, e o diálogo não pode prometer cobrança. O banco faz a
+   * mesma conta (migration 20260901120000); aqui é só para o texto não mentir.
+   */
+  const cobraTaxa = tipo === 'paga' && (taxa ?? 0) > 0;
 
   // Só faz sentido enquanto a OS espera a resposta.
   if (status !== OS_ETAPAS.AGUARDANDO_APROVACAO) return null;
@@ -95,7 +104,7 @@ export function DecisaoDoLaudo({ osId, status, totalOrcamento, onMudou }: Props)
         title: aprovado ? 'Laudo aprovado' : 'Recusa registrada',
         description: aprovado
           ? 'A OS foi para a bancada executar o serviço.'
-          : 'A OS foi encerrada. Combine a retirada do aparelho com o cliente.',
+          : 'Peças devolvidas ao estoque. Remonte o aparelho e combine a retirada com o cliente.',
       });
       setRecusaAberta(false);
       setMotivo('');
@@ -153,11 +162,17 @@ export function DecisaoDoLaudo({ osId, status, totalOrcamento, onMudou }: Props)
           <DialogHeader>
             <DialogTitle>O cliente não aprovou o orçamento</DialogTitle>
             <DialogDescription>
-              {taxa && taxa > 0 ? (
+              {cobraTaxa ? (
                 <>
-                  A OS passa a valer <strong>{moeda(taxa)}</strong> — a taxa de análise —, e o
+                  A OS passa a valer <strong>{moeda(taxa ?? 0)}</strong> — a taxa de análise —, e o
                   aparelho fica pronto para o cliente retirar. Ele paga esse valor na retirada,
                   pelo mesmo caminho de qualquer outra OS. O valor recusado fica guardado na ficha.
+                </>
+              ) : tipo !== 'paga' ? (
+                <>
+                  A OS vai para a retirada <strong>sem valor</strong>: esta é uma OS de{' '}
+                  {tipo === 'garantia' ? 'garantia' : 'cortesia'}, e a loja não cobra análise
+                  nelas. O valor recusado fica guardado na ficha.
                 </>
               ) : (
                 <>
@@ -182,6 +197,15 @@ export function DecisaoDoLaudo({ osId, status, totalOrcamento, onMudou }: Props)
             <p className="text-xs text-muted-foreground">
               É o dado que explica orçamento perdido. Sem ele, a loja só sabe que perdeu.
             </p>
+          </div>
+
+          {/* As duas coisas que acontecem fora da tela e a equipe precisa saber
+              antes de clicar: o aparelho está aberto na bancada, e as peças que
+              o técnico separou voltam para a prateleira. */}
+          <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+            <strong>Antes de devolver:</strong> o aparelho precisa ser remontado — ele saiu
+            aberto do diagnóstico. As peças lançadas nesta OS voltam sozinhas para o estoque
+            quando você registrar a recusa.
           </div>
 
           <DialogFooter>

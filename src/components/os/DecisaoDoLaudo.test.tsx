@@ -43,6 +43,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 async function montar(opcoes: {
   perfil?: 'vendedor' | 'tecnico' | 'administrador';
   status?: string;
+  tipo?: 'paga' | 'garantia' | 'cortesia';
 } = {}) {
   mockCan.mockImplementation(montarCan({ perfil: opcoes.perfil ?? 'vendedor' }));
   mockRpc.mockResolvedValue({ data: null, error: null });
@@ -56,6 +57,7 @@ async function montar(opcoes: {
     <DecisaoDoLaudo
       osId="os-1"
       status={opcoes.status ?? OS_ETAPAS.AGUARDANDO_APROVACAO}
+      tipo={opcoes.tipo ?? 'paga'}
       totalOrcamento={450}
       onMudou={() => {}}
     />,
@@ -164,6 +166,30 @@ describe('A resposta do cliente ao laudo', () => {
     expect(await screen.findByText(/taxa de análise/i)).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: /registrar recusa e cobrar/i }))
       .toBeInTheDocument();
+  });
+
+  it('avisa que o aparelho precisa ser remontado antes de voltar', async () => {
+    // O organograma tem esse passo, o sistema não tinha onde dizê-lo: a OS
+    // recusada vai direto para "Finalizado" (pronto para retirada) com o
+    // aparelho ainda aberto na bancada.
+    await montar();
+
+    fireEvent.click(screen.getByRole('button', { name: /cliente não aprovou/i }));
+
+    expect(await screen.findByText(/precisa ser remontado/i)).toBeInTheDocument();
+    expect(await screen.findByText(/voltam sozinhas para o estoque/i)).toBeInTheDocument();
+  });
+
+  it('em OS de garantia, não promete cobrança nenhuma', async () => {
+    // Garantia não passa pelo caixa na entrega. Prometer os R$ 80 aqui seria
+    // o vendedor cobrar do cliente um valor que o sistema nunca vai pedir.
+    await montar({ tipo: 'garantia' });
+
+    fireEvent.click(screen.getByRole('button', { name: /cliente não aprovou/i }));
+
+    expect(await screen.findByText(/sem valor/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^registrar recusa$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /cobrar/i })).not.toBeInTheDocument();
   });
 
   it('em qualquer outra etapa não aparece nada', async () => {
