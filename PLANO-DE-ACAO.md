@@ -1646,30 +1646,28 @@ o arquivo antes de assumir.
      e nada avisa quando os dois discordam. É o próximo a resolver, porque é
      o que decide quanto o cliente paga.
 
-- [ ] 🟠 🆕 **A taxa de análise (R$ 80) quando o cliente recusa o orçamento.**
-  Do organograma do Felipe (30/08): reprovou → *"registra o motivo da
-  reprovação"* → *"cobra 80 reais na retirada"* → *"cliente retira o
-  aparelho"*.
+- [x] ✅ **Feito em 31/08 — a taxa de análise quando o cliente recusa.** Do
+  organograma do Felipe (30/08): reprovou → registra o motivo → cobra a análise
+  na retirada.
 
-  O motivo já é registrado desde 31/08 (`registrar_decisao_do_laudo`). A
-  COBRANÇA não: a OS recusada é encerrada e alguém precisa lembrar de cobrar a
-  análise no balcão, na mão.
+  As três decisões que faltavam, respondidas por ele no dia:
 
-  O que falta decidir antes de fazer:
+  • **valor configurável, 80 de padrão** (Configurações > Preferências do
+    Sistema). Zero é válido e significa "esta loja não cobra";
+  • **a taxa vira o valor da OS recusada**, e a entrega cobra sozinha — o
+    fluxo de entrega já exige pagamento que cubra o valor da OS, então não
+    houve passo novo para a equipe aprender;
+  • **não existe abatimento.** Quando o cliente aprova, vale o valor do laudo,
+    que é o que ele já viu no relatório. Era a dúvida mais cara das três, e a
+    resposta dele apagou o trabalho inteiro.
 
-  • o valor é fixo em R$ 80 ou vira configuração da loja? (o mesmo raciocínio
-    dos campos obrigatórios: quem comprar o sisteminha cobra outro valor, ou
-    não cobra);
-  • a taxa entra como VALOR DA OS recusada — e aí a entrega já cobra sozinha,
-    porque o fluxo de entrega exige o pagamento — ou vira lançamento avulso no
-    financeiro?
-  • e o abatimento: o organograma diz que a análise é abatida quando o cliente
-    APROVA. Isso hoje não existe em lugar nenhum.
+  Efeito colateral que vale saber: a OS recusada deixou de ir para "cancelado"
+  e passou a ir para "finalizado" — o aparelho fica pronto para retirada. Quem
+  marca a recusa continua sendo registrado (`laudo_aprovado = false` e o
+  motivo), então "cancelado" voltou a ser só a saída de emergência que era.
 
-  A primeira opção é a mais barata e usa o que já funciona: OS recusada sai de
-  "cancelado" e passa a ir para "Finalizado" com o valor da taxa, e o cliente
-  paga na retirada como qualquer outra OS. Mas isso muda o significado de
-  "Finalizado" para o quadro, então é conversa antes de código.
+  O valor recusado é preservado em `valor_orcado_recusado`: é ele que conta a
+  história ("recusou um reparo de R$ 450 e pagou R$ 80 de análise").
 
 - [ ] ⚪ 🆕 **Voltar de uma ficha perde o período do relatório.** Notado na
   revisão de 28/08, quando as linhas dos relatórios viraram clicáveis.
