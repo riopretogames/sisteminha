@@ -10,6 +10,13 @@ O sistema próprio da loja, feito pra substituir o sistema atual.
 - [[sisteminha/README|Visão geral do sistema]] — o que é, como rodar na sua
   máquina, e a stack de verdade.
 
+## Como a loja funciona
+
+- [[sisteminha/PROCESSO-ORDEM-DE-SERVICO|Processo de Ordem de Serviço]] — o
+  caminho que a OS faz na vida real, do balcão até a entrega: as etapas do
+  Kanban, quem aperta cada botão, e os 16 pontos que a auditoria apontou
+  antes de programar.
+
 ## Planejamento
 
 - [[sisteminha/PLANO-DE-ACAO|Plano de ação]] — **o único documento de
