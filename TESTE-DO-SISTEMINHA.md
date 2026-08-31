@@ -17,7 +17,7 @@ abrindo mão.
 
 ## O que já roda sozinho
 
-O sistema tem **311 testes automáticos** que rodam a cada mudança. Eles cobrem
+O sistema tem **295 testes automáticos** que rodam a cada mudança. Eles cobrem
 as contas (faturamento, devolução, custo médio, ranking) e o comportamento das
 telas por perfil — inclusive o pior defeito que este sistema já teve, a tela de
 Estoque ficando branca para quem não vê custo.
@@ -641,7 +641,7 @@ você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda
   *Por que importa: aprovar já era possível, mas a RECUSA sumia na conversa do balcão. O motivo é a informação mais valiosa que um orçamento perdido deixa — "achou caro" e "vai comprar outro aparelho" pedem reações completamente diferentes suas, e sem ele os dois viram a mesma linha no relatório.*
   > 🔎 **Falta uma peça do seu organograma aqui:** a cobrança dos R$ 80 da análise na retirada. Hoje o sistema encerra a OS e avisa para combinar a retirada, mas não lança a taxa. É a próxima conversa.
 
-- [ ] **🔴 87. A taxa de análise quando o cliente recusa**
+- [ ] **🔴 90. A taxa de análise quando o cliente recusa**
   **O que fazer:** Abra **Configurações > Preferências do Sistema** e olhe **Taxa de análise** — deve estar em **R$ 80,00**. Troque para `50` e salve. Agora abra uma OS em **2a · Aguardando aprovação** com orçamento preenchido (ex.: R$ 450), clique em **Cliente não aprovou**, leia o texto da janela, escreva um motivo e registre. Procure essa OS no quadro e abra a ficha. Por fim, entregue essa OS ao cliente.
   **Tem que acontecer:** A janela da recusa avisa que **a OS passa a valer R$ 50,00** e o botão diz **"Registrar recusa e cobrar R$ 50,00"**. Depois de registrar, a OS aparece em **5 · Finalizado** (pronta para o cliente buscar) valendo **R$ 50,00** — e não mais R$ 450. Na entrega, o sistema **cobra os R$ 50,00** como em qualquer OS. O valor recusado (R$ 450) fica guardado na ficha.
   *Por que importa: era a última peça do seu organograma que faltava. Antes, recusar cancelava a OS — o aparelho sumia do quadro e alguém tinha que lembrar de cobrar a análise na mão, no balcão.*
