@@ -88,7 +88,7 @@ Repare que a Etapa 1 é uma etapa só, com duas metades: o vendedor no balcão
 
 5. O técnico busca o aparelho, que vem com a OS impressa colada nele.
 6. Puxa a OS no sistema.
-7. Aperta o botão **INICIAR REPARO**.
+7. Aperta o botão **INICIAR DIAGNÓSTICO**.
 8. Confirma que vai iniciar.
 9. **Se for tabelado:** pula o laudo eletrônico e vai direto para a Etapa 3.
 10. **Se não for tabelado:** desmonta o aparelho, investiga o defeito, monta
@@ -96,8 +96,18 @@ Repare que a Etapa 1 é uma etapa só, com duas metades: o vendedor no balcão
     ainda não foi definido)*.
 11. O laudo dispara no grupo **LAUDISON.IO** e é enviado ao cliente.
 
-> [!important] O reparo só existe a partir do clique
-> O botão **Iniciar Reparo** é o marco: antes dele não há reparo nenhum no
+> [!important] Aqui é diagnóstico, não reparo
+> O botão desta etapa se chamava *Iniciar Reparo* e foi renomeado para
+> **Iniciar Diagnóstico** em 31/08/2026, por correção do Felipe. O nome
+> importa: nesta altura o técnico ainda não consertou nada — ele desmonta,
+> investiga e escreve o laudo. O reparo de verdade só começa depois que o
+> cliente aprova, e tem botão próprio (*Iniciar a Execução*, na Etapa 3).
+>
+> Com dois "inícios de reparo", qualquer relatório de tempo de bancada
+> somaria a análise com a execução e chamaria o total de reparo.
+
+> [!important] A OS só entra na bancada a partir do clique
+> O botão **Iniciar Diagnóstico** é o marco: antes dele não há trabalho nenhum no
 > sistema. Por isso ele é exclusivo do perfil Técnico — ver
 > [Quem pode o quê](#quem-pode-o-quê).
 
@@ -181,7 +191,7 @@ verdade. Eles não são intercambiáveis entre os perfis:
 | Ação | Quem faz | Por quê |
 |---|---|---|
 | Criar a OS | Vendedor | É quem recebe o cliente |
-| **Iniciar Reparo** | **Só o Técnico** | O vendedor **não pode** ter esse botão no perfil dele |
+| **Iniciar Diagnóstico** | **Só o Técnico** | O vendedor **não pode** ter esse botão no perfil dele |
 | **Laudo Aprovado** | Vendedor | É quem fala com o cliente e recebe a resposta |
 | Iniciar a Execução / Reparo Concluído | Técnico | É quem está com o aparelho na bancada |
 
