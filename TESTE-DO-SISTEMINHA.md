@@ -17,7 +17,7 @@ abrindo mão.
 
 ## O que já roda sozinho
 
-O sistema tem **266 testes automáticos** que rodam a cada mudança. Eles cobrem
+O sistema tem **280 testes automáticos** que rodam a cada mudança. Eles cobrem
 as contas (faturamento, devolução, custo médio, ranking) e o comportamento das
 telas por perfil — inclusive o pior defeito que este sistema já teve, a tela de
 Estoque ficando branca para quem não vê custo.
@@ -611,6 +611,12 @@ você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda
   **Tem que acontecer:** O técnico vê o botão; ao confirmar, sai o aviso verde **"Reparo iniciado"** e o botão dá lugar a **"Reparo iniciado em <data e hora> por <nome>"**. Na linha do tempo aparece **"Reparo iniciado na bancada"** com a hora e o nome. O vendedor **vê o registro** (ele precisa saber que o aparelho está na mesa de alguém) mas **não vê o botão** na OS que ainda não começou. A OS **continua na mesma etapa** — o quadro não muda.
   *Por que importa: é o passo que o seu organograma chama de "reparo começa aqui". Sem ele, "faz três dias que está na análise" não distingue o aparelho que ninguém pegou do que está aberto na bancada desde ontem — um é atraso de fila, o outro é trabalho em andamento, e hoje os dois contam igual.*
   > 🔎 **A trava está no banco, não só na tela.** Esconder o botão do vendedor seria decoração: quem tivesse permissão de editar OS poderia marcar o início pela API, e o registro passaria a dizer que o vendedor estava com o aparelho aberto na mesa. Quem grava é uma função do banco que exige a permissão de bancada.
+
+- [ ] **⚪ 85. O botão de avanço com a cor e o destino certos**
+  **O que fazer:** Abra uma OS que esteja em **2a · Aguardando aprovação**. Olhe o botão de avanço: o nome, a cor e para onde ele leva. Depois abra uma em **1 · Entrada / Análise** e outra em **2b · Aguardando Peça**. Por último, olhe a coluna **3 · Aprovado / Executar** no quadro.
+  **Tem que acontecer:** Na OS em Aguardando aprovação, o botão diz **"Cliente aprovou o laudo"** e está **verde**, a mesma cor da coluna Aprovado / Executar — **não** oferece mais "Avançar para Aguardando Peça". Na Entrada, o botão é laranja (a cor da aprovação) e diz "Enviar laudo para aprovação". Na Aguardando Peça, o botão leva para Aprovado / Executar. E a coluna **Aprovado / Executar agora é verde** no quadro, não azul.
+  *Por que importa: o botão sugeria a próxima COLUNA, e a Aguardando Peça fica no meio do caminho — então quem estava esperando o cliente responder era convidado a mover o aparelho para "esperando peça", que é outra coisa completamente. Peça é desvio, não passo do processo.*
+  > 🔎 **A cor do botão é a cor de para onde ele leva.** Você lê o botão, olha o quadro e reconhece a coluna sem precisar decorar. E se mudar a cor de uma etapa em Gerenciar Status, o botão acompanha sozinho.
 
 ---
 

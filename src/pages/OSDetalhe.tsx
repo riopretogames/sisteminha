@@ -828,9 +828,10 @@ export default function OSDetalhe() {
 
             <div className="space-y-1.5">
               <Label htmlFor="suspeita">
-                Suspeita técnica{' '}
+                Suspeita técnica — rascunho{' '}
                 <span className="font-normal text-muted-foreground">
-                  — hipótese a partir do sintoma, sem confirmação física. Não apresentar ao cliente como certeza.
+                  hipótese a partir do sintoma, sem confirmação física. Fica só aqui dentro:
+                  não apresentar ao cliente como certeza.
                 </span>
               </Label>
               <Textarea
@@ -845,9 +846,10 @@ export default function OSDetalhe() {
 
             <div className="space-y-1.5">
               <Label htmlFor="constatacao">
-                Constatação técnica{' '}
+                Constatação técnica — laudo eletrônico{' '}
                 <span className="font-normal text-muted-foreground">
-                  — só o que foi confirmado em bancada.
+                  só o que foi confirmado em bancada. É esta parte que vira o laudo que o
+                  cliente recebe.
                 </span>
               </Label>
               <Textarea

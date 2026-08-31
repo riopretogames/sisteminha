@@ -17,6 +17,8 @@ import { PERMISSIONS } from '@/config/permissions';
 import { OS_ETAPAS, OS_CANCELADO } from '@/config/osStatus';
 import { confirmarReaberturaDeOSEntregue } from '@/lib/reabrirOS';
 import { acaoParaAvancar } from '@/lib/acaoDaEtapa';
+import { corDeBotaoDaEtapa } from '@/lib/cores';
+import { cn } from '@/lib/utils';
 import { EntregarOSDialog } from '@/components/os/EntregarOSDialog';
 
 /**
@@ -92,7 +94,23 @@ export function TrocarEtapaOS({ osId, numeroOs, statusAtual, tipo, totalOrcament
 
   const indiceAtual = etapas.findIndex((s) => s.key === statusAtual);
   const atual = indiceAtual >= 0 ? etapas[indiceAtual] : undefined;
-  const proximaBruta = indiceAtual >= 0 ? etapas[indiceAtual + 1] : undefined;
+
+  /**
+   * A próxima etapa SUGERIDA é a próxima da esteira, não a próxima coluna.
+   *
+   * Achado pelo Felipe em 30/08: parado em "Aguardando aprovação", o botão
+   * oferecia "Avançar para Aguardando Peça" — porque a Peça é mesmo a coluna
+   * seguinte no quadro. Só que ela é um DESVIO (o aparelho esperando peça
+   * chegar), não o passo seguinte do processo: depois de o cliente aprovar,
+   * vem Aprovado / Executar.
+   *
+   * Por isso a sugestão pula as etapas extras da loja e vai na próxima etapa
+   * de sistema. Estando NUMA etapa extra, sugere a próxima de sistema depois
+   * dela — de Aguardando Peça vai para Aprovado (a peça chegou, pode
+   * executar), de Terceirizada vai para Finalizado (voltou de fora, pronto).
+   * O desvio continua alcançável pelo seletor ao lado, que oferece todas.
+   */
+  const proximaBruta = etapas.find((s) => s.sistema && s.ordem > (atual?.ordem ?? -1));
   // Some o atalho de avançar quando o próximo passo seria justamente a
   // decisão bloqueada (aguardando_aprovacao → aprovado).
   const proxima =
@@ -181,9 +199,10 @@ export function TrocarEtapaOS({ osId, numeroOs, statusAtual, tipo, totalOrcament
     <div className="flex flex-wrap items-center gap-2">
       {proxima && (
         <Button
-          // Verde só quando a próxima etapa é a que encerra bem (ver
-          // `lib/acoes.ts`): avançar no meio do fluxo é ação neutra.
-          variant={proxima.key === OS_ETAPAS.ENTREGUE ? 'sucesso' : 'default'}
+          // A cor é a da COLUNA de destino, a pedido do Felipe (30/08): ele lê
+          // o botão, olha o quadro e reconhece para onde o aparelho vai. Cor
+          // que o sistema não conhece cai no padrão, nunca em botão sem cor.
+          className={cn(corDeBotaoDaEtapa(proxima.color))}
           disabled={salvando}
           onClick={() => irPara(proxima.key)}
         >
