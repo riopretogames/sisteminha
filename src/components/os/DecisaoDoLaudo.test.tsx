@@ -46,7 +46,10 @@ async function montar(opcoes: {
 } = {}) {
   mockCan.mockImplementation(montarCan({ perfil: opcoes.perfil ?? 'vendedor' }));
   mockRpc.mockResolvedValue({ data: null, error: null });
-  mockSupabase.atual = { ...bancoFalso({}), rpc: mockRpc };
+  mockSupabase.atual = {
+    ...bancoFalso({ tenants: [{ id: 'loja-1', taxa_analise: 80 }] }),
+    rpc: mockRpc,
+  };
 
   const { DecisaoDoLaudo } = await import('./DecisaoDoLaudo');
   return renderizarTela(
@@ -149,6 +152,18 @@ describe('A resposta do cliente ao laudo', () => {
       expect(await screen.findByText(/quem registra é quem aprova orçamento/i))
         .toBeInTheDocument();
     });
+  });
+
+
+  it('o diálogo da recusa avisa quanto será cobrado na retirada', async () => {
+    // O vendedor precisa dizer isso ao cliente na hora, não descobrir depois.
+    await montar();
+
+    fireEvent.click(screen.getByRole('button', { name: /cliente não aprovou/i }));
+
+    expect(await screen.findByText(/taxa de análise/i)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /registrar recusa e cobrar/i }))
+      .toBeInTheDocument();
   });
 
   it('em qualquer outra etapa não aparece nada', async () => {

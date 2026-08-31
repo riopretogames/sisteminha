@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { TaxaDeAnalise } from '@/components/configuracoes/TaxaDeAnalise';
 
 /**
  * Preferências do Sistema.
@@ -194,6 +195,13 @@ export default function ConfigPreferencias() {
             <EditorCategorias natureza="receita" />
           </TabsContent>
         </Tabs>
+      </section>
+
+      <section>
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Assistência técnica
+        </h2>
+        <TaxaDeAnalise />
       </section>
 
       <section>

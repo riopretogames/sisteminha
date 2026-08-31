@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Check, Loader2, Lock, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -46,6 +47,23 @@ export function DecisaoDoLaudo({ osId, status, totalOrcamento, onMudou }: Props)
   const [salvando, setSalvando] = useState(false);
   const [recusaAberta, setRecusaAberta] = useState(false);
   const [motivo, setMotivo] = useState('');
+
+  /**
+   * A taxa de análise da loja (Configurações > Preferências do Sistema).
+   *
+   * Só é lida quando o diálogo de recusa abre: é o único momento em que o
+   * número importa, e quem só aprova nunca precisa dele.
+   */
+  const { data: taxa } = useQuery({
+    queryKey: ['taxa-analise-da-loja'],
+    queryFn: async (): Promise<number> => {
+      const { data, error } = await supabase.from('tenants').select('taxa_analise').maybeSingle();
+      if (error) throw error;
+      return Number(data?.taxa_analise ?? 0);
+    },
+    enabled: recusaAberta,
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Só faz sentido enquanto a OS espera a resposta.
   if (status !== OS_ETAPAS.AGUARDANDO_APROVACAO) return null;
@@ -135,8 +153,18 @@ export function DecisaoDoLaudo({ osId, status, totalOrcamento, onMudou }: Props)
           <DialogHeader>
             <DialogTitle>O cliente não aprovou o orçamento</DialogTitle>
             <DialogDescription>
-              A OS será encerrada e o aparelho volta para o cliente. Combine a retirada — e a
-              cobrança da análise, se a loja cobrar.
+              {taxa && taxa > 0 ? (
+                <>
+                  A OS passa a valer <strong>{moeda(taxa)}</strong> — a taxa de análise —, e o
+                  aparelho fica pronto para o cliente retirar. Ele paga esse valor na retirada,
+                  pelo mesmo caminho de qualquer outra OS. O valor recusado fica guardado na ficha.
+                </>
+              ) : (
+                <>
+                  A OS vai para a retirada <strong>sem valor</strong>: esta loja não cobra taxa de
+                  análise. Dá para mudar isso em Configurações &gt; Preferências do Sistema.
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
 
@@ -166,7 +194,7 @@ export function DecisaoDoLaudo({ osId, status, totalOrcamento, onMudou }: Props)
               onClick={() => registrar(false, motivo)}
             >
               {salvando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Registrar recusa e encerrar
+              {taxa && taxa > 0 ? `Registrar recusa e cobrar ${moeda(taxa)}` : 'Registrar recusa'}
             </Button>
           </DialogFooter>
         </DialogContent>

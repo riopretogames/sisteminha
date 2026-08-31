@@ -1915,6 +1915,7 @@ export type Database = {
           total_pecas: number | null
           updated_at: string | null
           valor_final_pago: number | null
+          valor_orcado_recusado: number | null
           vendedor_id: string | null
         }
         Insert: {
@@ -1968,6 +1969,7 @@ export type Database = {
           total_pecas?: number | null
           updated_at?: string | null
           valor_final_pago?: number | null
+          valor_orcado_recusado?: number | null
           vendedor_id?: string | null
         }
         Update: {
@@ -2021,6 +2023,7 @@ export type Database = {
           total_pecas?: number | null
           updated_at?: string | null
           valor_final_pago?: number | null
+          valor_orcado_recusado?: number | null
           vendedor_id?: string | null
         }
         Relationships: [
@@ -2233,6 +2236,7 @@ export type Database = {
           inscricao_estadual: string | null
           logo_url: string | null
           nome_loja: string
+          taxa_analise: number
           telefone: string | null
           updated_at: string | null
           webhook_url: string | null
@@ -2251,6 +2255,7 @@ export type Database = {
           inscricao_estadual?: string | null
           logo_url?: string | null
           nome_loja: string
+          taxa_analise?: number
           telefone?: string | null
           updated_at?: string | null
           webhook_url?: string | null
@@ -2269,6 +2274,7 @@ export type Database = {
           inscricao_estadual?: string | null
           logo_url?: string | null
           nome_loja?: string
+          taxa_analise?: number
           telefone?: string | null
           updated_at?: string | null
           webhook_url?: string | null
@@ -2757,6 +2763,7 @@ export type Database = {
           preco_cobrado: number | null
           produto_id: string | null
           quantidade: number | null
+          tipo_item: string | null
         }
         Insert: {
           created_at?: string | null
@@ -2769,6 +2776,7 @@ export type Database = {
           preco_cobrado?: number | null
           produto_id?: string | null
           quantidade?: number | null
+          tipo_item?: string | null
         }
         Update: {
           created_at?: string | null
@@ -2781,6 +2789,7 @@ export type Database = {
           preco_cobrado?: number | null
           produto_id?: string | null
           quantidade?: number | null
+          tipo_item?: string | null
         }
         Relationships: [
           {
