@@ -1621,6 +1621,65 @@ o arquivo antes de assumir.
   **Próximo passo:** repetir o passo 7 e copiar a segunda linha do aviso
   vermelho.
 
+- [x] ✅ **Feito em 31/08 — o lançamento na OS ganhou os quatro tipos, o resumo
+  e o aviso de divergência.** Peça do estoque, peça comprada no fornecedor no
+  dia, serviço e "outro custo" (frete, terceirização) são quatro coisas
+  diferentes na conta, e agora cada linha diz qual é. O resumo mostra os três
+  grupos e o total; o orçamento avisa quando discorda do que está lançado.
+
+  Fica registrado o que motivou: até aqui o sistema decidia o tipo olhando se
+  a linha tinha produto do estoque. A peça comprada no dia quebrava essa
+  conta — ela é peça e não tem produto — e entrava como mão de obra, inflando
+  o faturamento de serviço da loja.
+
+- [x] ~~🟠 Lançamento de serviço na OS: falta o resumo e os "valores
+  complementares".~~ (o texto original, resolvido acima) Pedido do Felipe em 31/08, comparando o sisteminha com o
+  sistema antigo: *"a tela de adicionar serviço tem que ser uma coisa mais
+  complexa, tá muito simplesinho"*.
+
+  **Feito no dia:** o serviço passou a ter FICHA TÉCNICA (peças que ele
+  consome, cadastradas em Cadastros > Serviços), e lançar o serviço numa OS
+  traz as peças junto, com o estoque descontado e a prévia na tela antes de
+  confirmar.
+
+  **Falta, do que aparece nos prints do sistema antigo:**
+
+  1. **Resumo no topo** do lançamento — três números lado a lado: total de
+     serviço, total de complementares e total geral. Hoje a OS mostra os
+     itens em lista e o total só embaixo.
+  2. **"Valores complementares"** — linhas livres com descrição, custo e
+     valor de venda, para o que não é peça de estoque nem serviço de catálogo
+     (frete de peça, terceirização, taxa de fornecedor). Hoje isso vira
+     "serviço avulso", que mistura mão de obra com repasse de custo e suja o
+     relatório de serviço mais feito.
+  3. **"Valor do orçamento" solto x itens lançados.** A ficha tem os dois, e
+     eles não conversam: o valor digitado no orçamento não é a soma dos itens,
+     e nada avisa quando os dois discordam. É o próximo a resolver, porque é
+     o que decide quanto o cliente paga.
+
+- [x] ✅ **Feito em 31/08 — a taxa de análise quando o cliente recusa.** Do
+  organograma do Felipe (30/08): reprovou → registra o motivo → cobra a análise
+  na retirada.
+
+  As três decisões que faltavam, respondidas por ele no dia:
+
+  • **valor configurável, 80 de padrão** (Configurações > Preferências do
+    Sistema). Zero é válido e significa "esta loja não cobra";
+  • **a taxa vira o valor da OS recusada**, e a entrega cobra sozinha — o
+    fluxo de entrega já exige pagamento que cubra o valor da OS, então não
+    houve passo novo para a equipe aprender;
+  • **não existe abatimento.** Quando o cliente aprova, vale o valor do laudo,
+    que é o que ele já viu no relatório. Era a dúvida mais cara das três, e a
+    resposta dele apagou o trabalho inteiro.
+
+  Efeito colateral que vale saber: a OS recusada deixou de ir para "cancelado"
+  e passou a ir para "finalizado" — o aparelho fica pronto para retirada. Quem
+  marca a recusa continua sendo registrado (`laudo_aprovado = false` e o
+  motivo), então "cancelado" voltou a ser só a saída de emergência que era.
+
+  O valor recusado é preservado em `valor_orcado_recusado`: é ele que conta a
+  história ("recusou um reparo de R$ 450 e pagou R$ 80 de análise").
+
 - [ ] ⚪ 🆕 **Voltar de uma ficha perde o período do relatório.** Notado na
   revisão de 28/08, quando as linhas dos relatórios viraram clicáveis.
 

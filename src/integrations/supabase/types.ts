@@ -1804,6 +1804,7 @@ export type Database = {
           preco_cobrado: number
           produto_id: string | null
           quantidade: number | null
+          tipo_item: string
         }
         Insert: {
           created_at?: string | null
@@ -1816,6 +1817,7 @@ export type Database = {
           preco_cobrado: number
           produto_id?: string | null
           quantidade?: number | null
+          tipo_item?: string
         }
         Update: {
           created_at?: string | null
@@ -1828,6 +1830,7 @@ export type Database = {
           preco_cobrado?: number
           produto_id?: string | null
           quantidade?: number | null
+          tipo_item?: string
         }
         Relationships: [
           {
@@ -1872,6 +1875,8 @@ export type Database = {
           created_at: string | null
           data_finalizacao: string | null
           defeito_cliente: string
+          diagnostico_iniciado_em: string | null
+          diagnostico_iniciado_por: string | null
           diagnostico_tecnico: string | null
           equipamento_id: string | null
           execucao_iniciada_em: string | null
@@ -1879,7 +1884,11 @@ export type Database = {
           garantia_dias: number
           garantia_meses: number
           id: string
+          laudo_aprovado: boolean | null
+          laudo_decidido_em: string | null
+          laudo_decidido_por: string | null
           laudo_eletronico: boolean
+          laudo_motivo_recusa: string | null
           marca: string | null
           marca_id: string | null
           memoria: string | null
@@ -1891,8 +1900,6 @@ export type Database = {
           observacoes: string | null
           prazo_previsto: string | null
           prioridade: Database["public"]["Enums"]["os_prioridade"] | null
-          reparo_iniciado_em: string | null
-          reparo_iniciado_por: string | null
           reparo_inviavel: boolean
           risco_informado_em: string | null
           senha_aparelho: string | null
@@ -1908,6 +1915,7 @@ export type Database = {
           total_pecas: number | null
           updated_at: string | null
           valor_final_pago: number | null
+          valor_orcado_recusado: number | null
           vendedor_id: string | null
         }
         Insert: {
@@ -1921,6 +1929,8 @@ export type Database = {
           created_at?: string | null
           data_finalizacao?: string | null
           defeito_cliente: string
+          diagnostico_iniciado_em?: string | null
+          diagnostico_iniciado_por?: string | null
           diagnostico_tecnico?: string | null
           equipamento_id?: string | null
           execucao_iniciada_em?: string | null
@@ -1928,7 +1938,11 @@ export type Database = {
           garantia_dias?: number
           garantia_meses?: number
           id?: string
+          laudo_aprovado?: boolean | null
+          laudo_decidido_em?: string | null
+          laudo_decidido_por?: string | null
           laudo_eletronico?: boolean
+          laudo_motivo_recusa?: string | null
           marca?: string | null
           marca_id?: string | null
           memoria?: string | null
@@ -1940,8 +1954,6 @@ export type Database = {
           observacoes?: string | null
           prazo_previsto?: string | null
           prioridade?: Database["public"]["Enums"]["os_prioridade"] | null
-          reparo_iniciado_em?: string | null
-          reparo_iniciado_por?: string | null
           reparo_inviavel?: boolean
           risco_informado_em?: string | null
           senha_aparelho?: string | null
@@ -1957,6 +1969,7 @@ export type Database = {
           total_pecas?: number | null
           updated_at?: string | null
           valor_final_pago?: number | null
+          valor_orcado_recusado?: number | null
           vendedor_id?: string | null
         }
         Update: {
@@ -1970,6 +1983,8 @@ export type Database = {
           created_at?: string | null
           data_finalizacao?: string | null
           defeito_cliente?: string
+          diagnostico_iniciado_em?: string | null
+          diagnostico_iniciado_por?: string | null
           diagnostico_tecnico?: string | null
           equipamento_id?: string | null
           execucao_iniciada_em?: string | null
@@ -1977,7 +1992,11 @@ export type Database = {
           garantia_dias?: number
           garantia_meses?: number
           id?: string
+          laudo_aprovado?: boolean | null
+          laudo_decidido_em?: string | null
+          laudo_decidido_por?: string | null
           laudo_eletronico?: boolean
+          laudo_motivo_recusa?: string | null
           marca?: string | null
           marca_id?: string | null
           memoria?: string | null
@@ -1989,8 +2008,6 @@ export type Database = {
           observacoes?: string | null
           prazo_previsto?: string | null
           prioridade?: Database["public"]["Enums"]["os_prioridade"] | null
-          reparo_iniciado_em?: string | null
-          reparo_iniciado_por?: string | null
           reparo_inviavel?: boolean
           risco_informado_em?: string | null
           senha_aparelho?: string | null
@@ -2006,6 +2023,7 @@ export type Database = {
           total_pecas?: number | null
           updated_at?: string | null
           valor_final_pago?: number | null
+          valor_orcado_recusado?: number | null
           vendedor_id?: string | null
         }
         Relationships: [
@@ -2070,6 +2088,72 @@ export type Database = {
             columns: ["vendedor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      servico_pecas: {
+        Row: {
+          created_at: string
+          id: string
+          produto_id: string
+          quantidade: number
+          servico_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          produto_id: string
+          quantidade?: number
+          servico_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          produto_id?: string
+          quantidade?: number
+          servico_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "servico_pecas_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "servico_pecas_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_produtos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "servico_pecas_servico_id_fkey"
+            columns: ["servico_id"]
+            isOneToOne: false
+            referencedRelation: "servicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "servico_pecas_servico_id_fkey"
+            columns: ["servico_id"]
+            isOneToOne: false
+            referencedRelation: "vw_servicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "servico_pecas_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -2152,6 +2236,7 @@ export type Database = {
           inscricao_estadual: string | null
           logo_url: string | null
           nome_loja: string
+          taxa_analise: number
           telefone: string | null
           updated_at: string | null
           webhook_url: string | null
@@ -2170,6 +2255,7 @@ export type Database = {
           inscricao_estadual?: string | null
           logo_url?: string | null
           nome_loja: string
+          taxa_analise?: number
           telefone?: string | null
           updated_at?: string | null
           webhook_url?: string | null
@@ -2188,6 +2274,7 @@ export type Database = {
           inscricao_estadual?: string | null
           logo_url?: string | null
           nome_loja?: string
+          taxa_analise?: number
           telefone?: string | null
           updated_at?: string | null
           webhook_url?: string | null
@@ -2676,6 +2763,7 @@ export type Database = {
           preco_cobrado: number | null
           produto_id: string | null
           quantidade: number | null
+          tipo_item: string | null
         }
         Insert: {
           created_at?: string | null
@@ -2688,6 +2776,7 @@ export type Database = {
           preco_cobrado?: number | null
           produto_id?: string | null
           quantidade?: number | null
+          tipo_item?: string | null
         }
         Update: {
           created_at?: string | null
@@ -2700,6 +2789,7 @@ export type Database = {
           preco_cobrado?: number | null
           produto_id?: string | null
           quantidade?: number | null
+          tipo_item?: string | null
         }
         Relationships: [
           {
@@ -2965,6 +3055,10 @@ export type Database = {
         Args: { _id: string; _tipo: string }
         Returns: boolean
       }
+      custo_das_pecas_do_servico: {
+        Args: { _servico_id: string }
+        Returns: number
+      }
       garantir_caixa_aberto: {
         Args: { _tenant: string; _usuario: string }
         Returns: string
@@ -2982,8 +3076,8 @@ export type Database = {
         Returns: boolean
       }
       historico_do_usuario: { Args: { _user_id: string }; Returns: Json }
+      iniciar_diagnostico_os: { Args: { _os_id: string }; Returns: string }
       iniciar_execucao_os: { Args: { _os_id: string }; Returns: string }
-      iniciar_reparo_os: { Args: { _os_id: string }; Returns: string }
       minhas_permissoes: { Args: never; Returns: string[] }
       proximo_numero_documento: {
         Args: { _documento: string; _tenant: string }
@@ -2992,6 +3086,10 @@ export type Database = {
       proximo_numero_entrada: { Args: { _tenant: string }; Returns: string }
       proximo_numero_os: { Args: { _tenant: string }; Returns: string }
       proximo_numero_venda: { Args: { _tenant: string }; Returns: string }
+      registrar_decisao_do_laudo: {
+        Args: { _aprovado: boolean; _motivo?: string; _os_id: string }
+        Returns: undefined
+      }
       registrar_entrada_mercadoria: {
         Args: {
           _categoria_id?: string

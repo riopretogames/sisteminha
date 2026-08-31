@@ -11,7 +11,7 @@ import { dataHora } from '@/lib/format';
 /**
  * Os dois botões de "começar" da bancada, do organograma do Felipe (30/08).
  *
- *   ETAPA 1 (Entrada / Análise) → **Iniciar reparo**
+ *   ETAPA 1 (Entrada / Análise) → **Iniciar diagnóstico**
  *       "reparo começa aqui": o aparelho sai da fila e vai para a mesa, o
  *       técnico desmonta, investiga e monta o laudo.
  *
@@ -37,10 +37,10 @@ import { dataHora } from '@/lib/format';
 interface Props {
   osId: string;
   status: string;
-  reparoIniciadoEm: string | null;
+  diagnosticoIniciadoEm: string | null;
   execucaoIniciadaEm: string | null;
   /** Nomes já resolvidos pela ficha, que tem a lista de perfis. */
-  nomeDeQuemIniciouReparo: string;
+  nomeDeQuemIniciouDiagnostico: string;
   nomeDeQuemIniciouExecucao: string;
   onMudou: () => void;
 }
@@ -48,13 +48,13 @@ interface Props {
 /** O que fazer em cada etapa. Fora do componente: é a regra, não o desenho. */
 const FASES = {
   [OS_ETAPAS.AGUARDANDO_ANALISE]: {
-    rotulo: 'Iniciar reparo',
-    funcao: 'iniciar_reparo_os',
+    rotulo: 'Iniciar diagnóstico',
+    funcao: 'iniciar_diagnostico_os',
     confirmar:
-      'O reparo passa a contar a partir de agora, com o seu nome. ' +
+      'O diagnóstico passa a contar a partir de agora, com o seu nome. ' +
       'Confirma que vai começar este aparelho?',
     aviso: 'A partir de agora conta como aparelho na bancada, com o seu nome.',
-    registro: 'Reparo iniciado em',
+    registro: 'Diagnóstico iniciado em',
   },
   [OS_ETAPAS.APROVADO]: {
     rotulo: 'Iniciar a execução',
@@ -67,12 +67,12 @@ const FASES = {
   },
 } as const;
 
-export function IniciarReparo({
+export function IniciarNaBancada({
   osId,
   status,
-  reparoIniciadoEm,
+  diagnosticoIniciadoEm,
   execucaoIniciadaEm,
-  nomeDeQuemIniciouReparo,
+  nomeDeQuemIniciouDiagnostico,
   nomeDeQuemIniciouExecucao,
   onMudou,
 }: Props) {
@@ -82,9 +82,9 @@ export function IniciarReparo({
 
   const fase = FASES[status as keyof typeof FASES];
   const jaIniciado =
-    status === OS_ETAPAS.APROVADO ? execucaoIniciadaEm : reparoIniciadoEm;
+    status === OS_ETAPAS.APROVADO ? execucaoIniciadaEm : diagnosticoIniciadoEm;
   const nomeDeQuemIniciou =
-    status === OS_ETAPAS.APROVADO ? nomeDeQuemIniciouExecucao : nomeDeQuemIniciouReparo;
+    status === OS_ETAPAS.APROVADO ? nomeDeQuemIniciouExecucao : nomeDeQuemIniciouDiagnostico;
   const daBancada = can(PERMISSIONS.ORDERS_DIAGNOSE);
 
   const iniciar = async () => {
@@ -120,7 +120,7 @@ export function IniciarReparo({
     return (
       <p className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
         <Wrench className="h-3.5 w-3.5 shrink-0" />
-        {fase?.registro ?? 'Reparo iniciado em'}{' '}
+        {fase?.registro ?? 'Diagnóstico iniciado em'}{' '}
         <span className="font-medium text-foreground">{dataHora(jaIniciado)}</span>
         {nomeDeQuemIniciou !== '—' && (
           <>

@@ -17,7 +17,7 @@ abrindo mão.
 
 ## O que já roda sozinho
 
-O sistema tem **286 testes automáticos** que rodam a cada mudança. Eles cobrem
+O sistema tem **311 testes automáticos** que rodam a cada mudança. Eles cobrem
 as contas (faturamento, devolução, custo médio, ranking) e o comportamento das
 telas por perfil — inclusive o pior defeito que este sistema já teve, a tela de
 Estoque ficando branca para quem não vê custo.
@@ -606,9 +606,9 @@ você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda
   *Por que importa: a numeração é como a equipe fala das etapas no dia a dia ("tá na 2b"). E Terceirizada é situação real que o sistema não sabia registrar: até agora, aparelho que saiu para outra empresa consertar ficava parado em "Aprovado / Executar" como se estivesse na bancada — quem olhasse o quadro não tinha como saber que o aparelho nem estava na loja.*
   > 🔎 **A Terceirizada é a 4**, entre Aprovado e Finalizado: é o aparelho que já teve o serviço aprovado e saiu da loja para outra empresa fazer. Se algum número não estiver batendo, ou aparecer etapa repetida, dá para acertar em **Gerenciar Status** sem precisar de mim — a coluna **Nº** é editável e aceita texto ("2b").
 
-- [ ] **🔴 84. Botão "Iniciar reparo" — a hora em que o aparelho vai para a bancada**
-  **O que fazer:** Entre com um usuário **Técnico** e abra uma OS que esteja em **1 · Entrada / Análise**. No topo da ficha, clique em **Iniciar reparo** e confirme. Depois recarregue a página e role até a **Linha do tempo**. Por fim, entre com um usuário **Vendedor** e abra a mesma OS, e depois uma OS que ainda não teve reparo iniciado.
-  **Tem que acontecer:** O técnico vê o botão; ao confirmar, sai o aviso verde **"Reparo iniciado"** e o botão dá lugar a **"Reparo iniciado em <data e hora> por <nome>"**. Na linha do tempo aparece **"Reparo iniciado na bancada"** com a hora e o nome. O vendedor **vê o registro** (ele precisa saber que o aparelho está na mesa de alguém) mas **não vê o botão** na OS que ainda não começou. A OS **continua na mesma etapa** — o quadro não muda.
+- [ ] **🔴 84. Botão "Iniciar diagnóstico" — a hora em que o aparelho vai para a bancada**
+  **O que fazer:** Entre com um usuário **Técnico** e abra uma OS que esteja em **1 · Entrada / Análise**. No topo da ficha, clique em **Iniciar diagnóstico** e confirme. Depois recarregue a página e role até a **Linha do tempo**. Por fim, entre com um usuário **Vendedor** e abra a mesma OS, e depois uma OS que ainda não teve reparo iniciado.
+  **Tem que acontecer:** O técnico vê o botão; ao confirmar, sai o aviso verde e o botão dá lugar a **"Diagnóstico iniciado em <data e hora> por <nome>"**. Na linha do tempo aparece **"Diagnóstico iniciado na bancada"** com a hora e o nome. O vendedor **vê o registro** (ele precisa saber que o aparelho está na mesa de alguém) mas **não vê o botão** na OS que ainda não começou. A OS **continua na mesma etapa** — o quadro não muda.
   *Por que importa: é o passo que o seu organograma chama de "reparo começa aqui". Sem ele, "faz três dias que está na análise" não distingue o aparelho que ninguém pegou do que está aberto na bancada desde ontem — um é atraso de fila, o outro é trabalho em andamento, e hoje os dois contam igual.*
   > 🔎 **A trava está no banco, não só na tela.** Esconder o botão do vendedor seria decoração: quem tivesse permissão de editar OS poderia marcar o início pela API, e o registro passaria a dizer que o vendedor estava com o aparelho aberto na mesa. Quem grava é uma função do banco que exige a permissão de bancada.
 
@@ -623,6 +623,29 @@ você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda
   **Tem que acontecer:** Ligada, o lembrete traz o roteiro do que combinar com o cliente: análise completa, **taxa de R$ 80,00**, prazo de **1 a 3 dias úteis** e o **abatimento** da taxa se ele aprovar. Desligada, vira o roteiro do serviço tabelado: informe o preço e o prazo da tabela, sem taxa. Na ficha da OS aberta com a chavinha desligada, o Diagnóstico técnico avisa **"Serviço tabelado"** e diz que o caminho é executar, sem esperar laudo.
   *Por que importa: essa decisão hoje só existe na cabeça de quem atendeu. O técnico descobre desmontando o aparelho, e o cliente descobre a taxa na hora de pagar — que é o pior lugar possível para descobrir R$ 80.*
   > 🔎 **Nasce ligada de propósito.** O esquecimento leva ao caminho mais cuidadoso (com laudo), não ao mais barato. Se o padrão fosse o contrário, esquecer mandaria o aparelho para a bancada sem ninguém ter combinado a análise — e a conversa difícil aconteceria na entrega.
+
+- [ ] **🔴 87. Serviço que já vem com as peças (ficha técnica)**
+  **O que fazer:** Abra **Cadastros > Serviços**, edite um serviço que use peça (ex.: uma troca) e role até **"Peças que este serviço usa"**. Escolha uma peça do estoque, ponha a quantidade e clique em **Adicionar peça**. Salve. Agora abra uma OS, clique em **Adicionar item**, aba **Serviço avulso**, e escolha esse serviço em **Puxar do catálogo**. Olhe o que aparece antes de confirmar e depois lance.
+  **Tem que acontecer:** No cadastro, a peça entra numa lista com a quantidade, o estoque de hoje e — para quem vê custo — quanto ela custa, com o total das peças pelo preço de hoje. Na OS, ao escolher o serviço, aparece um aviso **"Este serviço já leva N peça(s)"** com nome, quantidade e preço de cada uma, e em vermelho se faltar estoque. Ao lançar, a OS ganha **uma linha do serviço e uma linha de cada peça**, com o estoque já descontado.
+  *Por que importa: antes eram dois lançamentos separados e o segundo é o que se esquece. Esquecer a peça tira ela do estoque da conta e faz aquele serviço parecer muito mais lucrativo do que é.*
+  > 🔎 **O custo do serviço deixou de ser um número digitado.** Ele passa a ser a soma das peças com o preço de HOJE — antes, a peça encarecia e o custo do serviço continuava dizendo o preço do ano passado, sem ninguém perceber.
+
+- [ ] **🔴 88. Os quatro tipos de lançamento na OS, o resumo e o aviso do orçamento**
+  **O que fazer:** Abra uma OS e clique em **Adicionar item**. Repare que agora há **quatro abas**: Peça do estoque, Peça comprada, Serviço e Outro custo. Lance uma de cada: uma peça do estoque, uma **peça comprada** (ex.: `Tela comprada no fornecedor`, R$ 380), um serviço e um **outro custo** (ex.: `Frete da peça`, R$ 40). Olhe o resumo que aparece acima da lista. Depois vá ao bloco **Valor do orçamento**, digite um valor diferente da soma e veja o que acontece.
+  **Tem que acontecer:** O resumo mostra quatro números — **Peças**, **Mão de obra**, **Outros custos** e **Total** —, com a peça comprada somando em **Peças** (não em mão de obra). A peça comprada **não mexe no estoque**, e o aviso ao salvar diz isso. Com o orçamento diferente da soma, aparece uma tarja amarela dizendo os dois valores e a diferença, com o lembrete de que desconto combinado é motivo legítimo. O botão **Usar soma dos itens** ajusta num clique.
+  *Por que importa: peça que a loja compra no fornecedor no dia era lançada como "serviço avulso" — e aí ela inflava o faturamento de mão de obra e sumia do custo de peça em todo relatório. Frete e terceirização, idem.*
+  > 🔎 **O orçamento e os itens podem divergir com razão** — desconto, pacote fechado. O que não podia é ninguém saber: esse número vira a conta a receber, e a diferença aparecia no caixa, não na tela.
+- [ ] **🔴 89. A resposta do cliente ao laudo: aprovou ou não aprovou**
+  **O que fazer:** Abra uma OS em **2a · Aguardando aprovação** com um usuário que aprove orçamento (vendedor, gerente ou administrador). Repare nos dois botões novos. Clique em **Cliente não aprovou**, tente registrar sem escrever nada, depois escreva um motivo (ex.: `Achou o valor alto`) e registre. Em outra OS na mesma etapa, clique em **Laudo aprovado** e confirme. Nas duas, recarregue e role até a **Linha do tempo**. Por fim, entre com um usuário **Técnico** e abra uma OS nessa etapa.
+  **Tem que acontecer:** Aparecem **Laudo aprovado** (verde) e **Cliente não aprovou**. Na recusa, o botão de registrar fica **apagado enquanto o motivo estiver vazio**; com o motivo escrito, a OS é encerrada (vai para Cancelado) e a linha do tempo mostra **"Cliente NÃO aprovou — Achou o valor alto"**. Na aprovação, a confirmação mostra **o valor do orçamento**, a OS vai para **3 · Aprovado / Executar** e a linha do tempo registra **"Cliente aprovou o laudo"** com quem e quando. O técnico **não vê os botões** — vê a frase dizendo que quem registra é quem aprova orçamento.
+  *Por que importa: aprovar já era possível, mas a RECUSA sumia na conversa do balcão. O motivo é a informação mais valiosa que um orçamento perdido deixa — "achou caro" e "vai comprar outro aparelho" pedem reações completamente diferentes suas, e sem ele os dois viram a mesma linha no relatório.*
+  > 🔎 **Falta uma peça do seu organograma aqui:** a cobrança dos R$ 80 da análise na retirada. Hoje o sistema encerra a OS e avisa para combinar a retirada, mas não lança a taxa. É a próxima conversa.
+
+- [ ] **🔴 87. A taxa de análise quando o cliente recusa**
+  **O que fazer:** Abra **Configurações > Preferências do Sistema** e olhe **Taxa de análise** — deve estar em **R$ 80,00**. Troque para `50` e salve. Agora abra uma OS em **2a · Aguardando aprovação** com orçamento preenchido (ex.: R$ 450), clique em **Cliente não aprovou**, leia o texto da janela, escreva um motivo e registre. Procure essa OS no quadro e abra a ficha. Por fim, entregue essa OS ao cliente.
+  **Tem que acontecer:** A janela da recusa avisa que **a OS passa a valer R$ 50,00** e o botão diz **"Registrar recusa e cobrar R$ 50,00"**. Depois de registrar, a OS aparece em **5 · Finalizado** (pronta para o cliente buscar) valendo **R$ 50,00** — e não mais R$ 450. Na entrega, o sistema **cobra os R$ 50,00** como em qualquer OS. O valor recusado (R$ 450) fica guardado na ficha.
+  *Por que importa: era a última peça do seu organograma que faltava. Antes, recusar cancelava a OS — o aparelho sumia do quadro e alguém tinha que lembrar de cobrar a análise na mão, no balcão.*
+  > 🔎 **Zero é resposta válida.** Se puser a taxa em `0`, a loja passa a não cobrar análise: a OS recusada vai para a retirada sem valor e a entrega não pede pagamento. É o que uma loja que comprar o sisteminha pode querer.
 
 ---
 

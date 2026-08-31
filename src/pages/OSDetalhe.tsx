@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { moeda, dataHora, data as formatarData } from '@/lib/format';
+import { contaDaOS, orcamentoDivergeDosItens } from '@/lib/itensDaOS';
 import { OS_PRIORITY } from '@/lib/constants';
 import { useOsStatuses } from '@/hooks/useOsStatuses';
 import { PageHeader, Vazio } from '@/components/PageHeader';
@@ -13,7 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { SenhaPadraoLeitura } from '@/components/os/SenhaPadrao';
 import { TrocarEtapaOS } from '@/components/os/TrocarEtapaOS';
-import { IniciarReparo } from '@/components/os/IniciarReparo';
+import { IniciarNaBancada } from '@/components/os/IniciarNaBancada';
+import { DecisaoDoLaudo } from '@/components/os/DecisaoDoLaudo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -109,6 +111,9 @@ interface ItemOS {
   custo_unitario: number | null;
   horas_mao_obra: number | null;
   garantia_item_meses: number | null;
+  /** peca, servico ou complementar. Antes o sistema deduzia pelo produto_id, e
+   *  a peça comprada no dia era contada como serviço (migration 20260831180000). */
+  tipo_item: string | null;
   produtos: { nome: string } | null;
 }
 
@@ -156,8 +161,13 @@ interface OSCompleta {
   vendedor_id: string | null;
   /** Quando o aparelho foi para a bancada, e com quem. NULL = ainda na fila.
    *  Não é etapa: a OS segue em Entrada/Análise. Ver components/os/IniciarReparo. */
-  reparo_iniciado_em: string | null;
-  reparo_iniciado_por: string | null;
+  diagnostico_iniciado_em: string | null;
+  diagnostico_iniciado_por: string | null;
+  /** A resposta do cliente ao orçamento. NULL = ainda não respondeu. */
+  laudo_aprovado: boolean | null;
+  laudo_decidido_em: string | null;
+  laudo_decidido_por: string | null;
+  laudo_motivo_recusa: string | null;
   /** O segundo começo: depois do laudo aprovado, quando o serviço é executado.
    *  A distância entre os dois é o tempo em que a OS esperou o cliente. */
   execucao_iniciada_em: string | null;
@@ -204,7 +214,23 @@ export default function OSDetalhe() {
 
   // ── Peças e serviços ─────────────────────────────────────────────────────
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
-  const [tipoItem, setTipoItem] = useState<'peca' | 'servico'>('peca');
+  /**
+   * O que está sendo lançado. Quatro casos, e cada um responde a uma pergunta
+   * diferente da loja (ver a coluna `tipo_item`, migration 20260831180000):
+   *
+   *   peca_estoque   peça da prateleira — desconta estoque
+   *   peca_avulsa    peça comprada no fornecedor no dia — não passa pelo
+   *                  estoque, porque nunca esteve lá. Pedido do Felipe em
+   *                  31/08: "tem peças que a gente pega no fornecedor no dia"
+   *   servico        mão de obra
+   *   complementar   custo que a loja repassa: frete da peça, terceirização
+   */
+  const [tipoItem, setTipoItem] = useState<
+    'peca_estoque' | 'peca_avulsa' | 'servico' | 'complementar'
+  >('peca_estoque');
+
+  /** Peça, de qualquer origem: as duas contam como peça no resumo. */
+  const ehPeca = tipoItem === 'peca_estoque' || tipoItem === 'peca_avulsa';
   const [produtos, setProdutos] = useState<ProdutoOpcao[]>([]);
   const [servicos, setServicos] = useState<ServicoOpcao[]>([]);
   const [itemForm, setItemForm] = useState({
@@ -258,7 +284,7 @@ export default function OSDetalhe() {
   }, [itemDialogOpen]);
 
   const abrirDialogItem = () => {
-    setTipoItem('peca');
+    setTipoItem('peca_estoque');
     setItemForm({
       produtoId: '',
       servicoId: '',
@@ -282,6 +308,28 @@ export default function OSDetalhe() {
     }));
   };
 
+  /**
+   * As peças que o serviço escolhido consome (ficha técnica, cadastrada em
+   * Cadastros > Serviços). Buscadas na hora da escolha, não antes: são poucas
+   * e só interessam para o serviço que a pessoa selecionou.
+   */
+  const { data: pecasDoServico } = useQuery({
+    queryKey: ['pecas-do-servico', itemForm.servicoId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('servico_pecas')
+        .select('produto_id, quantidade, produtos:vw_produtos(nome, preco, custo, estoque_atual)')
+        .eq('servico_id', itemForm.servicoId);
+      if (error) throw error;
+      return (data ?? []) as unknown as Array<{
+        produto_id: string;
+        quantidade: number;
+        produtos: { nome: string; preco: number | null; custo: number | null; estoque_atual: number | null } | null;
+      }>;
+    },
+    enabled: !!itemForm.servicoId,
+  });
+
   const escolherServico = (servicoId: string) => {
     const servico = servicos.find((s) => s.id === servicoId);
     setItemForm((f) => ({
@@ -302,18 +350,26 @@ export default function OSDetalhe() {
       toast({ title: 'Informe um preço válido', variant: 'destructive' });
       return;
     }
-    if (tipoItem === 'peca' && !itemForm.produtoId) {
+    if (tipoItem === 'peca_estoque' && !itemForm.produtoId) {
       toast({ title: 'Escolha uma peça do estoque', variant: 'destructive' });
       return;
     }
-    if (tipoItem === 'servico' && !itemForm.descricao.trim()) {
-      toast({ title: 'Descreva o serviço', variant: 'destructive' });
+    if (tipoItem !== 'peca_estoque' && !itemForm.descricao.trim()) {
+      toast({
+        title:
+          tipoItem === 'servico'
+            ? 'Descreva o serviço'
+            : tipoItem === 'peca_avulsa'
+              ? 'Descreva a peça'
+              : 'Descreva o custo',
+        variant: 'destructive',
+      });
       return;
     }
 
-    const quantidade = tipoItem === 'peca' ? Math.max(1, parseInt(itemForm.quantidade, 10) || 1) : 1;
+    const quantidade = ehPeca ? Math.max(1, parseInt(itemForm.quantidade, 10) || 1) : 1;
 
-    if (tipoItem === 'peca') {
+    if (tipoItem === 'peca_estoque') {
       const produtoSelecionado = produtos.find((p) => p.id === itemForm.produtoId);
       if (produtoSelecionado && quantidade > produtoSelecionado.estoque_atual) {
         toast({
@@ -333,18 +389,23 @@ export default function OSDetalhe() {
         descricao: string | null;
         quantidade: number;
         preco_cobrado: number;
+        tipo_item: string;
         custo_unitario?: number;
         horas_mao_obra?: number;
         garantia_item_meses?: number;
       } = {
         os_id: os.id,
-        produto_id: tipoItem === 'peca' ? itemForm.produtoId : null,
+        // Só a peça do estoque aponta para produto: a comprada no dia nunca
+        // esteve na prateleira, e forçar um produto para ela criaria cadastro
+        // fantasma no estoque só para fechar a OS.
+        produto_id: tipoItem === 'peca_estoque' ? itemForm.produtoId : null,
         descricao:
-          tipoItem === 'servico'
-            ? itemForm.descricao.trim()
-            : produtos.find((p) => p.id === itemForm.produtoId)?.nome ?? null,
+          tipoItem === 'peca_estoque'
+            ? produtos.find((p) => p.id === itemForm.produtoId)?.nome ?? null
+            : itemForm.descricao.trim(),
         quantidade,
         preco_cobrado: preco,
+        tipo_item: ehPeca ? 'peca' : tipoItem === 'servico' ? 'servico' : 'complementar',
       };
 
       // Quem não vê custo não grava custo — mesma cautela de CadastroServicos.tsx.
@@ -364,14 +425,59 @@ export default function OSDetalhe() {
       const { error } = await supabase.from('service_order_items').insert(payload);
       if (error) throw error;
 
-      toast({
-        title: tipoItem === 'peca' ? 'Peça lançada!' : 'Serviço lançado!',
-        description:
-          tipoItem === 'peca'
-            ? 'O estoque já foi descontado automaticamente.'
-            : 'Item adicionado à OS.',
-        variant: 'success',
-      });
+      /**
+       * Serviço com ficha técnica lança as peças junto.
+       *
+       * Pedido do Felipe em 31/08. Antes eram dois lançamentos, e o segundo é
+       * o que se esquece — esquecer tira a peça do estoque da conta e infla a
+       * margem daquele serviço. Cada peça vira uma linha própria na OS, com o
+       * preço dela: o cliente enxerga o que foi trocado, e o estoque desconta.
+       *
+       * Uma peça que falhar não derruba o serviço que já entrou: o aviso diz
+       * quais faltaram, e elas podem ser lançadas à mão.
+       */
+      const pecasParaLancar = tipoItem === 'servico' ? (pecasDoServico ?? []) : [];
+      const pecasQueFalharam: string[] = [];
+
+      for (const peca of pecasParaLancar) {
+        const { error: erroPeca } = await supabase.from('service_order_items').insert({
+          os_id: os.id,
+          produto_id: peca.produto_id,
+          descricao: peca.produtos?.nome ?? null,
+          quantidade: Math.max(1, Math.round(Number(peca.quantidade) || 1)),
+          preco_cobrado: Number(peca.produtos?.preco ?? 0),
+          tipo_item: 'peca',
+          ...(veCusto && peca.produtos?.custo != null
+            ? { custo_unitario: Number(peca.produtos.custo) }
+            : {}),
+        });
+        if (erroPeca) pecasQueFalharam.push(peca.produtos?.nome ?? 'peça');
+      }
+
+      if (pecasQueFalharam.length > 0) {
+        toast({
+          title: 'Serviço lançado, mas faltaram peças',
+          description: `Não deu para lançar: ${pecasQueFalharam.join(', ')}. Confira o estoque e lance à mão.`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: ehPeca
+            ? 'Peça lançada!'
+            : tipoItem === 'servico'
+              ? 'Serviço lançado!'
+              : 'Custo lançado!',
+          description:
+            tipoItem === 'peca_estoque'
+              ? 'O estoque já foi descontado automaticamente.'
+              : tipoItem === 'peca_avulsa'
+                ? 'Peça comprada no dia: entra na conta da OS sem passar pelo estoque.'
+                : pecasParaLancar.length > 0
+                ? `Serviço e ${pecasParaLancar.length} peça(s) da ficha técnica, com o estoque já descontado.`
+                : 'Item adicionado à OS.',
+          variant: 'success',
+        });
+      }
 
       setItemDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ['os-itens', id] });
@@ -419,12 +525,17 @@ export default function OSDetalhe() {
   // sincronizado, o valor de verdade já está em service_order_items — o
   // breakdown abaixo computa ao vivo, direto da fonte. As duas colunas
   // continuam no schema, intencionalmente não usadas.
-  const totalPecasValor = (itens ?? [])
-    .filter((item) => item.produto_id != null)
-    .reduce((acc, item) => acc + Number(item.preco_cobrado) * (item.quantidade ?? 1), 0);
-  const totalMaoObraValor = (itens ?? [])
-    .filter((item) => item.produto_id == null)
-    .reduce((acc, item) => acc + Number(item.preco_cobrado) * (item.quantidade ?? 1), 0);
+  /**
+   * A conta da OS, separada por tipo. A regra mora em lib/itensDaOS.ts, com 16
+   * testes — inclusive o caso que motivou tudo: a peça comprada no fornecedor
+   * no dia, que antes era contada como mão de obra porque não tinha produto no
+   * estoque.
+   */
+  const conta = contaDaOS(itens ?? []);
+  const totalPecasValor = conta.pecas;
+  const totalMaoObraValor = conta.servicos;
+  const totalComplementaresValor = conta.complementares;
+  const totalDosItens = conta.total;
 
   const { data: os, isLoading } = useQuery({
     queryKey: ['os-detalhe', id],
@@ -435,7 +546,8 @@ export default function OSDetalhe() {
           `id, numero_os, status, tipo, prioridade, marca, modelo, cor, memoria, numero_serie,
            defeito_cliente, observacoes, anotacoes_checkin, senha_aparelho, senha_padrao,
            prazo_previsto, garantia_dias, total_orcamento, valor_final_pago, data_finalizacao,
-           created_at, vendedor_id, reparo_iniciado_em, reparo_iniciado_por,
+           created_at, vendedor_id, diagnostico_iniciado_em, diagnostico_iniciado_por,
+           laudo_aprovado, laudo_decidido_em, laudo_decidido_por, laudo_motivo_recusa,
            execucao_iniciada_em, execucao_iniciada_por, laudo_eletronico,
            clientes(nome, telefones),
            os_checklist(catalogo_id, catalogos(descricao, tipo)),
@@ -523,14 +635,26 @@ export default function OSDetalhe() {
         // O início do reparo não é troca de etapa, então não está no
         // histórico de status — mas é justamente o evento que explica por que
         // a OS ficou parada dois dias e depois andou em uma hora.
-        ...(os.reparo_iniciado_em
+        ...(os.diagnostico_iniciado_em
           ? [{
-              id: 'reparo-iniciado',
-              created_at: os.reparo_iniciado_em,
-              usuario_id: os.reparo_iniciado_por,
+              id: 'diagnostico-iniciado',
+              created_at: os.diagnostico_iniciado_em,
+              usuario_id: os.diagnostico_iniciado_por,
               statusAnterior: null as string | null,
               statusNovo: null as string | null,
-              descricao: 'Reparo iniciado na bancada',
+              descricao: 'Diagnóstico iniciado na bancada',
+            }]
+          : []),
+        ...(os.laudo_decidido_em
+          ? [{
+              id: 'laudo-decidido',
+              created_at: os.laudo_decidido_em,
+              usuario_id: os.laudo_decidido_por,
+              statusAnterior: null as string | null,
+              statusNovo: null as string | null,
+              descricao: os.laudo_aprovado
+                ? 'Cliente aprovou o laudo'
+                : `Cliente NÃO aprovou — ${os.laudo_motivo_recusa ?? 'sem motivo registrado'}`,
             }]
           : []),
         ...(os.execucao_iniciada_em
@@ -707,14 +831,26 @@ export default function OSDetalhe() {
             {/* "Reparo começa aqui" — organograma do Felipe, 30/08. Fica antes
                 das ações de etapa porque, no processo, é o primeiro botão que o
                 técnico encosta depois de puxar a OS. */}
-            <IniciarReparo
+            <IniciarNaBancada
               osId={os.id}
               status={os.status}
-              reparoIniciadoEm={os.reparo_iniciado_em}
+              diagnosticoIniciadoEm={os.diagnostico_iniciado_em}
               execucaoIniciadaEm={os.execucao_iniciada_em}
-              nomeDeQuemIniciouReparo={nomeUsuario(os.reparo_iniciado_por)}
+              nomeDeQuemIniciouDiagnostico={nomeUsuario(os.diagnostico_iniciado_por)}
               nomeDeQuemIniciouExecucao={nomeUsuario(os.execucao_iniciada_por)}
               onMudou={() => queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] })}
+            />
+
+            {/* A resposta do cliente ao laudo. Só aparece na etapa em que a
+                OS espera por ela, e substitui o avanço genérico ali. */}
+            <DecisaoDoLaudo
+              osId={os.id}
+              status={os.status}
+              totalOrcamento={os.total_orcamento}
+              onMudou={() => {
+                queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] });
+                queryClient.invalidateQueries({ queryKey: ['os-historico', id] });
+              }}
             />
 
             <TrocarEtapaOS
@@ -1017,6 +1153,26 @@ export default function OSDetalhe() {
                 </Button>
               )}
             </div>
+
+            {/* O aviso que faltava (pedido do Felipe, 31/08).
+                O valor do orçamento é digitado à mão, e os itens somam outra
+                coisa. Os dois podem divergir com razão — desconto combinado,
+                pacote fechado —, mas até agora NADA avisava. E é este número
+                que vira a conta a receber: a diferença aparecia no caixa, não
+                na tela.
+                Um real de folga porque centavo de arredondamento não é
+                divergência, é ruído. */}
+            {(itens?.length ?? 0) > 0 &&
+              orcamentoDivergeDosItens(Number(valorAtual || 0), somaItens) && (
+              <p className="mt-3 rounded-md border border-amber-500/50 bg-amber-500/10 p-2.5 text-sm text-amber-700 dark:text-amber-500">
+                O orçamento está em <strong>{moeda(Number(valorAtual || 0))}</strong> e os itens
+                lançados somam <strong>{moeda(somaItens)}</strong>
+                {somaItens > Number(valorAtual || 0)
+                  ? ` — ${moeda(somaItens - Number(valorAtual || 0))} a mais do que o combinado.`
+                  : ` — ${moeda(Number(valorAtual || 0) - somaItens)} a menos do que o combinado.`}{' '}
+                Se foi desconto ou pacote fechado, está certo assim. Se não, use o botão acima.
+              </p>
+            )}
             {jaFoiEntregue && (
               <p className="mt-3 text-sm text-muted-foreground">
                 Esta OS já foi entregue
@@ -1109,14 +1265,14 @@ export default function OSDetalhe() {
               </Table>
             )}
             {(itens?.length ?? 0) > 0 && (
-              <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
-                <span className="text-muted-foreground">
-                  Peças: <span className="font-medium text-foreground">{moeda(totalPecasValor)}</span>
-                </span>
-                <span className="text-muted-foreground">
-                  Mão de obra:{' '}
-                  <span className="font-medium text-foreground">{moeda(totalMaoObraValor)}</span>
-                </span>
+              /* O resumo que faltava, a pedido do Felipe (31/08). Antes eram
+                 dois números soltos numa linha; agora são os três grupos e o
+                 total, que é o número que vira o orçamento do cliente. */
+              <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                <ResumoDaConta rotulo="Peças" valor={totalPecasValor} />
+                <ResumoDaConta rotulo="Mão de obra" valor={totalMaoObraValor} />
+                <ResumoDaConta rotulo="Outros custos" valor={totalComplementaresValor} />
+                <ResumoDaConta rotulo="Total" valor={totalDosItens} destaque />
               </div>
             )}
             <p className="mt-3 text-xs text-muted-foreground">
@@ -1179,20 +1335,44 @@ export default function OSDetalhe() {
           <DialogHeader>
             <DialogTitle>Adicionar item à OS</DialogTitle>
             <DialogDescription>
-              Peça do estoque desconta automaticamente. Serviço avulso é só um lançamento —
-              não mexe em estoque.
+              {tipoItem === 'peca_estoque'
+                ? 'Peça da prateleira: o estoque desconta sozinho.'
+                : tipoItem === 'peca_avulsa'
+                  ? 'Peça comprada no fornecedor no dia. Não passa pelo estoque, porque nunca esteve lá.'
+                  : tipoItem === 'servico'
+                    ? 'Mão de obra. Puxando do catálogo, as peças da ficha técnica vêm junto.'
+                    : 'O que a loja pagou e repassa: frete da peça, terceirização, taxa de fornecedor.'}
             </DialogDescription>
           </DialogHeader>
 
-          <Tabs value={tipoItem} onValueChange={(v) => setTipoItem(v as 'peca' | 'servico')}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="peca">Peça do estoque</TabsTrigger>
-              <TabsTrigger value="servico">Serviço avulso</TabsTrigger>
+          <Tabs
+            value={tipoItem}
+            onValueChange={(v) =>
+              setTipoItem(v as 'peca_estoque' | 'peca_avulsa' | 'servico' | 'complementar')
+            }
+          >
+            {/* Quatro caminhos, porque são quatro coisas diferentes na conta da
+                loja. Peça avulsa e "outro custo" nasceram do pedido do Felipe
+                em 31/08 — antes, os dois viravam "serviço avulso" e sujavam o
+                relatório de mão de obra com frete e peça de fornecedor. */}
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="peca_estoque" className="text-xs sm:text-sm">
+                Peça do estoque
+              </TabsTrigger>
+              <TabsTrigger value="peca_avulsa" className="text-xs sm:text-sm">
+                Peça comprada
+              </TabsTrigger>
+              <TabsTrigger value="servico" className="text-xs sm:text-sm">
+                Serviço
+              </TabsTrigger>
+              <TabsTrigger value="complementar" className="text-xs sm:text-sm">
+                Outro custo
+              </TabsTrigger>
             </TabsList>
           </Tabs>
 
           <div className="grid gap-4 py-2">
-            {tipoItem === 'peca' ? (
+            {tipoItem === 'peca_estoque' ? (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="produto">Produto *</Label>
@@ -1223,6 +1403,8 @@ export default function OSDetalhe() {
               </>
             ) : (
               <>
+                {tipoItem === 'servico' && (
+                  <>
                 <div className="space-y-2">
                   <Label htmlFor="servico_catalogo">Puxar do catálogo (opcional)</Label>
                   <Select value={itemForm.servicoId} onValueChange={escolherServico}>
@@ -1238,15 +1420,77 @@ export default function OSDetalhe() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* O que vem junto. Mostrar ANTES de confirmar é o ponto: o
+                    técnico vê que a tela vai sair do estoque, e quem não quer
+                    ainda dá tempo de escolher outro serviço ou lançar à mão.
+                    Surpresa de estoque descoberta depois é conferência
+                    refeita. */}
+                {(pecasDoServico ?? []).length > 0 && (
+                  <div className="rounded-md border bg-muted/40 p-2.5">
+                    <p className="text-xs font-medium">
+                      Este serviço já leva {(pecasDoServico ?? []).length} peça(s):
+                    </p>
+                    <ul className="mt-1 space-y-0.5">
+                      {(pecasDoServico ?? []).map((p) => {
+                        const emEstoque = Number(p.produtos?.estoque_atual ?? 0);
+                        const precisa = Number(p.quantidade);
+                        const falta = emEstoque < precisa;
+                        return (
+                          <li key={p.produto_id} className="text-xs text-muted-foreground">
+                            {precisa}× {p.produtos?.nome ?? '—'}
+                            {p.produtos?.preco != null && <> · {moeda(Number(p.produtos.preco))}</>}
+                            {falta && (
+                              <span className="text-destructive">
+                                {' '}
+                                — só {emEstoque} em estoque
+                              </span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Elas entram como linhas próprias na OS e saem do estoque.
+                    </p>
+                  </div>
+                )}
+
+                  </>
+                )}
                 <div className="space-y-2">
-                  <Label htmlFor="descricao_servico">Descrição *</Label>
+                  <Label htmlFor="descricao_servico">
+                    {tipoItem === 'peca_avulsa'
+                      ? 'Peça *'
+                      : tipoItem === 'complementar'
+                        ? 'Do que é este custo *'
+                        : 'Descrição *'}
+                  </Label>
                   <Input
                     id="descricao_servico"
                     value={itemForm.descricao}
                     onChange={(e) => setItemForm({ ...itemForm, descricao: e.target.value })}
-                    placeholder="Ex.: Troca de tela, mão de obra..."
+                    placeholder={
+                      tipoItem === 'peca_avulsa'
+                        ? 'Ex.: Tela iPhone 11 comprada no fornecedor'
+                        : tipoItem === 'complementar'
+                          ? 'Ex.: frete da peça, serviço terceirizado'
+                          : 'Ex.: Troca de tela, mão de obra...'
+                    }
                   />
                 </div>
+                {tipoItem === 'peca_avulsa' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="quantidade_avulsa">Quantidade</Label>
+                    <Input
+                      id="quantidade_avulsa"
+                      type="number"
+                      min={1}
+                      value={itemForm.quantidade}
+                      onChange={(e) => setItemForm({ ...itemForm, quantidade: e.target.value })}
+                    />
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="horas">Horas de mão de obra (opcional)</Label>
                   <Input
@@ -1310,6 +1554,25 @@ export default function OSDetalhe() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+
+/** Um número do resumo da conta da OS: rótulo em cima, valor embaixo. */
+function ResumoDaConta({
+  rotulo,
+  valor,
+  destaque = false,
+}: {
+  rotulo: string;
+  valor: number;
+  destaque?: boolean;
+}) {
+  return (
+    <div className={`rounded-md border p-2.5 ${destaque ? 'bg-muted/60' : ''}`}>
+      <p className="text-xs text-muted-foreground">{rotulo}</p>
+      <p className={`font-medium ${destaque ? 'text-base' : 'text-sm'}`}>{moeda(valor)}</p>
     </div>
   );
 }
