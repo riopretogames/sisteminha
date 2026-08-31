@@ -88,7 +88,7 @@ Repare que a Etapa 1 é uma etapa só, com duas metades: o vendedor no balcão
 
 5. O técnico busca o aparelho, que vem com a OS impressa colada nele.
 6. Puxa a OS no sistema.
-7. Aperta o botão **INICIAR REPARO**.
+7. Aperta o botão **INICIAR DIAGNÓSTICO**.
 8. Confirma que vai iniciar.
 9. **Se for tabelado:** pula o laudo eletrônico e vai direto para a Etapa 3.
 10. **Se não for tabelado:** desmonta o aparelho, investiga o defeito, monta
@@ -96,8 +96,18 @@ Repare que a Etapa 1 é uma etapa só, com duas metades: o vendedor no balcão
     ainda não foi definido)*.
 11. O laudo dispara no grupo **LAUDISON.IO** e é enviado ao cliente.
 
-> [!important] O reparo só existe a partir do clique
-> O botão **Iniciar Reparo** é o marco: antes dele não há reparo nenhum no
+> [!important] Aqui é diagnóstico, não reparo
+> O botão desta etapa se chamava *Iniciar Reparo* e foi renomeado para
+> **Iniciar Diagnóstico** em 31/08/2026, por correção do Felipe. O nome
+> importa: nesta altura o técnico ainda não consertou nada — ele desmonta,
+> investiga e escreve o laudo. O reparo de verdade só começa depois que o
+> cliente aprova, e tem botão próprio (*Iniciar a Execução*, na Etapa 3).
+>
+> Com dois "inícios de reparo", qualquer relatório de tempo de bancada
+> somaria a análise com a execução e chamaria o total de reparo.
+
+> [!important] A OS só entra na bancada a partir do clique
+> O botão **Iniciar Diagnóstico** é o marco: antes dele não há trabalho nenhum no
 > sistema. Por isso ele é exclusivo do perfil Técnico — ver
 > [Quem pode o quê](#quem-pode-o-quê).
 
@@ -114,12 +124,27 @@ existe.
 13. **Se aprovou:** o **vendedor** marca `LAUDO APROVADO`. Isso dispara
     mensagem no grupo LAUDISON.IO, e a OS vai para a Etapa 3.
 
-14. **Se reprovou:** o vendedor **registra o motivo da reprovação**, a loja
-    cobra os R$ 80 na retirada e o cliente retira o aparelho.
+14. **Se reprovou:** o aparelho volta pela **mesma esteira** do reparo
+    aprovado — não existe caminho separado para o laudo recusado:
+    - o vendedor registra o **motivo da recusa**;
+    - a loja pode **tentar comprar o aparelho como sucata**, dependendo do
+      caso e do estado da peça;
+    - o **técnico remonta** o aparelho;
+    - o técnico aperta **REPARO CONCLUÍDO**, o mesmo botão do reparo normal;
+    - a OS vai para a **Etapa 5 — Finalizado** e o aparelho fica na loja
+      aguardando retirada.
+
+    Na retirada, o cliente paga os R$ 80 do laudo em vez do valor do serviço.
 
 O registro do motivo não é burocracia: é o que permite saber depois se o
 cliente recusou por preço, por prazo, ou porque decidiu comprar outro
 aparelho. Sem isso, todo "não" vira o mesmo "não".
+
+> [!note] Por que isso importa para quem for programar
+> O laudo recusado **não** é um beco sem saída: ele reentra no fluxo normal e
+> sai pela mesma porta. Não é preciso criar coluna nem caminho especial para
+> ele — basta permitir que o técnico remonte e conclua uma OS que nunca
+> chegou a ter reparo aprovado.
 
 ---
 
@@ -166,7 +191,7 @@ verdade. Eles não são intercambiáveis entre os perfis:
 | Ação | Quem faz | Por quê |
 |---|---|---|
 | Criar a OS | Vendedor | É quem recebe o cliente |
-| **Iniciar Reparo** | **Só o Técnico** | O vendedor **não pode** ter esse botão no perfil dele |
+| **Iniciar Diagnóstico** | **Só o Técnico** | O vendedor **não pode** ter esse botão no perfil dele |
 | **Laudo Aprovado** | Vendedor | É quem fala com o cliente e recebe a resposta |
 | Iniciar a Execução / Reparo Concluído | Técnico | É quem está com o aparelho na bancada |
 
