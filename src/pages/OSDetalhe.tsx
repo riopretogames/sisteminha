@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { SenhaPadraoLeitura } from '@/components/os/SenhaPadrao';
 import { TrocarEtapaOS } from '@/components/os/TrocarEtapaOS';
 import { IniciarNaBancada } from '@/components/os/IniciarNaBancada';
+import { DecisaoDoLaudo } from '@/components/os/DecisaoDoLaudo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -158,6 +159,11 @@ interface OSCompleta {
    *  Não é etapa: a OS segue em Entrada/Análise. Ver components/os/IniciarReparo. */
   diagnostico_iniciado_em: string | null;
   diagnostico_iniciado_por: string | null;
+  /** A resposta do cliente ao orçamento. NULL = ainda não respondeu. */
+  laudo_aprovado: boolean | null;
+  laudo_decidido_em: string | null;
+  laudo_decidido_por: string | null;
+  laudo_motivo_recusa: string | null;
   /** O segundo começo: depois do laudo aprovado, quando o serviço é executado.
    *  A distância entre os dois é o tempo em que a OS esperou o cliente. */
   execucao_iniciada_em: string | null;
@@ -496,6 +502,7 @@ export default function OSDetalhe() {
            defeito_cliente, observacoes, anotacoes_checkin, senha_aparelho, senha_padrao,
            prazo_previsto, garantia_dias, total_orcamento, valor_final_pago, data_finalizacao,
            created_at, vendedor_id, diagnostico_iniciado_em, diagnostico_iniciado_por,
+           laudo_aprovado, laudo_decidido_em, laudo_decidido_por, laudo_motivo_recusa,
            execucao_iniciada_em, execucao_iniciada_por, laudo_eletronico,
            clientes(nome, telefones),
            os_checklist(catalogo_id, catalogos(descricao, tipo)),
@@ -591,6 +598,18 @@ export default function OSDetalhe() {
               statusAnterior: null as string | null,
               statusNovo: null as string | null,
               descricao: 'Diagnóstico iniciado na bancada',
+            }]
+          : []),
+        ...(os.laudo_decidido_em
+          ? [{
+              id: 'laudo-decidido',
+              created_at: os.laudo_decidido_em,
+              usuario_id: os.laudo_decidido_por,
+              statusAnterior: null as string | null,
+              statusNovo: null as string | null,
+              descricao: os.laudo_aprovado
+                ? 'Cliente aprovou o laudo'
+                : `Cliente NÃO aprovou — ${os.laudo_motivo_recusa ?? 'sem motivo registrado'}`,
             }]
           : []),
         ...(os.execucao_iniciada_em
@@ -775,6 +794,18 @@ export default function OSDetalhe() {
               nomeDeQuemIniciouDiagnostico={nomeUsuario(os.diagnostico_iniciado_por)}
               nomeDeQuemIniciouExecucao={nomeUsuario(os.execucao_iniciada_por)}
               onMudou={() => queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] })}
+            />
+
+            {/* A resposta do cliente ao laudo. Só aparece na etapa em que a
+                OS espera por ela, e substitui o avanço genérico ali. */}
+            <DecisaoDoLaudo
+              osId={os.id}
+              status={os.status}
+              totalOrcamento={os.total_orcamento}
+              onMudou={() => {
+                queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] });
+                queryClient.invalidateQueries({ queryKey: ['os-historico', id] });
+              }}
             />
 
             <TrocarEtapaOS

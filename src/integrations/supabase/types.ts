@@ -1881,7 +1881,11 @@ export type Database = {
           garantia_dias: number
           garantia_meses: number
           id: string
+          laudo_aprovado: boolean | null
+          laudo_decidido_em: string | null
+          laudo_decidido_por: string | null
           laudo_eletronico: boolean
+          laudo_motivo_recusa: string | null
           marca: string | null
           marca_id: string | null
           memoria: string | null
@@ -1930,7 +1934,11 @@ export type Database = {
           garantia_dias?: number
           garantia_meses?: number
           id?: string
+          laudo_aprovado?: boolean | null
+          laudo_decidido_em?: string | null
+          laudo_decidido_por?: string | null
           laudo_eletronico?: boolean
+          laudo_motivo_recusa?: string | null
           marca?: string | null
           marca_id?: string | null
           memoria?: string | null
@@ -1979,7 +1987,11 @@ export type Database = {
           garantia_dias?: number
           garantia_meses?: number
           id?: string
+          laudo_aprovado?: boolean | null
+          laudo_decidido_em?: string | null
+          laudo_decidido_por?: string | null
           laudo_eletronico?: boolean
+          laudo_motivo_recusa?: string | null
           marca?: string | null
           marca_id?: string | null
           memoria?: string | null
@@ -3062,6 +3074,10 @@ export type Database = {
       proximo_numero_entrada: { Args: { _tenant: string }; Returns: string }
       proximo_numero_os: { Args: { _tenant: string }; Returns: string }
       proximo_numero_venda: { Args: { _tenant: string }; Returns: string }
+      registrar_decisao_do_laudo: {
+        Args: { _aprovado: boolean; _motivo?: string; _os_id: string }
+        Returns: undefined
+      }
       registrar_entrada_mercadoria: {
         Args: {
           _categoria_id?: string

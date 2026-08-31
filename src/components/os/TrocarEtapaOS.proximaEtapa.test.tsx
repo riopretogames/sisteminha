@@ -83,12 +83,18 @@ describe('A etapa que o botão de avanço sugere', () => {
     silenciarConsole();
   });
 
-  it('de Aguardando aprovação, sugere APROVADO — e não a Peça, que é desvio', async () => {
+  it('em Aguardando aprovação NÃO há botão de avanço: quem move é a decisão do laudo', async () => {
+    // Mudou em 31/08. Nesta etapa a OS só sai quando o cliente responde, e
+    // quem registra a resposta é o par de botões de DecisaoDoLaudo — que grava
+    // quem decidiu, quando, e o motivo quando é recusa. Deixar também o avanço
+    // genérico aqui daria dois caminhos para a mesma decisão, um deles sem
+    // registrar nada.
     await abrir(OS_ETAPAS.AGUARDANDO_APROVACAO);
 
-    // O nome do botão vem do processo (lib/acaoDaEtapa), não do nome da coluna.
-    expect(await screen.findByRole('button', { name: /cliente aprovou o laudo/i }))
-      .toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /avançar|aprovou/i })).not.toBeInTheDocument();
+    });
+    // E principalmente: não oferece a Peça, que é desvio e não passo seguinte.
     expect(screen.queryByRole('button', { name: /aguardando peça/i })).not.toBeInTheDocument();
   });
 
@@ -124,10 +130,10 @@ describe('A etapa que o botão de avanço sugere', () => {
   });
 
   it('o botão usa a cor da etapa de destino', async () => {
-    await abrir(OS_ETAPAS.AGUARDANDO_APROVACAO);
+    await abrir(OS_ETAPAS.AGUARDANDO_ANALISE);
 
-    const botao = await screen.findByRole('button', { name: /cliente aprovou o laudo/i });
-    // Aprovado é verde no quadro; o botão que leva até ele também.
-    expect(botao.className).toContain('bg-green-600');
+    const botao = await screen.findByRole('button', { name: /enviar laudo para aprovação/i });
+    // O destino é "Aguardando aprovação", laranja no quadro.
+    expect(botao.className).toContain('bg-orange-600');
   });
 });

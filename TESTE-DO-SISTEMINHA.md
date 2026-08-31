@@ -17,7 +17,7 @@ abrindo mão.
 
 ## O que já roda sozinho
 
-O sistema tem **286 testes automáticos** que rodam a cada mudança. Eles cobrem
+O sistema tem **294 testes automáticos** que rodam a cada mudança. Eles cobrem
 as contas (faturamento, devolução, custo médio, ranking) e o comportamento das
 telas por perfil — inclusive o pior defeito que este sistema já teve, a tela de
 Estoque ficando branca para quem não vê custo.
@@ -629,6 +629,12 @@ você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda
   **Tem que acontecer:** No cadastro, a peça entra numa lista com a quantidade, o estoque de hoje e — para quem vê custo — quanto ela custa, com o total das peças pelo preço de hoje. Na OS, ao escolher o serviço, aparece um aviso **"Este serviço já leva N peça(s)"** com nome, quantidade e preço de cada uma, e em vermelho se faltar estoque. Ao lançar, a OS ganha **uma linha do serviço e uma linha de cada peça**, com o estoque já descontado.
   *Por que importa: antes eram dois lançamentos separados e o segundo é o que se esquece. Esquecer a peça tira ela do estoque da conta e faz aquele serviço parecer muito mais lucrativo do que é.*
   > 🔎 **O custo do serviço deixou de ser um número digitado.** Ele passa a ser a soma das peças com o preço de HOJE — antes, a peça encarecia e o custo do serviço continuava dizendo o preço do ano passado, sem ninguém perceber.
+
+- [ ] **🔴 86. A resposta do cliente ao laudo: aprovou ou não aprovou**
+  **O que fazer:** Abra uma OS em **2a · Aguardando aprovação** com um usuário que aprove orçamento (vendedor, gerente ou administrador). Repare nos dois botões novos. Clique em **Cliente não aprovou**, tente registrar sem escrever nada, depois escreva um motivo (ex.: `Achou o valor alto`) e registre. Em outra OS na mesma etapa, clique em **Laudo aprovado** e confirme. Nas duas, recarregue e role até a **Linha do tempo**. Por fim, entre com um usuário **Técnico** e abra uma OS nessa etapa.
+  **Tem que acontecer:** Aparecem **Laudo aprovado** (verde) e **Cliente não aprovou**. Na recusa, o botão de registrar fica **apagado enquanto o motivo estiver vazio**; com o motivo escrito, a OS é encerrada (vai para Cancelado) e a linha do tempo mostra **"Cliente NÃO aprovou — Achou o valor alto"**. Na aprovação, a confirmação mostra **o valor do orçamento**, a OS vai para **3 · Aprovado / Executar** e a linha do tempo registra **"Cliente aprovou o laudo"** com quem e quando. O técnico **não vê os botões** — vê a frase dizendo que quem registra é quem aprova orçamento.
+  *Por que importa: aprovar já era possível, mas a RECUSA sumia na conversa do balcão. O motivo é a informação mais valiosa que um orçamento perdido deixa — "achou caro" e "vai comprar outro aparelho" pedem reações completamente diferentes suas, e sem ele os dois viram a mesma linha no relatório.*
+  > 🔎 **Falta uma peça do seu organograma aqui:** a cobrança dos R$ 80 da análise na retirada. Hoje o sistema encerra a OS e avisa para combinar a retirada, mas não lança a taxa. É a próxima conversa.
 
 ---
 

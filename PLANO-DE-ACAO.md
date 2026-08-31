@@ -1646,6 +1646,31 @@ o arquivo antes de assumir.
      e nada avisa quando os dois discordam. É o próximo a resolver, porque é
      o que decide quanto o cliente paga.
 
+- [ ] 🟠 🆕 **A taxa de análise (R$ 80) quando o cliente recusa o orçamento.**
+  Do organograma do Felipe (30/08): reprovou → *"registra o motivo da
+  reprovação"* → *"cobra 80 reais na retirada"* → *"cliente retira o
+  aparelho"*.
+
+  O motivo já é registrado desde 31/08 (`registrar_decisao_do_laudo`). A
+  COBRANÇA não: a OS recusada é encerrada e alguém precisa lembrar de cobrar a
+  análise no balcão, na mão.
+
+  O que falta decidir antes de fazer:
+
+  • o valor é fixo em R$ 80 ou vira configuração da loja? (o mesmo raciocínio
+    dos campos obrigatórios: quem comprar o sisteminha cobra outro valor, ou
+    não cobra);
+  • a taxa entra como VALOR DA OS recusada — e aí a entrega já cobra sozinha,
+    porque o fluxo de entrega exige o pagamento — ou vira lançamento avulso no
+    financeiro?
+  • e o abatimento: o organograma diz que a análise é abatida quando o cliente
+    APROVA. Isso hoje não existe em lugar nenhum.
+
+  A primeira opção é a mais barata e usa o que já funciona: OS recusada sai de
+  "cancelado" e passa a ir para "Finalizado" com o valor da taxa, e o cliente
+  paga na retirada como qualquer outra OS. Mas isso muda o significado de
+  "Finalizado" para o quadro, então é conversa antes de código.
+
 - [ ] ⚪ 🆕 **Voltar de uma ficha perde o período do relatório.** Notado na
   revisão de 28/08, quando as linhas dos relatórios viraram clicáveis.
 
