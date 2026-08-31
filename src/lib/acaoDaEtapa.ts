@@ -72,19 +72,3 @@ export function acaoParaAvancar(de: string, para: string): AcaoDeEtapa | undefin
 
   return undefined;
 }
-
-/**
- * O botão de começar o trabalho na bancada.
- *
- * É o único passo do organograma que NÃO muda de etapa: a OS continua em
- * "Entrada / Análise" enquanto o técnico desmonta e investiga. O que ele
- * marca é a hora em que o aparelho saiu da fila e entrou na bancada — sem
- * isso, "está na análise há três dias" não distingue o aparelho que ninguém
- * pegou do que está aberto na mesa desde ontem.
- */
-export const INICIAR_REPARO = {
-  rotulo: 'Iniciar reparo',
-  confirmar:
-    'O reparo passa a contar a partir de agora, com o seu nome. ' +
-    'Confirma que vai começar este aparelho?',
-} as const;

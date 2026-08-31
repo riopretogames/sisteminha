@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { SenhaPadraoLeitura } from '@/components/os/SenhaPadrao';
 import { TrocarEtapaOS } from '@/components/os/TrocarEtapaOS';
-import { IniciarReparo } from '@/components/os/IniciarReparo';
+import { IniciarNaBancada } from '@/components/os/IniciarNaBancada';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -156,8 +156,8 @@ interface OSCompleta {
   vendedor_id: string | null;
   /** Quando o aparelho foi para a bancada, e com quem. NULL = ainda na fila.
    *  Não é etapa: a OS segue em Entrada/Análise. Ver components/os/IniciarReparo. */
-  reparo_iniciado_em: string | null;
-  reparo_iniciado_por: string | null;
+  diagnostico_iniciado_em: string | null;
+  diagnostico_iniciado_por: string | null;
   /** O segundo começo: depois do laudo aprovado, quando o serviço é executado.
    *  A distância entre os dois é o tempo em que a OS esperou o cliente. */
   execucao_iniciada_em: string | null;
@@ -495,7 +495,7 @@ export default function OSDetalhe() {
           `id, numero_os, status, tipo, prioridade, marca, modelo, cor, memoria, numero_serie,
            defeito_cliente, observacoes, anotacoes_checkin, senha_aparelho, senha_padrao,
            prazo_previsto, garantia_dias, total_orcamento, valor_final_pago, data_finalizacao,
-           created_at, vendedor_id, reparo_iniciado_em, reparo_iniciado_por,
+           created_at, vendedor_id, diagnostico_iniciado_em, diagnostico_iniciado_por,
            execucao_iniciada_em, execucao_iniciada_por, laudo_eletronico,
            clientes(nome, telefones),
            os_checklist(catalogo_id, catalogos(descricao, tipo)),
@@ -583,14 +583,14 @@ export default function OSDetalhe() {
         // O início do reparo não é troca de etapa, então não está no
         // histórico de status — mas é justamente o evento que explica por que
         // a OS ficou parada dois dias e depois andou em uma hora.
-        ...(os.reparo_iniciado_em
+        ...(os.diagnostico_iniciado_em
           ? [{
-              id: 'reparo-iniciado',
-              created_at: os.reparo_iniciado_em,
-              usuario_id: os.reparo_iniciado_por,
+              id: 'diagnostico-iniciado',
+              created_at: os.diagnostico_iniciado_em,
+              usuario_id: os.diagnostico_iniciado_por,
               statusAnterior: null as string | null,
               statusNovo: null as string | null,
-              descricao: 'Reparo iniciado na bancada',
+              descricao: 'Diagnóstico iniciado na bancada',
             }]
           : []),
         ...(os.execucao_iniciada_em
@@ -767,12 +767,12 @@ export default function OSDetalhe() {
             {/* "Reparo começa aqui" — organograma do Felipe, 30/08. Fica antes
                 das ações de etapa porque, no processo, é o primeiro botão que o
                 técnico encosta depois de puxar a OS. */}
-            <IniciarReparo
+            <IniciarNaBancada
               osId={os.id}
               status={os.status}
-              reparoIniciadoEm={os.reparo_iniciado_em}
+              diagnosticoIniciadoEm={os.diagnostico_iniciado_em}
               execucaoIniciadaEm={os.execucao_iniciada_em}
-              nomeDeQuemIniciouReparo={nomeUsuario(os.reparo_iniciado_por)}
+              nomeDeQuemIniciouDiagnostico={nomeUsuario(os.diagnostico_iniciado_por)}
               nomeDeQuemIniciouExecucao={nomeUsuario(os.execucao_iniciada_por)}
               onMudou={() => queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] })}
             />

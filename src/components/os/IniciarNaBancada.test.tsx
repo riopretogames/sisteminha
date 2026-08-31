@@ -4,8 +4,11 @@ import { renderizarTela, montarCan, bancoFalso, silenciarConsole } from '@/test/
 import { OS_ETAPAS } from '@/config/osStatus';
 
 /**
- * O botão "Iniciar reparo", como o organograma do Felipe (30/08) o descreve:
- * *"só o perfil Técnico vê este botão"* e *"reparo começa aqui"*.
+ * Os dois botões de começar da bancada, como o organograma do Felipe (30/08)
+ * os descreve: *"só o perfil Técnico vê este botão"* e *"reparo começa aqui"*.
+ *
+ * O primeiro se chama "Iniciar diagnóstico" desde 31/08 — correção dele: na
+ * etapa 1 o técnico investiga e monta o laudo, ninguém consertou nada ainda.
  *
  * Os dois casos que estes testes seguram são os que estragariam o registro:
  * o vendedor conseguindo marcar que estava com o aparelho na bancada, e o
@@ -51,21 +54,21 @@ async function montar(opcoes: {
   mockRpc.mockResolvedValue({ data: '2026-08-30T10:00:00', error: null });
   mockSupabase.atual = { ...bancoFalso({}), rpc: mockRpc };
 
-  const { IniciarReparo } = await import('./IniciarReparo');
+  const { IniciarNaBancada } = await import('./IniciarNaBancada');
   return renderizarTela(
-    <IniciarReparo
+    <IniciarNaBancada
       osId="os-1"
       status={opcoes.status ?? OS_ETAPAS.AGUARDANDO_ANALISE}
-      reparoIniciadoEm={opcoes.iniciadoEm ?? null}
+      diagnosticoIniciadoEm={opcoes.iniciadoEm ?? null}
       execucaoIniciadaEm={opcoes.execucaoEm ?? null}
-      nomeDeQuemIniciouReparo="Joao Tecnico"
+      nomeDeQuemIniciouDiagnostico="Joao Tecnico"
       nomeDeQuemIniciouExecucao="Maria Tecnica"
       onMudou={() => {}}
     />,
   );
 }
 
-describe('Botão "Iniciar reparo"', () => {
+describe('Botões de começar na bancada', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
@@ -75,24 +78,24 @@ describe('Botão "Iniciar reparo"', () => {
 
   it('o técnico vê o botão numa OS que acabou de entrar', async () => {
     await montar({ perfil: 'tecnico' });
-    expect(await screen.findByRole('button', { name: /iniciar reparo/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /iniciar diagnóstico/i })).toBeInTheDocument();
   });
 
   it('o vendedor não tem o botão — mas fica sabendo de quem é a vez', async () => {
     // Sumir sem explicação fazia o dono procurar um botão que nunca ia achar.
     await montar({ perfil: 'vendedor' });
 
-    expect(screen.queryByRole('button', { name: /iniciar reparo/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /iniciar diagnóstico/i })).not.toBeInTheDocument();
     expect(await screen.findByText(/aguardando a bancada/i)).toBeInTheDocument();
   });
 
   it('clicar chama o banco, que é onde a permissão é conferida de verdade', async () => {
     await montar({ perfil: 'tecnico' });
 
-    fireEvent.click(screen.getByRole('button', { name: /iniciar reparo/i }));
+    fireEvent.click(screen.getByRole('button', { name: /iniciar diagnóstico/i }));
 
     await waitFor(() => {
-      expect(mockRpc).toHaveBeenCalledWith('iniciar_reparo_os', { _os_id: 'os-1' });
+      expect(mockRpc).toHaveBeenCalledWith('iniciar_diagnostico_os', { _os_id: 'os-1' });
     });
   });
 
@@ -100,23 +103,23 @@ describe('Botão "Iniciar reparo"', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false);
     await montar({ perfil: 'tecnico' });
 
-    fireEvent.click(screen.getByRole('button', { name: /iniciar reparo/i }));
+    fireEvent.click(screen.getByRole('button', { name: /iniciar diagnóstico/i }));
 
     expect(mockRpc).not.toHaveBeenCalled();
   });
 
-  describe('depois que o reparo já começou', () => {
+  describe('depois que o diagnóstico já começou', () => {
     it('o botão dá lugar ao registro de quando e quem', async () => {
       await montar({ perfil: 'tecnico', iniciadoEm: '2026-08-30T09:30:00' });
 
-      expect(screen.queryByRole('button', { name: /iniciar reparo/i })).not.toBeInTheDocument();
-      expect(await screen.findByText(/reparo iniciado em/i)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /iniciar diagnóstico/i })).not.toBeInTheDocument();
+      expect(await screen.findByText(/diagnóstico iniciado em/i)).toBeInTheDocument();
       expect(screen.getByText('Joao Tecnico')).toBeInTheDocument();
     });
 
     it('o vendedor também vê o registro — ele precisa saber que está na bancada', async () => {
       await montar({ perfil: 'vendedor', iniciadoEm: '2026-08-30T09:30:00' });
-      expect(await screen.findByText(/reparo iniciado em/i)).toBeInTheDocument();
+      expect(await screen.findByText(/diagnóstico iniciado em/i)).toBeInTheDocument();
     });
   });
 
@@ -126,7 +129,7 @@ describe('Botão "Iniciar reparo"', () => {
 
       expect(await screen.findByRole('button', { name: /iniciar a execução/i })).toBeInTheDocument();
       // E não o da análise: são dois momentos diferentes.
-      expect(screen.queryByRole('button', { name: /^iniciar reparo$/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^iniciar diagnóstico$/i })).not.toBeInTheDocument();
     });
 
     it('chama a função da execução, não a do reparo', async () => {
