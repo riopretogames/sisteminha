@@ -22,19 +22,32 @@ O resumo está em [O que a auditoria encontrou](#o-que-a-auditoria-encontrou).
 
 ## As etapas
 
-O número de etapas segue as colunas do Kanban do sistema.
+Estas são as colunas do Kanban **como estão no banco hoje**, conferidas na
+migration `20260830180000_conserta_numeracao_e_terceirizada_repetida.sql`:
 
-| Etapa | Nome | Quem toca |
-|---|---|---|
-| 1 (parte A) | Balcão | Vendedor |
-| 1 (parte B) | Assistência / Análise | Técnico |
-| 2 | Aguardando aprovação | Vendedor registra a resposta |
-| 3 | Execução | Técnico |
-| — | Entrega | Vendedor |
-| — | **Entregue** | último status do Kanban |
+| Nº | Coluna | Quem toca | O que acontece ali |
+|---|---|---|---|
+| **1** | Entrada / Análise | Vendedor **e** Técnico | Balcão, triagem, criação da OS, e a análise que gera o laudo |
+| **2a** | Aguardando aprovação | Vendedor registra a resposta | Laudo enviado, esperando o cliente decidir |
+| **2b** | Aguardando Peça | Técnico | Reparo aprovado, parado até a peça chegar |
+| **3** | Aprovado / Executar | Técnico | O reparo em si |
+| **4** | Terceirizada | *a definir* | Aparelho que vai para fora ser consertado |
+| **5** | Finalizado | Vendedor | Pronto, guardado no depósito, esperando o cliente |
+| **6** | Entregue | automático | Último status. O pagamento marca sozinho |
+| — | Cancelado | — | Sem número de propósito: não é passo do processo, é saída de emergência |
 
 Repare que a Etapa 1 é uma etapa só, com duas metades: o vendedor no balcão
-**e** o técnico na análise. As duas juntas formam a Etapa 1.
+**e** o técnico na análise. As duas juntas formam a Entrada / Análise.
+
+> [!note] Duas coisas que o mapeamento falado não tinha
+> A conversa que originou este documento não mencionou a **2b Aguardando
+> Peça** nem a **4 Terceirizada** — as duas já existem no sistema. E o
+> `Finalizado` é a etapa **5**, não a 4 como se supôs.
+>
+> A **Terceirizada** é a maior lacuna deste documento: sabe-se que a coluna
+> existe e onde ela fica no quadro, mas ninguém descreveu ainda quem manda o
+> aparelho para fora, como se registra para onde ele foi, quem cobra o
+> prazo do terceiro, nem o que acontece quando ele volta.
 
 ---
 
@@ -185,14 +198,27 @@ no link no topo deste documento. Os **seis críticos**, em resumo:
    marcando no sistema. O manual da assistência já admite o problema: *"os
    dois convivem sem reconciliação"*. Precisa escolher qual manda.
 
-4. **Os nomes de status não batem.** O mapeamento usa `FINALIZADO`; a
-   planilha e a automação usam `Aberto / Aguardando aprovacao / Em execucao /
-   Concluido / Entregue / Cancelado`. E faltam `Aberto` e `Cancelado` no
-   fluxo. **Fechar uma lista única de status antes de programar o Kanban.**
+4. **Os nomes de status não batem — e agora dá para ver as três listas.**
+   Conferindo o banco, ficou pior do que a auditoria supunha: são três
+   vocabulários vivos ao mesmo tempo para a mesma OS.
 
-5. **"Aguardando peça" já existe e ficou de fora.** A regra está no
-   treinamento do balcão (script 5.8) e o botão *Ag. Peça* já roda no
-   Telegram. Não é decisão nova — é trazer o que já existe.
+   | Onde | Nomes |
+   |---|---|
+   | **Kanban do sisteminha** | Entrada/Análise · Aguardando aprovação · Aguardando Peça · Aprovado/Executar · Terceirizada · Finalizado · Entregue · Cancelado |
+   | **Planilha e webhook** | Aberto · Aguardando aprovacao · Em execucao · Concluido · Entregue · Cancelado |
+   | **Botões do Telegram** | Aprovado · Ag. Peça · Aguardando Aprovação · Reprovado |
+
+   Só `Entregue`, `Cancelado` e `Aguardando aprovação` existem nos três.
+   `Finalizado` (sistema) e `Concluido` (planilha) são a mesma coisa com
+   nomes diferentes; `Terceirizada` e `Aguardando Peça` não existem na
+   planilha; `Aberto` e `Em execucao` não existem no Kanban.
+   **Fechar uma lista única antes de ligar o Kanban na planilha.**
+
+5. ~~**"Aguardando peça" já existe e ficou de fora.**~~ **Já resolvido no
+   sistema.** A auditoria apontou a falta, mas a coluna **2b Aguardando
+   Peça** já existe no Kanban. O que ficou de fora foi o mapeamento falado,
+   não o sistema. Continua valendo a parte da regra: o prazo prometido ao
+   cliente só começa a contar no dia em que a peça chega (script 5.8).
 
 6. **Reparo que vira avançado no meio da análise não avisa ninguém.**
    O prazo pula de 3 para até 30 dias e não há ponto no processo para
@@ -204,14 +230,20 @@ no link no topo deste documento. Os **seis críticos**, em resumo:
 
 Nada disto está em nenhum documento da empresa — depende de decisão do Felipe:
 
+- [ ] **Como funciona a etapa 4, Terceirizada?** Quem decide mandar o
+      aparelho para fora, como se registra para onde ele foi e com quem,
+      quem cobra o prazo do terceiro, e o que acontece quando ele volta.
+      É a maior lacuna deste documento.
 - [ ] O pós-venda (mensagem pedindo avaliação no Google) é coluna do Kanban
       ou roda por fora do quadro?
-- [ ] `FINALIZADO` é a etapa 4? E se virar `Concluído` para bater com a
-      planilha, o número da etapa muda?
 - [ ] Qual grupo recebe o vídeo de teste — o LAUDISON.IO ou outro?
 - [ ] Qual o nome do botão que confirma o laudo e manda para o cliente?
 - [ ] Entre o Telegram e o sistema, qual dos dois manda no status?
       (o item 3 da auditoria depende desta resposta)
+
+Duas perguntas que estavam nesta lista **foram respondidas pelo próprio
+sistema** ao conferir as migrations: `Finalizado` é a etapa **5** (não a 4),
+e `Aguardando Peça` já existe como **2b**.
 
 ---
 
