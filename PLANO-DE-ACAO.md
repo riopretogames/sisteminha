@@ -1621,6 +1621,31 @@ o arquivo antes de assumir.
   **Próximo passo:** repetir o passo 7 e copiar a segunda linha do aviso
   vermelho.
 
+- [ ] 🟠 🆕 **Lançamento de serviço na OS: falta o resumo e os "valores
+  complementares".** Pedido do Felipe em 31/08, comparando o sisteminha com o
+  sistema antigo: *"a tela de adicionar serviço tem que ser uma coisa mais
+  complexa, tá muito simplesinho"*.
+
+  **Feito no dia:** o serviço passou a ter FICHA TÉCNICA (peças que ele
+  consome, cadastradas em Cadastros > Serviços), e lançar o serviço numa OS
+  traz as peças junto, com o estoque descontado e a prévia na tela antes de
+  confirmar.
+
+  **Falta, do que aparece nos prints do sistema antigo:**
+
+  1. **Resumo no topo** do lançamento — três números lado a lado: total de
+     serviço, total de complementares e total geral. Hoje a OS mostra os
+     itens em lista e o total só embaixo.
+  2. **"Valores complementares"** — linhas livres com descrição, custo e
+     valor de venda, para o que não é peça de estoque nem serviço de catálogo
+     (frete de peça, terceirização, taxa de fornecedor). Hoje isso vira
+     "serviço avulso", que mistura mão de obra com repasse de custo e suja o
+     relatório de serviço mais feito.
+  3. **"Valor do orçamento" solto x itens lançados.** A ficha tem os dois, e
+     eles não conversam: o valor digitado no orçamento não é a soma dos itens,
+     e nada avisa quando os dois discordam. É o próximo a resolver, porque é
+     o que decide quanto o cliente paga.
+
 - [ ] ⚪ 🆕 **Voltar de uma ficha perde o período do relatório.** Notado na
   revisão de 28/08, quando as linhas dos relatórios viraram clicáveis.
 

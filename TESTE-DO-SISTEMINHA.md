@@ -624,6 +624,12 @@ você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda
   *Por que importa: essa decisão hoje só existe na cabeça de quem atendeu. O técnico descobre desmontando o aparelho, e o cliente descobre a taxa na hora de pagar — que é o pior lugar possível para descobrir R$ 80.*
   > 🔎 **Nasce ligada de propósito.** O esquecimento leva ao caminho mais cuidadoso (com laudo), não ao mais barato. Se o padrão fosse o contrário, esquecer mandaria o aparelho para a bancada sem ninguém ter combinado a análise — e a conversa difícil aconteceria na entrega.
 
+- [ ] **🔴 87. Serviço que já vem com as peças (ficha técnica)**
+  **O que fazer:** Abra **Cadastros > Serviços**, edite um serviço que use peça (ex.: uma troca) e role até **"Peças que este serviço usa"**. Escolha uma peça do estoque, ponha a quantidade e clique em **Adicionar peça**. Salve. Agora abra uma OS, clique em **Adicionar item**, aba **Serviço avulso**, e escolha esse serviço em **Puxar do catálogo**. Olhe o que aparece antes de confirmar e depois lance.
+  **Tem que acontecer:** No cadastro, a peça entra numa lista com a quantidade, o estoque de hoje e — para quem vê custo — quanto ela custa, com o total das peças pelo preço de hoje. Na OS, ao escolher o serviço, aparece um aviso **"Este serviço já leva N peça(s)"** com nome, quantidade e preço de cada uma, e em vermelho se faltar estoque. Ao lançar, a OS ganha **uma linha do serviço e uma linha de cada peça**, com o estoque já descontado.
+  *Por que importa: antes eram dois lançamentos separados e o segundo é o que se esquece. Esquecer a peça tira ela do estoque da conta e faz aquele serviço parecer muito mais lucrativo do que é.*
+  > 🔎 **O custo do serviço deixou de ser um número digitado.** Ele passa a ser a soma das peças com o preço de HOJE — antes, a peça encarecia e o custo do serviço continuava dizendo o preço do ano passado, sem ninguém perceber.
+
 ---
 
 ## Se algo falhar

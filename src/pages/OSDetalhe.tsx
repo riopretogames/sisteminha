@@ -282,6 +282,28 @@ export default function OSDetalhe() {
     }));
   };
 
+  /**
+   * As peças que o serviço escolhido consome (ficha técnica, cadastrada em
+   * Cadastros > Serviços). Buscadas na hora da escolha, não antes: são poucas
+   * e só interessam para o serviço que a pessoa selecionou.
+   */
+  const { data: pecasDoServico } = useQuery({
+    queryKey: ['pecas-do-servico', itemForm.servicoId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('servico_pecas')
+        .select('produto_id, quantidade, produtos:vw_produtos(nome, preco, custo, estoque_atual)')
+        .eq('servico_id', itemForm.servicoId);
+      if (error) throw error;
+      return (data ?? []) as unknown as Array<{
+        produto_id: string;
+        quantidade: number;
+        produtos: { nome: string; preco: number | null; custo: number | null; estoque_atual: number | null } | null;
+      }>;
+    },
+    enabled: !!itemForm.servicoId,
+  });
+
   const escolherServico = (servicoId: string) => {
     const servico = servicos.find((s) => s.id === servicoId);
     setItemForm((f) => ({
@@ -364,14 +386,52 @@ export default function OSDetalhe() {
       const { error } = await supabase.from('service_order_items').insert(payload);
       if (error) throw error;
 
-      toast({
-        title: tipoItem === 'peca' ? 'Peça lançada!' : 'Serviço lançado!',
-        description:
-          tipoItem === 'peca'
-            ? 'O estoque já foi descontado automaticamente.'
-            : 'Item adicionado à OS.',
-        variant: 'success',
-      });
+      /**
+       * Serviço com ficha técnica lança as peças junto.
+       *
+       * Pedido do Felipe em 31/08. Antes eram dois lançamentos, e o segundo é
+       * o que se esquece — esquecer tira a peça do estoque da conta e infla a
+       * margem daquele serviço. Cada peça vira uma linha própria na OS, com o
+       * preço dela: o cliente enxerga o que foi trocado, e o estoque desconta.
+       *
+       * Uma peça que falhar não derruba o serviço que já entrou: o aviso diz
+       * quais faltaram, e elas podem ser lançadas à mão.
+       */
+      const pecasParaLancar = tipoItem === 'servico' ? (pecasDoServico ?? []) : [];
+      const pecasQueFalharam: string[] = [];
+
+      for (const peca of pecasParaLancar) {
+        const { error: erroPeca } = await supabase.from('service_order_items').insert({
+          os_id: os.id,
+          produto_id: peca.produto_id,
+          descricao: peca.produtos?.nome ?? null,
+          quantidade: Math.max(1, Math.round(Number(peca.quantidade) || 1)),
+          preco_cobrado: Number(peca.produtos?.preco ?? 0),
+          ...(veCusto && peca.produtos?.custo != null
+            ? { custo_unitario: Number(peca.produtos.custo) }
+            : {}),
+        });
+        if (erroPeca) pecasQueFalharam.push(peca.produtos?.nome ?? 'peça');
+      }
+
+      if (pecasQueFalharam.length > 0) {
+        toast({
+          title: 'Serviço lançado, mas faltaram peças',
+          description: `Não deu para lançar: ${pecasQueFalharam.join(', ')}. Confira o estoque e lance à mão.`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: tipoItem === 'peca' ? 'Peça lançada!' : 'Serviço lançado!',
+          description:
+            tipoItem === 'peca'
+              ? 'O estoque já foi descontado automaticamente.'
+              : pecasParaLancar.length > 0
+                ? `Serviço e ${pecasParaLancar.length} peça(s) da ficha técnica, com o estoque já descontado.`
+                : 'Item adicionado à OS.',
+          variant: 'success',
+        });
+      }
 
       setItemDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ['os-itens', id] });
@@ -1238,6 +1298,42 @@ export default function OSDetalhe() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* O que vem junto. Mostrar ANTES de confirmar é o ponto: o
+                    técnico vê que a tela vai sair do estoque, e quem não quer
+                    ainda dá tempo de escolher outro serviço ou lançar à mão.
+                    Surpresa de estoque descoberta depois é conferência
+                    refeita. */}
+                {(pecasDoServico ?? []).length > 0 && (
+                  <div className="rounded-md border bg-muted/40 p-2.5">
+                    <p className="text-xs font-medium">
+                      Este serviço já leva {(pecasDoServico ?? []).length} peça(s):
+                    </p>
+                    <ul className="mt-1 space-y-0.5">
+                      {(pecasDoServico ?? []).map((p) => {
+                        const emEstoque = Number(p.produtos?.estoque_atual ?? 0);
+                        const precisa = Number(p.quantidade);
+                        const falta = emEstoque < precisa;
+                        return (
+                          <li key={p.produto_id} className="text-xs text-muted-foreground">
+                            {precisa}× {p.produtos?.nome ?? '—'}
+                            {p.produtos?.preco != null && <> · {moeda(Number(p.produtos.preco))}</>}
+                            {falta && (
+                              <span className="text-destructive">
+                                {' '}
+                                — só {emEstoque} em estoque
+                              </span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Elas entram como linhas próprias na OS e saem do estoque.
+                    </p>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="descricao_servico">Descrição *</Label>
                   <Input

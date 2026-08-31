@@ -2074,6 +2074,72 @@ export type Database = {
           },
         ]
       }
+      servico_pecas: {
+        Row: {
+          created_at: string
+          id: string
+          produto_id: string
+          quantidade: number
+          servico_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          produto_id: string
+          quantidade?: number
+          servico_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          produto_id?: string
+          quantidade?: number
+          servico_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "servico_pecas_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "servico_pecas_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_produtos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "servico_pecas_servico_id_fkey"
+            columns: ["servico_id"]
+            isOneToOne: false
+            referencedRelation: "servicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "servico_pecas_servico_id_fkey"
+            columns: ["servico_id"]
+            isOneToOne: false
+            referencedRelation: "vw_servicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "servico_pecas_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       servicos: {
         Row: {
           ativo: boolean
@@ -2964,6 +3030,10 @@ export type Database = {
       catalogo_e_do_tipo: {
         Args: { _id: string; _tipo: string }
         Returns: boolean
+      }
+      custo_das_pecas_do_servico: {
+        Args: { _servico_id: string }
+        Returns: number
       }
       garantir_caixa_aberto: {
         Args: { _tenant: string; _usuario: string }

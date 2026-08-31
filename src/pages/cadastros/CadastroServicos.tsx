@@ -44,6 +44,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import { moeda } from '@/lib/format';
+import { PecasDoServico } from '@/components/servicos/PecasDoServico';
 import { useAtalhosDeDialogo } from '@/hooks/useAtalhosDeDialogo';
 
 /**
@@ -576,6 +577,21 @@ export default function CadastroServicos() {
               />
             </div>
           </div>
+          {/* A ficha técnica: as peças que este serviço consome. Fica no fim
+              do formulário de propósito — ela só existe depois que o serviço
+              tem id, e o caso comum (serviço de mão de obra) não precisa dela.
+              Pedido do Felipe em 31/08. */}
+          <div className="space-y-2 border-t pt-4">
+            <div>
+              <p className="text-sm font-medium">Peças que este serviço usa</p>
+              <p className="text-xs text-muted-foreground">
+                Lançar este serviço numa OS vai trazer estas peças junto, já descontando do
+                estoque. O custo delas é somado com o preço de hoje, não com um número digitado.
+              </p>
+            </div>
+            <PecasDoServico servicoId={editingServico?.id ?? null} />
+          </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Cancelar
