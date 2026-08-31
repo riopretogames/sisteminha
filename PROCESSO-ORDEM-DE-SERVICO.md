@@ -114,12 +114,27 @@ existe.
 13. **Se aprovou:** o **vendedor** marca `LAUDO APROVADO`. Isso dispara
     mensagem no grupo LAUDISON.IO, e a OS vai para a Etapa 3.
 
-14. **Se reprovou:** o vendedor **registra o motivo da reprovação**, a loja
-    cobra os R$ 80 na retirada e o cliente retira o aparelho.
+14. **Se reprovou:** o aparelho volta pela **mesma esteira** do reparo
+    aprovado — não existe caminho separado para o laudo recusado:
+    - o vendedor registra o **motivo da recusa**;
+    - a loja pode **tentar comprar o aparelho como sucata**, dependendo do
+      caso e do estado da peça;
+    - o **técnico remonta** o aparelho;
+    - o técnico aperta **REPARO CONCLUÍDO**, o mesmo botão do reparo normal;
+    - a OS vai para a **Etapa 5 — Finalizado** e o aparelho fica na loja
+      aguardando retirada.
+
+    Na retirada, o cliente paga os R$ 80 do laudo em vez do valor do serviço.
 
 O registro do motivo não é burocracia: é o que permite saber depois se o
 cliente recusou por preço, por prazo, ou porque decidiu comprar outro
 aparelho. Sem isso, todo "não" vira o mesmo "não".
+
+> [!note] Por que isso importa para quem for programar
+> O laudo recusado **não** é um beco sem saída: ele reentra no fluxo normal e
+> sai pela mesma porta. Não é preciso criar coluna nem caminho especial para
+> ele — basta permitir que o técnico remonte e conclua uma OS que nunca
+> chegou a ter reparo aprovado.
 
 ---
 
