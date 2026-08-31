@@ -4,6 +4,7 @@ import { ArrowLeft, Check, ChevronsUpDown, Loader2, UserPlus } from 'lucide-reac
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -119,6 +120,11 @@ const FORM_VAZIO = {
   // preenchido, e o atendente troca por "reparo avançado" ou por uma data
   // livre quando for o caso.
   prazo_previsto: '',
+  // Toda OS nasce esperando laudo: é o caminho mais cuidadoso. Desligar é
+  // escolha consciente para o serviço tabelado, em que a loja já sabe o preço
+  // antes de abrir o aparelho. Se fosse o contrário, o esquecimento levaria o
+  // aparelho para a bancada sem ninguém ter combinado a análise com o cliente.
+  laudo_eletronico: true,
   // Padrão da loja. Decisão do Felipe em 09/08.
   garantia_dias: '90',
   prioridade: 'normal' as OsPrioridade,
@@ -371,6 +377,7 @@ export default function NovaOS() {
             observacoes: form.observacoes.trim() || null,
             tecnico_id: form.tecnico_id || null,
             vendedor_id: form.vendedor_id || null,
+            laudo_eletronico: form.laudo_eletronico,
             prazo_previsto: form.prazo_previsto || null,
             // Sem automação nenhuma por enquanto: só guarda o prazo prometido.
             // A contagem a partir da retirada entra junto com os status.
@@ -770,7 +777,60 @@ export default function NovaOS() {
           <CardHeader>
             <CardTitle className="text-base">Atendimento</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
+          <CardContent className="space-y-6">
+            {/* A bifurcação da triagem, do organograma do Felipe: serviço
+                tabelado (preço na hora) x análise completa (laudo, taxa e
+                prazo). O lembrete embaixo é o roteiro do que dizer ao cliente
+                AGORA — depois que ele vai embora, a conversa fica cara. */}
+            <div className="rounded-lg border p-3">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <Label htmlFor="laudo_eletronico" className="text-sm font-medium">
+                    Vai ter laudo eletrônico?
+                  </Label>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Ligado: o técnico abre o aparelho, investiga e monta o laudo.
+                    Desligado: serviço tabelado, preço e prazo você já informa agora.
+                  </p>
+                </div>
+                <Switch
+                  id="laudo_eletronico"
+                  checked={form.laudo_eletronico}
+                  onCheckedChange={(v) => alterar('laudo_eletronico', v)}
+                  aria-label="Vai ter laudo eletrônico"
+                />
+              </div>
+
+              <div className="mt-3 rounded-md bg-muted/50 p-2.5 text-xs">
+                {form.laudo_eletronico ? (
+                  <>
+                    <p className="font-medium">Combine com o cliente antes de fechar a OS:</p>
+                    <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">
+                      <li>a análise é completa, com o aparelho aberto na bancada;</li>
+                      <li>a taxa de análise é de <strong>R$ 80,00</strong>;</li>
+                      <li>o prazo do laudo é de <strong>1 a 3 dias úteis</strong>;</li>
+                      <li>
+                        se ele aprovar o serviço, a taxa <strong>é abatida</strong> do valor;
+                        se recusar, os R$ 80 são cobrados na retirada.
+                      </li>
+                    </ul>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium">Serviço tabelado — informe agora ao cliente:</p>
+                    <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">
+                      <li>o preço da tabela;</li>
+                      <li>o prazo da tabela.</li>
+                    </ul>
+                    <p className="mt-1 text-muted-foreground">
+                      Sem laudo, não há taxa de análise — e o técnico vai direto para a execução.
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="vendedor">
                 Quem recebeu (balcão)
@@ -914,6 +974,7 @@ export default function NovaOS() {
                   <SelectItem value="cortesia">Cortesia</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
             </div>
           </CardContent>
         </Card>

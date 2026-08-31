@@ -119,4 +119,38 @@ describe('Abertura de OS: o que a tela exige', () => {
       expect(document.getElementById('tecnico')).toHaveTextContent(/definir depois/i);
     });
   });
+
+  describe('a pergunta do laudo eletrônico', () => {
+    it('nasce ligada — o caminho cuidadoso é combinar a análise com o cliente', async () => {
+      await abrirTela();
+
+      const chave = await screen.findByLabelText(/vai ter laudo eletrônico/i);
+      expect(chave).toBeChecked();
+    });
+
+    it('ligada, lembra o vendedor da taxa, do prazo e do abatimento', async () => {
+      await abrirTela();
+
+      // O lembrete é o roteiro do que dizer AGORA: depois que o cliente vai
+      // embora, essa conversa fica cara.
+      expect(await screen.findByText(/combine com o cliente antes de fechar a OS/i))
+        .toBeInTheDocument();
+      expect(screen.getByText(/R\$ 80,00/)).toBeInTheDocument();
+      expect(screen.getByText(/1 a 3 dias úteis/i)).toBeInTheDocument();
+      expect(screen.getByText(/é abatida/i)).toBeInTheDocument();
+    });
+
+    it('desligada, o lembrete vira o do serviço tabelado', async () => {
+      await abrirTela();
+
+      fireEvent.click(await screen.findByLabelText(/vai ter laudo eletrônico/i));
+
+      // "Serviço tabelado" aparece duas vezes: no título do lembrete e na
+      // explicação da chavinha. É o texto do lembrete que interessa aqui.
+      expect(await screen.findByText(/serviço tabelado — informe agora/i)).toBeInTheDocument();
+      expect(screen.getByText(/preço da tabela/i)).toBeInTheDocument();
+      // E some o roteiro da análise: os dois nunca aparecem juntos.
+      expect(screen.queryByText(/taxa de análise é de/i)).not.toBeInTheDocument();
+    });
+  });
 });

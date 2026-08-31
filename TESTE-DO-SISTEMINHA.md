@@ -17,7 +17,7 @@ abrindo mão.
 
 ## O que já roda sozinho
 
-O sistema tem **280 testes automáticos** que rodam a cada mudança. Eles cobrem
+O sistema tem **286 testes automáticos** que rodam a cada mudança. Eles cobrem
 as contas (faturamento, devolução, custo médio, ranking) e o comportamento das
 telas por perfil — inclusive o pior defeito que este sistema já teve, a tela de
 Estoque ficando branca para quem não vê custo.
@@ -617,6 +617,12 @@ você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda
   **Tem que acontecer:** Na OS em Aguardando aprovação, o botão diz **"Cliente aprovou o laudo"** e está **verde**, a mesma cor da coluna Aprovado / Executar — **não** oferece mais "Avançar para Aguardando Peça". Na Entrada, o botão é laranja (a cor da aprovação) e diz "Enviar laudo para aprovação". Na Aguardando Peça, o botão leva para Aprovado / Executar. E a coluna **Aprovado / Executar agora é verde** no quadro, não azul.
   *Por que importa: o botão sugeria a próxima COLUNA, e a Aguardando Peça fica no meio do caminho — então quem estava esperando o cliente responder era convidado a mover o aparelho para "esperando peça", que é outra coisa completamente. Peça é desvio, não passo do processo.*
   > 🔎 **A cor do botão é a cor de para onde ele leva.** Você lê o botão, olha o quadro e reconhece a coluna sem precisar decorar. E se mudar a cor de uma etapa em Gerenciar Status, o botão acompanha sozinho.
+
+- [ ] **🔴 86. A pergunta do laudo eletrônico na abertura da OS**
+  **O que fazer:** Abra **Assistência > Nova OS**. No bloco **Atendimento**, olhe a pergunta **"Vai ter laudo eletrônico?"** — ela vem **ligada**. Leia o lembrete embaixo dela. Agora **desligue** a chavinha e leia o lembrete de novo. Abra a OS com a chavinha **desligada** e, na ficha que abrir, olhe o cabeçalho do bloco **Diagnóstico técnico**.
+  **Tem que acontecer:** Ligada, o lembrete traz o roteiro do que combinar com o cliente: análise completa, **taxa de R$ 80,00**, prazo de **1 a 3 dias úteis** e o **abatimento** da taxa se ele aprovar. Desligada, vira o roteiro do serviço tabelado: informe o preço e o prazo da tabela, sem taxa. Na ficha da OS aberta com a chavinha desligada, o Diagnóstico técnico avisa **"Serviço tabelado"** e diz que o caminho é executar, sem esperar laudo.
+  *Por que importa: essa decisão hoje só existe na cabeça de quem atendeu. O técnico descobre desmontando o aparelho, e o cliente descobre a taxa na hora de pagar — que é o pior lugar possível para descobrir R$ 80.*
+  > 🔎 **Nasce ligada de propósito.** O esquecimento leva ao caminho mais cuidadoso (com laudo), não ao mais barato. Se o padrão fosse o contrário, esquecer mandaria o aparelho para a bancada sem ninguém ter combinado a análise — e a conversa difícil aconteceria na entrega.
 
 ---
 

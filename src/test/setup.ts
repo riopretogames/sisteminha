@@ -49,3 +49,24 @@ if (!Element.prototype.hasPointerCapture) {
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
+
+
+/**
+ * O jsdom não tem `ResizeObserver`, e a chavinha (Switch) do shadcn depende
+ * dela para se medir. Sem este remendo, qualquer tela que ganhe uma chavinha
+ * derruba os testes dela inteiros com "ResizeObserver is not defined" — o que
+ * aconteceu de verdade em 31/08, quando a Nova OS ganhou a pergunta do laudo
+ * eletrônico e cinco testes que nada tinham a ver com isso quebraram juntos.
+ *
+ * Observador que não observa nada serve: em teste, nada muda de tamanho.
+ */
+class ObservadorDeTamanhoFalso {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+if (!("ResizeObserver" in globalThis)) {
+  (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver =
+    ObservadorDeTamanhoFalso;
+}

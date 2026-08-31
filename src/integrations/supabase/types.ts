@@ -1879,6 +1879,7 @@ export type Database = {
           garantia_dias: number
           garantia_meses: number
           id: string
+          laudo_eletronico: boolean
           marca: string | null
           marca_id: string | null
           memoria: string | null
@@ -1927,6 +1928,7 @@ export type Database = {
           garantia_dias?: number
           garantia_meses?: number
           id?: string
+          laudo_eletronico?: boolean
           marca?: string | null
           marca_id?: string | null
           memoria?: string | null
@@ -1975,6 +1977,7 @@ export type Database = {
           garantia_dias?: number
           garantia_meses?: number
           id?: string
+          laudo_eletronico?: boolean
           marca?: string | null
           marca_id?: string | null
           memoria?: string | null

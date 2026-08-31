@@ -162,6 +162,9 @@ interface OSCompleta {
    *  A distância entre os dois é o tempo em que a OS esperou o cliente. */
   execucao_iniciada_em: string | null;
   execucao_iniciada_por: string | null;
+  /** Combinado com o cliente na abertura: esta OS passa por análise e laudo
+   *  (true) ou é serviço tabelado, com preço e prazo já informados (false). */
+  laudo_eletronico: boolean | null;
   clientes: { nome: string; telefones: string[] } | null;
   /** Marcações do check-in, com o item de catálogo que cada uma representa. */
   os_checklist: { catalogo_id: string; catalogos: { descricao: string; tipo: string } | null }[];
@@ -433,7 +436,7 @@ export default function OSDetalhe() {
            defeito_cliente, observacoes, anotacoes_checkin, senha_aparelho, senha_padrao,
            prazo_previsto, garantia_dias, total_orcamento, valor_final_pago, data_finalizacao,
            created_at, vendedor_id, reparo_iniciado_em, reparo_iniciado_por,
-           execucao_iniciada_em, execucao_iniciada_por,
+           execucao_iniciada_em, execucao_iniciada_por, laudo_eletronico,
            clientes(nome, telefones),
            os_checklist(catalogo_id, catalogos(descricao, tipo)),
            tecnico_id, tecnico:profiles!service_orders_tecnico_id_fkey(nome),
@@ -822,6 +825,22 @@ export default function OSDetalhe() {
         <Card className="sm:col-span-2">
           <CardHeader>
             <CardTitle className="text-base">Diagnóstico técnico</CardTitle>
+            {/* O que foi combinado no balcão. O técnico precisa saber disto
+                ANTES de abrir o aparelho: numa OS tabelada ele vai direto
+                executar, e o laudo nem é esperado pelo cliente. */}
+            <p className="text-sm text-muted-foreground">
+              {os.laudo_eletronico === false ? (
+                <>
+                  <strong>Serviço tabelado</strong> — combinado no balcão com preço e prazo de
+                  tabela. Não espera laudo eletrônico; o caminho é executar.
+                </>
+              ) : (
+                <>
+                  <strong>Com laudo eletrônico</strong> — o cliente foi avisado da taxa de análise
+                  e do prazo. O laudo é a Constatação técnica abaixo.
+                </>
+              )}
+            </p>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <div className="space-y-1.5">
