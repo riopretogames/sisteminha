@@ -114,9 +114,15 @@ export function TrocarEtapaOS({ osId, numeroOs, statusAtual, tipo, totalOrcament
   // Some o atalho de avançar quando o próximo passo seria justamente a
   // decisão bloqueada (aguardando_aprovacao → aprovado).
   const proxima =
-    aprovarBloqueado && proximaBruta?.key === OS_ETAPAS.APROVADO
+    // Em "Aguardando aprovação" quem move a OS é o par de botões da decisão do
+    // laudo (components/os/DecisaoDoLaudo), que registra a resposta do cliente
+    // e o motivo da recusa. Dois caminhos para a mesma decisão, um deles sem
+    // registrar nada, faria o registro valer só quando alguém lembrasse.
+    statusAtual === OS_ETAPAS.AGUARDANDO_APROVACAO
       ? undefined
-      : proximaBruta;
+      : aprovarBloqueado && proximaBruta?.key === OS_ETAPAS.APROVADO
+        ? undefined
+        : proximaBruta;
   // "Aprovado" some sempre que falta orders.approve, não só saindo de
   // aguardando_aprovacao (ver comentário de `aprovarBloqueado`). "Cancelar
   // OS" continua com a regra estreita de sempre (só some saindo de
