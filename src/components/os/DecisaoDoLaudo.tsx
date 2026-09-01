@@ -43,10 +43,36 @@ interface Props {
   /** Paga, garantia ou cortesia — só a paga passa pelo caixa na retirada. */
   tipo: 'paga' | 'garantia' | 'cortesia';
   totalOrcamento: number;
+  /**
+   * A OS teve laudo eletrônico combinado? Serviço tabelado (false) não passa
+   * por análise, então a recusa dele não cobra taxa — mesma condição da função
+   * `registrar_decisao_do_laudo` no banco. Manter as duas em pé é o que evita
+   * a tela prometer uma cobrança que o sistema não faz, e vice-versa.
+   */
+  laudoEletronico?: boolean | null;
+  /**
+   * Botões pequenos, para caber numa linha de tabela.
+   *
+   * Existe porque a fila de Orçamentos tinha a MESMA decisão com botões
+   * próprios que faziam outra coisa: recusar ali cancelava a OS, sem motivo,
+   * sem taxa e sem devolver as peças. Duas telas decidindo o mesmo com
+   * resultados diferentes é como o histórico da loja fica mentindo — e a
+   * correção não é copiar a regra para lá, é usar este componente nos dois
+   * lugares.
+   */
+  compacto?: boolean;
   onMudou: () => void;
 }
 
-export function DecisaoDoLaudo({ osId, status, tipo, totalOrcamento, onMudou }: Props) {
+export function DecisaoDoLaudo({
+  osId,
+  status,
+  tipo,
+  totalOrcamento,
+  laudoEletronico = true,
+  compacto = false,
+  onMudou,
+}: Props) {
   const { can } = useAuth();
   const { toast } = useToast();
   const [salvando, setSalvando] = useState(false);
@@ -66,7 +92,8 @@ export function DecisaoDoLaudo({ osId, status, tipo, totalOrcamento, onMudou }: 
    * não cobra nada, e o diálogo não pode prometer cobrança. O banco faz a
    * mesma conta (migration 20260901120000); aqui é só para o texto não mentir.
    */
-  const cobraTaxa = tipo === 'paga' && taxa > 0;
+  // As mesmas duas condições do banco, na mesma ordem.
+  const cobraTaxa = tipo === 'paga' && laudoEletronico !== false && taxa > 0;
 
   // Só faz sentido enquanto a OS espera a resposta.
   if (status !== OS_ETAPAS.AGUARDANDO_APROVACAO) return null;
@@ -135,6 +162,7 @@ export function DecisaoDoLaudo({ osId, status, tipo, totalOrcamento, onMudou }: 
         // Verde: é o "andou bem" da paleta, e a mesma cor da coluna Aprovado /
         // Executar, para onde a OS vai.
         className="bg-green-600 text-white hover:bg-green-700"
+        size={compacto ? 'sm' : 'default'}
         disabled={salvando}
         onClick={aprovar}
       >
@@ -146,9 +174,14 @@ export function DecisaoDoLaudo({ osId, status, tipo, totalOrcamento, onMudou }: 
         Laudo aprovado
       </Button>
 
-      <Button variant="outline" disabled={salvando} onClick={() => setRecusaAberta(true)}>
+      <Button
+        variant="outline"
+        size={compacto ? 'sm' : 'default'}
+        disabled={salvando}
+        onClick={() => setRecusaAberta(true)}
+      >
         <X className="mr-2 h-4 w-4" />
-        Cliente não aprovou
+        {compacto ? 'Não aprovou' : 'Cliente não aprovou'}
       </Button>
 
       <Dialog open={recusaAberta} onOpenChange={(aberto) => !aberto && setRecusaAberta(false)}>

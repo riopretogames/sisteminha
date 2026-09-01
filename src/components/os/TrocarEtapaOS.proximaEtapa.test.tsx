@@ -60,8 +60,11 @@ const ETAPAS = [
     color: 'bg-emerald-500 text-white', ordem: 70, ativo: true, sistema: true },
 ];
 
-async function abrir(statusAtual: string) {
-  mockCan.mockImplementation(montarCan({ perfil: 'administrador' }));
+async function abrir(
+  statusAtual: string,
+  opcoes: { perfil?: 'administrador' | 'tecnico'; laudoAprovado?: boolean | null } = {},
+) {
+  mockCan.mockImplementation(montarCan({ perfil: opcoes.perfil ?? 'administrador' }));
   mockSupabase.atual = bancoFalso({ os_status_config: ETAPAS });
   const { TrocarEtapaOS } = await import('./TrocarEtapaOS');
   return renderizarTela(
@@ -71,6 +74,7 @@ async function abrir(statusAtual: string) {
       statusAtual={statusAtual}
       tipo="paga"
       totalOrcamento={100}
+      laudoAprovado={opcoes.laudoAprovado ?? null}
       onMudou={() => {}}
     />,
   );
@@ -174,5 +178,29 @@ describe('A etapa que o botão de avanço sugere', () => {
     const botao = await screen.findByRole('button', { name: /enviar laudo para aprovação/i });
     // O destino é "Aguardando aprovação", laranja no quadro.
     expect(botao.className).toContain('bg-orange-600');
+  });
+
+  describe('o técnico saindo de um desvio (achado da revisão de 31/08)', () => {
+    it('OS JÁ aprovada: o técnico consegue voltar de Aguardando Peça para a bancada', async () => {
+      // O beco sem saída: é o técnico quem põe a OS em "Aguardando Peça", a
+      // peça chega, e ele não tinha como devolver o aparelho para a bancada —
+      // "Aprovado" sumia do botão E do seletor, porque exigia permissão de
+      // aprovar orçamento. Só que numa OS já aprovada não há nada a aprovar.
+      await abrir('aguardando_peca', { perfil: 'tecnico', laudoAprovado: true });
+
+      expect(await screen.findByRole('button', { name: /avançar para aprovado/i }))
+        .toBeInTheDocument();
+    });
+
+    it('OS ainda NÃO aprovada: a trava continua de pé', async () => {
+      // Aqui a proteção original vale: sem ela, quem tem só orders.edit
+      // pularia a decisão do cliente e aprovaria o orçamento sozinho.
+      await abrir('aguardando_peca', { perfil: 'tecnico', laudoAprovado: null });
+
+      await waitFor(() => {
+        expect(screen.queryByRole('button', { name: /avançar para aprovado/i }))
+          .not.toBeInTheDocument();
+      });
+    });
   });
 });

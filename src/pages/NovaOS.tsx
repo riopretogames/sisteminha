@@ -808,7 +808,26 @@ export default function NovaOS() {
               </div>
 
               <div className="mt-3 rounded-md bg-muted/50 p-2.5 text-xs">
-                {form.laudo_eletronico ? (
+                {form.laudo_eletronico && form.tipo !== 'paga' ? (
+                  <>
+                    {/* Garantia e cortesia não cobram análise — o banco grava
+                        zero de propósito. Antes, o roteiro mandava avisar de
+                        uma taxa de R$ 80 que o sistema nunca cobraria, e o
+                        vendedor passava essa informação errada ao cliente. */}
+                    <p className="font-medium">
+                      Combine com o cliente antes de fechar a OS:
+                    </p>
+                    <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">
+                      <li>a análise é completa, com o aparelho aberto na bancada;</li>
+                      <li>
+                        <strong>não há taxa de análise</strong> nesta OS — é
+                        {form.tipo === 'garantia' ? ' garantia' : ' cortesia'}, e a loja não
+                        cobra análise nesses casos;
+                      </li>
+                      <li>o prazo do laudo é de <strong>1 a 3 dias úteis</strong>.</li>
+                    </ul>
+                  </>
+                ) : form.laudo_eletronico ? (
                   <>
                     <p className="font-medium">Combine com o cliente antes de fechar a OS:</p>
                     <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">

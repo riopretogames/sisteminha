@@ -47,10 +47,20 @@ interface Props {
   statusAtual: string;
   tipo: 'paga' | 'garantia' | 'cortesia';
   totalOrcamento: number;
+  /** O cliente já respondeu o orçamento? true = aprovou. Ver `aprovarBloqueado`. */
+  laudoAprovado: boolean | null;
   onMudou: () => void;
 }
 
-export function TrocarEtapaOS({ osId, numeroOs, statusAtual, tipo, totalOrcamento, onMudou }: Props) {
+export function TrocarEtapaOS({
+  osId,
+  numeroOs,
+  statusAtual,
+  tipo,
+  totalOrcamento,
+  laudoAprovado,
+  onMudou,
+}: Props) {
   const { can } = useAuth();
   const { statuses } = useOsStatuses();
   const { toast } = useToast();
@@ -86,7 +96,17 @@ export function TrocarEtapaOS({ osId, numeroOs, statusAtual, tipo, totalOrcament
   // banco: um técnico com `orders.edit` aprovava orçamento sem nunca ter
   // `orders.approve`, driblando a permissão inteira. Por isso "Aprovado"
   // exige `podeAprovar` sempre, e não só quando `decisaoDeOrcamentoBloqueada`.
-  const aprovarBloqueado = !podeAprovar;
+  //
+     // MAS: isso vale enquanto a aprovação AINDA NÃO ACONTECEU. Numa OS que o
+     // cliente já aprovou, mandar de volta para "Aprovado / Executar" não
+     // aprova nada — é retomar o trabalho depois de um desvio.
+     //
+     // Sem esta segunda condição, o técnico ficava PRESO: ele é quem põe a OS
+     // em "Aguardando Peça", a peça chega dois dias depois, e ele não tinha
+     // como devolver o aparelho para a bancada — nem botão, nem opção no
+     // seletor, porque "Aprovado" sumia dos dois. Achado na revisão de 31/08,
+     // e é beco sem saída de verdade: só um gerente destravava.
+     const aprovarBloqueado = !podeAprovar && laudoAprovado !== true;
 
   // Etapas na ordem do quadro. Cancelado fica fora da esteira e entra à parte.
   const etapas = statuses

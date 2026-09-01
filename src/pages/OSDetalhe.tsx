@@ -874,6 +874,7 @@ export default function OSDetalhe() {
               status={os.status}
               tipo={os.tipo}
               totalOrcamento={os.total_orcamento}
+              laudoEletronico={os.laudo_eletronico}
               onMudou={() => {
                 queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] });
                 queryClient.invalidateQueries({ queryKey: ['os-historico', id] });
@@ -886,6 +887,7 @@ export default function OSDetalhe() {
               statusAtual={os.status}
               tipo={os.tipo}
               totalOrcamento={os.total_orcamento}
+              laudoAprovado={os.laudo_aprovado}
               onMudou={() => {
                 queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] });
                 queryClient.invalidateQueries({ queryKey: ['os-itens', id] });
