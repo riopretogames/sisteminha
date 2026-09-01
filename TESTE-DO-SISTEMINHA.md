@@ -594,6 +594,13 @@ você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda
   *Por que importa: era o pedido do 27/08 — a mesma venda aparecia em quatro telas e só numa dava para abrir. E o "quem é o cliente, que hora, qual colaborador" do estoque não estava no relatório de estoque (que é uma fotografia de saldos, sem data e sem pessoa): está em Movimentações, e é lá que foi resolvido.*
   > 🔎 **Teste também o crachá, se puder:** entre com um usuário de perfil **Gerente Técnico** e abra o Relatório de Vendas. A linha **não pode** abrir ficha nenhuma — esse perfil não tem acesso ao módulo Venda, e a ficha mostra produto, IMEI, desconto e formas de pagamento. Isso escapou na primeira versão e foi pego na revisão do mesmo dia.
 
+## Bloco 17 — O processo da assistência vira botão (28 a 31/08)
+
+Estes passos vieram do organograma que você desenhou no Figma: cada passagem de
+etapa virou um botão com o nome que a bancada usa, e as decisões que só existiam
+na conversa do balcão passaram a ficar registradas. Junto vêm os campos
+obrigatórios configuráveis e a numeração das etapas.
+
 - [ ] **🔴 82. Escolher o que é obrigatório em cada cadastro**
   **O que fazer:** Abra **Configurações > Campos Obrigatórios**. Na aba **Cadastro de cliente**, ligue a chavinha do **Instagram**. Vá em **Cadastros > Clientes > Novo Cliente**, preencha só o nome e clique em **Cadastrar**. Preencha o Instagram e salve. Volte à configuração, **desligue** o Instagram e ligue o **Telefone / WhatsApp**; cadastre outro cliente só com o nome. Por fim, abra a aba **Abertura de Ordem de Serviço**, desligue o **IMEI / Nº de série**, e abra uma OS sem preencher esse campo.
   **Tem que acontecer:** Com o Instagram ligado, salvar só com o nome traz aviso vermelho **"Falta o Instagram"**, e o campo ganha asterisco na tela. Preenchido, salva. Com o telefone ligado, o aviso passa a ser o do telefone — e o Instagram deixa de ser cobrado. Na OS, com o IMEI desligado, a ordem abre sem ele; o asterisco some do campo. Tente desligar o **Nome completo**: a chavinha está travada, com um cadeado e a explicação do porquê.
@@ -650,7 +657,7 @@ você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda
 
 ---
 
-## Bloco 13 — O que a revisão de 01/09 consertou
+## Bloco 18 — O que a revisão de 01/09 consertou (01/09)
 
 Duas sessões de trabalho mexeram no sistema no mesmo dia, nos mesmos arquivos.
 Os passos abaixo testam o que a revisão desse encontro achou de errado — são os
