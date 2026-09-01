@@ -152,7 +152,21 @@ export function OSTableView({ orders, statuses, loading, onStatusChange, podeApr
                 // "Aprovado" exige orders.approve sempre, não só saindo de
                 // aguardando_aprovacao — ver comentário de `podeAprovar` na
                 // interface acima.
-                if (s.key === OS_ETAPAS.APROVADO && !podeAprovar) return false;
+                // ...MAS só enquanto a aprovação ainda não aconteceu. Numa OS
+                // que o cliente JÁ aprovou, voltar para "Aprovado / Executar"
+                // não aprova nada — é retomar o trabalho depois do desvio de
+                // "Aguardando Peça". Sem esta segunda condição o técnico ficava
+                // preso lá: é ele quem põe a OS na espera da peça e não
+                // conseguia tirar. Mesma correção da ficha (TrocarEtapaOS), que
+                // em 01/09 ficou feita só lá — e uma trava consertada numa
+                // porta de três é uma trava não consertada.
+                if (
+                  s.key === OS_ETAPAS.APROVADO &&
+                  !podeAprovar &&
+                  order.laudo_aprovado !== true
+                ) {
+                  return false;
+                }
                 // "Cancelar" só é bloqueado nesta saída específica (recusar
                 // orçamento) — cancelar de outra etapa segue liberado, igual
                 // o banco permite.

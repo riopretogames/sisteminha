@@ -27,6 +27,16 @@ interface Props {
   onChange: (ids: string[]) => void;
   /** Cor da faixa do título, para os blocos se distinguirem de relance. */
   tom?: 'defeito' | 'item' | 'condicao';
+  /**
+   * Âncora para o aviso de campo obrigatório rolar até aqui.
+   *
+   * Sem ela, a loja que exige "condição de entrada" via o aviso e a tela não
+   * saía do lugar — o bloco fica no meio da página e o aviso apontava para o
+   * nada.
+   */
+  id?: string;
+  /** Marca o título com o asterisco vermelho: a loja exige pelo menos um. */
+  obrigatorio?: boolean;
 }
 
 const TOM = {
@@ -42,6 +52,8 @@ export function ChecklistEntrada({
   selecionados,
   onChange,
   tom = 'defeito',
+  id,
+  obrigatorio = false,
 }: Props) {
   const catalogo = useCatalogo(tipo);
   const [busca, setBusca] = useState('');
@@ -80,9 +92,12 @@ export function ChecklistEntrada({
   };
 
   return (
-    <div className="flex flex-col rounded-lg border">
+    <div id={id} className="flex flex-col rounded-lg border">
       <div className={`rounded-t-lg px-3 py-2 ${TOM[tom]}`}>
-        <p className="text-sm font-semibold">{titulo}</p>
+        <p className="text-sm font-semibold">
+          {titulo}
+          {obrigatorio && <span className="text-destructive"> *</span>}
+        </p>
         <p className="text-xs opacity-80">{hint}</p>
       </div>
 

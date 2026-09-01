@@ -15,6 +15,7 @@ import {
   Cog,
   Ban,
   Coins,
+  Truck,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -61,6 +62,15 @@ interface OSRow {
   data_finalizacao: string | null;
   status: string;
   reparo_inviavel: boolean | null;
+  /**
+   * FALSE = o cliente recusou o orçamento.
+   *
+   * Desde 01/09 a OS recusada anda pelas MESMAS etapas da aprovada — ela volta
+   * para a bancada para ser remontada e de lá vai para "Finalizado" e
+   * "Entregue". Ou seja: a etapa sozinha não distingue mais o reparo que
+   * aconteceu do que o cliente não quis. Ver `osOrcamentoAprovado`.
+   */
+  laudo_aprovado: boolean | null;
   total_orcamento: number | null;
   valor_final_pago: number | null;
   tecnico_id: string | null;
@@ -120,7 +130,7 @@ const rotuloEtapa = (chave: string) =>
 // do resultado. `itens:vw_os_itens(...)` obedece a regra de custo protegido --
 // leitura de item de OS passa SEMPRE pela view, mesmo sem pedir custo.
 const CAMPOS =
-  'id, numero_os, created_at, updated_at, data_finalizacao, status, reparo_inviavel, total_orcamento, valor_final_pago, tecnico_id, tecnico:profiles!service_orders_tecnico_id_fkey(nome), equipamento_id, equipamento:catalogos!service_orders_equipamento_id_fkey(descricao), clientes(nome), itens:vw_os_itens(descricao, produto_id, quantidade, preco_cobrado, horas_mao_obra, tipo_item)';
+  'id, numero_os, created_at, updated_at, data_finalizacao, status, reparo_inviavel, laudo_aprovado, total_orcamento, valor_final_pago, tecnico_id, tecnico:profiles!service_orders_tecnico_id_fkey(nome), equipamento_id, equipamento:catalogos!service_orders_equipamento_id_fkey(descricao), clientes(nome), itens:vw_os_itens(descricao, produto_id, quantidade, preco_cobrado, horas_mao_obra, tipo_item)';
 
 export default function DashboardAssistencia() {
   // Mesma disciplina do painel de Venda: `new Date()` uma vez só, no mount.
@@ -240,7 +250,17 @@ export default function DashboardAssistencia() {
   // ⚠️ As colunas `total_pecas` e `total_mao_obra` de `service_orders` NÃO são
   // usadas aqui: elas existem no schema mas nenhuma migration as preenche.
   // Somá-las mostraria R$ 0,00 no painel com a bancada cheia de serviço.
-  const itensEntregues = entreguesSemana.flatMap((o) => o.itens ?? []);
+  //
+  // ⚠️ E SÓ DAS OS QUE O CLIENTE APROVOU. Achado na revisão de 01/09: a OS
+  // recusada continua com as peças e os serviços lançados na ficha (é o
+  // orçamento que o cliente viu e recusou), e desde 01/09 ela passa pela
+  // entrega como qualquer outra — o cliente vem buscar o aparelho e paga a
+  // taxa de análise. Somando os itens dela, o painel dizia que a semana teve
+  // R$ 450 de peça e mão de obra, quando o que entrou no caixa foram R$ 80,
+  // e "Peças Mais Usadas" listava a peça que voltou para a prateleira.
+  const itensEntregues = entreguesSemana
+    .filter((o) => o.laudo_aprovado !== false)
+    .flatMap((o) => o.itens ?? []);
   const totalDoItem = (i: ItemOSRow) =>
     Number(i.preco_cobrado ?? 0) * Number(i.quantidade ?? 1);
 
@@ -261,6 +281,13 @@ export default function DashboardAssistencia() {
   const totalComplementar = itensEntregues
     .filter((i) => tipoDoItem(i) === 'complementar')
     .reduce((soma, i) => soma + totalDoItem(i), 0);
+  // O denominador das porcentagens é a conta INTEIRA. Deixar o repasse de fora
+  // fazia as duas fatias somarem 100% de um bolo menor do que o real: numa
+  // semana com R$ 200 de mão de obra, R$ 300 de peça e R$ 100 de frete, a mão
+  // de obra aparecia como 40% do serviço entregue quando é 33%.
+  const totalDaSemana = totalMaoObra + totalPecas + totalComplementar;
+  const fatia = (parte: number) =>
+    totalDaSemana > 0 ? `${((parte / totalDaSemana) * 100).toFixed(0)}% do serviço entregue` : null;
 
   // Serviço é texto livre: a tela deixa puxar do catálogo mas grava só o nome
   // copiado, sem guardar qual foi. `chaveDeTexto` junta "Troca de tela",
@@ -398,18 +425,14 @@ export default function DashboardAssistencia() {
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <CardIndicador
           titulo="Mão de Obra da Semana"
           faixa="kpi-vendas"
           icone={<Hammer className="h-4 w-4" />}
           carregando={isLoading}
           valor={moeda(totalMaoObra)}
-          detalhe={
-            totalMaoObra + totalPecas > 0
-              ? `${((totalMaoObra / (totalMaoObra + totalPecas)) * 100).toFixed(0)}% do serviço entregue`
-              : 'Nenhum serviço lançado nesta semana'
-          }
+          detalhe={fatia(totalMaoObra) ?? 'Nenhum serviço lançado nesta semana'}
         />
         <CardIndicador
           titulo="Peças da Semana"
@@ -417,10 +440,21 @@ export default function DashboardAssistencia() {
           icone={<Coins className="h-4 w-4" />}
           carregando={isLoading}
           valor={moeda(totalPecas)}
+          detalhe={fatia(totalPecas) ?? 'Nenhuma peça lançada nesta semana'}
+        />
+        {/* Frete da peça, serviço terceirizado: o que a loja repassa ao cliente
+            sem ser mão de obra da bancada nem peça da prateleira. A conta já
+            existia no código desde 31/08 e não aparecia em lugar nenhum — os
+            dois cartões ao lado somavam menos do que a OS cobrou, e a diferença
+            não tinha nome na tela. */}
+        <CardIndicador
+          titulo="Outros Custos da Semana"
+          faixa="kpi-caixa"
+          icone={<Truck className="h-4 w-4" />}
+          carregando={isLoading}
+          valor={moeda(totalComplementar)}
           detalhe={
-            totalMaoObra + totalPecas > 0
-              ? `${((totalPecas / (totalMaoObra + totalPecas)) * 100).toFixed(0)}% do serviço entregue`
-              : 'Nenhuma peça lançada nesta semana'
+            fatia(totalComplementar) ?? 'Nenhum frete ou terceirização nesta semana'
           }
         />
         <CardIndicador
@@ -534,7 +568,7 @@ export default function DashboardAssistencia() {
 
         <TabelaRanking
           titulo="Serviços Mais Realizados"
-          descricao="A mão de obra lançada nas OS entregues nesta semana, ordenada por quantidade."
+          descricao="A mão de obra das OS entregues nesta semana, tirando as que o cliente recusou — nelas o serviço não chegou a ser feito."
           linhas={servicosRealizados}
           rotuloNome="Serviço"
           rotuloQuantidade="Vezes"
@@ -546,7 +580,7 @@ export default function DashboardAssistencia() {
 
         <TabelaRanking
           titulo="Peças Mais Usadas"
-          descricao="O que saiu do estoque para a bancada nas OS entregues nesta semana."
+          descricao="O que saiu do estoque para a bancada nas OS entregues nesta semana. Sem as recusadas: a peça delas voltou para a prateleira."
           linhas={pecasUsadas}
           rotuloNome="Peça"
           rotuloQuantidade="Usadas"

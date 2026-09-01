@@ -16,7 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PERMISSIONS } from '@/config/permissions';
 import { OS_ETAPAS, OS_CANCELADO } from '@/config/osStatus';
 import { confirmarReaberturaDeOSEntregue } from '@/lib/reabrirOS';
-import { acaoParaAvancar } from '@/lib/acaoDaEtapa';
+import { acaoParaAvancar, AVISO_REPARO_NUNCA_INICIADO } from '@/lib/acaoDaEtapa';
 import { passagemPedeDecisaoDoLaudo } from '@/lib/decisaoDoLaudo';
 import { corDeBotaoDaEtapa } from '@/lib/cores';
 import { cn } from '@/lib/utils';
@@ -49,6 +49,11 @@ interface Props {
   totalOrcamento: number;
   /** O cliente já respondeu o orçamento? true = aprovou. Ver `aprovarBloqueado`. */
   laudoAprovado: boolean | null;
+  /**
+   * Quando alguém apertou "Iniciar a execução". Nulo = o reparo nunca começou
+   * oficialmente — ver `AVISO_REPARO_NUNCA_INICIADO`.
+   */
+  execucaoIniciadaEm: string | null;
   onMudou: () => void;
 }
 
@@ -59,6 +64,7 @@ export function TrocarEtapaOS({
   tipo,
   totalOrcamento,
   laudoAprovado,
+  execucaoIniciadaEm,
   onMudou,
 }: Props) {
   const { can } = useAuth();
@@ -97,16 +103,16 @@ export function TrocarEtapaOS({
   // `orders.approve`, driblando a permissão inteira. Por isso "Aprovado"
   // exige `podeAprovar` sempre, e não só quando `decisaoDeOrcamentoBloqueada`.
   //
-     // MAS: isso vale enquanto a aprovação AINDA NÃO ACONTECEU. Numa OS que o
-     // cliente já aprovou, mandar de volta para "Aprovado / Executar" não
-     // aprova nada — é retomar o trabalho depois de um desvio.
-     //
-     // Sem esta segunda condição, o técnico ficava PRESO: ele é quem põe a OS
-     // em "Aguardando Peça", a peça chega dois dias depois, e ele não tinha
-     // como devolver o aparelho para a bancada — nem botão, nem opção no
-     // seletor, porque "Aprovado" sumia dos dois. Achado na revisão de 31/08,
-     // e é beco sem saída de verdade: só um gerente destravava.
-     const aprovarBloqueado = !podeAprovar && laudoAprovado !== true;
+  // MAS: isso vale enquanto a aprovação AINDA NÃO ACONTECEU. Numa OS que o
+  // cliente já aprovou, mandar de volta para "Aprovado / Executar" não aprova
+  // nada — é retomar o trabalho depois de um desvio.
+  //
+  // Sem esta segunda condição, o técnico ficava PRESO: ele é quem põe a OS em
+  // "Aguardando Peça", a peça chega dois dias depois, e ele não tinha como
+  // devolver o aparelho para a bancada — nem botão, nem opção no seletor,
+  // porque "Aprovado" sumia dos dois. Achado na revisão de 31/08, e é beco sem
+  // saída de verdade: só um gerente destravava.
+  const aprovarBloqueado = !podeAprovar && laudoAprovado !== true;
 
   // Etapas na ordem do quadro. Cancelado fica fora da esteira e entra à parte.
   const etapas = statuses
@@ -221,6 +227,17 @@ export function TrocarEtapaOS({
       setDialogEntregaAberto(true);
       return;
     }
+    // Concluir um reparo que ninguém marcou como iniciado: avisa, não barra.
+    // O porquê da escolha está junto do texto, em lib/acaoDaEtapa.ts.
+    if (
+      statusAtual === OS_ETAPAS.APROVADO &&
+      novoStatus === OS_ETAPAS.FINALIZADO &&
+      laudoAprovado !== false &&
+      !execucaoIniciadaEm
+    ) {
+      if (!window.confirm(AVISO_REPARO_NUNCA_INICIADO)) return;
+    }
+
     // Passo que marca hora e não se desfaz sem explicação pede confirmação:
     // o organograma escreve "reparo começa aqui" e "laudo enviado ao cliente".
     if (novoStatus === proxima?.key && acao?.confirmar) {

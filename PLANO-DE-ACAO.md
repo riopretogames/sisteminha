@@ -1,6 +1,6 @@
 # Plano de Ação — Sisteminha (RPG System.IO)
 
-**Começou em:** 07/08/2026 · **Atualizado em:** 22/08/2026
+**Começou em:** 07/08/2026 · **Atualizado em:** 01/09/2026
 
 > **Este é o único documento de planejamento do sisteminha.**
 > Se você quer saber o que falta fazer, o que já foi feito e por quê, é
@@ -2486,6 +2486,155 @@ antigo continua aberto ao lado dele.** O botão registra; o caminho antigo não.
   permissões dos testes, e o dublê ainda listava uma permissão que foi apagada
   do sistema em 09/08. Teste apoiado em permissão que o banco não dá é teste
   que passa sem provar nada.
+
+---
+
+## O encontro das duas sessões, e o que a revisão dele achou (01/09, à tarde)
+
+**Duas sessões de trabalho mexeram no sisteminha ao mesmo tempo, no mesmo dia,
+nos mesmos arquivos.** Uma renomeou um componente que a outra estava usando;
+as duas criaram migration com o mesmo número; as duas mexeram na mesma regra de
+dinheiro por motivos diferentes. Deu certo no fim, mas o encontro em si é uma
+fonte de defeito nova — o tipo que nenhuma das duas sessões enxerga sozinha,
+porque cada uma só conhece metade do que mudou.
+
+Por isso o resultado do encontro passou por uma revisão própria: **46 agentes,
+quatro ângulos** — regra duplicada, código órfão, buraco no fluxo e contas de
+dinheiro —, com cada achado atacado por um cético encarregado de derrubá-lo.
+**42 apontados, 19 confirmados.**
+
+O padrão desta rodada é diferente do da manhã. Lá era "o caminho antigo continua
+aberto ao lado do botão novo". Aqui é: **a correção certa feita numa porta só.**
+Metade dos achados é isso — a mesma trava consertada na ficha e esquecida no
+quadro, a mesma conta corrigida no relatório e esquecida no painel.
+
+### 🔴 Os três graves
+
+1. **O técnico ficava preso em "Aguardando Peça".** É ele quem põe a OS ali —
+   é ele quem sabe que falta peça. A peça chega dois dias depois e ele não
+   conseguia devolver o aparelho para a bancada: "Aprovado / Executar" sumia do
+   botão E do seletor, porque mover para lá exigia permissão de aprovar
+   orçamento. Só um gerente destravava, para um aparelho que já estava na mesa
+   dele.
+
+   A proteção era legítima — sem ela, quem tem só permissão de editar OS
+   pularia a decisão do cliente. Mas ela valia demais: **numa OS que o cliente
+   já aprovou não há nada a aprovar**, e mandar de volta para a bancada é
+   retomar o trabalho, não aprovar orçamento.
+
+2. **A mesma decisão em duas telas, com resultados diferentes.** Na ficha da
+   OS, "Cliente não aprovou" pedia o motivo, cobrava a taxa e devolvia o
+   aparelho para a bancada remontar. Na fila de Orçamentos, "Recusar" dava um
+   update direto: jogava a OS em Cancelado, sem motivo, sem taxa e sem devolver
+   as peças ao estoque. Duas telas decidindo o mesmo com resultados diferentes
+   é como o histórico da loja passa a mentir — metade das recusas conta uma
+   história, metade conta outra. A fila passou a usar o **mesmo componente** da
+   ficha (em modo compacto, para caber na linha), e a função antiga foi
+   apagada: deixá-la "por precaução" seria uma segunda regra viva esperando
+   alguém religar.
+
+3. **A taxa de análise era cobrada de quem nunca teve análise.** A chavinha
+   "Vai ter laudo eletrônico?" criada em 31/08 **não era lida por nenhuma regra
+   de dinheiro** — era só lembrete na tela. O vendedor abria uma OS de serviço
+   tabelado, lia na tela "sem laudo, não há taxa de análise", prometia isso ao
+   cliente, e se o cliente desistisse o sistema cobrava R$ 80 que ninguém
+   combinou. Qual das duas versões estava certa? **A da tela**: a taxa paga o
+   trabalho de ABRIR e INVESTIGAR o aparelho, e na OS tabelada esse trabalho
+   não acontece. De quebra, o roteiro da abertura estava errado do outro lado —
+   como a chavinha nasce ligada, toda OS de garantia ou cortesia mandava o
+   vendedor avisar de uma taxa que o banco grava como zero de propósito.
+
+### 🔴 Os 16 restantes, corrigidos na mesma tarde
+
+4. **O painel da assistência contava como faturamento o reparo que ninguém
+   fez.** Mesmo erro que o Relatório de OS tinha (corrigido de manhã), na tela
+   ao lado: como a OS recusada passou a andar pelas mesmas etapas da aprovada,
+   os itens dela — a peça que voltou para a prateleira, o serviço que não foi
+   executado — entravam nos cartões "Mão de Obra da Semana" e "Peças da
+   Semana". Na mesma tela, sobre a mesma OS, o cartão de cima mostrava os R$ 80
+   que entraram e os de baixo mostravam R$ 1.050. A peça devolvida ainda
+   aparecia na lista das "mais usadas".
+
+5. **Os "outros custos" eram calculados e não apareciam.** Frete de peça e
+   serviço terceirizado tinham conta própria desde 31/08 e nenhum lugar na
+   tela: os dois cartões ao lado somavam menos do que a OS cobrou, e a
+   diferença não tinha nome. Pior, as porcentagens ("40% do serviço entregue")
+   dividiam por um bolo menor do que o real. Ganharam cartão próprio, e a
+   porcentagem passou a ser sobre a conta inteira.
+
+6. **Cinco chavinhas de campo obrigatório da OS não faziam nada.** Cor,
+   memória, acessórios, condição de entrada e técnico responsável apareciam em
+   Configurações > Campos Obrigatórios desde 30/08. A loja ligava, salvava, e o
+   balcão continuava abrindo OS sem elas. **Chavinha que mente é pior do que
+   chavinha que não existe:** a dona confia, não confere, e só descobre meses
+   depois olhando as fichas vazias.
+
+   O conserto não foi só ligar as cinco. O defeito não foi esquecimento de um —
+   foram cinco de uma vez, porque **nada ligava a lista da tela de configuração
+   à regra que barra a abertura**. Agora existe um teste que percorre a lista da
+   tela e cobra a regra de cada campo: campo novo que apareça ali sem regra
+   derruba o teste no mesmo commit em que for criado, com o nome do campo no
+   erro.
+
+7. **A mesma peça podia sair do estoque duas vezes.** A OS recusada devolve as
+   peças à prateleira e continua na bancada, onde ainda aceita lançamento. Peça
+   lançada ali saía do estoque na hora; e quando o cliente voltava atrás, o
+   sistema separava de novo **todas** as peças da OS — inclusive aquela, que
+   nunca tinha voltado. A regra que faltava, numa frase: **enquanto a OS está
+   parada, nenhuma peça está separada para ela.** Era um erro que só apareceria
+   no inventário, meses depois, sem ninguém saber de onde veio.
+
+8. **Dava para concluir um reparo que nunca começou.** Os dois marcos da
+   bancada — "Iniciar a execução" e "Reparo concluído" — não conversavam. Sem o
+   começo, a OS sai da bancada com a duração desconhecida para sempre, e a
+   distância entre os dois é justamente o único número que diz quanto tempo o
+   conserto levou. Virou **aviso, não trava**: o reparo aconteceu de verdade, e
+   barrar a conclusão por um botão esquecido prenderia o técnico numa etapa com
+   o trabalho feito.
+
+9. **A trava do técnico (achado nº 1) tinha sido consertada numa porta de
+   três.** A ficha da OS ficou certa; o seletor da lista e o arrastar do cartão
+   no quadro continuavam prendendo o técnico em "Aguardando Peça". Foi
+   exatamente o defeito nº 2 acontecendo comigo, no mesmo dia em que escrevi o
+   commit sobre ele.
+
+10. **A peça comprada no fornecedor aparecia com o ícone de mão de obra.** A
+    ficha da OS ainda decidia o tipo do item pela regra velha ("tem produto do
+    estoque?"), então a peça comprada no dia aparecia com a chave inglesa, do
+    lado de "Limpeza" — a mesma confusão que os quatro tipos de lançamento
+    vieram desfazer em 31/08. O custo repassado (frete, terceirização) idem.
+    Ícone agora vem do tipo gravado na linha; quem pode ser excluído continua
+    vindo do vínculo com o estoque, que são duas perguntas diferentes.
+
+11-14. **O roteiro de teste descrevia botões e destinos que não existem mais.**
+    Os passos 89 e 90 mandavam conferir que a recusa "encerra a OS (vai para
+    Cancelado)" e que ela "aparece em 5 · Finalizado" — as duas coisas mudaram
+    no mesmo dia. Esse é o pior tipo de documento errado: ele faz o Felipe
+    anotar falha em coisa certa, e a falha anotada custa uma conversa inteira
+    para desfazer. Os dois passos foram acertados e o roteiro ganhou um bloco
+    novo (91 a 98) com o que esta revisão consertou.
+
+15. **O índice do cofre não citava o roteiro de teste.** O documento que o
+    Felipe usa na mão, no balcão, era o único dos quatro que não estava
+    listado.
+
+16-19. **Comentários que descreviam um sistema anterior.** Referência a
+    migration que outra migration substituiu, explicação dizendo que a recusa
+    "cai em Finalizado" quando ela passou a cair na bancada, e um trecho de
+    código com a indentação torta de um remendo. Comentário errado é pior que
+    comentário nenhum: o próximo a mexer confia nele.
+
+### A lição que ficou desta rodada
+
+**Escrevi dois testes para a taxa de análise e, ao reintroduzir o defeito de
+propósito, os dois passaram.** Duas causas, as duas minhas: o seletor de botão
+casava nos dois casos, e a taxa da loja chega por consulta ao banco — o texto
+do diálogo só fica certo depois que ela responde, e eu olhava antes.
+
+Teste que passa com o defeito ligado é pior que teste nenhum: ele dá permissão
+para não olhar. **Todo teste novo desta rodada foi conferido com o defeito
+reintroduzido** — os do painel, os das chavinhas, os do aviso de reparo. Os que
+não falharam foram reescritos até falhar.
 
 ---
 

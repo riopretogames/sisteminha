@@ -25,6 +25,7 @@ function os(over: Record<string, unknown>) {
     data_finalizacao: null,
     status: 'aguardando_analise',
     reparo_inviavel: false,
+    laudo_aprovado: null,
     total_orcamento: 200,
     valor_final_pago: null,
     tecnico_id: 'tec1',
@@ -47,6 +48,15 @@ const servico = (descricao: string, preco: number) => ({
 const peca = (descricao: string, preco: number) => ({
   descricao,
   produto_id: 'p1',
+  quantidade: 1,
+  preco_cobrado: preco,
+  horas_mao_obra: null,
+});
+/** Frete, terceirização: o que a loja repassa e não é peça nem mão de obra. */
+const outroCusto = (descricao: string, preco: number) => ({
+  descricao,
+  produto_id: null,
+  tipo_item: 'complementar',
   quantidade: 1,
   preco_cobrado: preco,
   horas_mao_obra: null,
@@ -190,6 +200,83 @@ describe('Dashboard de Assistência — os números', () => {
     // 200 de mão de obra em 500 = 40%; peça fica com 60%.
     expect(screen.getByText(/40% do serviço entregue/)).toBeInTheDocument();
     expect(screen.getByText(/60% do serviço entregue/)).toBeInTheDocument();
+  });
+
+  describe('a OS que o cliente RECUSOU (achado da revisão de 01/09)', () => {
+    /**
+     * A recusada anda pelas mesmas etapas da aprovada desde 01/09 — ela volta
+     * para a bancada, o técnico remonta e o cliente vem buscar. Ou seja: ela
+     * PASSA por "entregue" como qualquer outra, mas o que entrou no caixa foi
+     * só a taxa de análise. Somar os itens dela é contar como faturamento da
+     * semana o reparo que ninguém fez.
+     */
+    const recusada = os({
+      id: 'recusada',
+      status: 'entregue',
+      laudo_aprovado: false,
+      data_finalizacao: '2026-08-22T10:00:00',
+      // O que o cliente pagou é a taxa de análise, não o orçamento recusado.
+      valor_final_pago: 80,
+      itens: [servico('Troca de placa', 450), peca('Placa lógica', 600)],
+    });
+
+    it('as peças e a mão de obra dela NÃO entram na conta da semana', async () => {
+      await abrir([recusada]);
+
+      await waitFor(() => {
+        expect(screen.getByText('Mão de Obra da Semana')).toBeInTheDocument();
+      });
+      // Nem os R$ 450 do serviço, nem os R$ 600 da peça que voltou ao estoque.
+      expect(screen.queryByText('R$ 450,00')).not.toBeInTheDocument();
+      expect(screen.queryByText('R$ 600,00')).not.toBeInTheDocument();
+      expect(
+        screen.getByText(/Nenhum serviço lançado nesta semana/),
+      ).toBeInTheDocument();
+    });
+
+    it('a peça devolvida não aparece em "Peças Mais Usadas"', async () => {
+      await abrir([recusada]);
+
+      await waitFor(() => {
+        expect(screen.getByText('Peças Mais Usadas')).toBeInTheDocument();
+      });
+      expect(screen.queryByText('Placa lógica')).not.toBeInTheDocument();
+      expect(screen.queryByText('Troca de placa')).not.toBeInTheDocument();
+    });
+
+    it('mas ela continua contando como entrega e como faturamento da taxa', async () => {
+      // O aparelho saiu da loja e os R$ 80 entraram: isso aconteceu de verdade
+      // e some do painel se a correção for larga demais.
+      await abrir([recusada]);
+
+      await waitFor(() => {
+        expect(screen.getByText('Entregues na Semana')).toBeInTheDocument();
+      });
+      expect(screen.getByText(/R\$ 80,00 recebidos/)).toBeInTheDocument();
+    });
+  });
+
+  it('mostra os "outros custos" — frete e terceirização — em cartão próprio', async () => {
+    // Antes eles eram calculados e não apareciam em lugar nenhum: os dois
+    // cartões ao lado somavam menos do que a OS cobrou, sem nome para a
+    // diferença.
+    await abrir([
+      os({
+        id: '1',
+        status: 'entregue',
+        data_finalizacao: '2026-08-22T10:00:00',
+        valor_final_pago: 600,
+        itens: [servico('Limpeza', 200), peca('Bateria', 300), outroCusto('Frete da peça', 100)],
+      }),
+    ]);
+
+    await waitFor(() => {
+      expect(screen.getByText('Outros Custos da Semana')).toBeInTheDocument();
+    });
+    expect(screen.getByText('R$ 100,00')).toBeInTheDocument();
+    // E a porcentagem passa a ser sobre a conta INTEIRA: 200 em 600 = 33%,
+    // não 40% (que era 200 em 500, ignorando o frete).
+    expect(screen.getByText(/33% do serviço entregue/)).toBeInTheDocument();
   });
 
   it('bancada vazia não quebra nem inventa número', async () => {

@@ -94,10 +94,15 @@ const CAMPO_NA_TELA: Record<string, string> = {
   numero_serie: 'numero_serie',
   marca_id: 'marca',
   modelo_id: 'modelo',
+  cor_id: 'cor',
+  memoria_id: 'memoria',
   defeito_cliente: 'defeito',
+  acessorios_marcados: 'acessorios',
+  condicoes_marcadas: 'condicoes',
   tem_senha: 'tem-senha',
   senha_aparelho: 'senha',
   vendedor_id: 'vendedor',
+  tecnico_id: 'tecnico',
   prazo_previsto: 'prazo',
 };
 
@@ -298,12 +303,17 @@ export default function NovaOS() {
       numero_serie: form.numero_serie,
       marca_id: form.marca_id,
       modelo_id: form.modelo_id,
+      cor_id: form.cor_id,
+      memoria_id: form.memoria_id,
       defeito_cliente: form.defeito_cliente,
       defeitos_marcados: defeitos,
+      acessorios_marcados: acessorios,
+      condicoes_marcadas: condicoes,
       tem_senha: form.tem_senha,
       senha_aparelho: form.senha_aparelho,
       senha_padrao: form.senha_padrao,
       vendedor_id: form.vendedor_id,
+      tecnico_id: form.tecnico_id,
       prazo_previsto: form.prazo_previsto,
       },
       exigencias,
@@ -628,6 +638,7 @@ export default function NovaOS() {
               <CampoCatalogo
                 id="cor"
                 tipo="os_cor"
+                obrigatorio={exige('cor_id')}
                 label="Cor"
                 valor={form.cor_id}
                 onChange={(v) => alterar('cor_id', v)}
@@ -635,6 +646,7 @@ export default function NovaOS() {
               <CampoCatalogo
                 id="memoria"
                 tipo="os_memoria"
+                obrigatorio={exige('memoria_id')}
                 label="Memória / Capacidade"
                 valor={form.memoria_id}
                 onChange={(v) => alterar('memoria_id', v)}
@@ -675,16 +687,20 @@ export default function NovaOS() {
                 onChange={setDefeitos}
               />
               <ChecklistEntrada
+                id="acessorios"
                 tipo="acessorio_entrada"
                 titulo="Itens do aparelho"
+                obrigatorio={exige('acessorios')}
                 hint="O que veio junto. Protege a loja na devolução."
                 tom="item"
                 selecionados={acessorios}
                 onChange={setAcessorios}
               />
               <ChecklistEntrada
+                id="condicoes"
                 tipo="condicao_entrada"
                 titulo="Condições de entrada"
+                obrigatorio={exige('condicoes')}
                 hint="Estado físico ANTES do reparo."
                 tom="condicao"
                 selecionados={condicoes}
@@ -893,7 +909,10 @@ export default function NovaOS() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="tecnico">Técnico responsável</Label>
+              <Label htmlFor="tecnico">
+                Técnico responsável
+                {exige('tecnico_id') && <span className="text-destructive"> *</span>}
+              </Label>
               <Select
                 value={form.tecnico_id || 'nenhum'}
                 onValueChange={(v) => alterar('tecnico_id', v === 'nenhum' ? '' : v)}

@@ -12,9 +12,14 @@ import { OS_ETAPAS } from '@/config/osStatus';
  * lugar sem nada disso. Arrastar o cartão de "Aguardando aprovação" para
  * "Aprovado" no quadro, ou escolher a etapa no seletor da ficha e da lista,
  * fazia um UPDATE cru de status. A OS ficava aprovada sem ninguém ter
- * registrado que o cliente aprovou; e indo para "Finalizado" — que é onde a
- * recusa cai —, ficava recusada sem motivo, sem a taxa e cobrando na retirada
- * o reparo que o cliente não quis.
+ * registrado que o cliente aprovou — e sem o motivo, sem a taxa no lugar do
+ * orçamento, e sem as peças voltando ao estoque, quando a resposta era não.
+ *
+ * "Finalizado" entra na mesma lista por outro motivo: de "Aguardando
+ * aprovação" ele é um PULO. Ir direto para lá diz "pronto, pode buscar" sem
+ * ninguém ter respondido nada — nem o cliente, nem a bancada. (Até 01/09 era
+ * também onde a recusa caía; hoje a recusa vai para a bancada remontar o
+ * aparelho, mas o pulo continua sendo pulo.)
  *
  * Caminho paralelo para uma decisão registrada é o mesmo que não registrar:
  * basta uma pessoa com pressa arrastar o cartão, e o dado que explica o

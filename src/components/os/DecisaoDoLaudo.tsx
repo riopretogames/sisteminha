@@ -88,11 +88,18 @@ export function DecisaoDoLaudo({
   const { taxa } = useTaxaDeAnalise({ habilitado: recusaAberta });
 
   /**
-   * Garantia e cortesia não passam pelo caixa na entrega — então recusa nelas
-   * não cobra nada, e o diálogo não pode prometer cobrança. O banco faz a
-   * mesma conta (migration 20260901120000); aqui é só para o texto não mentir.
+   * Quando a recusa cobra alguma coisa. Duas condições, e as duas vieram de
+   * defeito real:
+   *
+   *   • GARANTIA E CORTESIA não passam pelo caixa na entrega, então recusa
+   *     nelas não cobra nada (01/09);
+   *   • SERVIÇO TABELADO não teve análise, e a taxa paga justamente o trabalho
+   *     de abrir e investigar o aparelho (01/09, migration
+   *     `20260901160000_taxa_so_quando_houve_laudo`).
+   *
+   * O banco faz a mesma conta, na mesma ordem, de propósito: aqui é só para o
+   * texto não prometer uma cobrança diferente da que vai acontecer.
    */
-  // As mesmas duas condições do banco, na mesma ordem.
   const cobraTaxa = tipo === 'paga' && laudoEletronico !== false && taxa > 0;
 
   // Só faz sentido enquanto a OS espera a resposta.

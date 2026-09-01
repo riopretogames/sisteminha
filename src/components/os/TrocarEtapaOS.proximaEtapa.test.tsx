@@ -62,7 +62,11 @@ const ETAPAS = [
 
 async function abrir(
   statusAtual: string,
-  opcoes: { perfil?: 'administrador' | 'tecnico'; laudoAprovado?: boolean | null } = {},
+  opcoes: {
+    perfil?: 'administrador' | 'tecnico';
+    laudoAprovado?: boolean | null;
+    execucaoIniciadaEm?: string | null;
+  } = {},
 ) {
   mockCan.mockImplementation(montarCan({ perfil: opcoes.perfil ?? 'administrador' }));
   mockSupabase.atual = bancoFalso({ os_status_config: ETAPAS });
@@ -75,6 +79,7 @@ async function abrir(
       tipo="paga"
       totalOrcamento={100}
       laudoAprovado={opcoes.laudoAprovado ?? null}
+      execucaoIniciadaEm={opcoes.execucaoIniciadaEm ?? null}
       onMudou={() => {}}
     />,
   );
@@ -169,6 +174,54 @@ describe('A etapa que o botão de avanço sugere', () => {
       const nomes = await abrirOSeletor(/Aprovado \/ Executar/);
 
       expect(nomes).toMatch(/Finalizado/);
+    });
+  });
+
+  /**
+   * Concluir um reparo que ninguém marcou como iniciado.
+   *
+   * Achado na revisão de 01/09: os dois marcos da bancada — "Iniciar a
+   * execução" e "Reparo concluído" — não conversavam, então dava para
+   * concluir sem nunca ter começado e o tempo de bancada daquela OS ficava
+   * desconhecido para sempre.
+   */
+  describe('o aviso de reparo nunca iniciado', () => {
+    const confirmar = () =>
+      vi.spyOn(window, 'confirm').mockImplementation(() => true);
+
+    it('avisa quando ninguém apertou "Iniciar a execução"', async () => {
+      const perguntou = confirmar();
+      await abrir(OS_ETAPAS.APROVADO, { execucaoIniciadaEm: null });
+
+      fireEvent.click(await screen.findByRole('button', { name: /reparo concluído/i }));
+
+      expect(perguntou).toHaveBeenCalledWith(
+        expect.stringContaining('Iniciar a execução'),
+      );
+    });
+
+    it('não avisa quando a execução foi iniciada', async () => {
+      const perguntou = confirmar();
+      await abrir(OS_ETAPAS.APROVADO, { execucaoIniciadaEm: '2026-09-01T10:00:00' });
+
+      fireEvent.click(await screen.findByRole('button', { name: /reparo concluído/i }));
+
+      expect(perguntou).not.toHaveBeenCalledWith(
+        expect.stringContaining('Iniciar a execução'),
+      );
+    });
+
+    it('não avisa na OS recusada: nela a execução nunca começa de propósito', async () => {
+      // O técnico só remonta o aparelho. Perguntar aqui seria treinar a equipe
+      // a apertar "sim" sem ler — e aí o aviso deixa de valer onde importa.
+      const perguntou = confirmar();
+      await abrir(OS_ETAPAS.APROVADO, { laudoAprovado: false, execucaoIniciadaEm: null });
+
+      fireEvent.click(await screen.findByRole('button', { name: /reparo concluído/i }));
+
+      expect(perguntou).not.toHaveBeenCalledWith(
+        expect.stringContaining('Iniciar a execução'),
+      );
     });
   });
 

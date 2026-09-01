@@ -175,7 +175,17 @@ export default function OrdensServico() {
     // aprovava orçamento sem nunca ter `orders.approve`. Mesmo problema,
     // mesma correção, em TrocarEtapaOS.tsx.
     const ordemAtual = orders.find((o) => o.id === orderId);
-    const aprovarBloqueado = newStatus === OS_ETAPAS.APROVADO && !podeAprovar;
+    // ...MAS só enquanto a aprovação ainda não aconteceu. Numa OS que o cliente
+    // JÁ aprovou, arrastar o cartão de volta para "Aprovado / Executar" não
+    // aprova nada — é retomar o trabalho depois do desvio de "Aguardando
+    // Peça". Sem esta segunda condição o técnico ficava preso lá: é ele quem
+    // põe a OS na espera da peça e não conseguia tirar. Mesma correção da
+    // ficha (TrocarEtapaOS), que em 01/09 ficou feita só lá — e uma trava
+    // consertada numa porta de três é uma trava não consertada.
+    const aprovarBloqueado =
+      newStatus === OS_ETAPAS.APROVADO &&
+      !podeAprovar &&
+      ordemAtual?.laudo_aprovado !== true;
     // Recusar (cancelar vindo de "Aguardando aprovação") continua só nesse
     // caminho específico — cancelar de outra etapa não é "recusar
     // orçamento", e o banco nunca travou isso.
