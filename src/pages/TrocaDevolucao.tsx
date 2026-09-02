@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Search, Package, ShoppingCart, Plus, Minus, Trash2, ArrowLeftRight } from 'lucide-react';
+import {
+  Search, Package, ShoppingCart, Plus, Minus, Trash2, ArrowLeftRight, ArrowLeft,
+} from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
@@ -75,7 +77,54 @@ interface VendaResumo {
   numero_venda: string | null;
   created_at: string;
   status: string;
+  total: number | null;
   clientes: { id: string; nome: string } | null;
+  vendedor: { nome: string } | null;
+  itens_venda: Array<{ quantidade: number; produtos: { nome: string } | null }>;
+  devolucoes: Array<{ devolucao_itens: Array<{ quantidade: number }> }>;
+}
+
+/**
+ * O que a linha da lista precisa dizer ANTES de a pessoa clicar.
+ *
+ * Pedido do Felipe em 02/09, olhando a tela: *"falta muita informação. Só tem
+ * a OV, não sei qual é o produto, não sei qual é o valor. Eu tenho que clicar
+ * para saber"*. A lista tinha número, data e cliente — e três vendas do mesmo
+ * cliente no mesmo dia ficam idênticas, então achar a certa era clicar em cada
+ * uma e voltar.
+ *
+ * O aviso de devolução vale ainda mais: na tela dele, a OV0006 estava toda
+ * devolvida, e isso só aparecia DEPOIS de entrar ("nada disponível pra
+ * devolver"). Agora aparece na linha.
+ */
+interface LinhaDaLista {
+  venda: VendaResumo;
+  /** "Carregador + 2 itens", para reconhecer a venda de relance. */
+  produtos: string;
+  /** null = nada devolvido; 'parte' e 'tudo' viram selo na linha. */
+  devolucao: 'parte' | 'tudo' | null;
+}
+
+function montarLinha(venda: VendaResumo): LinhaDaLista {
+  const itens = venda.itens_venda ?? [];
+  const nomes = itens.map((i) => i.produtos?.nome).filter(Boolean) as string[];
+  const primeiro = nomes[0] ?? '—';
+  const resto = nomes.length - 1;
+  const produtos = resto > 0 ? `${primeiro} + ${resto} ${resto === 1 ? 'item' : 'itens'}` : primeiro;
+
+  // Compara em PEÇAS, não em número de linhas: devolver 1 de 3 unidades do
+  // mesmo produto é devolução parcial, e contar linhas diria "tudo devolvido".
+  const vendido = itens.reduce((soma, i) => soma + Number(i.quantidade ?? 0), 0);
+  const devolvido = (venda.devolucoes ?? []).reduce(
+    (soma, d) => soma + (d.devolucao_itens ?? []).reduce((s, i) => s + Number(i.quantidade ?? 0), 0),
+    0,
+  );
+
+  return {
+    venda,
+    produtos,
+    devolucao: devolvido <= 0 ? null : devolvido >= vendido && vendido > 0 ? 'tudo' : 'parte',
+  };
 }
 
 interface ItemVendaOriginal {
@@ -124,7 +173,16 @@ export default function TrocaDevolucao() {
     queryFn: async (): Promise<VendaResumo[]> => {
       const { data, error } = await supabase
         .from('vendas')
-        .select('id, numero_venda, created_at, status, clientes(id, nome)')
+        // Produto vem por `vw_produtos` (regra de custo protegido), com apelido
+        // para o JSON manter a chave `produtos`. As devoluções anteriores vêm
+        // junto para a linha poder avisar o que já voltou — ver `montarLinha`.
+        .select(
+          `id, numero_venda, created_at, status, total,
+           clientes(id, nome),
+           vendedor:profiles!vendas_vendedor_id_fkey(nome),
+           itens_venda(quantidade, produtos:vw_produtos(nome)),
+           devolucoes!venda_original_id(devolucao_itens(quantidade))`,
+        )
         .neq('status', 'cancelado')
         .order('created_at', { ascending: false })
         .limit(200);
@@ -203,11 +261,19 @@ export default function TrocaDevolucao() {
     enabled: !!vendaSelecionada,
   });
 
-  const buscaLower = busca.toLowerCase();
-  const vendasFiltradas = (vendas ?? []).filter(
-    (v) =>
-      (v.numero_venda ?? '').toLowerCase().includes(buscaLower) ||
-      (v.clientes?.nome ?? '').toLowerCase().includes(buscaLower)
+  const buscaLower = busca.trim().toLowerCase();
+  // Procurar pelo PRODUTO é o caminho natural de quem está com o cliente na
+  // frente e o aparelho na mão — ele lembra do que comprou, não do número da
+  // venda. Vendedor entra junto porque agora está na tela: campo que se lê e
+  // não se busca vira pergunta ("e como eu acho as vendas da Ana?").
+  const linhas = (vendas ?? []).map(montarLinha);
+  const linhasFiltradas = linhas.filter(({ venda, produtos }) =>
+    !buscaLower
+      ? true
+      : (venda.numero_venda ?? '').toLowerCase().includes(buscaLower) ||
+        (venda.clientes?.nome ?? '').toLowerCase().includes(buscaLower) ||
+        (venda.vendedor?.nome ?? '').toLowerCase().includes(buscaLower) ||
+        produtos.toLowerCase().includes(buscaLower),
   );
 
   const selecionarVenda = (venda: VendaResumo) => {
@@ -433,8 +499,12 @@ export default function TrocaDevolucao() {
     }
   };
 
+  // Mais largo desde 02/09 (era `max-w-4xl`): a lista de vendas passou a
+  // mostrar produto, vendedor e valor, e na largura antiga as colunas se
+  // espremiam a ponto de o nome do produto virar reticências — que era
+  // justamente o que faltava ler.
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader
         titulo="Troca e Devolução"
         hint="Devolve produto de uma venda já fechada — sozinho (devolução) ou trocando por outro produto (troca). O acerto é sempre em dinheiro de verdade, a loja não trabalha com crédito de loja nem crediário."
@@ -456,7 +526,7 @@ export default function TrocaDevolucao() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar por número da venda ou cliente…"
+                placeholder="Buscar por número, cliente, produto ou vendedor…"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
                 className="pl-9"
@@ -465,25 +535,55 @@ export default function TrocaDevolucao() {
             </div>
             {carregandoVendas ? (
               <p className="py-8 text-center text-sm text-muted-foreground">Carregando…</p>
-            ) : vendasFiltradas.length === 0 ? (
+            ) : linhasFiltradas.length === 0 ? (
               <Vazio titulo="Nenhuma venda encontrada" />
             ) : (
-              <div className="max-h-96 overflow-auto rounded-lg border">
+              <div className="max-h-[28rem] overflow-auto rounded-lg border">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Venda</TableHead>
                       <TableHead>Data</TableHead>
                       <TableHead>Cliente</TableHead>
+                      <TableHead>Produto</TableHead>
+                      <TableHead className="hidden lg:table-cell">Vendedor</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
                       <TableHead className="w-10" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {vendasFiltradas.slice(0, 50).map((v) => (
+                    {linhasFiltradas.slice(0, 50).map(({ venda: v, produtos, devolucao }) => (
                       <TableRow key={v.id} className="cursor-pointer" onClick={() => selecionarVenda(v)}>
-                        <TableCell className="font-medium">{v.numero_venda ?? '—'}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {v.numero_venda ?? '—'}
+                            {/* O aviso na LINHA, não depois de entrar: a venda
+                                toda devolvida não tem o que devolver de novo, e
+                                descobrir isso só lá dentro custa dois cliques
+                                e a dúvida de "cliquei na errada?". */}
+                            {devolucao === 'tudo' && (
+                              <Badge variant="outline" className="font-normal">
+                                Já devolvida
+                              </Badge>
+                            )}
+                            {devolucao === 'parte' && (
+                              <Badge variant="outline" className="font-normal">
+                                Devolvida em parte
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="whitespace-nowrap">{dataHora(v.created_at)}</TableCell>
                         <TableCell>{v.clientes?.nome ?? 'Consumidor final'}</TableCell>
+                        <TableCell className="max-w-[16rem] truncate" title={produtos}>
+                          {produtos}
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          {v.vendedor?.nome ?? '—'}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right font-medium">
+                          {moeda(Number(v.total ?? 0))}
+                        </TableCell>
                         <TableCell>
                           <Button variant="ghost" size="icon">
                             <ArrowLeftRight className="h-4 w-4" />
@@ -501,15 +601,22 @@ export default function TrocaDevolucao() {
 
       {podeRegistrar && vendaSelecionada && (
         <>
-          <div className="flex items-center justify-between">
+          {/* Voltar fica à ESQUERDA, com seta, e diz para onde volta.
+              Pedido do Felipe em 02/09: *"quando eu clico numa devolução, não
+              consigo voltar para trás"*. O botão existia — dizia "Trocar de
+              venda", no canto direito, e ninguém o leu como o caminho de
+              volta. Nome de botão é instrução, não descrição do código. */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setVendaSelecionada(null)}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Voltar para a lista de vendas
+            </Button>
             <p className="text-sm text-muted-foreground">
               Venda <span className="font-medium text-foreground">{vendaSelecionada.numero_venda}</span>
               {' — '}
               {vendaSelecionada.clientes?.nome ?? 'Consumidor final'}
+              {vendaSelecionada.vendedor?.nome ? ` — vendeu ${vendaSelecionada.vendedor.nome}` : ''}
             </p>
-            <Button variant="outline" size="sm" onClick={() => setVendaSelecionada(null)}>
-              Trocar de venda
-            </Button>
           </div>
 
           <Card>
