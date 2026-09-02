@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Search, Package, ShoppingCart, Plus, Minus, Trash2, ArrowLeftRight, ArrowLeft,
+  Search, Package, ShoppingCart, Plus, Minus, Trash2, ArrowLeftRight, ArrowLeft, FileText,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { moeda, dataHora } from '@/lib/format';
 import { PageHeader, Vazio } from '@/components/PageHeader';
+import { FichaDaVenda } from '@/components/vendas/FichaDaVenda';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -158,6 +159,17 @@ export default function TrocaDevolucao() {
   const { user, can } = useAuth();
   const queryClient = useQueryClient();
   const podeRegistrar = can(PERMISSIONS.SALES_CANCEL);
+  /**
+   * Ver a ficha completa é outra permissão, não a de devolver.
+   *
+   * A ficha mostra o comercial inteiro da venda — CPF e telefone do cliente,
+   * o que foi pago e como, quanto de desconto. Quem só devolve produto no
+   * balcão não precisa disso, e a regra já vale no Relatório de Vendas desde
+   * a revisão de 28/08 (era por lá que o Gerente Técnico via dado comercial
+   * sem ter `sales.view`). Mesma trava, mesmo motivo.
+   */
+  const podeVerFicha = can(PERMISSIONS.SALES_VIEW);
+  const [fichaAberta, setFichaAberta] = useState<string | null>(null);
 
   const [busca, setBusca] = useState('');
   const [vendaSelecionada, setVendaSelecionada] = useState<VendaResumo | null>(null);
@@ -548,15 +560,34 @@ export default function TrocaDevolucao() {
                       <TableHead>Produto</TableHead>
                       <TableHead className="hidden lg:table-cell">Vendedor</TableHead>
                       <TableHead className="text-right">Valor</TableHead>
-                      <TableHead className="w-10" />
+                      <TableHead className="w-10 text-right" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {linhasFiltradas.slice(0, 50).map(({ venda: v, produtos, devolucao }) => (
-                      <TableRow key={v.id} className="cursor-pointer" onClick={() => selecionarVenda(v)}>
+                      <TableRow key={v.id}>
                         <TableCell className="font-medium">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            {v.numero_venda ?? '—'}
+                            {/* O número abre a FICHA; o botão à direita começa
+                                a devolução. Antes a linha inteira era um clique
+                                só, que devolvia — e o Felipe pediu em 02/09
+                                justamente o contrário: *"quando clicar na
+                                OV0003, abrir todas as informações que a gente
+                                consegue consultar, inclusive os históricos de
+                                movimentações"*. Duas ações no mesmo lugar
+                                viravam adivinhação; agora cada uma tem o seu, e
+                                o que o clique faz está escrito nele. */}
+                            {podeVerFicha ? (
+                              <button
+                                type="button"
+                                className="font-medium text-primary underline-offset-4 hover:underline"
+                                onClick={() => setFichaAberta(v.id)}
+                              >
+                                {v.numero_venda ?? '—'}
+                              </button>
+                            ) : (
+                              (v.numero_venda ?? '—')
+                            )}
                             {/* O aviso na LINHA, não depois de entrar: a venda
                                 toda devolvida não tem o que devolver de novo, e
                                 descobrir isso só lá dentro custa dois cliques
@@ -584,9 +615,15 @@ export default function TrocaDevolucao() {
                         <TableCell className="whitespace-nowrap text-right font-medium">
                           {moeda(Number(v.total ?? 0))}
                         </TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="icon">
-                            <ArrowLeftRight className="h-4 w-4" />
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="whitespace-nowrap"
+                            onClick={() => selecionarVenda(v)}
+                          >
+                            <ArrowLeftRight className="mr-2 h-4 w-4" />
+                            Devolver
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -607,10 +644,26 @@ export default function TrocaDevolucao() {
               venda", no canto direito, e ninguém o leu como o caminho de
               volta. Nome de botão é instrução, não descrição do código. */}
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setVendaSelecionada(null)}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Voltar para a lista de vendas
-            </Button>
+            <div className="flex flex-wrap items-center gap-1">
+              <Button variant="ghost" size="sm" onClick={() => setVendaSelecionada(null)}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Voltar para a lista de vendas
+              </Button>
+              {/* Consultar a venda no meio da devolução, sem desfazer o que já
+                  foi preenchido: a ficha abre por cima e fecha no lugar. É a
+                  pergunta que aparece com o cliente na frente — "isso foi pago
+                  como?", "quem vendeu?", "já teve devolução?". */}
+              {podeVerFicha && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFichaAberta(vendaSelecionada.id)}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Ver ficha completa
+                </Button>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground">
               Venda <span className="font-medium text-foreground">{vendaSelecionada.numero_venda}</span>
               {' — '}
@@ -817,6 +870,13 @@ export default function TrocaDevolucao() {
           </Card>
         </>
       )}
+
+      {/* A mesma ficha do Histórico de Vendas, do Relatório e de Pagamentos —
+          ela recebe só o id e busca o resto sozinha, então ligar mais uma tela
+          custa esta linha. Traz cliente com contato, itens com número de série,
+          pagamentos, aparelho recebido em troca e a linha do tempo com cada
+          movimentação e quem fez. Ver components/vendas/FichaDaVenda. */}
+      <FichaDaVenda vendaId={fichaAberta} aoFechar={() => setFichaAberta(null)} />
     </div>
   );
 }

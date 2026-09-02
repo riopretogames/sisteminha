@@ -189,11 +189,55 @@ describe('A lista de vendas da Troca e Devolução', () => {
     });
   });
 
+  describe('as duas ações da linha', () => {
+    /**
+     * Antes, a linha inteira era um clique só e ele começava a devolução.
+     * Pedido do Felipe em 02/09: *"quando clicar na OV0003, abrir todas as
+     * informações que a gente consegue consultar, inclusive os históricos de
+     * movimentações"*. Duas ações no mesmo lugar viravam adivinhação — então
+     * cada uma ganhou o seu, com o que ela faz escrito nela.
+     */
+    it('o número da venda abre a ficha completa, não a devolução', async () => {
+      await abrir();
+
+      fireEvent.click(await screen.findByRole('button', { name: 'OV0005' }));
+
+      // A ficha abre por cima, com o cabeçalho da venda. As etapas da
+      // devolução continuam onde estavam.
+      expect(await screen.findByRole('dialog')).toBeInTheDocument();
+      expect(screen.queryByText(/2\. O que está voltando\?/)).not.toBeInTheDocument();
+    });
+
+    it('o botão Devolver é que começa a devolução', async () => {
+      await abrir();
+      const linha = await linhaDa('OV0005');
+
+      fireEvent.click(linha.getByRole('button', { name: /devolver/i }));
+
+      expect(await screen.findByText(/2\. O que está voltando\?/)).toBeInTheDocument();
+    });
+
+    it('quem não pode ver venda não recebe a ficha — só devolve', async () => {
+      // A ficha mostra o comercial inteiro (CPF, telefone, formas de
+      // pagamento, descontos). É a mesma trava do Relatório de Vendas.
+      mockCan.mockImplementation(montarCan({ perfil: 'administrador', menos: ['sales.view'] }));
+      mockSupabase.atual = bancoFalso({
+        vendas: VENDAS, itens_venda: [], devolucoes: [], vw_produtos: [], formas_pagamento: [],
+      });
+      const { default: TrocaDevolucao } = await import('./TrocaDevolucao');
+      renderizarTela(<TrocaDevolucao />);
+
+      const linha = await linhaDa('OV0005');
+      expect(linha.queryByRole('button', { name: 'OV0005' })).not.toBeInTheDocument();
+      expect(linha.getByRole('button', { name: /devolver/i })).toBeInTheDocument();
+    });
+  });
+
   describe('o caminho de volta', () => {
     it('depois de escolher a venda, existe um botão que diz para onde volta', async () => {
       await abrir();
-
-      fireEvent.click(await screen.findByText('OV0005'));
+      const linha = await linhaDa('OV0005');
+      fireEvent.click(linha.getByRole('button', { name: /devolver/i }));
 
       expect(await screen.findByRole('button', { name: /voltar para a lista de vendas/i }))
         .toBeInTheDocument();
@@ -201,13 +245,25 @@ describe('A lista de vendas da Troca e Devolução', () => {
 
     it('e ele volta mesmo para a lista', async () => {
       await abrir();
-
-      fireEvent.click(await screen.findByText('OV0005'));
+      const linha = await linhaDa('OV0005');
+      fireEvent.click(linha.getByRole('button', { name: /devolver/i }));
       fireEvent.click(await screen.findByRole('button', { name: /voltar para a lista/i }));
 
       // A lista de novo, com as três vendas.
       expect(await screen.findByText('OV0006')).toBeInTheDocument();
       expect(screen.getByText('OV0004')).toBeInTheDocument();
+    });
+
+    it('a ficha continua a um clique no meio da devolução', async () => {
+      // A pergunta que aparece com o cliente na frente: "isso foi pago como?".
+      // Ter de voltar para a lista para consultar apagaria o preenchimento.
+      await abrir();
+      const linha = await linhaDa('OV0004');
+      fireEvent.click(linha.getByRole('button', { name: /devolver/i }));
+
+      fireEvent.click(await screen.findByRole('button', { name: /ver ficha completa/i }));
+
+      expect(await screen.findByRole('dialog')).toBeInTheDocument();
     });
   });
 });
