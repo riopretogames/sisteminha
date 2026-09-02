@@ -7,11 +7,15 @@
  * modelo, sem número de série e sem prazo, e é justamente esse o registro que
  * não serve para nada quando o cliente volta.
  *
+ * O MODELO saiu da abertura em 02/09, a pedido do Felipe: a loja não usa hoje.
+ * O que já foi preenchido continua na ficha das OS antigas e no filtro da
+ * lista — só deixou de ser perguntado no balcão.
+ *
  * Por que a regra mora aqui, e não espalhada pelos `if` da tela:
  *
  *   • ela é testável sem abrir o navegador;
  *   • ela VIROU configuração em 30/08, e a previsão se pagou: a lista deixou
- *     de ser fixa e passou a vir de Configurações > Campos Obrigatórios,
+ *     de ser fixa e passou a vir de Cadastros > Campos Obrigatórios,
  *     mexendo só neste arquivo. Sem `exigidos`, vale o padrão de fábrica
  *     (`src/config/camposObrigatorios.ts`), que é a lista de 27/08.
  *
@@ -20,7 +24,7 @@
  *
  * ⚠️ CAMPO NO CATÁLOGO SEM `if` AQUI É CHAVINHA QUE NÃO FAZ NADA. Achado na
  * revisão de 01/09: cinco campos (cor, memória, acessórios, condições de
- * entrada e técnico) apareciam em Configurações > Campos Obrigatórios, a loja
+ * entrada e técnico) apareciam em Cadastros > Campos Obrigatórios, a loja
  * ligava, salvava — e o balcão continuava abrindo OS sem eles. Chavinha que
  * mente é pior do que chavinha que não existe: a dona liga, confia, e só
  * descobre meses depois olhando as fichas vazias. Ao criar campo novo no
@@ -44,7 +48,6 @@ export interface DadosDaOS {
   equipamento_id: string;
   numero_serie: string;
   marca_id: string;
-  modelo_id: string;
   cor_id: string;
   memoria_id: string;
   /** Texto livre do defeito relatado. */
@@ -128,14 +131,6 @@ export function faltandoParaAbrirOS(
       campo: 'marca_id',
       titulo: 'Falta a marca',
       comoResolver: 'Escolha a marca do aparelho, ou cadastre na hora.',
-    });
-  }
-
-  if (exige('modelo_id') && !dados.modelo_id) {
-    falta.push({
-      campo: 'modelo_id',
-      titulo: 'Falta o modelo',
-      comoResolver: 'Escolha o modelo, ou cadastre na hora.',
     });
   }
 

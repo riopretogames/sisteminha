@@ -283,6 +283,11 @@ export default function OrdensServico() {
       const matchesSearch =
         order.numero_os.toLowerCase().includes(searchLower) ||
         order.cliente_nome.toLowerCase().includes(searchLower) ||
+        // Marca junto com modelo desde 02/09: a abertura deixou de perguntar o
+        // modelo, então buscar só por ele era buscar pelo único campo do
+        // aparelho que nenhuma OS nova tem. O cliente liga dizendo "deixei um
+        // Samsung aí" e o atendente não achava nada.
+        order.marca?.toLowerCase().includes(searchLower) ||
         order.modelo?.toLowerCase().includes(searchLower) ||
         order.defeito_cliente.toLowerCase().includes(searchLower);
 
@@ -400,7 +405,7 @@ export default function OrdensServico() {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por número, cliente, modelo..."
+            placeholder="Buscar por número, cliente, aparelho..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"

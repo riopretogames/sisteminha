@@ -17,7 +17,7 @@ abrindo mão.
 
 ## O que já roda sozinho
 
-O sistema tem **363 testes automáticos** que rodam a cada mudança. Eles cobrem
+O sistema tem **382 testes automáticos** que rodam a cada mudança. Eles cobrem
 as contas (faturamento, devolução, custo médio, ranking) e o comportamento das
 telas por perfil — inclusive o pior defeito que este sistema já teve, a tela de
 Estoque ficando branca para quem não vê custo.
@@ -602,7 +602,7 @@ na conversa do balcão passaram a ficar registradas. Junto vêm os campos
 obrigatórios configuráveis e a numeração das etapas.
 
 - [ ] **🔴 82. Escolher o que é obrigatório em cada cadastro**
-  **O que fazer:** Abra **Configurações > Campos Obrigatórios**. Na aba **Cadastro de cliente**, ligue a chavinha do **Instagram**. Vá em **Cadastros > Clientes > Novo Cliente**, preencha só o nome e clique em **Cadastrar**. Preencha o Instagram e salve. Volte à configuração, **desligue** o Instagram e ligue o **Telefone / WhatsApp**; cadastre outro cliente só com o nome. Por fim, abra a aba **Abertura de Ordem de Serviço**, desligue o **IMEI / Nº de série**, e abra uma OS sem preencher esse campo.
+  **O que fazer:** Abra **Cadastros > Campos Obrigatórios** (mudou de lugar em 02/09 — era Configurações). Na aba **Cadastro de cliente**, ligue a chavinha do **Instagram**. Vá em **Cadastros > Clientes > Novo Cliente**, preencha só o nome e clique em **Cadastrar**. Preencha o Instagram e salve. Volte à configuração, **desligue** o Instagram e ligue o **Telefone / WhatsApp**; cadastre outro cliente só com o nome. Por fim, abra a aba **Nova Ordem de Serviço**, desligue o **IMEI / Nº de série**, e abra uma OS sem preencher esse campo.
   **Tem que acontecer:** Com o Instagram ligado, salvar só com o nome traz aviso vermelho **"Falta o Instagram"**, e o campo ganha asterisco na tela. Preenchido, salva. Com o telefone ligado, o aviso passa a ser o do telefone — e o Instagram deixa de ser cobrado. Na OS, com o IMEI desligado, a ordem abre sem ele; o asterisco some do campo. Tente desligar o **Nome completo**: a chavinha está travada, com um cadeado e a explicação do porquê.
   *Por que importa: é a peça que o sistema precisa para ser vendido a outras lojas — cada uma exige o que faz sentido para ela. E a sua loja não mudou: sem mexer em nada, o cliente continua exigindo só o nome e a OS continua com a lista de 27/08.*
   > 🔎 **Vale ao cadastrar e ao editar**, decisão sua no dia. Ou seja: abrir uma ficha antiga incompleta e salvar vai cobrar o que estiver ligado. É de propósito — é assim que as fichas velhas vão sendo completadas.
@@ -682,7 +682,7 @@ que têm mais chance de estar quebrados de novo.
   *Por que importa: até 01/09 o botão "Recusar" desta fila fazia outra coisa — jogava a OS em Cancelado, sem motivo, sem taxa e sem devolver as peças. Duas telas decidindo o mesmo com resultados diferentes é como o histórico da loja passa a mentir: metade das recusas conta uma história, metade conta outra.*
 
 - [ ] **🔴 94. Os campos obrigatórios da OS que estavam de enfeite**
-  **O que fazer:** Abra **Configurações > Campos Obrigatórios**, aba **Abertura de Ordem de Serviço**, e **ligue** cinco chavinhas: **Cor**, **Memória / capacidade**, **Acessórios que vieram junto**, **Condição de entrada do aparelho** e **Técnico responsável**. Salve. Agora vá em **Nova OS** e tente abrir uma OS deixando cada um deles em branco.
+  **O que fazer:** Abra **Cadastros > Campos Obrigatórios** (mudou de lugar em 02/09 — era Configurações), aba **Nova Ordem de Serviço**, e **ligue** cinco chavinhas: **Cor**, **Memória / capacidade**, **Acessórios que vieram junto**, **Condição de entrada do aparelho** e **Técnico responsável**. Salve. Agora vá em **Nova OS** e tente abrir uma OS deixando cada um deles em branco.
   **Tem que acontecer:** Os cinco ganham **asterisco vermelho** na tela e o sistema **recusa** a abertura, um aviso por vez, rolando até o campo que falta. Nos dois checklists (acessórios e condições), marcar **um item já basta** — não é preciso marcar tudo. Desligando as chavinhas de novo, tudo volta a ser opcional.
   *Por que importa: as cinco apareciam na tela de configuração desde 30/08, a loja ligava, salvava, e o balcão continuava abrindo OS sem elas. Chavinha que mente é pior do que chavinha que não existe: a dona confia e só descobre meses depois, olhando as fichas vazias.*
   > 🔎 **Agora existe uma rede.** Um teste automático percorre a lista da tela de configuração e cobra a regra de cada campo. Campo novo que apareça ali sem regra derruba o teste no mesmo dia, com o nome do campo no erro — em vez de virar mais uma chavinha de enfeite.
@@ -708,6 +708,27 @@ que têm mais chance de estar quebrados de novo.
   **O que fazer:** Numa OS, lance uma **peça comprada** (aba "Peça comprada") e um **outro custo** (ex.: `Frete da peça`). Olhe a lista de itens.
   **Tem que acontecer:** A peça comprada aparece com o ícone de **caixa**, igual à peça do estoque; o outro custo, com o ícone de **caminhão**; só o serviço fica com a **chave inglesa**.
   *Por que importa: a peça comprada aparecia com o ícone de mão de obra, do lado de "Limpeza" — exatamente a confusão que os quatro tipos de lançamento vieram desfazer.*
+
+## Bloco 19 — A loja escolhe o que é obrigatório na venda (02/09)
+
+Duas coisas que você pediu no mesmo dia: o Modelo sai da abertura de OS, e a
+escolha dos campos obrigatórios ganha a aba da venda — dentro de **Cadastros**,
+que é onde você foi procurar.
+
+- [ ] **🔴 99. Escolher os campos obrigatórios da venda**
+  **O que fazer:** Abra **Cadastros > Campos Obrigatórios** (é a última linha de *Tabelas de Apoio*). Repare em qual aba ela abre e nas três abas de cima. Na aba **Nova venda (PDV)**, ligue a chavinha do **Cliente da venda**. Agora vá ao **PDV**, ponha um produto no carrinho **sem escolher cliente** e clique em **Finalizar Venda**. Escolha um cliente e finalize normalmente. Por fim volte e **desligue** a chavinha, e repita a venda sem cliente.
+  **Tem que acontecer:** A tela abre na aba **Nova venda (PDV)**. Com o cliente exigido, o botão **Cliente** do carrinho ganha **asterisco vermelho**, o "Finalizar Venda" **não abre a janela de pagamento** — sai o aviso *"Falta o cliente"* e a janela de escolher cliente abre junto, para você resolver ali mesmo. Com o cliente escolhido, a venda fecha normal. Desligando a chavinha, volta a vender sem cliente.
+  *Por que importa: era o pedido do 02/09 — "tem que se opinar os campos que são obrigatórios, tanto na aba de nova venda quanto na aba de nova ordem de serviço". Vender sem cliente é o normal do balcão cheio; a loja que quiser histórico e garantia no nome de alguém agora consegue exigir, sem programador.*
+  > 🔎 **Só o administrador chega aqui**, como você pediu. Não é regra desta tela: a permissão que ela usa (`settings.edit`) só existe no perfil Administrador — o gerente nem vê o link, e o banco recusa a gravação mesmo por fora da tela. Teste entrando com um usuário Gerente: o item não aparece em Cadastros.
+  > 🔎 **Com o cliente exigido, o botão "Sem cliente" some da janela.** Oferecer uma saída que a regra recusa é o que faz o vendedor rodar em círculo: clica, a janela fecha, o Finalizar Venda recusa de novo. E se o seu perfil não cadastra cliente, a janela avisa para pedir a quem cadastra, em vez de deixar você procurando um botão que não existe.
+  > 🔎 **Se a internet cair na hora de ler a configuração**, o sistema avisa em vermelho que não conseguiu ler o que a loja exige — e a venda fecha sem cobrar. É de propósito: travar o balcão porque uma consulta falhou trocaria um problema raro por um problema garantido. O que não podia era o silêncio.
+  > 🔎 **A venda tem só dois campos para exigir** — cliente e origem da venda. O resto ou é automático (o vendedor é quem está logado) ou já é obrigatório por natureza (sem pagamento que cubra o total, o sistema não fecha). Inventar chavinha para o que ninguém pode deixar em branco seria enfeite.
+
+- [ ] **⚪ 100. O Modelo saiu da abertura de OS**
+  **O que fazer:** Abra **Assistência > Nova OS** e olhe o bloco **Equipamento**. Depois abra **Cadastros > Campos Obrigatórios**, aba **Nova Ordem de Serviço**, e procure o Modelo na lista. Por fim, abra uma **OS antiga** que tinha modelo preenchido e olhe a ficha e a lista de OS.
+  **Tem que acontecer:** Na Nova OS **não existe mais o campo Modelo** — a Marca ficou sozinha na linha. Na tela de campos obrigatórios ele **também não aparece**. Nas OS antigas, o modelo continua na ficha, no cartão do quadro e no filtro da lista.
+  *Por que importa: você pediu para tirar ("no momento a gente não está utilizando"). Tirar da tela e deixar a chavinha na configuração seria pior que não tirar: a chavinha ficaria ligada, você confiaria, e o balcão continuaria abrindo OS sem modelo do mesmo jeito.*
+  > 🔎 **Nada foi apagado do sistema.** O cadastro de modelos (Listas do Sistema), a coluna no banco e o filtro da lista de OS continuam de pé. O campo deixou de ser **perguntado** no balcão — voltar a perguntar é mexer numa linha de código, não refazer nada.
 
 ---
 

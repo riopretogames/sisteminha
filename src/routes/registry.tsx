@@ -51,6 +51,7 @@ export const PAGES: Record<string, Page> = {
   CadastroServicos: lazy(() => import('@/pages/cadastros/CadastroServicos')),
   FormasPagamento: lazy(() => import('@/pages/cadastros/FormasPagamento')),
   ClientesImportar: lazy(() => import('@/pages/cadastros/ClientesImportar')),
+  CamposObrigatorios: lazy(() => import('@/pages/cadastros/CamposObrigatorios')),
 
   /* ── Financeiro ─────────────────────────────────────────────────────────── */
   FinanceiroCaixa: lazy(() => import('@/pages/financeiro/FinanceiroCaixa')),
@@ -74,7 +75,6 @@ export const PAGES: Record<string, Page> = {
   /* ── Configurações ──────────────────────────────────────────────────────── */
   ConfigPerfis: lazy(() => import('@/pages/configuracoes/ConfigPerfis')),
   ConfigPreferencias: lazy(() => import('@/pages/configuracoes/ConfigPreferencias')),
-  ConfigCamposObrigatorios: lazy(() => import('@/pages/configuracoes/ConfigCamposObrigatorios')),
   ConfigLogs: lazy(() => import('@/pages/configuracoes/ConfigLogs')),
 
   /* ── Ainda não construídas ──────────────────────────────────────────────────

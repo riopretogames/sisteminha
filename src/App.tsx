@@ -130,6 +130,11 @@ const App = () => (
             <Route path="/dashboard" element={<Navigate to="/home" replace />} />
             <Route path="/clientes" element={<Navigate to="/cadastros/clientes" replace />} />
             <Route path="/clientes/novo" element={<Navigate to="/cadastros/clientes" replace />} />
+            {/* Campos Obrigatórios saiu de Configurações para Cadastros em 02/09. */}
+            <Route
+              path="/configuracoes/campos-obrigatorios"
+              element={<Navigate to="/cadastros/campos-obrigatorios" replace />}
+            />
 
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -16,7 +16,7 @@
  * muda nada para ele até que mexa numa chavinha.
  */
 
-export type Formulario = 'cliente' | 'os';
+export type Formulario = 'cliente' | 'os' | 'venda';
 
 /**
  * Quando o campo nem aparece na tela, não pode ser cobrado.
@@ -156,7 +156,11 @@ const OS: CampoConfiguravel[] = [
     alerta: 'Cabo, fonte e controle antigo podem não ter número. Se isso travar o balcão, desligue aqui.',
   },
   { chave: 'marca_id', rotulo: 'Marca', grupo: 'Aparelho', padrao: true },
-  { chave: 'modelo_id', rotulo: 'Modelo', grupo: 'Aparelho', padrao: true },
+  // O MODELO saiu da abertura de OS em 02/09, a pedido do Felipe: *"tire esse
+  // campo modelo, que no momento a gente não está utilizando"*. Ele sumiu da
+  // tela, então não pode continuar aqui — chavinha para um campo que não
+  // aparece é chavinha que mente, e foi o defeito de 01/09. O que já foi
+  // preenchido continua na ficha das OS antigas e no filtro da lista.
   { chave: 'cor_id', rotulo: 'Cor', grupo: 'Aparelho', padrao: false },
   { chave: 'memoria_id', rotulo: 'Memória / capacidade', grupo: 'Aparelho', padrao: false },
   {
@@ -187,14 +191,50 @@ const OS: CampoConfiguravel[] = [
   { chave: 'prazo_previsto', rotulo: 'Prazo prometido', grupo: 'Atendimento', padrao: true },
 ];
 
+/**
+ * A venda do balcão (PDV).
+ *
+ * Pedido do Felipe em 02/09: *"tem que se opinar os campos que são
+ * obrigatórios, tanto na aba de nova venda quanto na aba de nova ordem de
+ * serviço"*.
+ *
+ * São só dois, e é honesto que sejam: o resto do que a venda grava ou é
+ * automático (vendedor é quem está logado, data é agora) ou já é obrigatório
+ * por natureza (sem pagamento que cubra o total, o sistema não fecha). Inventar
+ * chavinha para o que ninguém pode deixar em branco seria enfeite.
+ */
+const VENDA: CampoConfiguravel[] = [
+  {
+    chave: 'cliente_id',
+    rotulo: 'Cliente da venda',
+    grupo: 'Quem compra',
+    padrao: false,
+    alerta:
+      'Hoje dá para vender sem cliente, e é assim que o balcão cheio funciona. ' +
+      'Ligar aqui é decisão de quem quer histórico de compra e garantia no nome ' +
+      'de alguém — mas atrasa a fila.',
+  },
+  {
+    chave: 'origem_venda_id',
+    rotulo: 'Origem da venda',
+    grupo: 'De onde veio',
+    padrao: false,
+    alerta:
+      'Se a loja marcou uma origem como padrão em Listas do Sistema, ela já vem ' +
+      'escolhida e a exigência nunca dispara.',
+  },
+];
+
 export const CAMPOS_POR_FORMULARIO: Record<Formulario, CampoConfiguravel[]> = {
-  cliente: CLIENTE,
+  venda: VENDA,
   os: OS,
+  cliente: CLIENTE,
 };
 
 export const NOME_DO_FORMULARIO: Record<Formulario, string> = {
+  venda: 'Nova venda (PDV)',
+  os: 'Nova Ordem de Serviço',
   cliente: 'Cadastro de cliente',
-  os: 'Abertura de Ordem de Serviço',
 };
 
 /** O padrão de fábrica, para o caso de a loja não ter configurado nada. */

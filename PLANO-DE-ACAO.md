@@ -1,6 +1,6 @@
 # Plano de Ação — Sisteminha (RPG System.IO)
 
-**Começou em:** 07/08/2026 · **Atualizado em:** 01/09/2026
+**Começou em:** 07/08/2026 · **Atualizado em:** 02/09/2026
 
 > **Este é o único documento de planejamento do sisteminha.**
 > Se você quer saber o que falta fazer, o que já foi feito e por quê, é
@@ -1621,6 +1621,12 @@ o arquivo antes de assumir.
   **Próximo passo:** repetir o passo 7 e copiar a segunda linha do aviso
   vermelho.
 
+> [!note] A tela de Campos Obrigatórios mudou de lugar em 02/09
+> Os itens abaixo descrevem ela como estava quando nasceu: em **Configurações**,
+> com duas abas. Hoje ela mora em **Cadastros > Tabelas de Apoio** e tem três
+> abas — venda, OS e cliente. Ver a seção *"A venda entra nos campos
+> obrigatórios, e o Modelo sai da OS (02/09)"*, mais abaixo.
+
 - [x] ✅ **Feito em 31/08 — o lançamento na OS ganhou os quatro tipos, o resumo
   e o aviso de divergência.** Peça do estoque, peça comprada no fornecedor no
   dia, serviço e "outro custo" (frete, terceirização) são quatro coisas
@@ -2635,6 +2641,47 @@ Teste que passa com o defeito ligado é pior que teste nenhum: ele dá permissã
 para não olhar. **Todo teste novo desta rodada foi conferido com o defeito
 reintroduzido** — os do painel, os das chavinhas, os do aviso de reparo. Os que
 não falharam foram reescritos até falhar.
+
+---
+
+## A venda entra nos campos obrigatórios, e o Modelo sai da OS (02/09)
+
+Dois pedidos do Felipe no mesmo dia, e eles se explicam juntos.
+
+**"Tire esse campo modelo, que no momento a gente não está utilizando."** Ele
+saiu da abertura de OS — e saiu junto da tela de campos obrigatórios, o que não
+é detalhe: chavinha para um campo que não aparece no formulário é exatamente a
+mentira que a revisão de 01/09 achou cinco vezes. Nada foi apagado do sistema:
+o cadastro de modelos, a coluna no banco, o filtro da lista e o que já está
+preenchido nas OS antigas continuam de pé. O campo deixou de ser **perguntado**.
+
+**"Quero poder escolher quais campos são obrigatórios, tanto na aba de nova
+venda quanto na aba de nova ordem de serviço, e quem deve selecionar esse é o
+administrador."** A tela existia desde 30/08, com as abas de cliente e de OS —
+só que em **Configurações**, e ele foi procurar em **Cadastros**. Três coisas
+mudaram:
+
+- **Mudou de lugar.** Cadastros > Tabelas de Apoio > Campos Obrigatórios. É o
+  lugar certo pelo que ela faz: decide o que os outros *cadastros* exigem, não
+  como o sistema funciona.
+- **Ganhou a aba da venda**, que abre primeiro. São dois campos, e é honesto
+  que sejam dois: cliente e origem da venda. O resto do que a venda grava ou é
+  automático (o vendedor é quem está logado) ou já é obrigatório por natureza
+  (sem pagamento que cubra o total, o sistema não fecha). Inventar chavinha
+  para o que ninguém pode deixar em branco seria enfeite.
+- **"Quem seleciona é o administrador" já era verdade** e continua: a
+  permissão `settings.edit` só existe nesse perfil (o gerente é excluído dela
+  na migration de RBAC), e é ela que as policies da tabela cobram. Ou seja,
+  vale na tela E no banco — não foi preciso inventar trava nova.
+
+O padrão de fábrica da venda **não exige nada**, de propósito: vender sem
+cliente é o normal do balcão cheio, e ligar a configuração não pode mudar o
+comportamento de quem nunca mexeu nela.
+
+A regra da venda nasceu com a mesma rede que a da OS ganhou em 01/09: um teste
+percorre a lista da tela de configuração e cobra a regra de cada campo. Campo
+novo lá sem `if` correspondente derruba o teste no mesmo commit, com o nome do
+campo no erro.
 
 ---
 

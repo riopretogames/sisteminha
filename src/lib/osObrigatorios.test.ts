@@ -19,7 +19,6 @@ const COMPLETA: DadosDaOS = {
   equipamento_id: 'equip-1',
   numero_serie: '359876543210987',
   marca_id: 'marca-1',
-  modelo_id: 'modelo-1',
   cor_id: 'cor-1',
   memoria_id: 'memoria-1',
   defeito_cliente: 'Não liga',
@@ -47,7 +46,6 @@ describe('O que a loja exige para abrir uma OS', () => {
     ['equipamento', { equipamento_id: '' }],
     ['IMEI / nº de série', { numero_serie: '' }],
     ['marca', { marca_id: '' }],
-    ['modelo', { modelo_id: '' }],
     ['quem recebeu', { vendedor_id: '' }],
     ['prazo prometido', { prazo_previsto: '' }],
   ])('sem %s, não abre', (_nome, mudanca) => {
@@ -106,7 +104,7 @@ describe('O que a loja exige para abrir uma OS', () => {
 
   it('o técnico NÃO é obrigatório no padrão de fábrica', () => {
     // O balcão raramente sabe quem vai consertar. A loja que quiser exigir
-    // liga em Configurações > Campos Obrigatórios (ver o bloco abaixo).
+    // liga em Cadastros > Campos Obrigatórios (ver o bloco abaixo).
     expect(podeAbrirOS(semCampo({ tecnico_id: '' }))).toBe(true);
   });
 
@@ -166,7 +164,6 @@ describe('O que a loja exige para abrir uma OS', () => {
       equipamento_id: { equipamento_id: '' },
       numero_serie: { numero_serie: '' },
       marca_id: { marca_id: '' },
-      modelo_id: { modelo_id: '' },
       cor_id: { cor_id: '' },
       memoria_id: { memoria_id: '' },
       defeito_cliente: { defeito_cliente: '', defeitos_marcados: [] },
@@ -184,7 +181,7 @@ describe('O que a loja exige para abrir uma OS', () => {
         const vazio = SEM_O_CAMPO[chave];
         expect(
           vazio,
-          `O campo "${chave}" está em Configurações > Campos Obrigatórios mas ninguém disse a este teste como é um formulário sem ele. Some a regra dele em src/lib/osObrigatorios.ts e a linha no mapa acima.`,
+          `O campo "${chave}" está em Cadastros > Campos Obrigatórios mas ninguém disse a este teste como é um formulário sem ele. Some a regra dele em src/lib/osObrigatorios.ts e a linha no mapa acima.`,
         ).toBeDefined();
 
         const todosLigados = Object.fromEntries(
@@ -197,7 +194,7 @@ describe('O que a loja exige para abrir uma OS', () => {
 
   it('formulário vazio lista tudo que falta, de cima para baixo', () => {
     const vazio: DadosDaOS = {
-      cliente_id: '', equipamento_id: '', numero_serie: '', marca_id: '', modelo_id: '',
+      cliente_id: '', equipamento_id: '', numero_serie: '', marca_id: '',
       cor_id: '', memoria_id: '',
       defeito_cliente: '', defeitos_marcados: [],
       acessorios_marcados: [], condicoes_marcadas: [], tem_senha: '',
@@ -210,7 +207,6 @@ describe('O que a loja exige para abrir uma OS', () => {
       'equipamento_id',
       'numero_serie',
       'marca_id',
-      'modelo_id',
       'defeito_cliente',
       'tem_senha',
       'vendedor_id',

@@ -49,7 +49,7 @@ import { moeda } from '@/lib/format';
  * hoje: "está muito básica, muito precária. Todos os campos são selecionáveis,
  * criados na aba cadastro."
  *
- * O que mudou de fundo: marca, modelo, cor e memória eram digitação livre, e o
+ * O que mudou de fundo: marca, cor e memória eram digitação livre, e o
  * banco acabava com "Samsung", "samsung" e "SANSUNG" como coisas diferentes.
  * Agora vêm dos catálogos de Listas do Sistema — que já existiam, semeados
  * desde 01/08, sem nenhuma tela lendo. O mesmo vale para os três checklists da
@@ -84,7 +84,7 @@ type OsTipo = 'paga' | 'garantia' | 'cortesia';
 /**
  * Onde cada campo obrigatório mora na tela.
  *
- * Serve para o aviso de "falta o modelo" rolar a página até o modelo. Sem
+ * Serve para o aviso de "falta a marca" rolar a página até a marca. Sem
  * isso, numa página longa como esta, o atendente lê o aviso e fica procurando
  * o campo — que é como se aprende a odiar o sistema.
  */
@@ -93,7 +93,6 @@ const CAMPO_NA_TELA: Record<string, string> = {
   equipamento_id: 'equipamento',
   numero_serie: 'numero_serie',
   marca_id: 'marca',
-  modelo_id: 'modelo',
   cor_id: 'cor',
   memoria_id: 'memoria',
   defeito_cliente: 'defeito',
@@ -109,7 +108,6 @@ const CAMPO_NA_TELA: Record<string, string> = {
 const FORM_VAZIO = {
   equipamento_id: '',
   marca_id: '',
-  modelo_id: '',
   cor_id: '',
   memoria_id: '',
   numero_serie: '',
@@ -242,7 +240,6 @@ export default function NovaOS() {
 
   // Só para converter id → texto na hora de gravar as colunas antigas.
   const marcas = useCatalogo('os_marca');
-  const modelos = useCatalogo('os_modelo');
   const cores = useCatalogo('os_cor');
   const memorias = useCatalogo('os_memoria');
   const condicoesCatalogo = useCatalogo('condicao_entrada');
@@ -302,7 +299,6 @@ export default function NovaOS() {
       equipamento_id: form.equipamento_id,
       numero_serie: form.numero_serie,
       marca_id: form.marca_id,
-      modelo_id: form.modelo_id,
       cor_id: form.cor_id,
       memoria_id: form.memoria_id,
       defeito_cliente: form.defeito_cliente,
@@ -364,7 +360,6 @@ export default function NovaOS() {
 
             equipamento_id: form.equipamento_id || null,
             marca_id: form.marca_id || null,
-            modelo_id: form.modelo_id || null,
             cor_id: form.cor_id || null,
             memoria_id: form.memoria_id || null,
 
@@ -372,7 +367,6 @@ export default function NovaOS() {
             // pra nenhum relatório existente quebrar. Mesmo tratamento que a
             // 20260807060000 deu às formas de pagamento.
             marca: descricaoDe(marcas, form.marca_id),
-            modelo: descricaoDe(modelos, form.modelo_id),
             cor: descricaoDe(cores, form.cor_id),
             memoria: descricaoDe(memorias, form.memoria_id),
             condicao_entrada:
@@ -615,6 +609,15 @@ export default function NovaOS() {
               </div>
             </div>
 
+            {/* O MODELO ficava aqui, ao lado da Marca. Saiu em 02/09 a pedido
+                do Felipe — a loja não usa hoje. O cadastro (`os_modelo`), o
+                filtro da lista de OS e o que já está preenchido nas OS antigas
+                continuam de pé: o campo deixou de ser perguntado no balcão,
+                não foi apagado do sistema.
+
+                Com ele fora, Marca, Cor e Memória passaram para a mesma grade
+                de duas colunas — a Marca sozinha ficava esticada na largura
+                inteira, com o dobro do tamanho dos campos vizinhos. */}
             <div className="grid gap-4 sm:grid-cols-2">
               <CampoCatalogo
                 id="marca"
@@ -624,17 +627,6 @@ export default function NovaOS() {
                 valor={form.marca_id}
                 onChange={(v) => alterar('marca_id', v)}
               />
-              <CampoCatalogo
-                id="modelo"
-                tipo="os_modelo"
-                obrigatorio={exige('modelo_id')}
-                label="Modelo"
-                valor={form.modelo_id}
-                onChange={(v) => alterar('modelo_id', v)}
-              />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
               <CampoCatalogo
                 id="cor"
                 tipo="os_cor"

@@ -149,10 +149,23 @@ function consultaFalsa(dados: unknown[], erro: unknown = null) {
  * Recebe um mapa de tabela → linhas. Tabela não listada devolve vazio, que é
  * o mesmo que a tela veria com o RLS barrando — de propósito: é assim que se
  * testa "a tela abre vazia porque falta permissão".
+ *
+ * `falham` faz a consulta daquelas tabelas dar ERRO, que é coisa diferente de
+ * vir vazia — e a diferença importa: vazio é "não tem nada", erro é "não sei".
+ * Telas que tratam os dois igual foram o defeito de 21/08 no PDV e o de 02/09
+ * na leitura dos campos obrigatórios, onde erro virava "a loja não exige
+ * nada" e a venda fechava sem cobrar o que a dona tinha exigido.
  */
-export function bancoFalso(tabelas: Record<string, unknown[]>) {
+export function bancoFalso(
+  tabelas: Record<string, unknown[]>,
+  opcoes: { falham?: string[] } = {},
+) {
+  const quebradas = new Set(opcoes.falham ?? []);
   return {
-    from: (tabela: string) => consultaFalsa(tabelas[tabela] ?? []),
+    from: (tabela: string) =>
+      quebradas.has(tabela)
+        ? consultaFalsa([], { message: `falha de teste ao ler ${tabela}` })
+        : consultaFalsa(tabelas[tabela] ?? []),
     rpc: (nome: string) => Promise.resolve({ data: tabelas[`rpc:${nome}`] ?? null, error: null }),
     auth: {
       getUser: () => Promise.resolve({ data: { user: { id: 'user-teste' } }, error: null }),

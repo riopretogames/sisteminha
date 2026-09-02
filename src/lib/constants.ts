@@ -79,7 +79,11 @@ export const FORMAS_PAGAMENTO = {
 export const CARD_FIELDS = {
   numero_os: { label: 'Número da OS', icon: 'hash' },
   cliente_nome: { label: 'Nome do Cliente', icon: 'user' },
-  modelo: { label: 'Modelo do Aparelho', icon: 'smartphone' },
+  // O rótulo diz "Marca e modelo" porque é isso que a chavinha liga: o cartão
+  // do quadro mostra os dois juntos (OSKanbanCard). Chamar de "Modelo" fazia a
+  // dona desmarcar para limpar o modelo — que nem existe mais nas OS novas — e
+  // sumir com a MARCA de todos os cartões.
+  modelo: { label: 'Marca e Modelo do Aparelho', icon: 'smartphone' },
   numero_serie: { label: 'Nº de Série / IMEI', icon: 'fingerprint' },
   defeito: { label: 'Defeito', icon: 'alert-circle' },
   status: { label: 'Status', icon: 'circle' },

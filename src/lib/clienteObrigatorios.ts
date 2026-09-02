@@ -9,7 +9,7 @@ import { padraoDoFormulario } from '@/config/camposObrigatorios';
  * ter como obrigação, porque tem loja para quem é importante ter o Instagram;
  * para mim não é."*
  *
- * A lista do que é exigido vem de Configurações > Campos Obrigatórios. Sem
+ * A lista do que é exigido vem de Cadastros > Campos Obrigatórios. Sem
  * configuração nenhuma, vale o padrão de fábrica — só o nome, exatamente como
  * o sistema sempre se comportou.
  *

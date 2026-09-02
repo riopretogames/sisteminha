@@ -22,7 +22,7 @@ const GRUPO_HINTS: Record<string, string> = {
   'cad-catalogo':
     'O que a loja vende e cobra. Produto, serviço e as formas de receber por eles.',
   'cad-apoio':
-    'As listinhas que aparecem nos campos de seleção do sistema inteiro. Mexa aqui e muda em todo lugar.',
+    'As listinhas que aparecem nos campos de seleção do sistema inteiro, e o que cada tela cobra preenchido. Mexa aqui e muda em todo lugar.',
 };
 
 export default function CadastrosHub() {
