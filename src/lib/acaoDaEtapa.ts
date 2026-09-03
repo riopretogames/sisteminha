@@ -72,3 +72,28 @@ export function acaoParaAvancar(de: string, para: string): AcaoDeEtapa | undefin
 
   return undefined;
 }
+
+/**
+ * O aviso de "concluir um reparo que nunca começou".
+ *
+ * Achado na revisão de 01/09. O organograma tem dois marcos de tempo na
+ * bancada — INICIAR A EXECUÇÃO e REPARO CONCLUÍDO —, e a distância entre eles
+ * é o único número que diz quanto tempo a bancada levou de fato. Só que nada
+ * ligava um ao outro: dava para apertar "Reparo concluído" sem ninguém ter
+ * apertado "Iniciar a execução", e aí o marco de início ficava vazio para
+ * sempre. A OS some da bancada com a duração do reparo desconhecida, e nenhum
+ * relatório consegue dizer depois se foram duas horas ou duas semanas.
+ *
+ * É aviso, não trava, e essa escolha é deliberada: o reparo REALMENTE
+ * aconteceu — o aparelho está pronto na prateleira —, e barrar a conclusão por
+ * causa de um botão esquecido prenderia o técnico numa etapa com o trabalho
+ * feito. Quem esqueceu fica sabendo; quem tem pressa segue.
+ *
+ * Não vale para OS recusada: nela a execução nunca começa de propósito (o
+ * cliente não quis o serviço), o técnico só remonta o aparelho. Ver
+ * `components/os/IniciarNaBancada`.
+ */
+export const AVISO_REPARO_NUNCA_INICIADO =
+  'Ninguém apertou "Iniciar a execução" nesta OS. Marcando concluído agora, ' +
+  'o sistema fica sem saber quando o reparo começou — e o tempo de bancada ' +
+  'desta OS não entra em nenhum relatório. Concluir mesmo assim?';

@@ -234,10 +234,10 @@ export function StatusManagerDialog({
 
       onStatusesChange();
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Erro ao salvar',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Tente novamente.',
         variant: 'destructive',
       });
     } finally {

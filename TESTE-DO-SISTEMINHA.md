@@ -17,7 +17,7 @@ abrindo mão.
 
 ## O que já roda sozinho
 
-O sistema tem **295 testes automáticos** que rodam a cada mudança. Eles cobrem
+O sistema tem **382 testes automáticos** que rodam a cada mudança. Eles cobrem
 as contas (faturamento, devolução, custo médio, ranking) e o comportamento das
 telas por perfil — inclusive o pior defeito que este sistema já teve, a tela de
 Estoque ficando branca para quem não vê custo.
@@ -594,8 +594,15 @@ você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda
   *Por que importa: era o pedido do 27/08 — a mesma venda aparecia em quatro telas e só numa dava para abrir. E o "quem é o cliente, que hora, qual colaborador" do estoque não estava no relatório de estoque (que é uma fotografia de saldos, sem data e sem pessoa): está em Movimentações, e é lá que foi resolvido.*
   > 🔎 **Teste também o crachá, se puder:** entre com um usuário de perfil **Gerente Técnico** e abra o Relatório de Vendas. A linha **não pode** abrir ficha nenhuma — esse perfil não tem acesso ao módulo Venda, e a ficha mostra produto, IMEI, desconto e formas de pagamento. Isso escapou na primeira versão e foi pego na revisão do mesmo dia.
 
+## Bloco 17 — O processo da assistência vira botão (28 a 31/08)
+
+Estes passos vieram do organograma que você desenhou no Figma: cada passagem de
+etapa virou um botão com o nome que a bancada usa, e as decisões que só existiam
+na conversa do balcão passaram a ficar registradas. Junto vêm os campos
+obrigatórios configuráveis e a numeração das etapas.
+
 - [ ] **🔴 82. Escolher o que é obrigatório em cada cadastro**
-  **O que fazer:** Abra **Configurações > Campos Obrigatórios**. Na aba **Cadastro de cliente**, ligue a chavinha do **Instagram**. Vá em **Cadastros > Clientes > Novo Cliente**, preencha só o nome e clique em **Cadastrar**. Preencha o Instagram e salve. Volte à configuração, **desligue** o Instagram e ligue o **Telefone / WhatsApp**; cadastre outro cliente só com o nome. Por fim, abra a aba **Abertura de Ordem de Serviço**, desligue o **IMEI / Nº de série**, e abra uma OS sem preencher esse campo.
+  **O que fazer:** Abra **Cadastros > Campos Obrigatórios** (mudou de lugar em 02/09 — era Configurações). Na aba **Cadastro de cliente**, ligue a chavinha do **Instagram**. Vá em **Cadastros > Clientes > Novo Cliente**, preencha só o nome e clique em **Cadastrar**. Preencha o Instagram e salve. Volte à configuração, **desligue** o Instagram e ligue o **Telefone / WhatsApp**; cadastre outro cliente só com o nome. Por fim, abra a aba **Nova Ordem de Serviço**, desligue o **IMEI / Nº de série**, e abra uma OS sem preencher esse campo.
   **Tem que acontecer:** Com o Instagram ligado, salvar só com o nome traz aviso vermelho **"Falta o Instagram"**, e o campo ganha asterisco na tela. Preenchido, salva. Com o telefone ligado, o aviso passa a ser o do telefone — e o Instagram deixa de ser cobrado. Na OS, com o IMEI desligado, a ordem abre sem ele; o asterisco some do campo. Tente desligar o **Nome completo**: a chavinha está travada, com um cadeado e a explicação do porquê.
   *Por que importa: é a peça que o sistema precisa para ser vendido a outras lojas — cada uma exige o que faz sentido para ela. E a sua loja não mudou: sem mexer em nada, o cliente continua exigindo só o nome e a OS continua com a lista de 27/08.*
   > 🔎 **Vale ao cadastrar e ao editar**, decisão sua no dia. Ou seja: abrir uma ficha antiga incompleta e salvar vai cobrar o que estiver ligado. É de propósito — é assim que as fichas velhas vão sendo completadas.
@@ -637,15 +644,91 @@ você mesmo achou em 27/08 (o passo 79). Nenhum deles passou pela sua mão ainda
   > 🔎 **O orçamento e os itens podem divergir com razão** — desconto, pacote fechado. O que não podia é ninguém saber: esse número vira a conta a receber, e a diferença aparecia no caixa, não na tela.
 - [ ] **🔴 89. A resposta do cliente ao laudo: aprovou ou não aprovou**
   **O que fazer:** Abra uma OS em **2a · Aguardando aprovação** com um usuário que aprove orçamento (vendedor, gerente ou administrador). Repare nos dois botões novos. Clique em **Cliente não aprovou**, tente registrar sem escrever nada, depois escreva um motivo (ex.: `Achou o valor alto`) e registre. Em outra OS na mesma etapa, clique em **Laudo aprovado** e confirme. Nas duas, recarregue e role até a **Linha do tempo**. Por fim, entre com um usuário **Técnico** e abra uma OS nessa etapa.
-  **Tem que acontecer:** Aparecem **Laudo aprovado** (verde) e **Cliente não aprovou**. Na recusa, o botão de registrar fica **apagado enquanto o motivo estiver vazio**; com o motivo escrito, a OS é encerrada (vai para Cancelado) e a linha do tempo mostra **"Cliente NÃO aprovou — Achou o valor alto"**. Na aprovação, a confirmação mostra **o valor do orçamento**, a OS vai para **3 · Aprovado / Executar** e a linha do tempo registra **"Cliente aprovou o laudo"** com quem e quando. O técnico **não vê os botões** — vê a frase dizendo que quem registra é quem aprova orçamento.
+  **Tem que acontecer:** Aparecem **Laudo aprovado** (verde) e **Cliente não aprovou**. Na recusa, o botão de registrar fica **apagado enquanto o motivo estiver vazio**; com o motivo escrito, a OS vai para **3 · Aprovado / Executar** com um selo vermelho **"Cliente não aprovou"** no cartão e na lista, e a linha do tempo mostra **"Cliente NÃO aprovou — Achou o valor alto"**. Na aprovação, a confirmação mostra **o valor do orçamento**, a OS vai para a mesma etapa (sem o selo) e a linha do tempo registra **"Cliente aprovou o laudo"** com quem e quando. O técnico **não vê os botões** — vê a frase dizendo que quem registra é quem aprova orçamento.
   *Por que importa: aprovar já era possível, mas a RECUSA sumia na conversa do balcão. O motivo é a informação mais valiosa que um orçamento perdido deixa — "achou caro" e "vai comprar outro aparelho" pedem reações completamente diferentes suas, e sem ele os dois viram a mesma linha no relatório.*
-  > 🔎 **Falta uma peça do seu organograma aqui:** a cobrança dos R$ 80 da análise na retirada. Hoje o sistema encerra a OS e avisa para combinar a retirada, mas não lança a taxa. É a próxima conversa.
+  > 🔎 **A recusada vai para a bancada, não para a prateleira** (mudou em 01/09, decisão sua). O aparelho voltou ABERTO do diagnóstico: alguém precisa remontar antes de o cliente aparecer. Por isso ela entra na mesma coluna do reparo aprovado, marcada de vermelho, e só vai para "5 · Finalizado" quando o técnico apertar **Reparo concluído**. Antes disso ela ia direto para Finalizado, e o sistema dizia "pode buscar" com o aparelho em pedaços.
 
 - [ ] **🔴 90. A taxa de análise quando o cliente recusa**
   **O que fazer:** Abra **Configurações > Preferências do Sistema** e olhe **Taxa de análise** — deve estar em **R$ 80,00**. Troque para `50` e salve. Agora abra uma OS em **2a · Aguardando aprovação** com orçamento preenchido (ex.: R$ 450), clique em **Cliente não aprovou**, leia o texto da janela, escreva um motivo e registre. Procure essa OS no quadro e abra a ficha. Por fim, entregue essa OS ao cliente.
-  **Tem que acontecer:** A janela da recusa avisa que **a OS passa a valer R$ 50,00** e o botão diz **"Registrar recusa e cobrar R$ 50,00"**. Depois de registrar, a OS aparece em **5 · Finalizado** (pronta para o cliente buscar) valendo **R$ 50,00** — e não mais R$ 450. Na entrega, o sistema **cobra os R$ 50,00** como em qualquer OS. O valor recusado (R$ 450) fica guardado na ficha.
+  **Tem que acontecer:** A janela da recusa avisa que **a OS passa a valer R$ 50,00** e o botão diz **"Registrar recusa e cobrar R$ 50,00"**. Depois de registrar, a OS aparece em **3 · Aprovado / Executar** valendo **R$ 50,00** — e não mais R$ 450 — com o selo vermelho de recusa. Marque **Reparo concluído** (o aparelho foi remontado): ela vai para **5 · Finalizado**. Na entrega, o sistema **cobra os R$ 50,00** como em qualquer OS. O valor recusado (R$ 450) fica guardado na ficha.
   *Por que importa: era a última peça do seu organograma que faltava. Antes, recusar cancelava a OS — o aparelho sumia do quadro e alguém tinha que lembrar de cobrar a análise na mão, no balcão.*
   > 🔎 **Zero é resposta válida.** Se puser a taxa em `0`, a loja passa a não cobrar análise: a OS recusada vai para a retirada sem valor e a entrega não pede pagamento. É o que uma loja que comprar o sisteminha pode querer.
+  > 🔎 **A peça volta ao estoque sozinha** quando a recusa é registrada, e sai de novo se o cliente voltar atrás. Confira em **Estoque > Movimentações**: aparece uma entrada com o motivo *"Estorno de peça: cliente não aprovou o orçamento"*.
+
+---
+
+## Bloco 18 — O que a revisão de 01/09 consertou (01/09)
+
+Duas sessões de trabalho mexeram no sistema no mesmo dia, nos mesmos arquivos.
+Os passos abaixo testam o que a revisão desse encontro achou de errado — são os
+que têm mais chance de estar quebrados de novo.
+
+- [ ] **🔴 91. Serviço tabelado não cobra taxa de análise**
+  **O que fazer:** Abra **Assistência > Nova OS**, preencha o mínimo e **desligue** a chavinha *"Vai ter laudo eletrônico?"*. Leia o lembrete que aparece embaixo dela. Salve, ponha um valor no orçamento (ex.: R$ 200), mande a OS para **2a · Aguardando aprovação** e clique em **Cliente não aprovou**. Leia a janela antes de registrar. Repita numa OS de **garantia**.
+  **Tem que acontecer:** A janela **não promete cobrança nenhuma** — não aparece "a OS passa a valer R$ 80,00", e o botão diz só **"Registrar recusa"**. Depois de registrar, a OS fica valendo **R$ 0,00**. Na OS de garantia, idem.
+  *Por que importa: a chavinha do laudo eletrônico existia só como lembrete na tela — nenhuma regra de dinheiro lia ela. O vendedor abria uma OS de serviço tabelado, lia na tela "sem laudo, não há taxa de análise", prometia isso ao cliente, e se ele desistisse o sistema cobrava R$ 80 que ninguém combinou. Discussão no balcão, com o cliente na frente.*
+  > 🔎 **Qual dos dois estava certo? A tela.** A taxa paga o trabalho de ABRIR e INVESTIGAR o aparelho. Na OS tabelada esse trabalho não acontece — o preço saiu da tabela, no balcão. Cobrar análise de quem nunca teve análise é cobrar por serviço não prestado.
+  > 🔎 **O contrário também estava errado:** como a chavinha nasce ligada, toda OS de **garantia ou cortesia** mandava o vendedor avisar de uma taxa de R$ 80 que o sistema grava como zero de propósito. O lembrete agora olha o tipo da OS.
+
+- [ ] **🔴 92. O técnico consegue tirar a OS de "Aguardando Peça"**
+  **O que fazer:** Entre com um usuário **Técnico**. Abra uma OS que o cliente **já aprovou** (etapa 3) e mova para **2b · Aguardando Peça**. Agora, ainda como técnico, tente devolvê-la para **3 · Aprovado / Executar** pelos **três caminhos**: o botão da ficha, o seletor ao lado dele, e **arrastando o cartão** no quadro. Depois abra uma OS que **ainda não foi aprovada** e tente movê-la para Aprovado.
+  **Tem que acontecer:** Nos três caminhos, a OS **já aprovada** volta para a bancada sem pedir gerente. A OS **ainda não aprovada** continua barrada nos três — o técnico não aprova orçamento.
+  *Por que importa: é ele quem põe a OS em "Aguardando Peça" — é ele que sabe que falta peça. A peça chega dois dias depois e ele não conseguia devolver o aparelho para a bancada: o destino sumia do botão, do seletor e do arrastar. Só um gerente destravava, para um aparelho que já estava na mesa dele.*
+  > 🔎 **A trava era legítima e valia demais.** Sem ela, quem tem só permissão de editar OS pularia a decisão do cliente. O que faltava era a segunda metade da pergunta: numa OS que o cliente JÁ aprovou não há nada a aprovar — voltar para a bancada é retomar o trabalho.
+
+- [ ] **⚪ 93. A recusa é a mesma nas duas telas**
+  **O que fazer:** Abra **Ordem de Serviço > Orçamentos** (a fila) com uma OS em **2a · Aguardando aprovação** e orçamento preenchido. Clique em **Cliente não aprovou** ali na fila.
+  **Tem que acontecer:** Abre a **mesma janela** da ficha da OS: pede o motivo, avisa da taxa, e o botão fica apagado enquanto o motivo estiver vazio. O resultado é idêntico ao da ficha — OS na bancada com selo vermelho, peças de volta no estoque, valor trocado pela taxa.
+  *Por que importa: até 01/09 o botão "Recusar" desta fila fazia outra coisa — jogava a OS em Cancelado, sem motivo, sem taxa e sem devolver as peças. Duas telas decidindo o mesmo com resultados diferentes é como o histórico da loja passa a mentir: metade das recusas conta uma história, metade conta outra.*
+
+- [ ] **🔴 94. Os campos obrigatórios da OS que estavam de enfeite**
+  **O que fazer:** Abra **Cadastros > Campos Obrigatórios** (mudou de lugar em 02/09 — era Configurações), aba **Nova Ordem de Serviço**, e **ligue** cinco chavinhas: **Cor**, **Memória / capacidade**, **Acessórios que vieram junto**, **Condição de entrada do aparelho** e **Técnico responsável**. Salve. Agora vá em **Nova OS** e tente abrir uma OS deixando cada um deles em branco.
+  **Tem que acontecer:** Os cinco ganham **asterisco vermelho** na tela e o sistema **recusa** a abertura, um aviso por vez, rolando até o campo que falta. Nos dois checklists (acessórios e condições), marcar **um item já basta** — não é preciso marcar tudo. Desligando as chavinhas de novo, tudo volta a ser opcional.
+  *Por que importa: as cinco apareciam na tela de configuração desde 30/08, a loja ligava, salvava, e o balcão continuava abrindo OS sem elas. Chavinha que mente é pior do que chavinha que não existe: a dona confia e só descobre meses depois, olhando as fichas vazias.*
+  > 🔎 **Agora existe uma rede.** Um teste automático percorre a lista da tela de configuração e cobra a regra de cada campo. Campo novo que apareça ali sem regra derruba o teste no mesmo dia, com o nome do campo no erro — em vez de virar mais uma chavinha de enfeite.
+
+- [ ] **🔴 95. O painel da assistência e a OS recusada**
+  **O que fazer:** Registre uma recusa numa OS com peça e serviço lançados (ex.: R$ 450 de mão de obra e R$ 600 de peça), leve-a até **Entregue** e pague a taxa. Depois abra o **Dashboard de Assistência** e compare os cartões: **Entregues na Semana**, **Mão de Obra da Semana**, **Peças da Semana** e **Outros Custos da Semana**. Olhe também as tabelas **Serviços Mais Realizados** e **Peças Mais Usadas**.
+  **Tem que acontecer:** O cartão de entregas conta essa OS e mostra o que entrou de verdade (a taxa). Os cartões de mão de obra e peça **não** somam os R$ 450 nem os R$ 600 dela, e o serviço recusado **não aparece** na lista dos mais realizados nem a peça na dos mais usados.
+  *Por que importa: como a OS recusada passou a andar pelas mesmas etapas da aprovada, o painel começou a contar como faturamento da semana o reparo que ninguém fez — R$ 80 num cartão e R$ 1.050 nos de baixo, na mesma tela, sobre a mesma OS. E a peça listada como "mais usada" era justamente a que voltou para a prateleira.*
+  > 🔎 **O cartão "Outros Custos da Semana" é novo.** Frete de peça e serviço terceirizado já eram calculados desde 31/08 e não apareciam em lugar nenhum: os dois cartões ao lado somavam menos do que a OS cobrou, e a diferença não tinha nome na tela.
+
+- [ ] **⚪ 96. A peça lançada numa OS recusada não sai do estoque duas vezes**
+  **O que fazer:** Anote o estoque de uma peça. Registre a recusa numa OS que tenha essa peça lançada (o estoque **sobe**, a peça voltou). Com a OS na bancada, **lance outra peça** nela. Agora devolva a OS para **2a · Aguardando aprovação** (o cliente voltou atrás). Confira o estoque das duas peças e a tela **Estoque > Movimentações**.
+  **Tem que acontecer:** Ao lançar a peça na OS parada, o aviso verde diz que ela **ainda não saiu do estoque** — e não a frase de sempre ("o estoque já foi descontado"). Depois de a OS voltar a andar, cada peça saiu do estoque **uma vez só**. Em Movimentações, a peça lançada durante a recusa aparece com uma saída só, com o motivo *"Peça separada de novo: OS voltou a andar"*.
+  *Por que importa: era um erro que só apareceria no inventário, meses depois — a prateleira digital mostrando uma unidade a menos do que a de verdade, sem ninguém saber de onde veio.*
+
+- [ ] **⚪ 97. Concluir um reparo que nunca começou**
+  **O que fazer:** Abra uma OS aprovada em **3 · Aprovado / Executar** **sem** apertar "Iniciar a execução" e clique direto em **Reparo concluído**. Depois repita numa OS em que a execução foi iniciada, e numa OS **recusada**.
+  **Tem que acontecer:** Na primeira, o sistema **pergunta** se é para concluir mesmo assim, explicando que o tempo de bancada dessa OS não vai entrar em relatório nenhum — mas **deixa seguir** se você confirmar. Nas outras duas, nenhuma pergunta.
+  *Por que importa: a distância entre "iniciar a execução" e "reparo concluído" é o único número que diz quanto tempo a bancada levou. Sem o começo, a OS sai da bancada com a duração desconhecida para sempre.*
+  > 🔎 **Avisa, não barra** — de propósito. O reparo realmente aconteceu, o aparelho está pronto: travar a conclusão por causa de um botão esquecido prenderia o técnico numa etapa com o trabalho feito. E na OS recusada a pergunta não aparece porque ali a execução nunca começa mesmo: o técnico só remonta o aparelho.
+
+- [ ] **⚪ 98. O ícone da peça comprada no fornecedor**
+  **O que fazer:** Numa OS, lance uma **peça comprada** (aba "Peça comprada") e um **outro custo** (ex.: `Frete da peça`). Olhe a lista de itens.
+  **Tem que acontecer:** A peça comprada aparece com o ícone de **caixa**, igual à peça do estoque; o outro custo, com o ícone de **caminhão**; só o serviço fica com a **chave inglesa**.
+  *Por que importa: a peça comprada aparecia com o ícone de mão de obra, do lado de "Limpeza" — exatamente a confusão que os quatro tipos de lançamento vieram desfazer.*
+
+## Bloco 19 — A loja escolhe o que é obrigatório na venda (02/09)
+
+Duas coisas que você pediu no mesmo dia: o Modelo sai da abertura de OS, e a
+escolha dos campos obrigatórios ganha a aba da venda — dentro de **Cadastros**,
+que é onde você foi procurar.
+
+- [ ] **🔴 99. Escolher os campos obrigatórios da venda**
+  **O que fazer:** Abra **Cadastros > Campos Obrigatórios** (é a última linha de *Tabelas de Apoio*). Repare em qual aba ela abre e nas três abas de cima. Na aba **Nova venda (PDV)**, ligue a chavinha do **Cliente da venda**. Agora vá ao **PDV**, ponha um produto no carrinho **sem escolher cliente** e clique em **Finalizar Venda**. Escolha um cliente e finalize normalmente. Por fim volte e **desligue** a chavinha, e repita a venda sem cliente.
+  **Tem que acontecer:** A tela abre na aba **Nova venda (PDV)**. Com o cliente exigido, o botão **Cliente** do carrinho ganha **asterisco vermelho**, o "Finalizar Venda" **não abre a janela de pagamento** — sai o aviso *"Falta o cliente"* e a janela de escolher cliente abre junto, para você resolver ali mesmo. Com o cliente escolhido, a venda fecha normal. Desligando a chavinha, volta a vender sem cliente.
+  *Por que importa: era o pedido do 02/09 — "tem que se opinar os campos que são obrigatórios, tanto na aba de nova venda quanto na aba de nova ordem de serviço". Vender sem cliente é o normal do balcão cheio; a loja que quiser histórico e garantia no nome de alguém agora consegue exigir, sem programador.*
+  > 🔎 **Só o administrador chega aqui**, como você pediu. Não é regra desta tela: a permissão que ela usa (`settings.edit`) só existe no perfil Administrador — o gerente nem vê o link, e o banco recusa a gravação mesmo por fora da tela. Teste entrando com um usuário Gerente: o item não aparece em Cadastros.
+  > 🔎 **Com o cliente exigido, o botão "Sem cliente" some da janela.** Oferecer uma saída que a regra recusa é o que faz o vendedor rodar em círculo: clica, a janela fecha, o Finalizar Venda recusa de novo. E se o seu perfil não cadastra cliente, a janela avisa para pedir a quem cadastra, em vez de deixar você procurando um botão que não existe.
+  > 🔎 **Se a internet cair na hora de ler a configuração**, o sistema avisa em vermelho que não conseguiu ler o que a loja exige — e a venda fecha sem cobrar. É de propósito: travar o balcão porque uma consulta falhou trocaria um problema raro por um problema garantido. O que não podia era o silêncio.
+  > 🔎 **A venda tem só dois campos para exigir** — cliente e origem da venda. O resto ou é automático (o vendedor é quem está logado) ou já é obrigatório por natureza (sem pagamento que cubra o total, o sistema não fecha). Inventar chavinha para o que ninguém pode deixar em branco seria enfeite.
+
+- [ ] **⚪ 100. O Modelo saiu da abertura de OS**
+  **O que fazer:** Abra **Assistência > Nova OS** e olhe o bloco **Equipamento**. Depois abra **Cadastros > Campos Obrigatórios**, aba **Nova Ordem de Serviço**, e procure o Modelo na lista. Por fim, abra uma **OS antiga** que tinha modelo preenchido e olhe a ficha e a lista de OS.
+  **Tem que acontecer:** Na Nova OS **não existe mais o campo Modelo** — a Marca ficou sozinha na linha. Na tela de campos obrigatórios ele **também não aparece**. Nas OS antigas, o modelo continua na ficha, no cartão do quadro e no filtro da lista.
+  *Por que importa: você pediu para tirar ("no momento a gente não está utilizando"). Tirar da tela e deixar a chavinha na configuração seria pior que não tirar: a chavinha ficaria ligada, você confiaria, e o balcão continuaria abrindo OS sem modelo do mesmo jeito.*
+  > 🔎 **Nada foi apagado do sistema.** O cadastro de modelos (Listas do Sistema), a coluna no banco e o filtro da lista de OS continuam de pé. O campo deixou de ser **perguntado** no balcão — voltar a perguntar é mexer numa linha de código, não refazer nada.
 
 ---
 

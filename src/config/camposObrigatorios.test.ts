@@ -29,7 +29,6 @@ describe('O que a loja exige em cada formulário', () => {
       expect(exige.equipamento_id).toBe(true);
       expect(exige.numero_serie).toBe(true);
       expect(exige.marca_id).toBe(true);
-      expect(exige.modelo_id).toBe(true);
       expect(exige.defeito_cliente).toBe(true);
       expect(exige.tem_senha).toBe(true);
       expect(exige.vendedor_id).toBe(true);
@@ -37,6 +36,18 @@ describe('O que a loja exige em cada formulário', () => {
       // O técnico ficou de fora de propósito: quem atende no balcão raramente
       // sabe quem vai consertar.
       expect(exige.tecnico_id).toBe(false);
+      // O MODELO saiu da abertura em 02/09 — a loja não usa. Campo que não
+      // aparece na tela não pode ter chavinha aqui, senão a dona liga, confia
+      // e nada acontece (o defeito de 01/09, com cinco campos de uma vez).
+      expect(exige.modelo_id).toBeUndefined();
+    });
+
+    it('venda: nada é exigido, e é assim que o balcão trabalha', () => {
+      const exige = exigenciasDaLoja('venda', []);
+      // Venda sem cliente é o caso normal da fila. Ligar a configuração não
+      // pode mudar o comportamento de quem nunca mexeu nela.
+      expect(exige.cliente_id).toBe(false);
+      expect(exige.origem_venda_id).toBe(false);
     });
   });
 
@@ -82,8 +93,16 @@ describe('O que a loja exige em cada formulário', () => {
   });
 
   describe('o catálogo em si', () => {
+    it('cobre os três formulários que o sistema tem', () => {
+      // Formulário novo sem entrada aqui derruba o teste — é o que impede uma
+      // aba da tela existir sem lista nenhuma por trás.
+      expect(Object.keys(CAMPOS_POR_FORMULARIO).sort()).toEqual(
+        ['cliente', 'os', 'venda'],
+      );
+    });
+
     it('todo campo configurável tem rótulo em português e grupo', () => {
-      for (const formulario of ['cliente', 'os'] as const) {
+      for (const formulario of ['venda', 'os', 'cliente'] as const) {
         for (const campo of CAMPOS_POR_FORMULARIO[formulario]) {
           // 2 letras basta: "RG" é um rótulo legítimo.
           expect(campo.rotulo.length).toBeGreaterThanOrEqual(2);
@@ -93,7 +112,7 @@ describe('O que a loja exige em cada formulário', () => {
     });
 
     it('não há chave repetida dentro do mesmo formulário', () => {
-      for (const formulario of ['cliente', 'os'] as const) {
+      for (const formulario of ['venda', 'os', 'cliente'] as const) {
         const chaves = CAMPOS_POR_FORMULARIO[formulario].map((c) => c.chave);
         expect(new Set(chaves).size).toBe(chaves.length);
       }

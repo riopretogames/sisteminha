@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { DecisaoDoLaudo } from '@/components/os/DecisaoDoLaudo';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, X, Clock } from 'lucide-react';
+import { Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
@@ -36,6 +37,12 @@ interface OSOrcamento {
   marca: string | null;
   prioridade: keyof typeof OS_PRIORITY;
   total_orcamento: number;
+  /** A decisão do laudo precisa dos dois: o tipo decide se cobra taxa de
+   *  análise na recusa, e o status é a guarda da própria decisão. */
+  status: string;
+  tipo: 'paga' | 'garantia' | 'cortesia';
+  /** Serviço tabelado (false) não cobra taxa de análise na recusa. */
+  laudo_eletronico: boolean | null;
   created_at: string;
   numero_serie: string | null;
   equipamento_id: string | null;
@@ -64,7 +71,7 @@ export default function OSOrcamentos() {
       const { data, error } = await supabase
         .from('service_orders')
         .select(
-          'id, numero_os, modelo, marca, prioridade, total_orcamento, created_at, numero_serie, equipamento_id, marca_id, modelo_id, tecnico_id, clientes(nome, telefones)'
+          'id, numero_os, modelo, marca, prioridade, total_orcamento, status, tipo, laudo_eletronico, created_at, numero_serie, equipamento_id, marca_id, modelo_id, tecnico_id, clientes(nome, telefones)'
         )
         .eq('status', OS_ETAPAS.AGUARDANDO_APROVACAO)
         .order('created_at', { ascending: true });
@@ -85,28 +92,15 @@ export default function OSOrcamentos() {
     },
   });
 
-  const decidir = async (id: string, aprovado: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('service_orders')
-        .update({ status: aprovado ? OS_ETAPAS.APROVADO : OS_CANCELADO })
-        .eq('id', id);
-      if (error) throw error;
-
-      toast({
-        title: aprovado ? 'Orçamento aprovado' : 'Orçamento recusado',
-        description: aprovado ? 'OS liberada para execução.' : 'OS movida para Cancelado.',
-        variant: 'success',
-      });
-      queryClient.invalidateQueries({ queryKey: ['os-orcamentos'] });
-    } catch (error: unknown) {
-      toast({
-        title: 'Erro ao atualizar',
-        description: error instanceof Error ? error.message : 'Tente novamente.',
-        variant: 'destructive',
-      });
-    }
-  };
+  // A função `decidir` que ficava aqui foi APAGADA em 31/08. Ela dava um
+  // `update` direto no status: aprovar mandava para "Aprovado", recusar
+  // mandava para "Cancelado" — sem motivo, sem taxa de análise e sem devolver
+  // as peças ao estoque, que é o que a decisão de verdade faz.
+  //
+  // Deixar a função aqui "por precaução" seria o pior dos dois mundos: uma
+  // segunda regra viva, pronta para alguém religar num botão e voltar a
+  // divergir. Quem decide agora é <DecisaoDoLaudo>, o mesmo componente da
+  // ficha da OS.
 
   const orcamentos = aplicarFiltrosOS(data ?? [], filtros, soDigitos);
   const valorTotal = orcamentos.reduce((acc, o) => acc + Number(o.total_orcamento), 0);
@@ -184,18 +178,25 @@ export default function OSOrcamentos() {
                     </TableCell>
                     {podeAprovar && (
                       <TableCell>
-                        {/* Cor por tipo de ação (ver `lib/acoes.ts`): aprovar
-                            é sempre verde, recusar é sempre vermelho. Botão
-                            cheio, não fantasma — são as duas ações da tela. */}
+                        {/* A MESMA decisão da ficha da OS, e não uma cópia.
+                            Até 31/08 esta tela tinha botões próprios: recusar
+                            aqui cancelava a OS, sem pedir motivo, sem cobrar a
+                            taxa de análise e sem devolver as peças ao estoque —
+                            enquanto a ficha fazia as três coisas. Duas telas
+                            decidindo o mesmo com resultados diferentes é como o
+                            histórico da loja passa a mentir. */}
                         <div className="flex gap-2">
-                          <Button size="sm" variant="sucesso" onClick={() => decidir(o.id, true)}>
-                            <Check className="mr-1 h-4 w-4" />
-                            Aprovar
-                          </Button>
-                          <Button size="sm" variant="destructive" onClick={() => decidir(o.id, false)}>
-                            <X className="mr-1 h-4 w-4" />
-                            Recusar
-                          </Button>
+                          <DecisaoDoLaudo
+                            osId={o.id}
+                            status={o.status}
+                            tipo={o.tipo}
+                            totalOrcamento={Number(o.total_orcamento)}
+                            laudoEletronico={o.laudo_eletronico}
+                            compacto
+                            onMudou={() =>
+                              queryClient.invalidateQueries({ queryKey: ['os-orcamentos'] })
+                            }
+                          />
                         </div>
                       </TableCell>
                     )}

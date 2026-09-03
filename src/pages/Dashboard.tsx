@@ -128,6 +128,7 @@ export default function Dashboard() {
         .select(`
           id,
           numero_os,
+          marca,
           modelo,
           status,
           created_at,
@@ -150,8 +151,17 @@ export default function Dashboard() {
         osData?.map(os => ({
           id: os.id,
           numero_os: os.numero_os,
-          cliente_nome: (os.clientes as any)?.nome || 'Cliente',
-          modelo: os.modelo || 'Não informado',
+          // O `!inner` da consulta traz o cliente como objeto, mas o tipo
+          // gerado descreve a relação como lista — daí a conversão. `unknown`
+          // primeiro, para não abrir mão da checagem no resto da linha.
+          cliente_nome:
+            (os.clientes as unknown as { nome?: string } | null)?.nome || 'Cliente',
+          // Marca E modelo, com a marca primeiro. Desde 02/09 a abertura de OS
+          // não pergunta mais o modelo, então uma OS nova só tem marca — e
+          // este bloco, que mostra as 5 OS mais recentes, mostraria
+          // "Não informado" em todas elas para sempre. Todas as outras telas
+          // do aparelho já juntavam os dois; só esta pedia o modelo sozinho.
+          modelo: [os.marca, os.modelo].filter(Boolean).join(' ') || 'Não informado',
           status: os.status,
           created_at: os.created_at,
         })) || []

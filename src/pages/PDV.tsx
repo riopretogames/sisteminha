@@ -45,6 +45,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { ClienteFormDialog } from '@/components/clientes/ClienteFormDialog';
 import { CampoCatalogo } from '@/components/CampoCatalogo';
 import { useCatalogo } from '@/hooks/useCatalogos';
+import { useCamposObrigatorios } from '@/hooks/useCamposObrigatorios';
+import { faltandoParaFecharVenda } from '@/lib/vendaObrigatorios';
 import type { Cliente as ClienteCompleto } from '@/hooks/useClientes';
 import { soDigitos } from '@/lib/documento';
 import { FORMAS_PAGAMENTO } from '@/lib/constants';
@@ -175,6 +177,17 @@ export default function PDV() {
   const catalogoOrigemVenda = useCatalogo('origem_venda');
   const [origemVendaId, setOrigemVendaId] = useState('');
 
+  /**
+   * O que ESTA loja exige para fechar venda (Cadastros > Campos Obrigatórios).
+   *
+   * Pedido do Felipe em 02/09. O padrão de fábrica não exige nada — é assim
+   * que o balcão trabalha —, então ligar a configuração não muda nada aqui
+   * até alguém mexer numa chavinha. A regra em si mora em
+   * `lib/vendaObrigatorios.ts`, com testes.
+   */
+  const { exige: exigeNaVenda, exigencias: exigenciasDaVenda, falhou: falhouAConfiguracao } =
+    useCamposObrigatorios('venda');
+
   // Filtros de busca de produto — "Categoria" usa o catálogo grupo_produto
   // (Console/Jogo/Controle/Celular/...), que é o que a loja de verdade
   // enxerga como categoria; a coluna categoria (enum fixo) é mais genérica
@@ -229,11 +242,18 @@ export default function PDV() {
   useEffect(() => {
     if (origemVendaPreSelecionada.current) return;
     if (!catalogoOrigemVenda.data?.length) return;
-    const padrao = catalogoOrigemVenda.data.find((i) => i.padrao) ?? catalogoOrigemVenda.data[0];
+    // Só o item MARCADO como padrão, nunca o primeiro da lista. Cair no
+    // primeiro (o que se fazia até 02/09) fazia o sistema inventar de onde a
+    // venda veio numa loja que não marcou nada — e o pior: só na primeira
+    // venda, porque o reset pós-venda já procurava só o padrão. Venda 1 saía
+    // "Instagram" sem ninguém escolher, venda 2 saía vazia.
+    const padrao = catalogoOrigemVenda.data.find((i) => i.padrao);
     if (padrao) {
       setOrigemVendaId(padrao.id);
-      origemVendaPreSelecionada.current = true;
     }
+    // Marca como feito mesmo sem padrão: senão o efeito ficaria tentando a
+    // cada renderização numa loja que não marcou nenhum.
+    origemVendaPreSelecionada.current = true;
   }, [catalogoOrigemVenda.data]);
 
   /**
@@ -577,6 +597,63 @@ export default function PDV() {
    * Carrinho, cliente e desconto NÃO são limpos de propósito: quem cancela
    * quase sempre quer voltar e corrigir justamente o carrinho.
    */
+  /**
+   * Se a leitura da configuração falhar, o vendedor precisa SABER.
+   *
+   * Sem resposta do banco vale o padrão de fábrica, que na venda é "não exige
+   * nada" — ou seja, a falha se parece exatamente com "a dona não exigiu
+   * nada". É o mesmo silêncio que já custou caro nesta tela em 21/08, e aqui
+   * ele é pior: some o asterisco e a venda fecha sem o que a loja exigiu.
+   *
+   * O aviso não bloqueia a venda de propósito. Travar o balcão porque uma
+   * consulta de configuração falhou seria trocar um problema raro por um
+   * problema garantido.
+   */
+  const jaAvisouDaConfiguracao = useRef(false);
+  useEffect(() => {
+    if (!falhouAConfiguracao || jaAvisouDaConfiguracao.current) return;
+    jaAvisouDaConfiguracao.current = true;
+    toast({
+      title: 'Não consegui ler o que esta loja exige na venda',
+      description:
+        'A venda vai fechar sem cobrar os campos configurados em Cadastros > Campos Obrigatórios. ' +
+        'Verifique a internet e atualize a página.',
+      variant: 'destructive',
+    });
+  }, [falhouAConfiguracao, toast]);
+
+  /** A venda como a regra de campos obrigatórios a enxerga. */
+  const dadosDaVenda = {
+    cliente_id: selectedCliente?.id ?? '',
+    origem_venda_id: origemVendaId,
+  };
+
+  /**
+   * Avisa o que falta e devolve `true` quando dá para seguir.
+   *
+   * A checagem acontece em DOIS momentos porque os campos vivem em dois
+   * lugares: o cliente é escolhido no carrinho, a origem dentro da janela de
+   * pagamento. Cobrar tudo só no fim mandaria o vendedor fechar a janela, com
+   * o dinheiro do cliente na mão, para voltar ao carrinho.
+   */
+  const passouNosObrigatorios = (etapa?: 'carrinho' | 'pagamento') => {
+    const falta = faltandoParaFecharVenda(dadosDaVenda, exigenciasDaVenda, etapa);
+    if (falta.length === 0) return true;
+
+    // Um aviso por vez: despejar a lista inteira faz o vendedor fechar tudo
+    // sem ler. Mesmo critério da abertura de OS.
+    const primeiro = falta[0];
+    toast({
+      title: primeiro.titulo,
+      description:
+        falta.length === 1
+          ? primeiro.comoResolver
+          : `${primeiro.comoResolver} (faltam ${falta.length} campos)`,
+      variant: 'destructive',
+    });
+    return false;
+  };
+
   const cancelarCheckout = () => {
     setPagamentos([]);
     setEntradasProduto([]);
@@ -592,6 +669,24 @@ export default function PDV() {
         description: 'Adicione produtos ao carrinho.',
         variant: 'destructive',
       });
+      return;
+    }
+
+    // A lista INTEIRA, não só a da janela: é aqui que a venda é gravada, e
+    // uma segunda porta com meia regra é como as duas versões divergem.
+    //
+    // Mas o que falta pode morar no CARRINHO, atrás desta janela — e janela de
+    // pagamento é bloqueante: o botão Cliente fica visível e morto. Mandar o
+    // vendedor "escolher no carrinho" sem tirar a janela da frente é um beco;
+    // e a saída óbvia (Cancelar) joga fora os pagamentos e o aparelho de troca
+    // que ele acabou de digitar. Então o próprio sistema recua até o carrinho,
+    // SEM limpar nada: fecha a janela, abre a de cliente, e o que foi digitado
+    // continua lá quando ele voltar.
+    if (!passouNosObrigatorios()) {
+      if (faltandoParaFecharVenda(dadosDaVenda, exigenciasDaVenda, 'carrinho').length > 0) {
+        setShowCheckout(false);
+        setShowClienteDialog(true);
+      }
       return;
     }
 
@@ -956,6 +1051,11 @@ export default function PDV() {
                 {/* Nome comprido não pode empurrar o botão de cadastrar
                     pra fora do cabeçalho do carrinho. */}
                 <span className="truncate">{selectedCliente?.nome || 'Cliente'}</span>
+                {/* O asterisco só aparece enquanto falta: com o cliente
+                    escolhido, cobrar de novo é ruído. */}
+                {exigeNaVenda('cliente_id') && !selectedCliente && (
+                  <span className="ml-1 text-destructive" aria-hidden="true">*</span>
+                )}
               </Button>
               {podeCadastrarCliente && (
                 <Button
@@ -1077,7 +1177,16 @@ export default function PDV() {
             className="w-full"
             size="lg"
             disabled={cart.length === 0}
-            onClick={() => setShowCheckout(true)}
+            onClick={() => {
+              // O que mora no CARRINHO é cobrado aqui, antes de a janela de
+              // pagamento abrir — e a janela do cliente já abre junto, para o
+              // aviso não virar um beco.
+              if (!passouNosObrigatorios('carrinho')) {
+                setShowClienteDialog(true);
+                return;
+              }
+              setShowCheckout(true);
+            }}
           >
             Finalizar Venda
           </Button>
@@ -1089,8 +1198,14 @@ export default function PDV() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Selecionar Cliente</DialogTitle>
+            {/* O texto muda com a regra da loja. Antes ele dizia sempre "ou
+                continue sem vincular" — inclusive quando a loja tinha acabado
+                de exigir o cliente. O vendedor lia a frase, clicava em "Sem
+                cliente", tomava o mesmo aviso e rodava em círculo. */}
             <DialogDescription>
-              Escolha um cliente ou continue sem vincular.
+              {exigeNaVenda('cliente_id')
+                ? 'Esta loja exige o cliente na venda. Escolha um da lista ou cadastre na hora.'
+                : 'Escolha um cliente ou continue sem vincular.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1099,19 +1214,34 @@ export default function PDV() {
               value={clienteSearch}
               onChange={e => setClienteSearch(e.target.value)}
             />
+            {/* Sem permissão de cadastrar cliente e com o cliente exigido, o
+                vendedor não tem saída nenhuma se o comprador for novo. Dizer
+                isso é melhor do que deixar ele procurar um botão que não
+                existe. */}
+            {exigeNaVenda('cliente_id') && !podeCadastrarCliente && (
+              <p className="rounded-md border border-dashed p-2.5 text-xs text-muted-foreground">
+                Se o cliente ainda não estiver cadastrado, peça a alguém com acesso a
+                Cadastros &gt; Clientes — o seu perfil não cadastra cliente novo.
+              </p>
+            )}
             <div className="max-h-64 overflow-auto space-y-2">
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => {
-                  setSelectedCliente(null);
-                  setClienteSearch('');
-                  setShowClienteDialog(false);
-                }}
-              >
-                <X className="mr-2 h-4 w-4" />
-                Sem cliente
-              </Button>
+              {/* "Sem cliente" some quando a loja exige o cliente: oferecer uma
+                  saída que a regra recusa é o que faz o vendedor rodar em
+                  círculo. */}
+              {!exigeNaVenda('cliente_id') && (
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => {
+                    setSelectedCliente(null);
+                    setClienteSearch('');
+                    setShowClienteDialog(false);
+                  }}
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Sem cliente
+                </Button>
+              )}
               {filteredClientes.map(cliente => {
                 const bloqueado = cliente.liberado_venda === false;
                 return (
@@ -1175,6 +1305,7 @@ export default function PDV() {
             <CampoCatalogo
               tipo="origem_venda"
               label="Origem da venda"
+              obrigatorio={exigeNaVenda('origem_venda_id')}
               valor={origemVendaId}
               onChange={setOrigemVendaId}
               placeholder="Balcão"

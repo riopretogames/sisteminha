@@ -60,8 +60,15 @@ const ETAPAS = [
     color: 'bg-emerald-500 text-white', ordem: 70, ativo: true, sistema: true },
 ];
 
-async function abrir(statusAtual: string) {
-  mockCan.mockImplementation(montarCan({ perfil: 'administrador' }));
+async function abrir(
+  statusAtual: string,
+  opcoes: {
+    perfil?: 'administrador' | 'tecnico';
+    laudoAprovado?: boolean | null;
+    execucaoIniciadaEm?: string | null;
+  } = {},
+) {
+  mockCan.mockImplementation(montarCan({ perfil: opcoes.perfil ?? 'administrador' }));
   mockSupabase.atual = bancoFalso({ os_status_config: ETAPAS });
   const { TrocarEtapaOS } = await import('./TrocarEtapaOS');
   return renderizarTela(
@@ -71,6 +78,8 @@ async function abrir(statusAtual: string) {
       statusAtual={statusAtual}
       tipo="paga"
       totalOrcamento={100}
+      laudoAprovado={opcoes.laudoAprovado ?? null}
+      execucaoIniciadaEm={opcoes.execucaoIniciadaEm ?? null}
       onMudou={() => {}}
     />,
   );
@@ -168,11 +177,83 @@ describe('A etapa que o botão de avanço sugere', () => {
     });
   });
 
+  /**
+   * Concluir um reparo que ninguém marcou como iniciado.
+   *
+   * Achado na revisão de 01/09: os dois marcos da bancada — "Iniciar a
+   * execução" e "Reparo concluído" — não conversavam, então dava para
+   * concluir sem nunca ter começado e o tempo de bancada daquela OS ficava
+   * desconhecido para sempre.
+   */
+  describe('o aviso de reparo nunca iniciado', () => {
+    const confirmar = () =>
+      vi.spyOn(window, 'confirm').mockImplementation(() => true);
+
+    it('avisa quando ninguém apertou "Iniciar a execução"', async () => {
+      const perguntou = confirmar();
+      await abrir(OS_ETAPAS.APROVADO, { execucaoIniciadaEm: null });
+
+      fireEvent.click(await screen.findByRole('button', { name: /reparo concluído/i }));
+
+      expect(perguntou).toHaveBeenCalledWith(
+        expect.stringContaining('Iniciar a execução'),
+      );
+    });
+
+    it('não avisa quando a execução foi iniciada', async () => {
+      const perguntou = confirmar();
+      await abrir(OS_ETAPAS.APROVADO, { execucaoIniciadaEm: '2026-09-01T10:00:00' });
+
+      fireEvent.click(await screen.findByRole('button', { name: /reparo concluído/i }));
+
+      expect(perguntou).not.toHaveBeenCalledWith(
+        expect.stringContaining('Iniciar a execução'),
+      );
+    });
+
+    it('não avisa na OS recusada: nela a execução nunca começa de propósito', async () => {
+      // O técnico só remonta o aparelho. Perguntar aqui seria treinar a equipe
+      // a apertar "sim" sem ler — e aí o aviso deixa de valer onde importa.
+      const perguntou = confirmar();
+      await abrir(OS_ETAPAS.APROVADO, { laudoAprovado: false, execucaoIniciadaEm: null });
+
+      fireEvent.click(await screen.findByRole('button', { name: /reparo concluído/i }));
+
+      expect(perguntou).not.toHaveBeenCalledWith(
+        expect.stringContaining('Iniciar a execução'),
+      );
+    });
+  });
+
   it('o botão usa a cor da etapa de destino', async () => {
     await abrir(OS_ETAPAS.AGUARDANDO_ANALISE);
 
     const botao = await screen.findByRole('button', { name: /enviar laudo para aprovação/i });
     // O destino é "Aguardando aprovação", laranja no quadro.
     expect(botao.className).toContain('bg-orange-600');
+  });
+
+  describe('o técnico saindo de um desvio (achado da revisão de 31/08)', () => {
+    it('OS JÁ aprovada: o técnico consegue voltar de Aguardando Peça para a bancada', async () => {
+      // O beco sem saída: é o técnico quem põe a OS em "Aguardando Peça", a
+      // peça chega, e ele não tinha como devolver o aparelho para a bancada —
+      // "Aprovado" sumia do botão E do seletor, porque exigia permissão de
+      // aprovar orçamento. Só que numa OS já aprovada não há nada a aprovar.
+      await abrir('aguardando_peca', { perfil: 'tecnico', laudoAprovado: true });
+
+      expect(await screen.findByRole('button', { name: /avançar para aprovado/i }))
+        .toBeInTheDocument();
+    });
+
+    it('OS ainda NÃO aprovada: a trava continua de pé', async () => {
+      // Aqui a proteção original vale: sem ela, quem tem só orders.edit
+      // pularia a decisão do cliente e aprovaria o orçamento sozinho.
+      await abrir('aguardando_peca', { perfil: 'tecnico', laudoAprovado: null });
+
+      await waitFor(() => {
+        expect(screen.queryByRole('button', { name: /avançar para aprovado/i }))
+          .not.toBeInTheDocument();
+      });
+    });
   });
 });

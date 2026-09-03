@@ -241,6 +241,16 @@ export const MENU: MenuRoot[] = [
         label: 'Tabelas de Apoio',
         children: [
           { kind: 'link', id: 'cad-catalogos', label: 'Listas do Sistema', path: '/cadastros/listas', element: 'CatalogosHub', permission: PERMISSIONS.REGISTRY_VIEW, hint: 'Marcas, cores, condições, checklist, origens e afins', icon: 'boxes' },
+          // Estava em Configurações até 02/09; o Felipe pediu para trazer para
+          // Cadastros, que é onde ele procura ("criei isso lá na aba de
+          // cadastros"). E é o lugar certo: a tela decide o que os OUTROS
+          // cadastros exigem, não como o sistema funciona.
+          //
+          // `settings.edit` só o Administrador tem (gerente é excluído dela na
+          // migration de RBAC), então a exigência do Felipe — "quem deve
+          // selecionar esse é o administrador" — já vale pela permissão, na
+          // tela e no banco. Mesmo caso da tela de Usuários, logo acima.
+          { kind: 'link', id: 'cad-campos', label: 'Campos Obrigatórios', path: '/cadastros/campos-obrigatorios', element: 'CamposObrigatorios', permission: PERMISSIONS.SETTINGS_EDIT, hint: 'O que cada tela exige preenchido: venda, OS e cliente', icon: 'clipboard' },
         ],
       },
     ],
@@ -265,7 +275,6 @@ export const MENU: MenuRoot[] = [
     children: [
       { kind: 'link', id: 'cfg-perfis', label: 'Perfis e Permissões', path: '/configuracoes/perfis', element: 'ConfigPerfis', permission: PERMISSIONS.ROLES_MANAGE },
       { kind: 'link', id: 'cfg-prefs', label: 'Preferências do Sistema', path: '/configuracoes/preferencias', element: 'ConfigPreferencias', permission: PERMISSIONS.SETTINGS_EDIT },
-      { kind: 'link', id: 'cfg-campos', label: 'Campos Obrigatórios', path: '/configuracoes/campos-obrigatorios', element: 'ConfigCamposObrigatorios', permission: PERMISSIONS.SETTINGS_EDIT },
       { kind: 'link', id: 'cfg-logs', label: 'Logs / Auditoria', path: '/configuracoes/logs', element: 'ConfigLogs', permission: PERMISSIONS.AUDIT_VIEW },
     ],
   },

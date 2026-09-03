@@ -20,7 +20,15 @@ import {
  * Campos obrigatórios — cada loja escolhe o que exige.
  *
  * Pedido do Felipe em 27 e 28/08, pensando na venda do sistema: *"tem loja
- * para quem é importante ter o Instagram; para mim não é"*.
+ * para quem é importante ter o Instagram; para mim não é"*. Em 02/09 ele
+ * pediu a aba da VENDA junto com a da OS, e a tela saiu de Configurações para
+ * **Cadastros**, que é onde ele procura — a tela decide o que os outros
+ * cadastros exigem, não como o sistema funciona.
+ *
+ * Quem mexe aqui é o Administrador, e isso não é escolha desta tela: a
+ * permissão `settings.edit` só existe nesse perfil (o gerente é excluído dela
+ * na migration de RBAC), e a mesma permissão tranca a gravação no banco. Sem
+ * ela, o link nem aparece no menu.
  *
  * A tela grava só o que difere do padrão de fábrica (ver
  * `src/config/camposObrigatorios.ts`), do mesmo jeito que a exceção de
@@ -181,19 +189,24 @@ export default function ConfigCamposObrigatorios() {
     <div className="mx-auto max-w-3xl">
       <PageHeader
         titulo="Campos obrigatórios"
-        hint="Escolha o que a sua loja exige em cada cadastro. O que estiver ligado aqui passa a ser cobrado na hora de salvar — tanto num cadastro novo quanto ao editar uma ficha antiga."
+        hint="Escolha o que a sua loja exige em cada tela. O que estiver ligado aqui passa a ser cobrado na hora de salvar — tanto num cadastro novo quanto ao editar uma ficha antiga."
       />
 
       <p className="mb-4 text-sm text-muted-foreground">
         Campo marcado com <strong>cadeado</strong> não pode ser desligado: é informação que o
-        sistema recusa vazia de qualquer jeito. Os demais são escolha sua.
+        sistema recusa vazia de qualquer jeito. Os demais são escolha sua, e valem para a
+        loja inteira — só quem administra o sistema chega até aqui.
       </p>
 
-      <Tabs defaultValue="cliente">
+      <Tabs defaultValue="venda">
         <TabsList className="mb-4">
-          <TabsTrigger value="cliente">{NOME_DO_FORMULARIO.cliente}</TabsTrigger>
+          <TabsTrigger value="venda">{NOME_DO_FORMULARIO.venda}</TabsTrigger>
           <TabsTrigger value="os">{NOME_DO_FORMULARIO.os}</TabsTrigger>
+          <TabsTrigger value="cliente">{NOME_DO_FORMULARIO.cliente}</TabsTrigger>
         </TabsList>
+        <TabsContent value="venda">
+          <ListaDeCampos formulario="venda" />
+        </TabsContent>
         <TabsContent value="cliente">
           <ListaDeCampos formulario="cliente" />
         </TabsContent>

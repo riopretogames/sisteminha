@@ -14,12 +14,18 @@ import {
  * código. Enquanto a consulta não volta, vale o padrão — assim o formulário
  * nunca fica sem regra nenhuma por causa de internet lenta.
  *
+ * ⚠️ MAS QUEM CHAMA PRECISA OLHAR O `falhou`. Cair no padrão é seguro no
+ * cadastro de cliente e na OS, onde o padrão EXIGE coisas: falhar cobra
+ * demais, que é chato mas visível. Na venda o padrão não exige nada, então
+ * falhar cobra de MENOS — a tela fica idêntica a "a dona não configurou nada"
+ * e a venda fecha sem o que ela exigiu, em silêncio. Por isso o PDV avisa.
+ *
  * A leitura é livre dentro da loja de propósito (ver a migration): o vendedor
  * precisa saber o que a loja exige, senão a tela cobraria uma lista e o dono
  * teria configurado outra.
  */
 export function useCamposObrigatorios(formulario: Formulario) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['campos-obrigatorios', formulario],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -51,5 +57,5 @@ export function useCamposObrigatorios(formulario: Formulario) {
     return quando === situacao;
   };
 
-  return { exige, exigencias, carregando: isLoading };
+  return { exige, exigencias, carregando: isLoading, falhou: isError };
 }

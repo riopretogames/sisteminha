@@ -44,6 +44,7 @@ async function montar(opcoes: {
   perfil?: 'vendedor' | 'tecnico' | 'administrador';
   status?: string;
   tipo?: 'paga' | 'garantia' | 'cortesia';
+  laudoEletronico?: boolean | null;
 } = {}) {
   mockCan.mockImplementation(montarCan({ perfil: opcoes.perfil ?? 'vendedor' }));
   mockRpc.mockResolvedValue({ data: null, error: null });
@@ -59,6 +60,7 @@ async function montar(opcoes: {
       status={opcoes.status ?? OS_ETAPAS.AGUARDANDO_APROVACAO}
       tipo={opcoes.tipo ?? 'paga'}
       totalOrcamento={450}
+      laudoEletronico={opcoes.laudoEletronico ?? true}
       onMudou={() => {}}
     />,
   );
@@ -203,5 +205,39 @@ describe('A resposta do cliente ao laudo', () => {
 
     expect(screen.queryByRole('button', { name: /laudo aprovado/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/quem aprova orçamento/i)).not.toBeInTheDocument();
+  });
+
+  describe('serviço tabelado: recusar não cobra análise (achado de 31/08)', () => {
+    it('sem laudo eletrônico, o diálogo NÃO promete cobrança', async () => {
+      // A chavinha "Vai ter laudo eletrônico?" da abertura não era lida por
+      // nenhuma regra de dinheiro: o vendedor prometia "sem taxa" ao cliente e
+      // o sistema cobrava R$ 80 na retirada. A taxa paga o trabalho de abrir e
+      // investigar — que na OS tabelada não acontece.
+      //
+      // A verificação é pelo TEXTO do diálogo, e não pelo nome do botão: a
+      // primeira versão deste teste olhava o botão e passava com o defeito
+      // reintroduzido — o seletor casava nos dois casos.
+      await montar({ perfil: 'administrador', laudoEletronico: false });
+
+      fireEvent.click(await screen.findByRole('button', { name: /não aprovou/i }));
+
+      // A taxa da loja é buscada quando o diálogo abre, então o texto só
+      // fica correto depois que ela chega — daí o waitFor em vez de olhar de
+      // imediato.
+      const dialogo = await screen.findByRole('dialog');
+      await waitFor(() => expect(dialogo).toHaveTextContent(/sai sem valor/i));
+      expect(dialogo).not.toHaveTextContent(/passa a valer/i);
+      expect(dialogo).not.toHaveTextContent(/80,00/);
+    });
+
+    it('com laudo eletrônico e OS paga, continua cobrando', async () => {
+      await montar({ perfil: 'administrador', laudoEletronico: true });
+
+      fireEvent.click(await screen.findByRole('button', { name: /não aprovou/i }));
+
+      const dialogo = await screen.findByRole('dialog');
+      await waitFor(() => expect(dialogo).toHaveTextContent(/passa a valer/i));
+      expect(dialogo).toHaveTextContent(/80,00/);
+    });
   });
 });

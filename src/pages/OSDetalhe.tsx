@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Clock, Loader2, Plus, Save, Trash2, Wrench, Package } from 'lucide-react';
+import {
+  ArrowLeft, ArrowRight, Clock, Loader2, Plus, Save, Trash2, Wrench, Package, Truck,
+} from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { moeda, dataHora, data as formatarData } from '@/lib/format';
-import { contaDaOS, orcamentoDivergeDosItens } from '@/lib/itensDaOS';
+import { contaDaOS, orcamentoDivergeDosItens, tipoDoItem } from '@/lib/itensDaOS';
 import { OS_PRIORITY } from '@/lib/constants';
 import { useOsStatuses } from '@/hooks/useOsStatuses';
 import { PageHeader, Vazio } from '@/components/PageHeader';
@@ -171,6 +173,15 @@ interface OSCompleta {
   /** Quanto valia o orçamento recusado. O valor da OS passou a ser a taxa de
    *  análise, e sem este número a loja saberia que perdeu, mas não quanto. */
   valor_orcado_recusado: number | null;
+  /**
+   * Quando as peças desta OS voltaram ao estoque (recusa ou cancelamento).
+   *
+   * Preenchido = a OS está PARADA, e nenhuma peça está separada para ela. Peça
+   * lançada neste estado não sai do estoque na hora: ela sai junto com as
+   * outras quando a OS voltar a andar (migration 20260901180000). Sem esta
+   * regra a mesma peça saía duas vezes.
+   */
+  pecas_estornadas_em: string | null;
   /** O segundo começo: depois do laudo aprovado, quando o serviço é executado.
    *  A distância entre os dois é o tempo em que a OS esperou o cliente. */
   execucao_iniciada_em: string | null;
@@ -475,7 +486,12 @@ export default function OSDetalhe() {
               ? 'Serviço lançado!'
               : 'Custo lançado!',
           description:
-            tipoItem === 'peca_estoque'
+            // A OS parada não segura peça: a baixa fica para quando ela voltar
+            // a andar. Dizer "o estoque já foi descontado" aqui seria mentira —
+            // e mentira que só apareceria no inventário, meses depois.
+            tipoItem === 'peca_estoque' && os.pecas_estornadas_em
+              ? 'Como esta OS está parada, a peça ainda NÃO saiu do estoque — ela sai junto com as outras quando a OS voltar a andar.'
+              : tipoItem === 'peca_estoque'
               ? 'O estoque já foi descontado automaticamente.'
               : tipoItem === 'peca_avulsa'
                 ? 'Peça comprada no dia: entra na conta da OS sem passar pelo estoque.'
@@ -555,7 +571,7 @@ export default function OSDetalhe() {
            prazo_previsto, garantia_dias, total_orcamento, valor_final_pago, data_finalizacao,
            created_at, vendedor_id, diagnostico_iniciado_em, diagnostico_iniciado_por,
            laudo_aprovado, laudo_decidido_em, laudo_decidido_por, laudo_motivo_recusa,
-           valor_orcado_recusado,
+           valor_orcado_recusado, pecas_estornadas_em,
            execucao_iniciada_em, execucao_iniciada_por, laudo_eletronico,
            clientes(nome, telefones),
            os_checklist(catalogo_id, catalogos(descricao, tipo)),
@@ -874,6 +890,7 @@ export default function OSDetalhe() {
               status={os.status}
               tipo={os.tipo}
               totalOrcamento={os.total_orcamento}
+              laudoEletronico={os.laudo_eletronico}
               onMudou={() => {
                 queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] });
                 queryClient.invalidateQueries({ queryKey: ['os-historico', id] });
@@ -886,6 +903,8 @@ export default function OSDetalhe() {
               statusAtual={os.status}
               tipo={os.tipo}
               totalOrcamento={os.total_orcamento}
+              laudoAprovado={os.laudo_aprovado}
+              execucaoIniciadaEm={os.execucao_iniciada_em}
               onMudou={() => {
                 queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] });
                 queryClient.invalidateQueries({ queryKey: ['os-itens', id] });
@@ -1271,17 +1290,31 @@ export default function OSDetalhe() {
                 </TableHeader>
                 <TableBody>
                   {(itens ?? []).map((item) => {
-                    const ehPeca = item.produto_id != null;
+                    // Duas perguntas diferentes, que a mesma variável respondia
+                    // errado até 01/09:
+                    //
+                    //   O QUE É        vem do tipo gravado na linha. A peça
+                    //                  comprada no fornecedor no dia é PEÇA e
+                    //                  não tem produto de estoque — com a
+                    //                  regra velha ela aparecia com o ícone de
+                    //                  mão de obra, do lado de "Limpeza", que
+                    //                  é exatamente a confusão que os quatro
+                    //                  tipos de lançamento vieram desfazer.
+                    //
+                    //   MEXE NO ESTOQUE  vem do vínculo com o cadastro, e é
+                    //                  isso que decide se dá para excluir a
+                    //                  linha: excluir peça da prateleira
+                    //                  desfaria a baixa sem deixar rastro.
+                    const tipo = tipoDoItem(item);
+                    const saiuDoEstoque = item.produto_id != null;
                     const qtd = item.quantidade ?? 1;
+                    const Icone =
+                      tipo === 'peca' ? Package : tipo === 'complementar' ? Truck : Wrench;
                     return (
                       <TableRow key={item.id}>
                         <TableCell>
                           <span className="flex items-center gap-1.5">
-                            {ehPeca ? (
-                              <Package className="h-3.5 w-3.5 text-muted-foreground" />
-                            ) : (
-                              <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
-                            )}
+                            <Icone className="h-3.5 w-3.5 text-muted-foreground" />
                             {item.produtos?.nome ?? item.descricao ?? '—'}
                           </span>
                         </TableCell>
@@ -1296,7 +1329,7 @@ export default function OSDetalhe() {
                           {moeda(Number(item.preco_cobrado) * qtd)}
                         </TableCell>
                         <TableCell>
-                          {podeEditar && !osEncerrada && !ehPeca && (
+                          {podeEditar && !osEncerrada && !saiuDoEstoque && (
                             <Button
                               variant="ghost"
                               size="icon"

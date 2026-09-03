@@ -7,16 +7,29 @@
  * modelo, sem número de série e sem prazo, e é justamente esse o registro que
  * não serve para nada quando o cliente volta.
  *
+ * O MODELO saiu da abertura em 02/09, a pedido do Felipe: a loja não usa hoje.
+ * O que já foi preenchido continua na ficha das OS antigas e no filtro da
+ * lista — só deixou de ser perguntado no balcão.
+ *
  * Por que a regra mora aqui, e não espalhada pelos `if` da tela:
  *
  *   • ela é testável sem abrir o navegador;
  *   • ela VIROU configuração em 30/08, e a previsão se pagou: a lista deixou
- *     de ser fixa e passou a vir de Configurações > Campos Obrigatórios,
+ *     de ser fixa e passou a vir de Cadastros > Campos Obrigatórios,
  *     mexendo só neste arquivo. Sem `exigidos`, vale o padrão de fábrica
  *     (`src/config/camposObrigatorios.ts`), que é a lista de 27/08.
  *
  * O TÉCNICO fica de fora do padrão de propósito: quem recebe no balcão quase
  * nunca sabe quem vai consertar. A loja que quiser exigir agora pode.
+ *
+ * ⚠️ CAMPO NO CATÁLOGO SEM `if` AQUI É CHAVINHA QUE NÃO FAZ NADA. Achado na
+ * revisão de 01/09: cinco campos (cor, memória, acessórios, condições de
+ * entrada e técnico) apareciam em Cadastros > Campos Obrigatórios, a loja
+ * ligava, salvava — e o balcão continuava abrindo OS sem eles. Chavinha que
+ * mente é pior do que chavinha que não existe: a dona liga, confia, e só
+ * descobre meses depois olhando as fichas vazias. Ao criar campo novo no
+ * catálogo (`src/config/camposObrigatorios.ts`), a regra dele entra AQUI no
+ * mesmo commit.
  */
 
 import { padraoDoFormulario } from '@/config/camposObrigatorios';
@@ -35,11 +48,16 @@ export interface DadosDaOS {
   equipamento_id: string;
   numero_serie: string;
   marca_id: string;
-  modelo_id: string;
+  cor_id: string;
+  memoria_id: string;
   /** Texto livre do defeito relatado. */
   defeito_cliente: string;
   /** Sintomas marcados no checklist — valem como defeito informado. */
   defeitos_marcados: string[];
+  /** O que veio junto com o aparelho (capa, carregador, cabo…). */
+  acessorios_marcados: string[];
+  /** Estado físico na entrada (tela trincada, molhado, sem tampa…). */
+  condicoes_marcadas: string[];
   /**
    * Respondeu à pergunta "o aparelho tem senha?".
    *
@@ -52,6 +70,8 @@ export interface DadosDaOS {
   senha_padrao: string;
   /** Quem atendeu no balcão. Nasce preenchido com quem está logado. */
   vendedor_id: string;
+  /** Quem vai consertar. Fora do padrão de fábrica — ver o cabeçalho. */
+  tecnico_id: string;
   prazo_previsto: string;
 }
 
@@ -114,11 +134,21 @@ export function faltandoParaAbrirOS(
     });
   }
 
-  if (exige('modelo_id') && !dados.modelo_id) {
+  if (exige('cor_id') && !dados.cor_id) {
     falta.push({
-      campo: 'modelo_id',
-      titulo: 'Falta o modelo',
-      comoResolver: 'Escolha o modelo, ou cadastre na hora.',
+      campo: 'cor_id',
+      titulo: 'Falta a cor',
+      comoResolver:
+        'Escolha a cor do aparelho. É o que separa dois iguais na prateleira ' +
+        'quando o cliente vem buscar.',
+    });
+  }
+
+  if (exige('memoria_id') && !dados.memoria_id) {
+    falta.push({
+      campo: 'memoria_id',
+      titulo: 'Falta a memória / capacidade',
+      comoResolver: 'Escolha a capacidade do aparelho, ou cadastre na hora.',
     });
   }
 
@@ -129,6 +159,26 @@ export function faltandoParaAbrirOS(
       campo: 'defeito_cliente',
       titulo: 'Falta o problema informado',
       comoResolver: 'Marque um sintoma no checklist ou escreva o que o cliente relatou.',
+    });
+  }
+
+  if (exige('acessorios') && dados.acessorios_marcados.length === 0) {
+    falta.push({
+      campo: 'acessorios_marcados',
+      titulo: 'Falta dizer o que veio junto',
+      comoResolver:
+        'Marque os itens que vieram com o aparelho. Se não veio nada, marque o ' +
+        'item que diz isso — em branco não dá para saber se ninguém olhou.',
+    });
+  }
+
+  if (exige('condicoes') && dados.condicoes_marcadas.length === 0) {
+    falta.push({
+      campo: 'condicoes_marcadas',
+      titulo: 'Falta a condição de entrada',
+      comoResolver:
+        'Marque como o aparelho chegou (riscado, trincado, sem tampa…). É o que ' +
+        'protege a loja quando o cliente reclama de um arranhão na retirada.',
     });
   }
 
@@ -161,6 +211,14 @@ export function faltandoParaAbrirOS(
       campo: 'vendedor_id',
       titulo: 'Falta quem recebeu',
       comoResolver: 'Já vem preenchido com quem está logado — troque se quem atendeu foi outro.',
+    });
+  }
+
+  if (exige('tecnico_id') && !dados.tecnico_id) {
+    falta.push({
+      campo: 'tecnico_id',
+      titulo: 'Falta o técnico responsável',
+      comoResolver: 'Escolha quem vai ficar com este aparelho.',
     });
   }
 

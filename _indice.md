@@ -17,6 +17,12 @@ O sistema próprio da loja, feito pra substituir o sistema atual.
   Kanban, quem aperta cada botão, e os 16 pontos que a auditoria apontou
   antes de programar.
 
+## Testar
+
+- [[sisteminha/TESTE-DO-SISTEMINHA|Teste do Sisteminha]] — o roteiro de teste
+  manual, passo a passo, com o que fazer, o que tem que acontecer e por que
+  cada passo importa. É o documento que o Felipe usa na mão, no balcão.
+
 ## Planejamento
 
 - [[sisteminha/PLANO-DE-ACAO|Plano de ação]] — **o único documento de

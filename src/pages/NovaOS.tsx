@@ -49,7 +49,7 @@ import { moeda } from '@/lib/format';
  * hoje: "está muito básica, muito precária. Todos os campos são selecionáveis,
  * criados na aba cadastro."
  *
- * O que mudou de fundo: marca, modelo, cor e memória eram digitação livre, e o
+ * O que mudou de fundo: marca, cor e memória eram digitação livre, e o
  * banco acabava com "Samsung", "samsung" e "SANSUNG" como coisas diferentes.
  * Agora vêm dos catálogos de Listas do Sistema — que já existiam, semeados
  * desde 01/08, sem nenhuma tela lendo. O mesmo vale para os três checklists da
@@ -84,7 +84,7 @@ type OsTipo = 'paga' | 'garantia' | 'cortesia';
 /**
  * Onde cada campo obrigatório mora na tela.
  *
- * Serve para o aviso de "falta o modelo" rolar a página até o modelo. Sem
+ * Serve para o aviso de "falta a marca" rolar a página até a marca. Sem
  * isso, numa página longa como esta, o atendente lê o aviso e fica procurando
  * o campo — que é como se aprende a odiar o sistema.
  */
@@ -93,18 +93,21 @@ const CAMPO_NA_TELA: Record<string, string> = {
   equipamento_id: 'equipamento',
   numero_serie: 'numero_serie',
   marca_id: 'marca',
-  modelo_id: 'modelo',
+  cor_id: 'cor',
+  memoria_id: 'memoria',
   defeito_cliente: 'defeito',
+  acessorios_marcados: 'acessorios',
+  condicoes_marcadas: 'condicoes',
   tem_senha: 'tem-senha',
   senha_aparelho: 'senha',
   vendedor_id: 'vendedor',
+  tecnico_id: 'tecnico',
   prazo_previsto: 'prazo',
 };
 
 const FORM_VAZIO = {
   equipamento_id: '',
   marca_id: '',
-  modelo_id: '',
   cor_id: '',
   memoria_id: '',
   numero_serie: '',
@@ -237,7 +240,6 @@ export default function NovaOS() {
 
   // Só para converter id → texto na hora de gravar as colunas antigas.
   const marcas = useCatalogo('os_marca');
-  const modelos = useCatalogo('os_modelo');
   const cores = useCatalogo('os_cor');
   const memorias = useCatalogo('os_memoria');
   const condicoesCatalogo = useCatalogo('condicao_entrada');
@@ -297,13 +299,17 @@ export default function NovaOS() {
       equipamento_id: form.equipamento_id,
       numero_serie: form.numero_serie,
       marca_id: form.marca_id,
-      modelo_id: form.modelo_id,
+      cor_id: form.cor_id,
+      memoria_id: form.memoria_id,
       defeito_cliente: form.defeito_cliente,
       defeitos_marcados: defeitos,
+      acessorios_marcados: acessorios,
+      condicoes_marcadas: condicoes,
       tem_senha: form.tem_senha,
       senha_aparelho: form.senha_aparelho,
       senha_padrao: form.senha_padrao,
       vendedor_id: form.vendedor_id,
+      tecnico_id: form.tecnico_id,
       prazo_previsto: form.prazo_previsto,
       },
       exigencias,
@@ -354,7 +360,6 @@ export default function NovaOS() {
 
             equipamento_id: form.equipamento_id || null,
             marca_id: form.marca_id || null,
-            modelo_id: form.modelo_id || null,
             cor_id: form.cor_id || null,
             memoria_id: form.memoria_id || null,
 
@@ -362,7 +367,6 @@ export default function NovaOS() {
             // pra nenhum relatório existente quebrar. Mesmo tratamento que a
             // 20260807060000 deu às formas de pagamento.
             marca: descricaoDe(marcas, form.marca_id),
-            modelo: descricaoDe(modelos, form.modelo_id),
             cor: descricaoDe(cores, form.cor_id),
             memoria: descricaoDe(memorias, form.memoria_id),
             condicao_entrada:
@@ -605,6 +609,15 @@ export default function NovaOS() {
               </div>
             </div>
 
+            {/* O MODELO ficava aqui, ao lado da Marca. Saiu em 02/09 a pedido
+                do Felipe — a loja não usa hoje. O cadastro (`os_modelo`), o
+                filtro da lista de OS e o que já está preenchido nas OS antigas
+                continuam de pé: o campo deixou de ser perguntado no balcão,
+                não foi apagado do sistema.
+
+                Com ele fora, Marca, Cor e Memória passaram para a mesma grade
+                de duas colunas — a Marca sozinha ficava esticada na largura
+                inteira, com o dobro do tamanho dos campos vizinhos. */}
             <div className="grid gap-4 sm:grid-cols-2">
               <CampoCatalogo
                 id="marca"
@@ -615,19 +628,9 @@ export default function NovaOS() {
                 onChange={(v) => alterar('marca_id', v)}
               />
               <CampoCatalogo
-                id="modelo"
-                tipo="os_modelo"
-                obrigatorio={exige('modelo_id')}
-                label="Modelo"
-                valor={form.modelo_id}
-                onChange={(v) => alterar('modelo_id', v)}
-              />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <CampoCatalogo
                 id="cor"
                 tipo="os_cor"
+                obrigatorio={exige('cor_id')}
                 label="Cor"
                 valor={form.cor_id}
                 onChange={(v) => alterar('cor_id', v)}
@@ -635,6 +638,7 @@ export default function NovaOS() {
               <CampoCatalogo
                 id="memoria"
                 tipo="os_memoria"
+                obrigatorio={exige('memoria_id')}
                 label="Memória / Capacidade"
                 valor={form.memoria_id}
                 onChange={(v) => alterar('memoria_id', v)}
@@ -675,16 +679,20 @@ export default function NovaOS() {
                 onChange={setDefeitos}
               />
               <ChecklistEntrada
+                id="acessorios"
                 tipo="acessorio_entrada"
                 titulo="Itens do aparelho"
+                obrigatorio={exige('acessorios')}
                 hint="O que veio junto. Protege a loja na devolução."
                 tom="item"
                 selecionados={acessorios}
                 onChange={setAcessorios}
               />
               <ChecklistEntrada
+                id="condicoes"
                 tipo="condicao_entrada"
                 titulo="Condições de entrada"
+                obrigatorio={exige('condicoes')}
                 hint="Estado físico ANTES do reparo."
                 tom="condicao"
                 selecionados={condicoes}
@@ -808,7 +816,26 @@ export default function NovaOS() {
               </div>
 
               <div className="mt-3 rounded-md bg-muted/50 p-2.5 text-xs">
-                {form.laudo_eletronico ? (
+                {form.laudo_eletronico && form.tipo !== 'paga' ? (
+                  <>
+                    {/* Garantia e cortesia não cobram análise — o banco grava
+                        zero de propósito. Antes, o roteiro mandava avisar de
+                        uma taxa de R$ 80 que o sistema nunca cobraria, e o
+                        vendedor passava essa informação errada ao cliente. */}
+                    <p className="font-medium">
+                      Combine com o cliente antes de fechar a OS:
+                    </p>
+                    <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">
+                      <li>a análise é completa, com o aparelho aberto na bancada;</li>
+                      <li>
+                        <strong>não há taxa de análise</strong> nesta OS — é
+                        {form.tipo === 'garantia' ? ' garantia' : ' cortesia'}, e a loja não
+                        cobra análise nesses casos;
+                      </li>
+                      <li>o prazo do laudo é de <strong>1 a 3 dias úteis</strong>.</li>
+                    </ul>
+                  </>
+                ) : form.laudo_eletronico ? (
                   <>
                     <p className="font-medium">Combine com o cliente antes de fechar a OS:</p>
                     <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">
@@ -874,7 +901,10 @@ export default function NovaOS() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="tecnico">Técnico responsável</Label>
+              <Label htmlFor="tecnico">
+                Técnico responsável
+                {exige('tecnico_id') && <span className="text-destructive"> *</span>}
+              </Label>
               <Select
                 value={form.tecnico_id || 'nenhum'}
                 onValueChange={(v) => alterar('tecnico_id', v === 'nenhum' ? '' : v)}

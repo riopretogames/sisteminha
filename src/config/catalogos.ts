@@ -244,7 +244,7 @@ export const CATALOGOS: CatalogoDef[] = [
     genero: 'm',
     grupo: 'assistencia',
     icon: 'package',
-    hint: 'Modelo do aparelho que chega para conserto. Use o nome do jeito que o cliente fala.',
+    hint: 'Só para achar OS antigas: desde 02/09 a abertura de OS não pergunta mais o modelo. Quem já está aqui continua valendo no filtro e nas fichas antigas.',
     exemplo: 'iPhone 13, Galaxy A54, PS5 Slim, Xbox Series S, Redmi Note 12',
   },
   {

@@ -104,7 +104,7 @@ export function ClienteFormDialog({
   const [salvando, setSalvando] = useState(false);
 
   const editando = Boolean(cliente);
-  // O que ESTA loja exige, de Configurações > Campos Obrigatórios. Sem
+  // O que ESTA loja exige, de Cadastros > Campos Obrigatórios. Sem
   // configuração, só o nome — como sempre foi.
   const { exige, exigencias } = useCamposObrigatorios('cliente');
   const pessoaFisica = form.tipo_pessoa === 'fisica';
@@ -243,7 +243,17 @@ export function ClienteFormDialog({
             : `${primeiro.comoResolver} (faltam ${faltando.length} campos)`,
         variant: 'destructive',
       });
-      document.getElementById(primeiro.campo)?.scrollIntoView({
+      // RG e Inscrição Estadual dividem UM campo na tela ("documento_extra"),
+      // que troca de rótulo conforme o tipo de pessoa. A regra devolve o nome
+      // de cada um, e nenhum dos dois existe como id na página — então o aviso
+      // saía e a tela não se mexia, justamente num formulário longo.
+      const NA_TELA: Record<string, string> = {
+        rg: 'documento_extra',
+        inscricao_estadual: 'documento_extra',
+        cpf_cnpj_empresa: 'cpf_cnpj',
+      };
+      const alvo = NA_TELA[primeiro.campo] ?? primeiro.campo;
+      document.getElementById(alvo)?.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
       });

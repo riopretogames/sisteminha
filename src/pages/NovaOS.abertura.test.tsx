@@ -64,7 +64,20 @@ async function abrirTela(opcoes: { taxa?: number } = {}) {
   return renderizarTela(<NovaOS />);
 }
 
-describe('Abertura de OS: o que a tela exige', () => {
+/**
+ * Tempo maior que o padrão (5s), e não é preguiça.
+ *
+ * A Nova OS é a tela mais pesada do sistema — cliente, seis catálogos, três
+ * checklists, pessoas, taxa da loja — e cada teste aqui monta ela do zero
+ * (`vi.resetModules()` obriga a reimportar o módulo inteiro). Sozinha ela leva
+ * ~2,7s; com a bateria toda rodando em paralelo nesta máquina, passava dos 5s
+ * e o arquivo falhava POR TEMPO, sem defeito nenhum.
+ *
+ * Suíte que fica vermelha ao acaso é suíte que a gente aprende a ignorar — e
+ * aí o dia em que a falha for de verdade ninguém olha. O teto largo não
+ * esconde nada: teste que trava de verdade estoura os 30s do mesmo jeito.
+ */
+describe('Abertura de OS: o que a tela exige', { timeout: 30_000 }, () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
