@@ -239,7 +239,11 @@ function DialogNovaEntrada({ onFechar }: { onFechar: () => void }) {
     queryKey: ['produtos-para-entrada', busca],
     enabled: busca.trim().length >= 2,
     queryFn: async (): Promise<ProdutoBusca[]> => {
-      const termo = busca.trim();
+      // Vírgula e parêntese têm significado dentro do `.or()` (separam e
+      // agrupam os filtros): um produto chamado "Cabo HDMI, 2m" respondia
+      // "nenhum produto" porque a vírgula quebrava a consulta por dentro.
+      // Viram curinga: "HDMI, 2m" procura "%HDMI% 2m%" e acha do mesmo jeito.
+      const termo = busca.trim().replace(/[,()]/g, '%');
       const { data, error } = await supabase
         .from('vw_produtos')
         .select('id, nome, codigo_barra, estoque_atual, custo')

@@ -145,6 +145,75 @@ dela vira função em `supabase/functions/`, e lá:
    segundo lugar decidindo permissão é como as duas versões divergem sem
    ninguém notar.
 
+## Regra das portas fechadas (14/09)
+
+Véspera de o sistema ir para a internet, a auditoria achou que o padrão de
+fábrica do Supabase deixava **tudo aberto por padrão**: quem não fez login
+(`anon`) tinha privilégio em toda tabela, e 54 funções com chave de dono
+aceitavam chamada de qualquer logado — duas delas abriam caixa e furavam a
+numeração de qualquer loja. A migration `20260914100000` fechou e inverteu o
+padrão. As regras que ficaram:
+
+- **O `anon` não tem nada em `public`.** Nada no sistema lê o banco antes do
+  login (a tela de login não consulta nada), então não há motivo. Coluna,
+  tabela ou função que precise ser lida sem login é decisão do Felipe, com
+  GRANT explícito e motivo escrito na migration.
+- **Função nova nasce sem EXECUTE para quem está logado.** Função que a tela
+  chama via `.rpc()` ganha, na própria migration que a cria:
+
+  ```sql
+  GRANT EXECUTE ON FUNCTION public.nome_da_funcao(args) TO authenticated;
+  ```
+
+  Gatilho não precisa de nada (o banco não confere EXECUTE de quem disparou).
+  Ajudante usado em policy, CHECK ou índice (`has_permission`,
+  `get_user_tenant_id`, `catalogo_e_do_tipo`, `somente_digitos`...) precisa,
+  porque roda como o próprio usuário. Esquecer o GRANT falha alto e na hora
+  ("permission denied for function") — é o comportamento desejado: pior era o
+  contrário, a função aberta sem ninguém notar.
+
+  **CUIDADO (achado em 15/09): o `ALTER DEFAULT PRIVILEGES` NÃO fecha função
+  nova.** A migration de 14/09 confiava nele para "toda função nova nasce
+  fechada", mas ele só vale para objetos criados na sessão do papel exato que
+  ele nomeia — e o CLI de migration cria as funções por outra sessão. Prova:
+  `travas_da_os`, criado pela migration de 15/09 logo depois, nasceu aberto
+  para `PUBLIC` mesmo com o `ALTER DEFAULT PRIVILEGES` no lugar. **Fecha na
+  marra, na própria migration:** ao criar função de gatilho nova, termine com
+  `REVOKE EXECUTE ON FUNCTION public.nome() FROM PUBLIC, anon, authenticated;`
+  (ou copie o laço que a migration `20260915110000` roda no fim, que fecha
+  todas as funções de gatilho de uma vez). O `REVOKE ... FROM PUBLIC` é o que
+  fecha de verdade — `PUBLIC` é "todo mundo", e revogar só do `anon` deixa a
+  porta escancarada.
+- **Policy sempre com `TO authenticated`.** Sem o `TO`, vale para `public`,
+  que inclui o `anon`. A migration de 14/09 tem um bloco que derruba a
+  transação se sobrar policy aberta; migration nova com policy nova passa
+  pela mesma conferência se copiar o bloco.
+- **`aplicar_trava_de_custo()` concede só a `authenticated`** desde 14/09. A
+  versão antiga reconcedia ao `anon` a cada chamada.
+- **Mudou a `aplicar_trava_de_custo`, criou função com `SECURITY DEFINER`,
+  ou mexeu em GRANT? Rode o parecer de segurança do Supabase** (a ferramenta
+  `get_advisors` do MCP, tipo `security`, ou o painel em Database > Advisors)
+  antes de commitar. Foi ele que apontou o que as revisões anteriores não
+  viram — as revisões olhavam o código, ele olha o banco.
+
+As 7 views `vw_*` continuam `SECURITY DEFINER` **de propósito** (Opção B) e o
+parecer vai continuar marcando isso em vermelho: cada uma filtra a loja por
+`get_user_tenant_id` e esconde o custo por `has_permission`. Conferido em
+14/09 — não é achado, é o desenho. (A `vw_auditoria` e a `vw_caixa_resumo_formas`
+entraram nessa família em 15/09: a tela de Logs e o resumo do caixa passaram a
+ler por elas para esconder custo/dinheiro de quem não pode ver.)
+
+A leva de 15/09 (migrations `20260915100000` e `20260915110000`) fechou o que
+sobrou depois que o `anon` foi trancado: venda gravada virou história (não muda
+de valor nem some do faturamento pela API), funcionário desativado não se
+reativa nem lê nada (`get_user_tenant_id` só responde para conta ativa e com
+papel), ninguém entra sem ser criado por um administrador (`handle_new_user`
+exige o carimbo `criado_por`, que só a chave mestra escreve), e o rastro
+(auditoria, movimento, pagamento) não é mais forjável nem apagável. **Uma
+coisa continua na mão do Felipe, no painel:** desligar "Allow new users to
+sign up" em Authentication > Sign In / Providers > Email — é a trava de fora
+que combina com a de dentro.
+
 ## Regra de cliente único (08/08)
 
 Decisão do Felipe: **não pode existir dois cadastros do mesmo cliente.** Se o

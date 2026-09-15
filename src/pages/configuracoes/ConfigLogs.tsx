@@ -78,8 +78,12 @@ export default function ConfigLogs() {
   const { data, isLoading } = useQuery({
     queryKey: ['auditoria', tabela],
     queryFn: async (): Promise<{ registros: Registro[]; nomes: Map<string, string> }> => {
+      // Pela view, não pela tabela (desde 15/09): a tabela guarda a linha
+      // inteira do produto, custo e margem inclusos, e quem tem só "Ver logs"
+      // lia tudo. A view apaga as chaves de custo para quem não tem "Ver
+      // custo e margem" — mesma regra das vw_* de produto.
       let q = supabase
-        .from('auditoria')
+        .from('vw_auditoria')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(200);

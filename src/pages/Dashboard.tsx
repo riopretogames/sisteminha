@@ -43,7 +43,17 @@ interface RecentOS {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { user, can } = useAuth();
+  const { user, can, canAny } = useAuth();
+
+  // Os dois cartões de dinheiro (Vendas Hoje, Caixa Hoje) só para quem tem
+  // alguma tela de venda ou financeiro. Desde 15/09 o banco também só entrega
+  // as vendas a quem tem essas permissões — sem isto, o técnico veria "0
+  // vendas, R$ 0,00" e acharia que a loja não vendeu nada.
+  const veVendas = canAny([
+    PERMISSIONS.SALES_VIEW,
+    PERMISSIONS.DASHBOARDS_SALES_VIEW,
+    PERMISSIONS.FINANCE_VIEW,
+  ]);
   const [stats, setStats] = useState<DashboardStats>({
     vendasHoje: 0,
     vendasOntem: 0,
@@ -249,6 +259,8 @@ export default function Dashboard() {
 
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {veVendas ? (
+          <>
         {/* Vendas Hoje */}
         <Card className="overflow-hidden">
           <div className="kpi-vendas p-1" />
@@ -303,6 +315,8 @@ export default function Dashboard() {
             </p>
           </CardContent>
         </Card>
+          </>
+        ) : null}
 
         {/* Estoque Crítico */}
         <Card

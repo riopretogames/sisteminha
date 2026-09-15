@@ -119,6 +119,12 @@ Deno.serve(async (req) => {
       // O gatilho `handle_new_user` lê este campo para montar o cadastro. Sem
       // ele, o nome vira o pedaço do e-mail antes do @.
       user_metadata: { nome },
+      // O carimbo de "foi um administrador que criou". Metadados de APLICAÇÃO
+      // só a chave mestra escreve — o cadastro público do Supabase só consegue
+      // escrever metadados de usuário. Desde 15/09 o gatilho `handle_new_user`
+      // RECUSA conta nova sem este carimbo: foi assim que se fechou a porta de
+      // qualquer pessoa na internet criar conta dentro da loja.
+      app_metadata: { criado_por: quemPediu },
     });
 
     if (erroCriar) {
@@ -171,6 +177,28 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (erroAlvo) return erro('Não consegui localizar esse usuário.', 500);
     if (!alvo) return erro('Esse usuário não é da sua loja.', 404);
+
+    // Trocar a senha de um ADMINISTRADOR é virar administrador: quem faz isso
+    // entra como ele em seguida. Então exige o mesmo que dar o papel de
+    // administrador exige (`roles.manage`). A própria senha cada um troca.
+    // Achado da auditoria de 14/09: com só `users.manage`, dava para trocar a
+    // senha do dono e virar dono.
+    if (userId !== quemPediu) {
+      const { data: papeisDoAlvo } = await comoUsuario
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId);
+      const alvoEAdmin = (papeisDoAlvo ?? []).some((r) => r.role === 'administrador');
+      if (alvoEAdmin) {
+        const { data: podeDefinirPapel } = await comoUsuario.rpc('has_permission', {
+          _user_id: quemPediu,
+          _permission: 'roles.manage',
+        });
+        if (podeDefinirPapel !== true) {
+          return erro('Só quem define perfis de acesso pode trocar a senha de um administrador.', 403);
+        }
+      }
+    }
 
     const { error: erroSenha } = await comoServidor.auth.admin.updateUserById(userId, {
       password: senha,
