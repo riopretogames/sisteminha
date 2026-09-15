@@ -108,6 +108,15 @@ Consequência concreta, que vale para todo código novo:
   reconferir os privilégios. Já aconteceu de verdade uma vez (o Lovable
   restaurou os GRANTs padrão dele num rebuild, e a trava ficou caída por
   mais de um dia sem ninguém notar).
+- **Exceção conhecida (não é bug): o custo do produto de troca.** Quando um
+  aparelho usado entra como parte do pagamento, o valor que a loja deu por ele
+  é gravado em `entradas_produto.valor_entrada` e no pagamento `vale_troca` da
+  venda — e essas duas tabelas são legíveis por qualquer funcionário logado.
+  Ou seja, o custo de um produto que veio por troca **é conhecível** mesmo por
+  quem não tem `inventory.cost.view`. Isso é aceito: o valor da troca é
+  negociado no balcão, na frente de todo mundo, não é segredo como o custo de
+  compra do fornecedor. A auditoria de 15/09 apontou e o Felipe deixou como
+  está — registrado aqui para ninguém "corrigir" como se fosse falha.
 - **Coluna nova numa dessas 4 tabelas exige uma linha a mais na migration:**
 
   ```sql

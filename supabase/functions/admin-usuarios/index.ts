@@ -233,6 +233,26 @@ Deno.serve(async (req) => {
     if (erroAlvo) return erro('Não consegui localizar esse usuário.', 500);
     if (!alvo) return erro('Esse usuário não é da sua loja.', 404);
 
+    // Tirar um administrador da loja é da mesma alçada que dar/tirar o papel
+    // de administrador: exige `roles.manage`, não só `users.manage`. (Mesma
+    // trava da troca de senha; achado da auditoria de 14/09.)
+    {
+      const { data: papeisDoAlvo } = await comoUsuario
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId);
+      const alvoEAdmin = (papeisDoAlvo ?? []).some((r) => r.role === 'administrador');
+      if (alvoEAdmin) {
+        const { data: podeDefinirPapel } = await comoUsuario.rpc('has_permission', {
+          _user_id: quemPediu,
+          _permission: 'roles.manage',
+        });
+        if (podeDefinirPapel !== true) {
+          return erro('Só quem define perfis de acesso pode remover um administrador.', 403);
+        }
+      }
+    }
+
     const { data: historico, error: erroHistorico } = await comoUsuario.rpc(
       'historico_do_usuario',
       { _user_id: userId },
