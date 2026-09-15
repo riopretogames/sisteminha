@@ -2685,6 +2685,98 @@ campo no erro.
 
 ---
 
+## Véspera da internet: portas fechadas e engrenagens quebradas (14-15/09)
+
+O Felipe decidiu tirar o sisteminha do localhost e publicá-lo **dentro do site
+da loja**, em `www.riopretogames.com.br/sisteminha` — a tela de login exposta
+ao mundo. Antes disso, uma auditoria de segurança inteira (dez ângulos, cada
+achado passando por dois céticos encarregados de derrubá-lo, tudo provado no
+**banco de verdade**, não no papel) mais 24 passos do roteiro de teste rodados
+direto no banco. Saíram três migrations, todas aplicadas e conferidas.
+
+**O buraco maior: o banco vinha aberto por padrão.** O padrão de fábrica do
+Supabase dá privilégio em toda tabela para quem **não fez login** (`anon`), e
+deixa toda função com chave de dono chamável por qualquer um. O RLS segurava,
+mas segurança que depende de uma camada estar perfeita para sempre não é
+segurança. A migration `20260914100000` inverteu o padrão: **o `anon` não tem
+mais nada** em `public` (tabela, sequência ou função), nenhuma função fica
+aberta para "todo mundo", e as engrenagens internas (abrir caixa, puxar a
+numeração de OS/venda) deixaram de ser chamáveis de fora. A regra virou: função
+nova nasce fechada, e quem a tela chama ganha permissão de propósito, uma linha
+visível na migration. (A lição de 15/09: o `ALTER DEFAULT PRIVILEGES` **não**
+fecha função criada por outra sessão de migration — tem que revogar na marra.
+Está no CLAUDE.md.)
+
+**Cinco engrenagens que estavam quebradas** (`20260915100000`), todas provadas
+no banco:
+
+- **Cancelar OS com peça, "cliente não aprovou" e o ajuste manual de estoque
+  nunca funcionaram** — desde 01 e 18/08. As funções montavam o tipo do
+  movimento de estoque como texto e o banco recusava, para todo mundo,
+  inclusive o administrador. Um `cast` explícito conserta.
+- **O técnico não conseguia devolver à bancada uma OS já decidida**, e do outro
+  lado **conseguia pular a aprovação do cliente** empurrando a OS para frente.
+  A trava passou a ler a resposta do cliente, não só a permissão.
+- **O título financeiro da OS entregue incluía o troco** (R$ 220 por um
+  orçamento de R$ 200 pago com nota de R$ 220). Agora é no máximo o orçamento.
+- **OS entregue tinha valor, tipo e laudo editáveis pela API** — a tela
+  trancava, o banco não. Um gatilho tranca.
+- **Peça de outra loja entrava numa venda/OS desta** — a baixa passou a
+  conferir a loja (importa quando o sistema for vendido para outras lojas).
+
+**Ninguém se promove, ninguém se reativa, ninguém entra sem ser chamado**
+(`20260915110000`), tudo provado no banco:
+
+- **Qualquer pessoa na internet criava uma conta dentro da loja** e, sem
+  permissão nenhuma, lia clientes (com CPF e telefone), vendas, OS, estoque e a
+  equipe — porque 30 regras de leitura só perguntavam "é da mesma loja?". Agora
+  a conta nova só é aceita se um administrador a criou (carimbo que só a chave
+  mestra escreve), e conta sem papel/ativa não pertence a loja nenhuma.
+- **Funcionário desativado se reativava sozinho** pela API. A brecha (editar o
+  próprio perfil) foi fechada.
+- **O único administrador se rebaixava** por um caminho que a trava não cobria.
+- **Venda paga era reescrita ou cancelada por qualquer vendedor**, sumindo do
+  faturamento com o dinheiro no caixa. Venda gravada virou história: não muda
+  de valor, cancelar exige a permissão (ou o próprio vendedor nos 10 minutos
+  seguintes, que é o "desfazer" do PDV).
+- **Rastro forjável ou apagável** (linha do tempo, movimento de estoque,
+  "quem fez" da sangria) — fechado; apagar OS ou produto com histórico virou
+  recusa.
+- **O que só a tela escondia**: vendas, metas e o resumo do caixa passaram a
+  exigir permissão no próprio banco; o log de auditoria passou a ser lido por
+  uma view que esconde o custo de quem não pode ver.
+
+A função de borda também mudou: **trocar a senha de um administrador passou a
+exigir a permissão de definir perfis** (com só "gerenciar usuários" dava para
+trocar a senha do dono e virar dono).
+
+O parecer de segurança do Supabase, rodado depois de tudo, só acusa o que é
+**por desenho**: as 7 views `vw_*` da Opção B, as 14 funções do contrato que
+conferem o crachá por dentro, e as duas tabelas de sistema com RLS ligado e sem
+policy (negam tudo, que é o certo).
+
+**O deploy.** O sisteminha ganhou um projeto Vercel próprio (isolado do site da
+loja, como manda a regra), aprendeu a morar no subcaminho `/sisteminha` e está
+no ar, público e testável, em
+`https://sisteminha-rio-preto-games.vercel.app/sisteminha/`.
+
+**Falta, e é do Felipe:**
+
+1. **No painel do Supabase**, desligar "Allow new users to sign up"
+   (Authentication > Sign In / Providers > Email). É a trava de fora que
+   combina com a de dentro — o banco já recusa o cadastro público, mas o botão
+   deixa o erro mais limpo. E, no mesmo painel, ligar a checagem de senha
+   vazada (HaveIBeenPwned), que o parecer sinaliza.
+2. **Ligar o botão "Login" do site da loja** ao sisteminha. Isso é trabalho no
+   `marketing/site/` (projeto separado, regra do CLAUDE.md de não misturar as
+   duas sessões): trocar o `href="#"` do botão de login nas 9 páginas por
+   `/sisteminha/`, e adicionar no `vercel.json` do site um reencaminhamento de
+   `/sisteminha/:caminho*` para
+   `https://sisteminha-rio-preto-games.vercel.app/sisteminha/:caminho*`, depois
+   publicar o site. Melhor feito de uma sessão dentro de `marketing/site/`.
+
+---
+
 ## O que esta revisão não cobriu
 
 Vale lembrar antes de assumir que "não foi achado" significa "não existe":
