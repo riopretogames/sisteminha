@@ -45,7 +45,12 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
+        {/* `basename` é o mesmo "/sisteminha" do vite.config (BASE_URL é o
+            Vite entregando a base em tempo de execução). Sem isto, a tela
+            abriria em /sisteminha/ mas cada link interno tentaria ir para
+            /os, /pdv... na raiz do site da loja, e cairia no 404 dele. A barra
+            do fim sai porque o roteador não a quer. */}
+        <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <Routes>
             <Route path="/login" element={<Login />} />
 

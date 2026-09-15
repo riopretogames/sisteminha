@@ -1,0 +1,22 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "VITE_BASE_PATH=/sisteminha/ vite build --outDir dist/sisteminha",
+  "outputDirectory": "dist",
+  "framework": null,
+  "rewrites": [
+    { "source": "/sisteminha/:caminho*", "destination": "/sisteminha/index.html" }
+  ],
+  "redirects": [
+    { "source": "/", "destination": "/sisteminha/", "permanent": false }
+  ],
+  "headers": [
+    {
+      "source": "/sisteminha/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
+  ]
+}

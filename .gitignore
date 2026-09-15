@@ -32,6 +32,10 @@ dist-ssr
 # Estado local do Supabase CLI (cache de link do projeto, nao e config)
 supabase/.temp
 
+# Estado local do Vercel CLI (a qual projeto esta pasta esta ligada). Mesma
+# regra do site da loja: fica na maquina, nao no repositorio.
+.vercel
+
 # Backups do banco: contem DADOS REAIS de cliente (nome, CPF, telefone).
 # Nunca vao pro GitHub - o repositorio nao e lugar de dado pessoal.
 backups/
