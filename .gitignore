@@ -51,3 +51,6 @@ teste-manual.html
 
 # Pagina clicavel do teste — gerada do .md, publicada como artifact
 teste-do-sisteminha.html
+
+.vercel
+.env*
