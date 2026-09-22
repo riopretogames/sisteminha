@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { moeda } from '@/lib/format';
@@ -126,6 +127,8 @@ export function CardIndicador({
   icone,
   faixa,
   carregando,
+  variacaoPct,
+  rotuloComparacao,
 }: {
   titulo: string;
   valor: string;
@@ -133,6 +136,15 @@ export function CardIndicador({
   icone: ReactNode;
   faixa: string;
   carregando?: boolean;
+  /**
+   * Quanto o número mudou em relação ao período anterior, em %.
+   * `undefined` = a tela não pediu comparação (a chave está desligada).
+   * `null` = pediu, mas o período anterior foi zero — não há com o que
+   * comparar, e a tela diz isso em vez de inventar "+100%".
+   */
+  variacaoPct?: number | null;
+  /** Com o que estamos comparando: "vs mês anterior", "vs ontem"… */
+  rotuloComparacao?: string;
 }) {
   return (
     <Card className="overflow-hidden">
@@ -146,6 +158,28 @@ export function CardIndicador({
         <p className="text-xs text-muted-foreground">
           {carregando ? 'Carregando…' : detalhe}
         </p>
+        {!carregando && variacaoPct !== undefined && (
+          <div className="mt-1 flex items-center text-xs">
+            {variacaoPct === null ? (
+              <span className="text-muted-foreground">
+                Sem {rotuloComparacao?.replace(/^vs /, '') ?? 'período anterior'} para comparar
+              </span>
+            ) : (
+              <>
+                {variacaoPct >= 0 ? (
+                  <ArrowUpRight className="mr-1 h-4 w-4 text-green-500" />
+                ) : (
+                  <ArrowDownRight className="mr-1 h-4 w-4 text-red-500" />
+                )}
+                <span className={variacaoPct >= 0 ? 'text-green-500' : 'text-red-500'}>
+                  {variacaoPct >= 0 ? '+' : ''}
+                  {variacaoPct.toFixed(0)}%
+                </span>
+                <span className="ml-1 text-muted-foreground">{rotuloComparacao}</span>
+              </>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
