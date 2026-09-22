@@ -2,11 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "sisteminha-dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 8080,
-      "autoPort": true
+      "name": "sisteminha-dashboards",
+      "runtimeExecutable": "npm.cmd",
+      "runtimeArgs": ["run", "dev", "--", "--port", "8091"],
+      "port": 8091
     }
   ]
 }
