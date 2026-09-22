@@ -200,7 +200,7 @@ export function AppSidebar() {
   const papelPrincipal = user?.roles?.[0];
 
   return (
-    <aside className="fixed left-0 top-0 z-40 flex h-screen w-60 flex-col border-r border-sidebar-border bg-sidebar">
+    <aside className="fixed left-0 top-0 z-40 flex h-screen w-60 flex-col border-r border-sidebar-border bg-sidebar print:hidden">
       {/* Marca */}
       <div className="flex h-16 items-center gap-2.5 border-b border-sidebar-border px-5">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">

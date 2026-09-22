@@ -37,11 +37,16 @@ export function AppLayout() {
   const secaoComAbas = SECOES_COM_ABAS.find((id) => pathname.startsWith(`/${id}`));
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
+    // As classes `print:` existem por causa do comprovante de venda: sem elas,
+    // imprimir uma tela levava o menu lateral e o cabeçalho de busca para o
+    // papel, e o `pl-60` (o espaço que o menu ocupa) empurrava o conteúdo para
+    // a direita — saía uma tarja vazia de 15 cm na esquerda da folha e o
+    // comprovante espremido no canto. Na térmica de 80mm não sobrava nada.
+    <div className="flex min-h-screen w-full bg-background print:block print:min-h-0">
       <AppSidebar />
-      <div className="flex flex-1 flex-col pl-60">
+      <div className="flex flex-1 flex-col pl-60 print:pl-0">
         <AppHeader />
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-6 print:p-0">
           {secaoComAbas && <AbasDaSecao secaoId={secaoComAbas} />}
           <Outlet />
         </main>

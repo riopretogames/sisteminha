@@ -552,7 +552,11 @@ function ComprovanteTermica({
 }: FormatoProps) {
   const linha = '-'.repeat(32);
   return (
-    <div className="mx-auto w-[80mm] bg-white p-2 font-mono text-[11px] leading-tight text-black print:w-full">
+    // Na tela o cupom aparece com a largura real do papel (80mm), para dar a
+    // noção de como vai sair. Na impressão a largura passa a ser a da própria
+    // bobina (`@page size: 80mm`) e a margem do papel já vem do `@page` — o
+    // recuo de tela aqui só roubaria caracteres de cada linha.
+    <div className="mx-auto w-[80mm] bg-white p-2 font-mono text-[11px] leading-tight text-black print:mx-0 print:w-full print:p-0">
       {venda.status === 'cancelado' && (
         <p className="mb-1 text-center font-bold">*** VENDA CANCELADA ***</p>
       )}

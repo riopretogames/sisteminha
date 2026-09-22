@@ -212,3 +212,81 @@
     @apply bg-gradient-to-br from-cyan-500 to-teal-600;
   }
 }
+
+/* ==========================================================================
+   IMPRESSÃO
+   ==========================================================================
+
+   O que acontece quando alguém aperta Imprimir em qualquer tela do sistema —
+   na prática, o comprovante de venda, que é o que a loja põe no papel.
+
+   O problema que estas regras resolvem: o sistema é uma tela só, com menu
+   lateral fixo e cabeçalho de busca em cima. Sem instrução nenhuma, o
+   navegador manda TUDO isso para o papel — o menu inteiro na esquerda, a
+   lupa de busca no topo — e o comprovante sai espremido num pedaço da folha.
+   Na térmica de 80mm de largura não sobrava espaço nenhum para o cupom.
+
+   O que continua na mão de quem imprime (não dá para mudar por aqui, é
+   configuração do navegador, na janela de impressão):
+   - "Cabeçalhos e rodapés": é o que põe a data e o endereço do sistema no
+     alto e no pé da folha. Desmarcar deixa o comprovante limpo.
+   - "Imagens em segundo plano" / "Gráficos de fundo": precisa estar MARCADO
+     para sair fundo colorido (a tarja de VENDA CANCELADA, por exemplo). */
+
+@media print {
+  /* Fundo branco de verdade e sem altura mínima de tela: a folha tem a
+     altura do conteúdo, não a do monitor. */
+  html,
+  body,
+  #root {
+    background: #fff !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* O texto vai preto e as cores que importam são impressas como são. Sem
+     isto o navegador "economiza tinta" e some com fundo colorido — inclusive
+     o da tarja de venda cancelada, que é justamente o que não pode sumir. */
+  body {
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Nada de sombra nem de barra de rolagem no papel. */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  /* Elemento fixo ou grudado no topo vira carimbo repetido em toda página
+     impressa — o cabeçalho de busca apareceria em cima de cada folha. */
+  .fixed,
+  .sticky {
+    position: static !important;
+  }
+
+  /* O comprovante ocupa a folha inteira: os limites de largura da tela
+     (max-w-4xl e afins) não valem no papel. */
+  main > * {
+    max-width: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  /* Não cortar uma linha da tabela no meio ao virar a página, e não deixar
+     título órfão no pé da folha. */
+  tr,
+  img {
+    break-inside: avoid;
+  }
+
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+}
