@@ -2,19 +2,18 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   ShoppingCart,
-  CalendarRange,
   Receipt,
   Trophy,
-  ArrowUpRight,
-  ArrowDownRight,
   PackageSearch,
   Medal,
   Users,
   Tags,
   Clock,
   CreditCard,
+  Hash,
+  Info,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { PageHeader } from '@/components/PageHeader';
 import { moeda } from '@/lib/format';
@@ -32,15 +31,34 @@ import {
   horarioDePico,
   faixaDeHora,
 } from '@/lib/ranking';
+import { resolverPeriodo, periodoAnterior, variacao, dentroDoPeriodo } from '@/lib/periodo';
+import { montarSerie, melhorPonto, nomeDoGrao } from '@/lib/serie';
+import { useFiltrosDashboard } from '@/lib/filtrosDashboard';
 import { TabelaRanking, CardIndicador } from '@/components/dashboards/TabelaRanking';
+import { FiltrosDashboard } from '@/components/dashboards/FiltrosDashboard';
+import { GraficoEvolucao } from '@/components/dashboards/GraficoEvolucao';
 
 /**
- * Dashboard de Vendas — "olha só como tá indo agora".
+ * Dashboard de Vendas.
  *
- * Complementar ao Dashboard (Home), que já resume "Vendas Hoje"/"Caixa Hoje"
- * em um card cada, e ao Relatório de Vendas, que é histórico com filtro de
- * período e exportação CSV. Esta tela não tem filtro nem CSV de propósito —
- * é sempre "hoje" e "esta semana", agora.
+ * Até 22/09/2026 esta tela era fixa em "hoje" e "esta semana": respondia
+ * "como estamos agora" e mais nada. Não dava para ver o mês passado, comparar
+ * com o ano anterior, olhar um vendedor só ou uma categoria só — e a resposta
+ * para tudo isso era "vá no Relatório de Vendas", que é uma lista, não um
+ * painel. Agora o período é escolhido em cima e TODOS os números da tela
+ * seguem essa escolha, inclusive os rankings.
+ *
+ * Como os números se comportam com filtro:
+ *
+ * - **Sem categoria escolhida**, o valor de uma venda é o dinheiro novo que
+ *   ela representou (`valor_faturamento_real`, que difere de `total` quando
+ *   houve troca), com as devoluções do período abatidas.
+ * - **Com uma categoria escolhida**, a tela passa a somar apenas os itens
+ *   daquela categoria — senão uma venda de um console mais um jogo apareceria
+ *   inteira dentro de "Jogos". Nesse modo a devolução não é abatida, porque a
+ *   devolução é registrada por venda e não guarda de qual categoria era a peça
+ *   devolvida; a tela avisa isso na cara, em vez de mostrar um número que
+ *   parece exato e não é.
  *
  * A permissão (PERMISSIONS.DASHBOARDS_SALES_VIEW) já gate a rota em
  * config/menu.ts, então não repetimos `can()` aqui — é tela só de leitura.
@@ -72,56 +90,25 @@ interface VendaRow {
  *  RelatorioVendas.tsx, mesma lógica. */
 const faturamentoReal = (v: VendaRow) => Number(v.valor_faturamento_real ?? v.total ?? 0);
 
-const NOMES_DIA_SEMANA = [
-  'Segunda-feira',
-  'Terça-feira',
-  'Quarta-feira',
-  'Quinta-feira',
-  'Sexta-feira',
-  'Sábado',
-  'Domingo',
-];
-
-/** Chave local 'YYYY-MM-DD' a partir de um Date — evita o desvio de fuso ao
- * agrupar por dia (mesma preocupação documentada em lib/format.ts). */
-function chaveDiaLocal(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
 export default function DashboardVenda() {
-  // `new Date()` é chamado uma única vez, no mount (useMemo com deps vazias).
-  // Todos os limites de data (hoje, ontem, início da semana) derivam daqui —
-  // nunca chamamos `new Date()` de novo dentro dos loops de agregação abaixo.
-  const limites = useMemo(() => {
+  const [filtros, setFiltros, limparFiltros] = useFiltrosDashboard('venda');
+
+  // `new Date()` é chamado uma única vez por render dos limites, e todos os
+  // recortes derivam daqui — nunca chamamos `new Date()` dentro dos loops de
+  // agregação abaixo (mesma disciplina de antes, agora com período variável).
+  const { periodo, anterior, desdeISO } = useMemo(() => {
     const agora = new Date();
-    const inicioHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
-
-    const inicioOntem = new Date(inicioHoje);
-    inicioOntem.setDate(inicioOntem.getDate() - 1);
-
-    // Semana = segunda a domingo da semana corrente.
-    const diaSemana = inicioHoje.getDay(); // 0 = domingo … 6 = sábado
-    const deltaSegunda = diaSemana === 0 ? 6 : diaSemana - 1;
-    const inicioSemana = new Date(inicioHoje);
-    inicioSemana.setDate(inicioSemana.getDate() - deltaSegunda);
-
-    // Busca desde o mais antigo entre "início da semana" e "ontem": quando
-    // hoje é segunda-feira, ontem (domingo) cai fora da semana corrente.
-    const inicioBusca = inicioSemana < inicioOntem ? inicioSemana : inicioOntem;
-
-    const diasSemana = NOMES_DIA_SEMANA.map((nome, i) => {
-      const dia = new Date(inicioSemana);
-      dia.setDate(dia.getDate() + i);
-      return { nome, chave: chaveDiaLocal(dia) };
-    });
-
-    return { inicioHoje, inicioOntem, inicioSemana, inicioBusca, diasSemana };
-  }, []);
+    const periodo = resolverPeriodo(filtros.periodo, agora);
+    const anterior = periodoAnterior(filtros.periodo, agora);
+    // Uma consulta só cobre os dois períodos: o anterior sempre termina onde
+    // o atual começa (ou antes), então basta buscar desde o início dele.
+    const desde = anterior.inicio < periodo.inicio ? anterior.inicio : periodo.inicio;
+    return { periodo, anterior, desdeISO: desde.toISOString() };
+  }, [filtros.periodo]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['dashboard-venda', limites.inicioBusca.toISOString()],
+    queryKey: ['dashboard-venda', desdeISO, periodo.fim.toISOString()],
     queryFn: async (): Promise<{ vendas: VendaRow[]; devolucoes: DevolucaoComVendedor[] }> => {
-      const desde = limites.inicioBusca.toISOString();
       const [resVendas, devolucoes] = await Promise.all([
         supabase
           .from('vendas')
@@ -133,65 +120,148 @@ export default function DashboardVenda() {
           // de produto passa SEMPRE pela view, mesmo sem pedir custo. O apelido
           // mantém a chave `produtos` no JSON.
           .select('id, created_at, total, valor_faturamento_real, vendedor_id, vendedor:profiles(nome), itens_venda(produto_id, quantidade, total, produtos:vw_produtos(nome, categoria)), pagamentos_venda(valor, formas_pagamento(descricao))')
-          .gte('created_at', desde)
+          .gte('created_at', desdeISO)
+          .lt('created_at', periodo.fim.toISOString())
           .neq('status', 'cancelado'),
-        buscarDevolucoesComVendedorDesde(desde),
+        buscarDevolucoesComVendedorDesde(desdeISO),
       ]);
       if (resVendas.error) throw resVendas.error;
       return { vendas: (resVendas.data ?? []) as unknown as VendaRow[], devolucoes };
     },
   });
 
-  const vendas = data?.vendas ?? [];
+  const todasVendas = useMemo(() => data?.vendas ?? [], [data]);
   // Dinheiro devolvido ao cliente não aparece em venda nenhuma: a venda
-  // original fica gravada com o valor cheio para sempre. Sem descontar,
-  // uma venda devolvida no mesmo dia seguia contando inteira no painel,
-  // com o dinheiro já fora da gaveta. Régua de data igual à do Caixa
-  // (17/08): pesa no dia da devolução, não no da venda original.
-  const devolucoes = data?.devolucoes ?? [];
+  // original fica gravada com o valor cheio para sempre. Sem descontar, uma
+  // venda devolvida seguia contando inteira no painel, com o dinheiro já fora
+  // da gaveta. Régua de data igual à do Caixa (17/08): pesa no dia da
+  // devolução, não no da venda original.
+  const todasDevolucoes = useMemo(() => data?.devolucoes ?? [], [data]);
 
-  const vendasHoje = vendas.filter((v) => new Date(v.created_at) >= limites.inicioHoje);
-  const vendasOntem = vendas.filter(
-    (v) => new Date(v.created_at) >= limites.inicioOntem && new Date(v.created_at) < limites.inicioHoje
-  );
-  const vendasSemana = vendas.filter((v) => new Date(v.created_at) >= limites.inicioSemana);
+  const porCategoria = filtros.categoria !== '';
 
-  const devolucoesHoje = devolucoes.filter((d) => new Date(d.created_at) >= limites.inicioHoje);
-  const devolucoesSemana = devolucoes.filter((d) => new Date(d.created_at) >= limites.inicioSemana);
+  /** Lista de vendedores e categorias que aparece nos campos de filtro. */
+  const { vendedores, categorias } = useMemo(() => {
+    const v = new Map<string, string>();
+    const c = new Set<string>();
+    for (const venda of todasVendas) {
+      if (venda.vendedor_id && venda.vendedor?.nome) v.set(venda.vendedor_id, venda.vendedor.nome);
+      for (const item of venda.itens_venda ?? []) {
+        if (item.produtos?.categoria) c.add(item.produtos.categoria);
+      }
+    }
+    return {
+      vendedores: [...v.entries()]
+        .map(([id, nome]) => ({ id, nome }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+      categorias: [...c].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    };
+  }, [todasVendas]);
 
-  const caixaHoje =
-    vendasHoje.reduce((acc, v) => acc + faturamentoReal(v), 0) - somarDevolucoes(devolucoesHoje);
-  const caixaSemana =
-    vendasSemana.reduce((acc, v) => acc + faturamentoReal(v), 0) - somarDevolucoes(devolucoesSemana);
-
-  // Mesma lógica de "vendasTrend" do Dashboard.tsx: diferença de quantidade
-  // de vendas hoje vs ontem.
-  const vendasTrend = vendasHoje.length - vendasOntem.length;
-
-  const ticketMedioHoje = vendasHoje.length > 0 ? caixaHoje / vendasHoje.length : null;
-
-  const totalPorDia = limites.diasSemana.map(({ nome, chave }) => {
-    const vendido = vendasSemana
-      .filter((v) => chaveDiaLocal(new Date(v.created_at)) === chave)
-      .reduce((acc, v) => acc + faturamentoReal(v), 0);
-    // Desconta no mesmo dia da devolução — senão o "melhor dia da semana"
-    // pode ser justamente um dia que teve tudo devolvido.
-    const devolvido = somarDevolucoes(
-      devolucoesSemana.filter((d) => chaveDiaLocal(new Date(d.created_at)) === chave)
-    );
-    return { nome, total: vendido - devolvido };
-  });
-  const melhorDia = totalPorDia.reduce(
-    (melhor, atual) => (atual.total > melhor.total ? atual : melhor),
-    totalPorDia[0]
+  /** Itens de uma venda que interessam ao filtro de categoria. */
+  const itensQueContam = useMemo(
+    () => (v: VendaRow) =>
+      porCategoria
+        ? (v.itens_venda ?? []).filter((i) => i.produtos?.categoria === filtros.categoria)
+        : (v.itens_venda ?? []),
+    [porCategoria, filtros.categoria],
   );
 
-  const itensDaSemana = vendasSemana.flatMap((v) => v.itens_venda ?? []);
+  /** Quanto essa venda vale para o recorte escolhido — ver nota no topo. */
+  const valorDaVenda = useMemo(
+    () => (v: VendaRow) =>
+      porCategoria
+        ? itensQueContam(v).reduce((acc, i) => acc + Number(i.total ?? 0), 0)
+        : faturamentoReal(v),
+    [porCategoria, itensQueContam],
+  );
+
+  /** As vendas que sobram depois dos filtros de vendedor e de categoria. */
+  const aplicarFiltros = useMemo(
+    () => (vendas: VendaRow[]) =>
+      vendas.filter((v) => {
+        if (filtros.pessoaId && v.vendedor_id !== filtros.pessoaId) return false;
+        if (porCategoria && itensQueContam(v).length === 0) return false;
+        return true;
+      }),
+    [filtros.pessoaId, porCategoria, itensQueContam],
+  );
+
+  const vendasPeriodo = useMemo(
+    () => aplicarFiltros(todasVendas.filter((v) => dentroDoPeriodo(v.created_at, periodo))),
+    [todasVendas, periodo, aplicarFiltros],
+  );
+  const vendasAnterior = useMemo(
+    () => aplicarFiltros(todasVendas.filter((v) => dentroDoPeriodo(v.created_at, anterior))),
+    [todasVendas, anterior, aplicarFiltros],
+  );
+
+  /**
+   * Devoluções que entram na conta.
+   *
+   * Com categoria escolhida ficam todas de fora (ver nota no topo). Com
+   * vendedor escolhido, só as devoluções de vendas que ele fez — senão o
+   * painel de um vendedor levaria o desconto de venda que era de outro.
+   */
+  const devolucoesDe = useMemo(
+    () => (p: typeof periodo) => {
+      if (porCategoria) return [];
+      return todasDevolucoes.filter((d) => {
+        if (!dentroDoPeriodo(d.created_at, p)) return false;
+        if (filtros.pessoaId && d.venda_original?.vendedor_id !== filtros.pessoaId) return false;
+        return true;
+      });
+    },
+    [todasDevolucoes, porCategoria, filtros.pessoaId],
+  );
+
+  const devolucoesPeriodo = devolucoesDe(periodo);
+  const devolucoesAnterior = devolucoesDe(anterior);
+
+  const faturamento =
+    vendasPeriodo.reduce((acc, v) => acc + valorDaVenda(v), 0) - somarDevolucoes(devolucoesPeriodo);
+  const faturamentoAnterior =
+    vendasAnterior.reduce((acc, v) => acc + valorDaVenda(v), 0) -
+    somarDevolucoes(devolucoesAnterior);
+
+  const quantidade = vendasPeriodo.length;
+  const quantidadeAnterior = vendasAnterior.length;
+
+  const ticketMedio = quantidade > 0 ? faturamento / quantidade : null;
+  const ticketMedioAnterior =
+    quantidadeAnterior > 0 ? faturamentoAnterior / quantidadeAnterior : null;
+
+  // A comparação só aparece se a chave estiver ligada. `undefined` = não pedimos
+  // comparação; `null` = pedimos e não há base (ver CardIndicador).
+  const comp = (atual: number, ant: number) =>
+    filtros.comparar ? variacao(atual, ant) : undefined;
+  const rotuloVs = `vs ${anterior.rotulo}`;
+
+  const serie = useMemo(
+    () =>
+      montarSerie(
+        periodo,
+        vendasPeriodo,
+        { data: (v) => v.created_at, valor: valorDaVenda },
+        {
+          itens: devolucoesPeriodo,
+          extrair: {
+            data: (d) => d.created_at,
+            valor: (d) => Number(d.valor_devolvido_cliente ?? 0),
+          },
+        },
+      ),
+    [periodo, vendasPeriodo, valorDaVenda, devolucoesPeriodo],
+  );
+  const melhor = melhorPonto(serie);
+  const grao = nomeDoGrao(periodo);
+
+  const itensDoPeriodo = vendasPeriodo.flatMap(itensQueContam);
 
   // Produto: item órfão (produto excluído do cadastro) fica de fora — sem o
   // cadastro não há nome para mostrar.
   const topProdutos = porQuantidade(
-    agrupar(itensDaSemana, {
+    agrupar(itensDoPeriodo, {
       chave: (i) => (i.produtos ? i.produto_id : null),
       nome: (i) => i.produtos?.nome,
       quantidade: (i) => i.quantidade,
@@ -200,7 +270,7 @@ export default function DashboardVenda() {
   );
 
   const topCategorias = porValor(
-    agrupar(itensDaSemana, {
+    agrupar(itensDoPeriodo, {
       chave: (i) => i.produtos?.categoria,
       nome: (i) => i.produtos?.categoria,
       quantidade: (i) => i.quantidade,
@@ -209,29 +279,24 @@ export default function DashboardVenda() {
   );
 
   /**
-   * Ranking de vendedores da semana, JÁ COM A DEVOLUÇÃO ABATIDA.
+   * Ranking de vendedores do período, JÁ COM A DEVOLUÇÃO ABATIDA.
    *
    * A devolução guarda a venda que a originou (`venda_original_id`), e a venda
    * guarda quem a fechou — então o abatimento cai na conta certa, sem rateio e
    * sem chute. Assim a soma do ranking bate com o faturamento dos cards, e
    * ninguém fica em primeiro lugar com dinheiro que já voltou pela porta.
    *
-   * Régua de data igual à do Caixa e à dos cards (17/08): a devolução pesa na
-   * semana em que ACONTECEU, não na semana da venda original. Por isso alguém
-   * pode aparecer com valor negativo — vendeu antes, devolveram agora — e isso
-   * é a leitura correta do dinheiro que entrou nesta semana.
-   *
-   * Devolução sem venda de origem fica de fora daqui, mas continua pesando no
-   * total da loja lá em cima: não há de quem abater.
+   * Alguém pode aparecer com valor negativo — vendeu antes, devolveram dentro
+   * do período — e isso é a leitura correta do dinheiro que entrou agora.
    */
   const rankingVendedores = porValor(
     descontar(
-      agrupar(vendasSemana, {
+      agrupar(vendasPeriodo, {
         chave: (v) => v.vendedor_id,
         nome: (v) => v.vendedor?.nome,
-        valor: (v) => faturamentoReal(v),
+        valor: valorDaVenda,
       }),
-      devolucoesSemana
+      devolucoesPeriodo
         .filter((d) => d.venda_original?.vendedor_id)
         .map((d) => ({
           chave: d.venda_original!.vendedor_id!,
@@ -244,7 +309,7 @@ export default function DashboardVenda() {
 
   const formasPagamento = porValor(
     agrupar(
-      vendasSemana.flatMap((v) => v.pagamentos_venda ?? []),
+      vendasPeriodo.flatMap((v) => v.pagamentos_venda ?? []),
       {
         chave: (p) => p.formas_pagamento?.descricao,
         nome: (p) => p.formas_pagamento?.descricao,
@@ -253,109 +318,105 @@ export default function DashboardVenda() {
     ),
   );
 
-  // Hora em que mais se fecha venda na semana. Serve para escala de equipe:
-  // saber que o movimento é das 14h às 16h vale mais, na prática, que saber
-  // o total do dia.
-  const pico = horarioDePico(vendasSemana.map((v) => v.created_at));
+  // Hora em que mais se fecha venda. Serve para escala de equipe: saber que o
+  // movimento é das 14h às 16h vale mais, na prática, que saber o total do dia.
+  const pico = horarioDePico(vendasPeriodo.map((v) => v.created_at));
+
+  const recorte = [
+    filtros.pessoaId ? vendedores.find((v) => v.id === filtros.pessoaId)?.nome : null,
+    filtros.categoria || null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader
         titulo="Dashboard de Vendas"
-        hint="Como está indo agora: vendas de hoje e desta semana, em tempo real. Para histórico com filtro de período e exportação, use o Relatório de Vendas."
+        hint="Escolha o período, o vendedor e a categoria — todos os números da tela, inclusive os rankings, seguem o que estiver filtrado aqui em cima."
       />
 
+      <FiltrosDashboard
+        valores={filtros}
+        onChange={setFiltros}
+        onLimpar={limparFiltros}
+        pessoas={vendedores}
+        rotuloPessoa="Vendedor"
+        categorias={categorias}
+        rotuloCategoria="Categoria"
+      />
+
+      {porCategoria && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            Com uma categoria escolhida, os valores somam <strong>apenas os itens dessa
+            categoria</strong> dentro de cada venda. Devolução não é abatida neste modo: ela é
+            registrada por venda e não guarda de qual categoria era a peça devolvida.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {/* Vendas Hoje */}
-        <Card className="overflow-hidden">
-          <div className="kpi-vendas p-1" />
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Vendas Hoje</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{isLoading ? '—' : moeda(caixaHoje)}</div>
-            <p className="text-xs text-muted-foreground">
-              {isLoading ? 'Carregando…' : `${vendasHoje.length} venda(s) hoje`}
-            </p>
-            {!isLoading && (
-              <div className="mt-1 flex items-center text-xs text-muted-foreground">
-                {vendasTrend >= 0 ? (
-                  <ArrowUpRight className="mr-1 h-4 w-4 text-green-500" />
-                ) : (
-                  <ArrowDownRight className="mr-1 h-4 w-4 text-red-500" />
-                )}
-                <span className={vendasTrend >= 0 ? 'text-green-500' : 'text-red-500'}>
-                  {Math.abs(vendasTrend)}
-                </span>
-                <span className="ml-1">vs ontem</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <CardIndicador
+          titulo="Faturamento"
+          faixa="kpi-vendas"
+          icone={<ShoppingCart className="h-4 w-4" />}
+          carregando={isLoading}
+          valor={moeda(faturamento)}
+          detalhe={`${periodo.rotulo}${recorte ? ` · ${recorte}` : ''}`}
+          variacaoPct={comp(faturamento, faturamentoAnterior)}
+          rotuloComparacao={rotuloVs}
+        />
 
-        {/* Vendas da Semana */}
-        <Card className="overflow-hidden">
-          <div className="kpi-os p-1" />
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Vendas da Semana</CardTitle>
-            <CalendarRange className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{isLoading ? '—' : moeda(caixaSemana)}</div>
-            <p className="text-xs text-muted-foreground">
-              {isLoading ? 'Carregando…' : `${vendasSemana.length} venda(s) de segunda até hoje`}
-            </p>
-          </CardContent>
-        </Card>
+        <CardIndicador
+          titulo="Vendas no Período"
+          faixa="kpi-os"
+          icone={<Hash className="h-4 w-4" />}
+          carregando={isLoading}
+          valor={String(quantidade)}
+          detalhe={quantidade === 1 ? 'venda fechada' : 'vendas fechadas'}
+          variacaoPct={comp(quantidade, quantidadeAnterior)}
+          rotuloComparacao={rotuloVs}
+        />
 
-        {/* Ticket Médio Hoje */}
-        <Card className="overflow-hidden">
-          <div className="kpi-caixa p-1" />
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Ticket Médio Hoje</CardTitle>
-            <Receipt className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {isLoading ? '—' : ticketMedioHoje !== null ? moeda(ticketMedioHoje) : '—'}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {isLoading
-                ? 'Carregando…'
-                : ticketMedioHoje !== null
-                  ? 'Valor total ÷ vendas de hoje'
-                  : 'Nenhuma venda hoje ainda'}
-            </p>
-          </CardContent>
-        </Card>
+        <CardIndicador
+          titulo="Ticket Médio"
+          faixa="kpi-caixa"
+          icone={<Receipt className="h-4 w-4" />}
+          carregando={isLoading}
+          valor={ticketMedio !== null ? moeda(ticketMedio) : '—'}
+          detalhe={
+            ticketMedio !== null ? 'Faturamento ÷ nº de vendas' : 'Nenhuma venda no período'
+          }
+          variacaoPct={
+            ticketMedio !== null && ticketMedioAnterior !== null
+              ? comp(ticketMedio, ticketMedioAnterior)
+              : undefined
+          }
+          rotuloComparacao={rotuloVs}
+        />
 
-        {/* Melhor Dia da Semana */}
-        <Card className="overflow-hidden">
-          <div className="kpi-estoque p-1" />
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Melhor Dia da Semana</CardTitle>
-            <Trophy className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {isLoading ? '—' : melhorDia.total > 0 ? moeda(melhorDia.total) : '—'}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {isLoading
-                ? 'Carregando…'
-                : melhorDia.total > 0
-                  ? melhorDia.nome
-                  : 'Nenhuma venda nesta semana ainda'}
-            </p>
-          </CardContent>
-        </Card>
+        <CardIndicador
+          titulo={`Melhor ${grao === 'mês' ? 'Mês' : grao === 'semana' ? 'Semana' : 'Dia'}`}
+          faixa="kpi-estoque"
+          icone={<Trophy className="h-4 w-4" />}
+          carregando={isLoading}
+          valor={melhor ? moeda(melhor.valor) : '—'}
+          detalhe={melhor ? melhor.rotulo : 'Nenhuma venda no período'}
+        />
       </div>
 
-      {/* Segunda fileira: quem vendeu mais e quando a loja enche */}
+      <GraficoEvolucao
+        titulo="Como o período andou"
+        descricao={`Faturamento por ${grao} dentro de ${periodo.rotulo.toLowerCase()}. Devolução aparece como queda no ${grao} em que o dinheiro voltou.`}
+        serie={serie}
+        carregando={isLoading}
+      />
+
       <div className="grid gap-4 md:grid-cols-2">
         <CardIndicador
-          titulo="Melhor Vendedor da Semana"
+          titulo="Melhor Vendedor"
           faixa="kpi-vendas"
           icone={<Medal className="h-4 w-4" />}
           carregando={isLoading}
@@ -363,7 +424,7 @@ export default function DashboardVenda() {
           detalhe={
             melhorVendedor
               ? `${melhorVendedor.nome} · ${melhorVendedor.quantidade} venda(s)`
-              : 'Nenhuma venda com vendedor registrado nesta semana'
+              : 'Nenhuma venda com vendedor registrado no período'
           }
         />
         <CardIndicador
@@ -374,8 +435,8 @@ export default function DashboardVenda() {
           valor={pico ? faixaDeHora(pico.hora) : '—'}
           detalhe={
             pico
-              ? `${pico.quantidade} venda(s) fecharam nessa faixa esta semana`
-              : 'Sem vendas nesta semana ainda'
+              ? `${pico.quantidade} venda(s) fecharam nessa faixa`
+              : 'Sem vendas no período'
           }
         />
       </div>
@@ -383,48 +444,48 @@ export default function DashboardVenda() {
       <div className="grid gap-6 lg:grid-cols-2">
         <TabelaRanking
           titulo="Ranking de Vendedores"
-          descricao="Quem fechou venda de segunda até hoje, já descontando o que foi devolvido — a devolução é abatida de quem fez a venda original."
+          descricao="Quem fechou venda no período, já descontando o que foi devolvido — a devolução é abatida de quem fez a venda original."
           linhas={rankingVendedores}
           rotuloNome="Vendedor"
           rotuloQuantidade="Vendas"
           rotuloValor="Faturamento"
-          vazio="Nenhuma venda com vendedor registrado nesta semana."
+          vazio="Nenhuma venda com vendedor registrado no período."
           icone={<Users className="h-12 w-12" />}
           carregando={isLoading}
         />
 
         <TabelaRanking
           titulo="Categorias Mais Vendidas"
-          descricao="Onde o dinheiro entrou, por tipo de produto, nas vendas desta semana."
+          descricao="Onde o dinheiro entrou, por tipo de produto, no período escolhido."
           linhas={topCategorias}
           rotuloNome="Categoria"
           rotuloQuantidade="Peças"
           rotuloValor="Receita"
-          vazio="Nenhum produto vendido nesta semana ainda."
+          vazio="Nenhum produto vendido no período."
           icone={<Tags className="h-12 w-12" />}
           carregando={isLoading}
         />
 
         <TabelaRanking
           titulo="Produtos Mais Vendidos"
-          descricao="Ordenado por quantidade — o que mais sai da prateleira, de segunda até hoje."
+          descricao="Ordenado por quantidade — o que mais saiu da prateleira no período."
           linhas={topProdutos}
           rotuloNome="Produto"
           rotuloQuantidade="Qtd. vendida"
           rotuloValor="Receita"
-          vazio="Nenhum produto vendido nesta semana ainda."
+          vazio="Nenhum produto vendido no período."
           icone={<PackageSearch className="h-12 w-12" />}
           carregando={isLoading}
         />
 
         <TabelaRanking
           titulo="Como o Cliente Paga"
-          descricao="Formas de pagamento usadas nas vendas desta semana."
+          descricao="Formas de pagamento usadas nas vendas do período."
           linhas={formasPagamento}
           rotuloNome="Forma"
           rotuloQuantidade="Usos"
           rotuloValor="Valor"
-          vazio="Nenhum pagamento registrado nesta semana."
+          vazio="Nenhum pagamento registrado no período."
           icone={<CreditCard className="h-12 w-12" />}
           carregando={isLoading}
         />
