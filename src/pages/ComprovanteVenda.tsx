@@ -564,49 +564,59 @@ function ComprovanteSulfite({
         </div>
 
         <div className="shrink-0 text-right">
-          <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-neutral-500">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-neutral-500">
             Comprovante de venda
           </p>
-          <p className="mt-0.5 text-3xl font-bold leading-none tracking-[-0.02em] tabular-nums">
+          {/* O maior número da página: é por ele que alguém acha este papel
+              dentro de uma pilha. Tracking negativo porque letra grande com
+              espaçamento normal parece solta. */}
+          <p className="mt-1 text-[44px] font-bold leading-[0.95] tracking-[-0.03em] tabular-nums">
             {venda.numero_venda ?? '—'}
           </p>
-          <p className="mt-1.5 text-[11px] text-neutral-600">{dataHora(venda.created_at)}</p>
+          <p className="mt-2 text-[12px] text-neutral-600">{dataHora(venda.created_at)}</p>
         </div>
       </header>
 
       {/* A régua com a cor da loja: um fio, não uma tarja. */}
-      <div className="mt-4 h-[3px] w-full" style={{ backgroundColor: cor }} />
+      <div className="mt-6 h-[3px] w-full" style={{ backgroundColor: cor }} />
 
       {/* ── Quem vende, quem compra ────────────────────────────────────────── */}
-      <section className="mt-6 grid grid-cols-2 gap-8 text-[12px]">
+      {/* Cliente e vendedor são o que mais se consulta depois do total — quem
+          comprou e quem atendeu. Nome em corpo grande, o resto em corpo de
+          apoio: a diferença de tamanho é o que faz o olho achar sem procurar. */}
+      <section className="mt-8 grid grid-cols-2 gap-10 text-[13px]">
         <div>
-          <p className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500">
             Cliente
           </p>
-          <p className="font-semibold">{venda.clientes?.nome ?? 'Consumidor final'}</p>
-          <div className="mt-0.5 space-y-px text-neutral-700">
+          <p className="text-[17px] font-semibold leading-tight tracking-[-0.01em]">
+            {venda.clientes?.nome ?? 'Consumidor final'}
+          </p>
+          <div className="mt-1.5 space-y-0.5 text-neutral-700">
             {venda.clientes?.cpf_cnpj && <p>CPF/CNPJ {venda.clientes.cpf_cnpj}</p>}
             {telefoneCliente && <p>{telefoneCliente}</p>}
           </div>
         </div>
         <div>
-          <p className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-neutral-500">
-            Atendimento
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+            Vendedor
           </p>
-          <p className="font-semibold">{venda.vendedor?.nome ?? '—'}</p>
-          <p className="mt-0.5 text-neutral-700">Prazo {fmtData(venda.created_at)}</p>
+          <p className="text-[17px] font-semibold leading-tight tracking-[-0.01em]">
+            {venda.vendedor?.nome ?? '—'}
+          </p>
+          <p className="mt-1.5 text-neutral-700">Prazo {fmtData(venda.created_at)}</p>
         </div>
       </section>
 
       {venda.observacoes && (
-        <p className="mt-4 rounded border-l-2 border-neutral-300 bg-neutral-50 px-3 py-2 text-[11px] text-neutral-700 print:bg-transparent">
+        <p className="mt-6 rounded border-l-2 border-neutral-300 bg-neutral-50 px-4 py-2.5 text-[12px] text-neutral-700 print:bg-transparent">
           <span className="font-semibold">Observações:</span> {venda.observacoes}
         </p>
       )}
 
       {/* ── Produtos ───────────────────────────────────────────────────────── */}
-      <section className="mt-7">
-        <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+      <section className="mt-8">
+        <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500">
           Produtos · {itens.length} {itens.length === 1 ? 'item' : 'itens'}
         </p>
         {/*
@@ -623,25 +633,25 @@ function ComprovanteSulfite({
           passar a dar desconto por produto, a coluna volta sozinha, sem
           ninguém precisar lembrar de reativá-la.
         */}
-        <table className="w-full border-collapse text-[12px]">
+        <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr className="border-b border-neutral-800 text-[10px] uppercase tracking-[0.08em] text-neutral-600">
-              <th className="pb-1.5 text-left font-medium">Produto</th>
-              <th className="pb-1.5 pl-3 text-right font-medium">Unitário</th>
-              {temDescontoPorItem && <th className="pb-1.5 pl-3 text-right font-medium">Desc.</th>}
-              <th className="pb-1.5 pl-3 text-right font-medium">Qtd</th>
-              <th className="pb-1.5 pl-3 text-right font-medium">Total</th>
+              <th className="pb-2 text-left font-medium">Produto</th>
+              <th className="pb-2 pl-3 text-right font-medium">Unitário</th>
+              {temDescontoPorItem && <th className="pb-2 pl-3 text-right font-medium">Desc.</th>}
+              <th className="pb-2 pl-3 text-right font-medium">Qtd</th>
+              <th className="pb-2 pl-3 text-right font-medium">Total</th>
             </tr>
           </thead>
           <tbody>
             {itens.map((item) => (
               <tr key={item.id} className="border-b border-neutral-200 align-top">
-                <td className="py-2 pr-3">
+                <td className="py-2.5 pr-3">
                   <span className="font-medium">{descricaoProduto(item)}</span>
                   {/* IMEI e defeito viram linha secundária: são informação de
                       conferência, não a identidade do produto. */}
                   {(item.produtos?.imei_serial || item.defeito_declarado) && (
-                    <span className="mt-0.5 block text-[10px] text-neutral-500">
+                    <span className="mt-1 block text-[10px] text-neutral-500">
                       {item.produtos?.imei_serial && <>IMEI/Série {item.produtos.imei_serial}</>}
                       {item.produtos?.imei_serial && item.defeito_declarado && '  ·  '}
                       {item.defeito_declarado && (
@@ -650,12 +660,12 @@ function ComprovanteSulfite({
                     </span>
                   )}
                 </td>
-                <td className="py-2 pl-3 text-right tabular-nums">{moeda(Number(item.preco_unitario))}</td>
+                <td className="py-2.5 pl-3 text-right tabular-nums">{moeda(Number(item.preco_unitario))}</td>
                 {temDescontoPorItem && (
-                  <td className="py-2 pl-3 text-right tabular-nums">{moeda(Number(item.desconto))}</td>
+                  <td className="py-2.5 pl-3 text-right tabular-nums">{moeda(Number(item.desconto))}</td>
                 )}
-                <td className="py-2 pl-3 text-right tabular-nums">{item.quantidade}</td>
-                <td className="py-2 pl-3 text-right font-medium tabular-nums">{moeda(Number(item.total))}</td>
+                <td className="py-2.5 pl-3 text-right tabular-nums">{item.quantidade}</td>
+                <td className="py-2.5 pl-3 text-right font-medium tabular-nums">{moeda(Number(item.total))}</td>
               </tr>
             ))}
           </tbody>
@@ -663,9 +673,9 @@ function ComprovanteSulfite({
       </section>
 
       {/* ── Pagamento e totais, lado a lado ────────────────────────────────── */}
-      <section className="mt-7 flex flex-wrap items-start justify-between gap-8">
+      <section className="mt-8 flex flex-wrap items-start justify-between gap-10">
         <div className="min-w-[95mm] flex-1">
-          <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+          <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500">
             Pagamento
           </p>
           {pagamentos.length === 0 ? (
@@ -702,25 +712,25 @@ function ComprovanteSulfite({
           )}
         </div>
 
-        <div className="ml-auto w-[62mm] shrink-0 text-[12px]">
-          <div className="flex justify-between py-1 text-neutral-700">
+        <div className="ml-auto w-[68mm] shrink-0 text-[13px]">
+          <div className="flex justify-between py-1.5 text-neutral-700">
             <span>Valor</span>
             <span className="tabular-nums">{moeda(Number(venda.subtotal))}</span>
           </div>
-          <div className="flex justify-between py-1 text-neutral-700">
+          <div className="flex justify-between py-1.5 text-neutral-700">
             <span>Desconto</span>
             <span className="tabular-nums">{moeda(Number(venda.descontos))}</span>
           </div>
           {/* O total é a única coisa desta página que alguém procura de longe:
               maior, mais pesado, e com a cor da loja na linha de cima. */}
           <div
-            className="mt-1 flex items-baseline justify-between border-t-2 pt-2"
+            className="mt-2 flex items-baseline justify-between border-t-2 pt-3"
             style={{ borderColor: cor }}
           >
-            <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+            <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500">
               Total
             </span>
-            <span className="text-2xl font-bold tracking-[-0.02em] tabular-nums">
+            <span className="text-[34px] font-bold leading-none tracking-[-0.03em] tabular-nums">
               {moeda(Number(venda.total))}
             </span>
           </div>
@@ -730,10 +740,12 @@ function ComprovanteSulfite({
       {/* ── Condições e assinatura ─────────────────────────────────────────── */}
       {condicoes.length > 0 && (
         <section className="mt-8 border-t border-neutral-200 pt-4">
-          <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+          <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500">
             Condições de garantia
           </p>
-          <ol className="space-y-1 text-[10px] leading-relaxed text-neutral-700">
+          {/* Letra miúda de propósito: é o contrato, não a informação que a
+              pessoa veio buscar. Leading folgado para continuar legível. */}
+          <ol className="space-y-1 text-[10px] leading-snug text-neutral-700">
             {condicoes.map((texto, i) => (
               <li key={i} className="flex gap-2">
                 <span className="shrink-0 tabular-nums text-neutral-400">{i + 1}.</span>
@@ -745,12 +757,12 @@ function ComprovanteSulfite({
       )}
 
       {tenant?.mensagem_comprovante && (
-        <p className="mt-7 text-center text-[12px] font-semibold tracking-[0.04em]">
+        <p className="mt-7 text-center text-[14px] font-semibold tracking-[0.04em]">
           {tenant.mensagem_comprovante}
         </p>
       )}
 
-      <div className="mx-auto mt-12 w-2/3 border-t border-neutral-400 pt-1.5 text-center text-[10px] text-neutral-600">
+      <div className="mx-auto mt-10 w-2/3 border-t border-neutral-400 pt-2 text-center text-[11px] text-neutral-600">
         Assinatura do(a) cliente
       </div>
     </div>
@@ -800,10 +812,13 @@ function ComprovanteTermica({
       </div>
 
       <p>{linha}</p>
-      <p className="font-bold">CUPOM {venda.numero_venda ?? '—'}</p>
+      {/* Mesma ideia da via de folha: cupom, cliente, vendedor e total um
+          degrau acima do resto. No papel estreito o degrau é menor — letra
+          grande demais quebra linha e come bobina. */}
+      <p className="text-[15px] font-bold leading-tight">CUPOM {venda.numero_venda ?? '—'}</p>
       <p>{hora(venda.created_at)} {fmtData(venda.created_at)}</p>
-      <p>VENDEDOR: {(venda.vendedor?.nome ?? '—').toUpperCase()}</p>
-      <p>CLIENTE: {(venda.clientes?.nome ?? 'CONSUMIDOR FINAL').toUpperCase()}</p>
+      <p className="text-[12px] font-bold">VENDEDOR: {(venda.vendedor?.nome ?? '—').toUpperCase()}</p>
+      <p className="text-[12px] font-bold">CLIENTE: {(venda.clientes?.nome ?? 'CONSUMIDOR FINAL').toUpperCase()}</p>
       {telefoneCliente && <p>{telefoneCliente}</p>}
       {venda.clientes?.cpf_cnpj && <p>{venda.clientes.cpf_cnpj}</p>}
 
@@ -820,7 +835,7 @@ function ComprovanteTermica({
       ))}
 
       <p>{linha}</p>
-      <p className="font-bold">VALOR TOTAL: {moeda(Number(venda.total))}</p>
+      <p className="text-[15px] font-bold leading-tight">VALOR TOTAL: {moeda(Number(venda.total))}</p>
       {Number(venda.descontos) > 0 && <p>VALOR DESCONTO: {moeda(Number(venda.descontos))}</p>}
       {pagamentos.map((p) => {
         const c = calcularPagamento(p);
