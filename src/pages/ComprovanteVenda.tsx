@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Loader2, Printer, MessageCircle } from 'lucide-react';
@@ -101,6 +101,22 @@ export default function ComprovanteVenda() {
   const { toast } = useToast();
   const [formato, setFormato] = useState<Formato>('sulfite');
   const [enviando, setEnviando] = useState(false);
+
+  /**
+   * Altura do papel da via térmica, em milímetros.
+   *
+   * Por que isto existe: a bobina térmica tem largura fixa (80mm) e altura
+   * variável — o papel é cortado no fim do cupom. O jeito natural de escrever
+   * isso é `@page { size: 80mm auto }`, e era assim que estava. Só que o
+   * navegador **descarta a regra inteira** quando a altura é `auto`: em vez de
+   * 80mm de largura, ele imprime no papel padrão (Carta/A4). Conferido em
+   * 23/09/2026 imprimindo os dois jeitos: com `auto` saiu 216mm de largura,
+   * com uma altura escrita saiu os 80mm certos.
+   *
+   * Então a altura é medida aqui, no cupom já montado, e escrita no `@page`.
+   */
+  const refTermica = useRef<HTMLDivElement>(null);
+  const [alturaTermicaMm, setAlturaTermicaMm] = useState<number | null>(null);
 
   const marcas = useCatalogo('marca');
   const cores = useCatalogo('cor');
@@ -222,6 +238,35 @@ export default function ComprovanteVenda() {
 
   const itens = detalhe?.itens ?? [];
   const pagamentos = detalhe?.pagamentos ?? [];
+
+  /**
+   * Mede o cupom e guarda a altura do papel (ver a nota lá em cima).
+   *
+   * A medição é feita com a largura que o cupom terá NO PAPEL (76mm: os 80mm
+   * da bobina menos 2mm de margem de cada lado), não com a largura que ele
+   * tem na tela. Mais estreito, o texto quebra em mais linhas e o cupom fica
+   * mais alto — medir pela tela cortaria as últimas linhas na impressão.
+   *
+   * A troca de largura acontece e volta dentro da mesma passada, antes de o
+   * navegador desenhar, então ninguém vê o cupom "piscar".
+   *
+   * 96 pixels equivalem a uma polegada (25,4mm) — é a régua que o navegador
+   * usa. Os 4mm de sobra no fim são para a faca do corte não comer a última
+   * linha.
+   */
+  useEffect(() => {
+    if (formato !== 'termica') return;
+    const el = refTermica.current;
+    if (!el) return;
+
+    const larguraOriginal = el.style.width;
+    el.style.width = '76mm';
+    const alturaPx = el.scrollHeight;
+    el.style.width = larguraOriginal;
+
+    const mm = Math.ceil((alturaPx * 25.4) / 96) + 4;
+    setAlturaTermicaMm((atual) => (atual === mm ? atual : mm));
+  }, [formato, venda, itens, pagamentos]);
 
   const textoWhatsApp = useMemo(() => {
     if (!venda) return '';
@@ -355,12 +400,18 @@ export default function ComprovanteVenda() {
       </div>
 
       {/* `@page` muda conforme o formato: A4 com margem normal pra folha,
-          80mm de largura com altura automática pra térmica. Só o formato
-          selecionado é renderizado (abaixo), então só ele aparece na
-          impressão — não precisa esconder o outro via CSS. */}
+          80mm de largura por a altura medida do cupom pra térmica (ver a nota
+          sobre o `auto` no topo do arquivo). Só o formato selecionado é
+          renderizado (abaixo), então só ele aparece na impressão — não precisa
+          esconder o outro via CSS.
+
+          Os 200mm de reserva valem só no instante entre a tela montar e a
+          medição acontecer; na prática ninguém imprime nessa fresta, mas um
+          valor escrito é melhor que `auto`, que faz o navegador ignorar a
+          regra e voltar para o papel de carta. */}
       <style>
         {formato === 'termica'
-          ? '@page { size: 80mm auto; margin: 2mm; }'
+          ? `@page { size: 80mm ${alturaTermicaMm ?? 200}mm; margin: 2mm; }`
           : '@page { size: A4; margin: 15mm; }'}
       </style>
 
@@ -368,7 +419,7 @@ export default function ComprovanteVenda() {
         <ComprovanteSulfite venda={venda} itens={itens} pagamentos={pagamentos} tenant={tenant ?? null}
           descricaoProduto={descricaoProduto} calcularPagamento={calcularPagamento} />
       ) : (
-        <ComprovanteTermica venda={venda} itens={itens} pagamentos={pagamentos} tenant={tenant ?? null}
+        <ComprovanteTermica refCupom={refTermica} venda={venda} itens={itens} pagamentos={pagamentos} tenant={tenant ?? null}
           descricaoProduto={descricaoProduto} calcularPagamento={calcularPagamento} />
       )}
     </div>
@@ -548,15 +599,15 @@ function ComprovanteSulfite({
  * os termos completos) — só um resumo de 2 linhas remetendo à via de papel.
  */
 function ComprovanteTermica({
-  venda, itens, pagamentos, tenant, descricaoProduto, calcularPagamento,
-}: FormatoProps) {
+  venda, itens, pagamentos, tenant, descricaoProduto, calcularPagamento, refCupom,
+}: FormatoProps & { refCupom?: React.Ref<HTMLDivElement> }) {
   const linha = '-'.repeat(32);
   return (
     // Na tela o cupom aparece com a largura real do papel (80mm), para dar a
     // noção de como vai sair. Na impressão a largura passa a ser a da própria
     // bobina (`@page size: 80mm`) e a margem do papel já vem do `@page` — o
     // recuo de tela aqui só roubaria caracteres de cada linha.
-    <div className="mx-auto w-[80mm] bg-white p-2 font-mono text-[11px] leading-tight text-black print:mx-0 print:w-full print:p-0">
+    <div ref={refCupom} className="mx-auto w-[80mm] bg-white p-2 font-mono text-[11px] leading-tight text-black print:mx-0 print:w-full print:p-0">
       {venda.status === 'cancelado' && (
         <p className="mb-1 text-center font-bold">*** VENDA CANCELADA ***</p>
       )}
