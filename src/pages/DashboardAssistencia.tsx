@@ -338,6 +338,21 @@ export default function DashboardAssistencia() {
 
   const pico = horarioDePico(abertasPeriodo.map((o) => o.created_at));
 
+  /**
+   * OS do período que não têm tipo de aparelho preenchido.
+   *
+   * Elas somem quando alguém filtra por equipamento, e o painel precisa dizer
+   * isso — senão a conta simplesmente não fecha e ninguém sabe por quê. Na
+   * conferência de 23/09 eram 10 de 14 OS do banco sem esse campo.
+   */
+  const semTipoDeAparelho = useMemo(
+    () =>
+      todas.filter(
+        (o) => dentroDoPeriodo(o.created_at, periodo) && !o.equipamento_id,
+      ).length,
+    [todas, periodo],
+  );
+
   // ── Serviço e peça ──────────────────────────────────────────────────────
   //
   // A diferença é só o `produto_id`: preenchido = peça do estoque, vazio =
@@ -440,6 +455,17 @@ export default function DashboardAssistencia() {
         categorias={equipamentos}
         rotuloCategoria="Equipamento"
       />
+
+      {filtros.categoria !== '' && semTipoDeAparelho > 0 && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            <strong>{semTipoDeAparelho} ordem(ns) de serviço do período estão sem o tipo de
+            aparelho preenchido</strong> e ficam de fora enquanto esse filtro estiver ligado. Elas
+            voltam ao limpar o filtro — e o certo é preencher o equipamento na abertura da OS.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <CardIndicador
