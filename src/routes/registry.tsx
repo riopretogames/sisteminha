@@ -49,6 +49,7 @@ export const PAGES: Record<string, Page> = {
   Fornecedores: lazy(() => import('@/pages/cadastros/Fornecedores')),
   Transportadoras: lazy(() => import('@/pages/cadastros/Transportadoras')),
   CadastroServicos: lazy(() => import('@/pages/cadastros/CadastroServicos')),
+  CadastroComprovantes: lazy(() => import('@/pages/cadastros/CadastroComprovantes')),
   FormasPagamento: lazy(() => import('@/pages/cadastros/FormasPagamento')),
   ClientesImportar: lazy(() => import('@/pages/cadastros/ClientesImportar')),
   CamposObrigatorios: lazy(() => import('@/pages/cadastros/CamposObrigatorios')),

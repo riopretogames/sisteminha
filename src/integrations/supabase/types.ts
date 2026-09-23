@@ -1213,6 +1213,54 @@ export type Database = {
           },
         ]
       }
+      metas_vendedor: {
+        Row: {
+          ano: number
+          created_at: string
+          id: string
+          mes: number
+          tenant_id: string
+          updated_at: string
+          user_id: string
+          valor_meta: number
+        }
+        Insert: {
+          ano: number
+          created_at?: string
+          id?: string
+          mes: number
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+          valor_meta: number
+        }
+        Update: {
+          ano?: number
+          created_at?: string
+          id?: string
+          mes?: number
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+          valor_meta?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_vendedor_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "metas_vendedor_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       movimentos_estoque: {
         Row: {
           created_at: string | null
@@ -2238,9 +2286,11 @@ export type Database = {
           id: string
           inscricao_estadual: string | null
           logo_url: string | null
+          mensagem_comprovante: string | null
           nome_loja: string
           taxa_analise: number
           telefone: string | null
+          termos_comprovante: string | null
           updated_at: string | null
           webhook_url: string | null
         }
@@ -2257,9 +2307,11 @@ export type Database = {
           id?: string
           inscricao_estadual?: string | null
           logo_url?: string | null
+          mensagem_comprovante?: string | null
           nome_loja: string
           taxa_analise?: number
           telefone?: string | null
+          termos_comprovante?: string | null
           updated_at?: string | null
           webhook_url?: string | null
         }
@@ -2276,9 +2328,11 @@ export type Database = {
           id?: string
           inscricao_estadual?: string | null
           logo_url?: string | null
+          mensagem_comprovante?: string | null
           nome_loja?: string
           taxa_analise?: number
           telefone?: string | null
+          termos_comprovante?: string | null
           updated_at?: string | null
           webhook_url?: string | null
         }
