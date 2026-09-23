@@ -25,7 +25,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { resolverPeriodo, periodoAnterior, variacao, dentroDoPeriodo } from '@/lib/periodo';
 import { montarSerie, nomeDoGrao } from '@/lib/serie';
 import { useFiltrosDashboard } from '@/lib/filtrosDashboard';
-import { categoriasDeProduto, unirOpcoes, type OpcaoFiltro } from '@/lib/listasDeFiltro';
+import { gruposDeProduto, useListaDoSistema, SEM_GRUPO } from '@/lib/listasDeFiltro';
 import { CardIndicador } from '@/components/dashboards/TabelaRanking';
 import { FiltrosDashboard } from '@/components/dashboards/FiltrosDashboard';
 import { GraficoEvolucao } from '@/components/dashboards/GraficoEvolucao';
@@ -56,6 +56,8 @@ interface ProdutoEstoque {
   id: string;
   nome: string;
   categoria: string;
+  /** Grupo de Produto — a lista editável que manda nos filtros desde 23/09. */
+  grupo_produto_id: string | null;
   estoque_atual: number;
   estoque_minimo: number;
   custo: number;
@@ -93,7 +95,7 @@ export default function DashboardEstoque() {
       const [resProdutos, resMovimentos] = await Promise.all([
         supabase
           .from('vw_produtos')
-          .select('id, nome, categoria, estoque_atual, estoque_minimo, custo, preco')
+          .select('id, nome, categoria, grupo_produto_id, estoque_atual, estoque_minimo, custo, preco')
           .eq('ativo', true),
         supabase
           .from('vw_movimentos_estoque')
@@ -113,23 +115,26 @@ export default function DashboardEstoque() {
   const todosProdutos = useMemo(() => data?.produtos ?? [], [data]);
   const todosMovimentos = useMemo(() => data?.movimentos ?? [], [data]);
 
-  // A lista vem do CADASTRO, não dos produtos carregados: categoria sem
-  // produto nenhum hoje continua no filtro (é a pergunta "por que não temos
-  // nada nessa categoria?"). Ver lib/listasDeFiltro.ts.
-  const categorias = useMemo(() => {
-    const doMovimento: OpcaoFiltro[] = todosProdutos
-      .filter((p) => p.categoria)
-      .map((p) => ({ id: p.categoria, nome: p.categoria }));
-    return unirOpcoes(categoriasDeProduto(), doMovimento);
-  }, [todosProdutos]);
+  // A lista vem do CADASTRO (Cadastros > Listas do Sistema), não dos produtos
+  // carregados: grupo sem produto nenhum hoje continua no filtro — é a
+  // pergunta "por que não temos nada nesse grupo?". Ver lib/listasDeFiltro.ts.
+  const { data: gruposCadastrados } = useListaDoSistema('grupo_produto');
 
-  const produtos = useMemo(
-    () =>
-      filtros.categoria
-        ? todosProdutos.filter((p) => p.categoria === filtros.categoria)
-        : todosProdutos,
-    [todosProdutos, filtros.categoria],
+  const produtosSemGrupo = useMemo(
+    () => todosProdutos.filter((p) => !p.grupo_produto_id).length,
+    [todosProdutos],
   );
+
+  const categorias = useMemo(
+    () => gruposDeProduto(gruposCadastrados ?? [], produtosSemGrupo > 0),
+    [gruposCadastrados, produtosSemGrupo],
+  );
+
+  const produtos = useMemo(() => {
+    if (!filtros.categoria) return todosProdutos;
+    if (filtros.categoria === SEM_GRUPO) return todosProdutos.filter((p) => !p.grupo_produto_id);
+    return todosProdutos.filter((p) => p.grupo_produto_id === filtros.categoria);
+  }, [todosProdutos, filtros.categoria]);
 
   /** Movimento pertence à categoria filtrada? Decide pelo produto que ele moveu. */
   const movimentos = useMemo(() => {
@@ -189,7 +194,7 @@ export default function DashboardEstoque() {
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader
         titulo="Dashboard de Estoque"
-        hint="O que está na prateleira agora e o que entrou e saiu no período escolhido. Escolha a categoria para olhar só uma parte do estoque."
+        hint="O que está na prateleira agora e o que entrou e saiu no período escolhido. Escolha o grupo de produto para olhar só uma parte do estoque."
       />
 
       <FiltrosDashboard
@@ -197,7 +202,7 @@ export default function DashboardEstoque() {
         onChange={setFiltros}
         onLimpar={limparFiltros}
         categorias={categorias}
-        rotuloCategoria="Categoria"
+        rotuloCategoria="Grupo de produto"
       />
 
       <Alert>
@@ -209,6 +214,18 @@ export default function DashboardEstoque() {
         </AlertDescription>
       </Alert>
 
+      {produtosSemGrupo > 0 && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            <strong>{produtosSemGrupo} produto(s) ativos ainda não têm Grupo de Produto</strong> —
+            eles só aparecem escolhendo "Sem grupo definido" no filtro. Para arrumar, edite o
+            produto em Estoque e escolha o grupo; a lista de grupos é editada em Cadastros &gt;
+            Listas do Sistema.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className={`grid gap-4 md:grid-cols-2 ${veCusto ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
         <CardIndicador
           titulo="Produtos Ativos"
@@ -218,7 +235,7 @@ export default function DashboardEstoque() {
           valor={String(produtos.length)}
           detalhe={
             filtros.categoria
-              ? `Na categoria ${categorias.find((c) => c.id === filtros.categoria)?.nome ?? filtros.categoria}`
+              ? `Em ${categorias.find((c) => c.id === filtros.categoria)?.nome ?? filtros.categoria}`
               : 'Cadastrados e ativos'
           }
         />
@@ -330,7 +347,7 @@ export default function DashboardEstoque() {
               <Boxes className="h-10 w-10 text-muted-foreground/50" />
               <p className="mt-2 text-sm text-muted-foreground">
                 {filtros.categoria
-                  ? `Nenhum produto ativo na categoria ${categorias.find((c) => c.id === filtros.categoria)?.nome ?? filtros.categoria}`
+                  ? `Nenhum produto ativo em ${categorias.find((c) => c.id === filtros.categoria)?.nome ?? filtros.categoria}`
                   : 'Nenhum produto ativo cadastrado ainda'}
               </p>
             </div>

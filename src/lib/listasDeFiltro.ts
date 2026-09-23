@@ -54,23 +54,45 @@ export function unirOpcoes(
 }
 
 /**
- * As categorias de produto.
+ * As categorias travadas do produto (Celular, Acessório, Peça, Serviço).
  *
- * ⚠️ Esta lista é TRAVADA no banco (são quatro valores fixos: Celular,
- * Acessório, Peça e Serviço). Não é uma lista que a loja edita em Cadastros —
- * criar uma categoria nova exige mexer no banco. A lista editável que existe
- * hoje é a de **Grupo de Produto** (Console, Jogo, Controle, Informática…),
- * que é outro campo do produto e está preenchida em pouquíssimos produtos.
- *
- * Isso foi apontado ao Felipe em 23/09 para ele decidir qual das duas vira a
- * régua dos painéis. Enquanto não decide, o filtro usa a categoria, porque é
- * a que está preenchida em todo produto.
+ * Continuam existindo no cadastro do produto, mas **não são mais a régua dos
+ * painéis**: decisão do Felipe em 23/09/2026. Esta lista é fixa no banco — ele
+ * não consegue criar categoria nova pela tela, e era justamente isso que ele
+ * pedia ("ao adicionar uma categoria nova, tem que aparecer aí também"). Quem
+ * manda nos filtros agora é o Grupo de Produto, que a loja edita em
+ * Cadastros > Listas do Sistema.
  */
 export function categoriasDeProduto(): OpcaoFiltro[] {
   return Object.entries(PRODUTO_CATEGORIAS).map(([chave, cfg]) => ({
     id: chave,
     nome: cfg.label,
   }));
+}
+
+/**
+ * O valor usado no filtro para "produto que ninguém classificou ainda".
+ *
+ * Existe porque, em 23/09, 11 dos 12 produtos ativos estavam sem grupo
+ * preenchido. Sem esta opção, esses produtos simplesmente sumiriam de qualquer
+ * filtro — e não haveria como achá-los para corrigir o cadastro. Ela só
+ * aparece na lista quando existe produto assim.
+ */
+export const SEM_GRUPO = '__sem_grupo__';
+
+/**
+ * A lista de Grupo de Produto para os filtros, com a opção "Sem grupo" no fim
+ * quando houver produto sem classificação.
+ */
+export function gruposDeProduto(
+  doCadastro: readonly OpcaoFiltro[],
+  temProdutoSemGrupo: boolean,
+): OpcaoFiltro[] {
+  const lista = [...doCadastro];
+  if (temProdutoSemGrupo) {
+    lista.push({ id: SEM_GRUPO, nome: 'Sem grupo definido' });
+  }
+  return lista;
 }
 
 /**

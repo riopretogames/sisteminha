@@ -35,9 +35,11 @@ import { resolverPeriodo, periodoAnterior, variacao, dentroDoPeriodo } from '@/l
 import { montarSerie, melhorPonto, nomeDoGrao } from '@/lib/serie';
 import { useFiltrosDashboard } from '@/lib/filtrosDashboard';
 import {
-  categoriasDeProduto,
+  gruposDeProduto,
   unirOpcoes,
   usePessoasDoFiltro,
+  useListaDoSistema,
+  SEM_GRUPO,
   type OpcaoFiltro,
 } from '@/lib/listasDeFiltro';
 import { TabelaRanking, CardIndicador } from '@/components/dashboards/TabelaRanking';
@@ -74,7 +76,14 @@ interface ItemVendaRow {
   produto_id: string;
   quantidade: number;
   total: number;
-  produtos: { nome: string; categoria: string | null } | null;
+  produtos: {
+    nome: string;
+    categoria: string | null;
+    /** O Grupo de Produto (Console, Jogo, Controle…) — a lista que a loja
+     *  edita em Cadastros > Listas do Sistema, e que manda nos filtros desde
+     *  23/09/2026. Nulo = produto que ninguém classificou ainda. */
+    grupo_produto_id: string | null;
+  } | null;
 }
 
 interface VendaRow {
@@ -125,7 +134,7 @@ export default function DashboardVenda() {
           // `produtos:vw_produtos(...)` é a regra de custo protegido — leitura
           // de produto passa SEMPRE pela view, mesmo sem pedir custo. O apelido
           // mantém a chave `produtos` no JSON.
-          .select('id, created_at, total, valor_faturamento_real, vendedor_id, vendedor:profiles(nome), itens_venda(produto_id, quantidade, total, produtos:vw_produtos(nome, categoria)), pagamentos_venda(valor, formas_pagamento(descricao))')
+          .select('id, created_at, total, valor_faturamento_real, vendedor_id, vendedor:profiles(nome), itens_venda(produto_id, quantidade, total, produtos:vw_produtos(nome, categoria, grupo_produto_id)), pagamentos_venda(valor, formas_pagamento(descricao))')
           .gte('created_at', desdeISO)
           .lt('created_at', periodo.fim.toISOString())
           .neq('status', 'cancelado'),
@@ -151,35 +160,38 @@ export default function DashboardVenda() {
   // fazia sumir do filtro justamente quem não vendeu no período — que é quem
   // mais se quer procurar.
   const { data: pessoasCadastradas } = usePessoasDoFiltro();
+  const { data: gruposCadastrados } = useListaDoSistema('grupo_produto');
 
-  /** Vendedores e categorias que aparecem nos campos de filtro. */
+  /** Vendedores e grupos de produto que aparecem nos campos de filtro. */
   const { vendedores, categorias } = useMemo(() => {
     // O movimento só ACRESCENTA: quem foi desligado e arquivado sai do
     // cadastro, mas as vendas dele continuam dentro do período — sem isso o
     // painel mostraria dinheiro que nenhum filtro alcança.
     const doMovimento: OpcaoFiltro[] = [];
-    const categoriasDoMovimento: OpcaoFiltro[] = [];
+    let vendeuProdutoSemGrupo = false;
     for (const venda of todasVendas) {
       if (venda.vendedor_id && venda.vendedor?.nome) {
         doMovimento.push({ id: venda.vendedor_id, nome: `${venda.vendedor.nome} (fora da equipe)` });
       }
       for (const item of venda.itens_venda ?? []) {
-        if (item.produtos?.categoria) {
-          categoriasDoMovimento.push({ id: item.produtos.categoria, nome: item.produtos.categoria });
-        }
+        if (item.produtos && !item.produtos.grupo_produto_id) vendeuProdutoSemGrupo = true;
       }
     }
     return {
       vendedores: unirOpcoes(pessoasCadastradas ?? [], doMovimento),
-      categorias: unirOpcoes(categoriasDeProduto(), categoriasDoMovimento),
+      categorias: gruposDeProduto(gruposCadastrados ?? [], vendeuProdutoSemGrupo),
     };
-  }, [todasVendas, pessoasCadastradas]);
+  }, [todasVendas, pessoasCadastradas, gruposCadastrados]);
 
   /** Itens de uma venda que interessam ao filtro de categoria. */
   const itensQueContam = useMemo(
     () => (v: VendaRow) =>
       porCategoria
-        ? (v.itens_venda ?? []).filter((i) => i.produtos?.categoria === filtros.categoria)
+        ? (v.itens_venda ?? []).filter((i) =>
+            filtros.categoria === SEM_GRUPO
+              ? i.produtos != null && !i.produtos.grupo_produto_id
+              : i.produtos?.grupo_produto_id === filtros.categoria,
+          )
         : (v.itens_venda ?? []),
     [porCategoria, filtros.categoria],
   );
@@ -286,10 +298,19 @@ export default function DashboardVenda() {
     }),
   );
 
+  // O ranking fala a MESMA língua do filtro, de propósito: agrupar por um
+  // campo e filtrar por outro faria a tabela e o filtro discordarem.
+  const nomeDoGrupo = useMemo(
+    () => new Map((gruposCadastrados ?? []).map((g) => [g.id, g.nome])),
+    [gruposCadastrados],
+  );
   const topCategorias = porValor(
     agrupar(itensDoPeriodo, {
-      chave: (i) => i.produtos?.categoria,
-      nome: (i) => i.produtos?.categoria,
+      chave: (i) => (i.produtos ? (i.produtos.grupo_produto_id ?? SEM_GRUPO) : null),
+      nome: (i) =>
+        i.produtos?.grupo_produto_id
+          ? (nomeDoGrupo.get(i.produtos.grupo_produto_id) ?? 'Grupo removido do cadastro')
+          : 'Sem grupo definido',
       quantidade: (i) => i.quantidade,
       valor: (i) => Number(i.total ?? 0),
     }),
@@ -360,16 +381,16 @@ export default function DashboardVenda() {
         pessoas={vendedores}
         rotuloPessoa="Vendedor"
         categorias={categorias}
-        rotuloCategoria="Categoria"
+        rotuloCategoria="Grupo de produto"
       />
 
       {porCategoria && (
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription>
-            Com uma categoria escolhida, os valores somam <strong>apenas os itens dessa
-            categoria</strong> dentro de cada venda. Devolução não é abatida neste modo: ela é
-            registrada por venda e não guarda de qual categoria era a peça devolvida.
+            Com um grupo escolhido, os valores somam <strong>apenas os itens desse
+            grupo</strong> dentro de cada venda. Devolução não é abatida neste modo: ela é
+            registrada por venda e não guarda de qual grupo era a peça devolvida.
           </AlertDescription>
         </Alert>
       )}
@@ -472,10 +493,10 @@ export default function DashboardVenda() {
         />
 
         <TabelaRanking
-          titulo="Categorias Mais Vendidas"
-          descricao="Onde o dinheiro entrou, por tipo de produto, no período escolhido."
+          titulo="Grupos Mais Vendidos"
+          descricao="Onde o dinheiro entrou, por Grupo de Produto — a lista que a loja edita em Cadastros > Listas do Sistema."
           linhas={topCategorias}
-          rotuloNome="Categoria"
+          rotuloNome="Grupo"
           rotuloQuantidade="Peças"
           rotuloValor="Receita"
           vazio="Nenhum produto vendido no período."

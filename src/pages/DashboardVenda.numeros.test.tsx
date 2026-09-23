@@ -39,12 +39,24 @@ function venda(over: Record<string, unknown>) {
   };
 }
 
-const ITEM = (nome: string, categoria: string, qtd: number, total: number) => ({
+const ITEM = (
+  nome: string,
+  categoria: string,
+  qtd: number,
+  total: number,
+  grupo_produto_id: string | null = null,
+) => ({
   produto_id: nome,
   quantidade: qtd,
   total,
-  produtos: { nome, categoria },
+  produtos: { nome, categoria, grupo_produto_id },
 });
+
+/** O cadastro de Grupo de Produto (Cadastros > Listas do Sistema). */
+const GRUPOS = [
+  { id: 'g-console', descricao: 'Console', ativo: true, ordem: 1 },
+  { id: 'g-jogo', descricao: 'Jogo', ativo: true, ordem: 2 },
+];
 
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }), toast: vi.fn() }));
 
@@ -83,8 +95,13 @@ function filtrar(periodo: SelecaoPeriodo, extras: Record<string, unknown> = {}) 
   );
 }
 
-async function abrir(vendas: unknown[], devolucoes: unknown[] = [], profiles: unknown[] = []) {
-  mockSupabase.atual = bancoFalso({ vendas, devolucoes, profiles });
+async function abrir(
+  vendas: unknown[],
+  devolucoes: unknown[] = [],
+  profiles: unknown[] = [],
+  catalogos: unknown[] = GRUPOS,
+) {
+  mockSupabase.atual = bancoFalso({ vendas, devolucoes, profiles, catalogos });
   const { default: DashboardVenda } = await import('./DashboardVenda');
   return renderizarTela(<DashboardVenda />);
 }
@@ -158,15 +175,18 @@ describe('Dashboard de Vendas — os números', () => {
     expect(screen.queryByText('Bruno')).not.toBeInTheDocument();
   });
 
-  it('filtrar por categoria soma só os itens daquela categoria dentro da venda', async () => {
+  it('filtrar por grupo de produto soma só os itens daquele grupo dentro da venda', async () => {
     // A venda tem um console de 1.000 e um jogo de 200. Filtrando "Jogo", o
     // painel tem que mostrar 200 — e não a venda inteira dentro de "Jogo".
-    filtrar({ atalho: 'este-mes' }, { categoria: 'Jogo' });
+    filtrar({ atalho: 'este-mes' }, { categoria: 'g-jogo' });
     await abrir([
       venda({
         id: '1',
         total: 1200,
-        itens_venda: [ITEM('Console', 'Console', 1, 1000), ITEM('Jogo X', 'Jogo', 1, 200)],
+        itens_venda: [
+          ITEM('Console', 'acessorio', 1, 1000, 'g-console'),
+          ITEM('Jogo X', 'acessorio', 1, 200, 'g-jogo'),
+        ],
       }),
     ]);
 
@@ -175,7 +195,28 @@ describe('Dashboard de Vendas — os números', () => {
     });
     // E avisa que devolução não entra nesse modo, em vez de mostrar um número
     // que parece exato e não é.
-    expect(screen.getByText(/apenas os itens dessa/i)).toBeInTheDocument();
+    expect(screen.getByText(/apenas os itens desse/i)).toBeInTheDocument();
+  });
+
+  it('produto sem grupo é achável pela opção "Sem grupo definido"', async () => {
+    // Em 23/09, 11 dos 12 produtos ativos estavam sem grupo. Sem esta opção
+    // eles sumiriam de qualquer filtro, e não haveria como achá-los para
+    // corrigir o cadastro.
+    filtrar({ atalho: 'este-mes' }, { categoria: '__sem_grupo__' });
+    await abrir([
+      venda({
+        id: '1',
+        total: 1300,
+        itens_venda: [
+          ITEM('Console', 'acessorio', 1, 1000, 'g-console'),
+          ITEM('Sem classificação', 'acessorio', 1, 300, null),
+        ],
+      }),
+    ]);
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/R\$\s*300,00/).length).toBeGreaterThan(0);
+    });
   });
 
   it('compara com o período anterior em porcentagem', async () => {
@@ -231,27 +272,28 @@ describe('Dashboard de Vendas — os números', () => {
     });
   });
 
-  it('as quatro categorias do sistema aparecem sempre, com o nome de tela', async () => {
-    // Antes só aparecia a categoria que tinha venda no período — o Felipe viu
-    // a lista com "acessorio" sozinho, e ainda em minúsculo.
-    await abrir([venda({ id: '1', itens_venda: [ITEM('Controle', 'acessorio', 1, 100)] })]);
+  it('o filtro mostra TODOS os grupos cadastrados, mesmo os sem venda no período', async () => {
+    // Antes só aparecia o que tinha venda no período — o Felipe viu a lista
+    // com um item sozinho, e ainda em minúsculo ("acessorio").
+    await abrir([
+      venda({ id: '1', itens_venda: [ITEM('Controle', 'acessorio', 1, 100, 'g-console')] }),
+    ]);
 
     await waitFor(() => {
       expect(screen.getByText('Dashboard de Vendas')).toBeInTheDocument();
     });
 
-    const campo = await screen.findByLabelText('Categoria');
+    const campo = await screen.findByLabelText('Grupo de produto');
     fireEvent.pointerDown(
       campo,
       new PointerEvent('pointerdown', { bubbles: true, ctrlKey: false, button: 0 }),
     );
 
+    // "Jogo" não teve venda nenhuma no período e mesmo assim está na lista.
     await waitFor(() => {
-      expect(screen.getByRole('option', { name: 'Acessório' })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'Jogo' })).toBeInTheDocument();
     });
-    for (const nome of ['Celular', 'Peça', 'Serviço']) {
-      expect(screen.getByRole('option', { name: nome })).toBeInTheDocument();
-    }
+    expect(screen.getByRole('option', { name: 'Console' })).toBeInTheDocument();
   });
 
   it('aponta o melhor vendedor pelo nome', async () => {
@@ -305,16 +347,26 @@ describe('Dashboard de Vendas — os números', () => {
     });
   });
 
-  it('agrupa as vendas por categoria de produto', async () => {
+  it('o ranking agrupa pelo Grupo de Produto, com o nome do cadastro', async () => {
+    // O ranking fala a mesma língua do filtro de propósito: agrupar por um
+    // campo e filtrar por outro faria a tabela e o filtro discordarem.
     await abrir([
-      venda({ id: '1', itens_venda: [ITEM('Controle', 'Acessório', 2, 800)] }),
-      venda({ id: '2', itens_venda: [ITEM('Jogo X', 'Jogo', 1, 200)] }),
+      venda({ id: '1', itens_venda: [ITEM('Controle', 'acessorio', 2, 800, 'g-console')] }),
+      venda({ id: '2', itens_venda: [ITEM('Jogo X', 'acessorio', 1, 200, 'g-jogo')] }),
     ]);
 
     await waitFor(() => {
-      expect(screen.getAllByText('Acessório').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Console').length).toBeGreaterThan(0);
     });
     expect(screen.getAllByText('Jogo').length).toBeGreaterThan(0);
+  });
+
+  it('item sem grupo aparece no ranking como "Sem grupo definido", não some', async () => {
+    await abrir([venda({ id: '1', itens_venda: [ITEM('Avulso', 'acessorio', 1, 500, null)] })]);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Sem grupo definido').length).toBeGreaterThan(0);
+    });
   });
 
   it('mostra a faixa de horário com mais venda', async () => {
