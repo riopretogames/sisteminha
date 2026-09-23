@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { renderizarTela, bancoFalso, silenciarConsole } from '@/test/apoio';
 import type { SelecaoPeriodo } from '@/lib/periodo';
 
@@ -83,8 +83,8 @@ function filtrar(periodo: SelecaoPeriodo, extras: Record<string, unknown> = {}) 
   );
 }
 
-async function abrir(vendas: unknown[], devolucoes: unknown[] = []) {
-  mockSupabase.atual = bancoFalso({ vendas, devolucoes });
+async function abrir(vendas: unknown[], devolucoes: unknown[] = [], profiles: unknown[] = []) {
+  mockSupabase.atual = bancoFalso({ vendas, devolucoes, profiles });
   const { default: DashboardVenda } = await import('./DashboardVenda');
   return renderizarTela(<DashboardVenda />);
 }
@@ -199,6 +199,59 @@ describe('Dashboard de Vendas — os números', () => {
       expect(screen.getAllByText(/para comparar/i).length).toBeGreaterThan(0);
     });
     expect(screen.queryByText('+100%')).not.toBeInTheDocument();
+  });
+
+
+  it('vendedor CADASTRADO aparece no filtro mesmo sem ter vendido no período', async () => {
+    // O defeito que o Felipe achou em 23/09: a lista de vendedores era montada
+    // a partir das vendas carregadas, então quem não vendeu sumia do filtro —
+    // justamente a pessoa que se quer procurar ("por que a Luana não vendeu?").
+    await abrir(
+      [venda({ id: '1', vendedor_id: 'ana', vendedor: { nome: 'Ana' }, total: 300 })],
+      [],
+      [
+        { id: 'ana', nome: 'Ana' },
+        { id: 'luana', nome: 'Luana' },
+      ],
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Dashboard de Vendas')).toBeInTheDocument();
+    });
+
+    // Abre a lista do campo "Vendedor".
+    const campo = await screen.findByLabelText('Vendedor');
+    fireEvent.pointerDown(
+      campo,
+      new PointerEvent('pointerdown', { bubbles: true, ctrlKey: false, button: 0 }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: 'Luana' })).toBeInTheDocument();
+    });
+  });
+
+  it('as quatro categorias do sistema aparecem sempre, com o nome de tela', async () => {
+    // Antes só aparecia a categoria que tinha venda no período — o Felipe viu
+    // a lista com "acessorio" sozinho, e ainda em minúsculo.
+    await abrir([venda({ id: '1', itens_venda: [ITEM('Controle', 'acessorio', 1, 100)] })]);
+
+    await waitFor(() => {
+      expect(screen.getByText('Dashboard de Vendas')).toBeInTheDocument();
+    });
+
+    const campo = await screen.findByLabelText('Categoria');
+    fireEvent.pointerDown(
+      campo,
+      new PointerEvent('pointerdown', { bubbles: true, ctrlKey: false, button: 0 }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: 'Acessório' })).toBeInTheDocument();
+    });
+    for (const nome of ['Celular', 'Peça', 'Serviço']) {
+      expect(screen.getByRole('option', { name: nome })).toBeInTheDocument();
+    }
   });
 
   it('aponta o melhor vendedor pelo nome', async () => {

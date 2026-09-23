@@ -99,6 +99,7 @@ interface ProfileRow {
   id: string;
   nome: string;
   tenant_id: string;
+  ativo: boolean | null;
 }
 
 /** Os últimos 24 meses, do mais recente para trás — é o que a loja consulta. */
@@ -177,7 +178,7 @@ export default function DashboardMetas() {
         // Não existe FK declarada entre vendas.vendedor_id e profiles — busca
         // à parte e junta no client por id.
         // Quem foi arquivado saiu da loja: não entra em meta de equipe.
-        supabase.from('profiles').select('id, nome, tenant_id').is('arquivado_em', null),
+        supabase.from('profiles').select('id, nome, tenant_id, ativo').is('arquivado_em', null),
       ]);
       if (metasRes.error) throw metasRes.error;
       if (metasPessoaRes.error) throw metasPessoaRes.error;
@@ -276,11 +277,21 @@ export default function DashboardMetas() {
   /**
    * A lista de pessoas do painel.
    *
-   * Entra quem TEM META cadastrada (mesmo sem ter vendido nada — e aí o zero é
-   * justamente a informação) e quem VENDEU alguma coisa (mesmo sem meta).
+   * Entra **toda a equipe ativa**, mesmo quem não tem meta nem venda — o zero
+   * de alguém é justamente a informação que se procura aqui. Antes a tabela
+   * só listava quem tinha meta ou tinha vendido, e a pessoa que passou o mês
+   * sem vender simplesmente não existia no painel (foi o que o Felipe achou em
+   * 23/09, com a Luana sumida do filtro de vendedor).
+   *
+   * Quem saiu da equipe mas tem venda ou meta no período continua aparecendo:
+   * senão o total da loja não fecharia com a soma das pessoas.
    */
   const porPessoa = useMemo(() => {
-    const ids = new Set<string>([...metaPorId.keys(), ...vendidoPorPessoa.keys()]);
+    const ids = new Set<string>([
+      ...profiles.filter((p) => p.ativo !== false).map((p) => p.id),
+      ...metaPorId.keys(),
+      ...vendidoPorPessoa.keys(),
+    ]);
     return [...ids]
       .map((id) => {
         const meta = (metaPorId.get(id) ?? null) as number | null;
@@ -305,6 +316,7 @@ export default function DashboardMetas() {
   const pessoasParaCadastro: MetaDePessoa[] = useMemo(
     () =>
       profiles
+        .filter((p) => p.ativo !== false)
         .map((p) => ({
           user_id: p.id,
           nome: p.nome,
@@ -541,7 +553,7 @@ export default function DashboardMetas() {
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <Users className="h-10 w-10 text-muted-foreground/50" />
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Ninguém com meta cadastrada nem venda registrada neste período.
+                    Nenhuma pessoa ativa cadastrada na loja.
                   </p>
                 </div>
               ) : (

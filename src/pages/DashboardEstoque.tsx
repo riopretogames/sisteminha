@@ -25,6 +25,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { resolverPeriodo, periodoAnterior, variacao, dentroDoPeriodo } from '@/lib/periodo';
 import { montarSerie, nomeDoGrao } from '@/lib/serie';
 import { useFiltrosDashboard } from '@/lib/filtrosDashboard';
+import { categoriasDeProduto, unirOpcoes, type OpcaoFiltro } from '@/lib/listasDeFiltro';
 import { CardIndicador } from '@/components/dashboards/TabelaRanking';
 import { FiltrosDashboard } from '@/components/dashboards/FiltrosDashboard';
 import { GraficoEvolucao } from '@/components/dashboards/GraficoEvolucao';
@@ -112,13 +113,15 @@ export default function DashboardEstoque() {
   const todosProdutos = useMemo(() => data?.produtos ?? [], [data]);
   const todosMovimentos = useMemo(() => data?.movimentos ?? [], [data]);
 
-  const categorias = useMemo(
-    () =>
-      [...new Set(todosProdutos.map((p) => p.categoria).filter(Boolean))].sort((a, b) =>
-        a.localeCompare(b, 'pt-BR'),
-      ),
-    [todosProdutos],
-  );
+  // A lista vem do CADASTRO, não dos produtos carregados: categoria sem
+  // produto nenhum hoje continua no filtro (é a pergunta "por que não temos
+  // nada nessa categoria?"). Ver lib/listasDeFiltro.ts.
+  const categorias = useMemo(() => {
+    const doMovimento: OpcaoFiltro[] = todosProdutos
+      .filter((p) => p.categoria)
+      .map((p) => ({ id: p.categoria, nome: p.categoria }));
+    return unirOpcoes(categoriasDeProduto(), doMovimento);
+  }, [todosProdutos]);
 
   const produtos = useMemo(
     () =>
@@ -213,7 +216,11 @@ export default function DashboardEstoque() {
           icone={<Boxes className="h-4 w-4" />}
           carregando={isLoading}
           valor={String(produtos.length)}
-          detalhe={filtros.categoria ? `Na categoria ${filtros.categoria}` : 'Cadastrados e ativos'}
+          detalhe={
+            filtros.categoria
+              ? `Na categoria ${categorias.find((c) => c.id === filtros.categoria)?.nome ?? filtros.categoria}`
+              : 'Cadastrados e ativos'
+          }
         />
 
         {veCusto && (
@@ -323,7 +330,7 @@ export default function DashboardEstoque() {
               <Boxes className="h-10 w-10 text-muted-foreground/50" />
               <p className="mt-2 text-sm text-muted-foreground">
                 {filtros.categoria
-                  ? `Nenhum produto ativo na categoria ${filtros.categoria}`
+                  ? `Nenhum produto ativo na categoria ${categorias.find((c) => c.id === filtros.categoria)?.nome ?? filtros.categoria}`
                   : 'Nenhum produto ativo cadastrado ainda'}
               </p>
             </div>

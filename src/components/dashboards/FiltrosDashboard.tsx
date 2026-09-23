@@ -16,6 +16,7 @@ import {
   temFiltroAplicado,
   type FiltrosDashboardValores,
 } from '@/lib/filtrosDashboard';
+import type { OpcaoFiltro } from '@/lib/listasDeFiltro';
 import { hojeISO } from '@/lib/format';
 
 /**
@@ -37,12 +38,16 @@ interface Props {
   valores: FiltrosDashboardValores;
   onChange: (v: FiltrosDashboardValores) => void;
   onLimpar: () => void;
-  /** Pessoas para o filtro. Vazio ou ausente esconde o campo. */
-  pessoas?: { id: string; nome: string }[];
+  /**
+   * Pessoas para o filtro — vêm do CADASTRO de gente da loja, não de quem
+   * apareceu no movimento do período (ver lib/listasDeFiltro.ts). Vazio ou
+   * ausente esconde o campo.
+   */
+  pessoas?: OpcaoFiltro[];
   /** Como chamar a pessoa nesta tela: "Vendedor", "Técnico"… */
   rotuloPessoa?: string;
-  /** Categorias para o filtro. Vazio ou ausente esconde o campo. */
-  categorias?: string[];
+  /** Categorias para o filtro, também vindas do cadastro. */
+  categorias?: OpcaoFiltro[];
   rotuloCategoria?: string;
   /** Some com a chave de comparação (telas onde ela não faz sentido). */
   ocultarComparacao?: boolean;
@@ -186,8 +191,8 @@ export function FiltrosDashboard({
                 <SelectContent>
                   <SelectItem value="todas">Todas</SelectItem>
                   {categorias.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -34,6 +34,12 @@ import {
 import { resolverPeriodo, periodoAnterior, variacao, dentroDoPeriodo } from '@/lib/periodo';
 import { montarSerie, melhorPonto, nomeDoGrao } from '@/lib/serie';
 import { useFiltrosDashboard } from '@/lib/filtrosDashboard';
+import {
+  categoriasDeProduto,
+  unirOpcoes,
+  usePessoasDoFiltro,
+  type OpcaoFiltro,
+} from '@/lib/listasDeFiltro';
 import { TabelaRanking, CardIndicador } from '@/components/dashboards/TabelaRanking';
 import { FiltrosDashboard } from '@/components/dashboards/FiltrosDashboard';
 import { GraficoEvolucao } from '@/components/dashboards/GraficoEvolucao';
@@ -140,23 +146,34 @@ export default function DashboardVenda() {
 
   const porCategoria = filtros.categoria !== '';
 
-  /** Lista de vendedores e categorias que aparece nos campos de filtro. */
+  // As listas dos filtros vêm do CADASTRO da loja, não das vendas carregadas.
+  // Ver o porquê em lib/listasDeFiltro.ts: montá-las a partir do movimento
+  // fazia sumir do filtro justamente quem não vendeu no período — que é quem
+  // mais se quer procurar.
+  const { data: pessoasCadastradas } = usePessoasDoFiltro();
+
+  /** Vendedores e categorias que aparecem nos campos de filtro. */
   const { vendedores, categorias } = useMemo(() => {
-    const v = new Map<string, string>();
-    const c = new Set<string>();
+    // O movimento só ACRESCENTA: quem foi desligado e arquivado sai do
+    // cadastro, mas as vendas dele continuam dentro do período — sem isso o
+    // painel mostraria dinheiro que nenhum filtro alcança.
+    const doMovimento: OpcaoFiltro[] = [];
+    const categoriasDoMovimento: OpcaoFiltro[] = [];
     for (const venda of todasVendas) {
-      if (venda.vendedor_id && venda.vendedor?.nome) v.set(venda.vendedor_id, venda.vendedor.nome);
+      if (venda.vendedor_id && venda.vendedor?.nome) {
+        doMovimento.push({ id: venda.vendedor_id, nome: `${venda.vendedor.nome} (fora da equipe)` });
+      }
       for (const item of venda.itens_venda ?? []) {
-        if (item.produtos?.categoria) c.add(item.produtos.categoria);
+        if (item.produtos?.categoria) {
+          categoriasDoMovimento.push({ id: item.produtos.categoria, nome: item.produtos.categoria });
+        }
       }
     }
     return {
-      vendedores: [...v.entries()]
-        .map(([id, nome]) => ({ id, nome }))
-        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
-      categorias: [...c].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+      vendedores: unirOpcoes(pessoasCadastradas ?? [], doMovimento),
+      categorias: unirOpcoes(categoriasDeProduto(), categoriasDoMovimento),
     };
-  }, [todasVendas]);
+  }, [todasVendas, pessoasCadastradas]);
 
   /** Itens de uma venda que interessam ao filtro de categoria. */
   const itensQueContam = useMemo(
@@ -324,7 +341,7 @@ export default function DashboardVenda() {
 
   const recorte = [
     filtros.pessoaId ? vendedores.find((v) => v.id === filtros.pessoaId)?.nome : null,
-    filtros.categoria || null,
+    filtros.categoria ? (categorias.find((c) => c.id === filtros.categoria)?.nome ?? null) : null,
   ]
     .filter(Boolean)
     .join(' · ');

@@ -41,6 +41,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { resolverPeriodo, periodoAnterior, variacao, dentroDoPeriodo } from '@/lib/periodo';
 import { montarSerie, nomeDoGrao } from '@/lib/serie';
 import { useFiltrosDashboard } from '@/lib/filtrosDashboard';
+import {
+  unirOpcoes,
+  usePessoasDoFiltro,
+  useListaDoSistema,
+  type OpcaoFiltro,
+} from '@/lib/listasDeFiltro';
 
 /**
  * Dashboard de Assistência — "como está a bancada agora".
@@ -186,28 +192,39 @@ export default function DashboardAssistencia() {
   const todas = useMemo(() => data?.doPeriodo ?? [], [data]);
   const filaCompleta = useMemo(() => data?.emAberto ?? [], [data]);
 
+  // As listas dos filtros vêm do CADASTRO, não das OS carregadas — ver o
+  // porquê em lib/listasDeFiltro.ts. O equipamento é o TIPO de aparelho
+  // (Video game, Celular, Computador, Notebook…), que é a lista de Cadastros >
+  // Listas do Sistema; a bancada recebe mais de cem aparelhos por semana e uma
+  // lista de modelos seria inutilizável.
+  const { data: pessoasCadastradas } = usePessoasDoFiltro();
+  const { data: tiposDeAparelho } = useListaDoSistema('os_equipamento');
+
   /** Técnicos e equipamentos que aparecem nos campos de filtro. */
   const { tecnicos, equipamentos } = useMemo(() => {
-    const t = new Map<string, string>();
-    const e = new Set<string>();
+    // O movimento só ACRESCENTA: técnico desligado continua com OS no período.
+    const tecnicosDoMovimento: OpcaoFiltro[] = [];
+    const equipamentosDoMovimento: OpcaoFiltro[] = [];
     for (const os of [...todas, ...filaCompleta]) {
-      if (os.tecnico_id && os.tecnico?.nome) t.set(os.tecnico_id, os.tecnico.nome);
-      if (os.equipamento?.descricao) e.add(os.equipamento.descricao);
+      if (os.tecnico_id && os.tecnico?.nome) {
+        tecnicosDoMovimento.push({ id: os.tecnico_id, nome: `${os.tecnico.nome} (fora da equipe)` });
+      }
+      if (os.equipamento_id && os.equipamento?.descricao) {
+        equipamentosDoMovimento.push({ id: os.equipamento_id, nome: os.equipamento.descricao });
+      }
     }
     return {
-      tecnicos: [...t.entries()]
-        .map(([id, nome]) => ({ id, nome }))
-        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
-      equipamentos: [...e].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+      tecnicos: unirOpcoes(pessoasCadastradas ?? [], tecnicosDoMovimento),
+      equipamentos: unirOpcoes(tiposDeAparelho ?? [], equipamentosDoMovimento),
     };
-  }, [todas, filaCompleta]);
+  }, [todas, filaCompleta, pessoasCadastradas, tiposDeAparelho]);
 
   /** Filtros de técnico e de equipamento, aplicados a qualquer lista de OS. */
   const aplicarFiltros = useMemo(
     () => (lista: OSRow[]) =>
       lista.filter((o) => {
         if (filtros.pessoaId && o.tecnico_id !== filtros.pessoaId) return false;
-        if (filtros.categoria && o.equipamento?.descricao !== filtros.categoria) return false;
+        if (filtros.categoria && o.equipamento_id !== filtros.categoria) return false;
         return true;
       }),
     [filtros.pessoaId, filtros.categoria],
