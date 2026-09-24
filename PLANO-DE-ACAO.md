@@ -1476,6 +1476,45 @@ o arquivo antes de assumir.
   o corte do dia (herdado do `RelatorioShell`, não é regressão nova).
   **Conferido em 17/08, ainda vale.**
 
+### Filtros nos quatro painéis e metas vindas da planilha (22-23/09)
+
+Pedido do Felipe em 22/09: *"não tem filtros… quero todos os filtros
+possíveis em todos os lugares possíveis"*. Os quatro painéis eram fixos em
+"hoje" e "esta semana".
+
+- [x] ✅ **Filtro de período, pessoa e categoria em Venda, Assistência,
+  Estoque e Metas** — 13 atalhos (hoje a ano passado) e intervalo livre,
+  comparação com o período anterior e gráfico. Peças compartilhadas:
+  `lib/periodo.ts`, `lib/serie.ts`, `lib/filtrosDashboard.ts`,
+  `components/dashboards/FiltrosDashboard.tsx`.
+- [x] ✅ **As listas dos filtros vêm do CADASTRO** (23/09, achado do Felipe no
+  teste: a Luana sumia do filtro de vendedor por não ter vendido no
+  período). `lib/listasDeFiltro.ts`: a lista vem do cadastro e o movimento
+  só acrescenta. Vale para todo filtro novo.
+- [x] ✅ **O filtro de produto é o Grupo de Produto** (decisão do Felipe em
+  23/09): a Categoria é travada em 4 valores no banco e não aceita item
+  novo. ⚠️ Em 23/09, 11 dos 12 produtos ativos estavam **sem grupo** — o
+  filtro tem "Sem grupo definido" e o Estoque avisa quantos faltam.
+- [x] ✅ **As metas passam a vir da planilha Metas RPG** (23/09, decisão do
+  Felipe). Migration `20260923140000`: `metas_mes`, `metas_campanha`,
+  `metas_sincronizacoes`, a função `aplicar_metas_da_planilha` (única porta
+  de gravação) e a peça do servidor `sincronizar-metas`. O robô da planilha
+  está em `integracoes/planilha-de-metas/` (ver o LEIA-ME de lá). A tela é
+  Cadastros › Metas, só de leitura.
+- [x] ✅ **A meta individual virou a conta da planilha** (meta da loja ÷
+  vendedores; quinzena = ÷ 2, só em mês quinzenal). A versão de 22/09
+  deixava digitar um valor por pessoa, o que não é regra da loja.
+- [x] ✅ **Setembro a dezembro estavam com as metas antigas de agosto no
+  banco** (setembro: R$ 95.000 no sistema, R$ 108.000 na planilha).
+  Corrigido pela primeira carga da planilha, em 23/09.
+- [ ] 🔸 **Apagar a tabela `metas_vendedor`** — vazia e sem uso desde 23/09.
+  Apagar tabela é migration destrutiva: **esperando o OK do Felipe**.
+- [ ] 🔸 **Duas planilhas de metas** — a do Drive (que o sistema segue) e
+  `premiacoes/planilhas/metas-2026.xlsx` (que gera os markdowns de
+  premiação). Hoje idênticas; vão divergir. Decisão da área de premiações.
+- [ ] Película e Grip (por unidade), Monday e prêmio de Gerente (suspenso)
+  continuam só na planilha — o sistema ainda não acompanha.
+
 ---
 
 ## Relatórios

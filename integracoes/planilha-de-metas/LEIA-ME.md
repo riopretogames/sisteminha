@@ -1,0 +1,95 @@
+# Robô da planilha de metas
+
+A planilha **Metas RPG** (Google Drive) é a fonte das metas da loja desde
+23/09/2026 — decisão do Felipe: *"se alterar os dados da planilha, alterar os
+dados aí no sistema"*. Este robô é o que faz isso acontecer.
+
+## Como funciona, em uma frase
+
+Alguém edita a aba **METAS DA LOJA** ou **CAMPANHAS** → o robô dentro da
+planilha lê as abas e manda os números para o sisteminha → o sisteminha confere
+tudo e grava de uma vez só (ou grava a planilha inteira, ou não grava nada) →
+**Cadastros › Metas** e o **Dashboard de Metas** passam a mostrar.
+
+Além disso, todo dia às 6h ele reenvia tudo, por garantia.
+
+## As peças
+
+| Peça | Onde mora | O que faz |
+|---|---|---|
+| O robô | Dentro da planilha, em Extensões › Apps Script. A cópia de referência é o `Codigo.gs` desta pasta | Lê as abas e manda os números |
+| A porta do servidor | `supabase/functions/sincronizar-metas/` | Confere o código de acesso e entrega para o banco |
+| A função do banco | `aplicar_metas_da_planilha`, na migration `20260923140000` | Confere cada número e grava, numa transação só |
+| A tela | Cadastros › Metas | Mostra as metas e diz quando a planilha chegou por último — e, se falhou, por quê |
+
+## Instalar (ou reinstalar) o robô
+
+1. Abra a planilha **Metas RPG 2026** › **Extensões** › **Apps Script**.
+2. Apague o que estiver lá, cole o conteúdo inteiro de `Codigo.gs`, salve.
+3. Volte na planilha e aperte **F5**. Aparece o menu **Sisteminha**.
+4. **Sisteminha › Configurar conexão** › cole o código de acesso.
+5. O Google avisa "não verificou este app" — é normal para robô de uso próprio:
+   **Avançado › Acessar › Permitir**.
+
+## O código de acesso
+
+É o que prova para o sisteminha que quem está mandando metas é o robô da
+planilha. Fica em **três** lugares, e em nenhum outro:
+
+- nos segredos do servidor do Supabase (`METAS_SYNC_SECRET`);
+- nas propriedades do robô, dentro da planilha (o menu *Configurar conexão*
+  grava lá — não aparece no código nem nas células);
+- no arquivo `.env.planilha-metas`, na pasta do sisteminha deste computador —
+  que **não** vai para o git (o `.gitignore` barra qualquer `.env*`).
+
+Não mande por WhatsApp nem cole em documento: quem tiver o código consegue
+mudar as metas do sistema (só as metas — ele não abre nada além disso).
+
+### Trocar o código (se vazar, ou por precaução)
+
+1. Gere um novo e grave no servidor:
+   ```
+   npx.cmd supabase secrets set METAS_SYNC_SECRET=<novo código de 64 letras e números>
+   ```
+2. Atualize o arquivo `.env.planilha-metas` com o novo código.
+3. Na planilha: **Sisteminha › Configurar conexão** e cole o novo.
+
+O antigo para de funcionar na hora do passo 1.
+
+## Quando dá erro
+
+O aviso aparece no canto da planilha e em **Cadastros › Metas**, sempre em
+português e dizendo o mês e a faixa — por exemplo *"Em outubro, a faixa Prata é
+menor que a anterior. As faixas precisam subir."*. Corrija na planilha e o robô
+manda de novo sozinho. Enquanto isso, o sistema continua com a última versão
+que deu certo: **nada é gravado pela metade**.
+
+O que o sisteminha recusa, e por quê:
+
+- **Faltar mês** (tem que vir os 12) — pedido com menos meses é sinal de
+  leitura quebrada, e aplicar pela metade apagaria meses bons.
+- **Faixa fora de ordem** (Prata menor que Bronze) — quase sempre é dedo
+  escorregado, e vira prêmio errado.
+- **Valor negativo**, **número de vendedores** fora de 0 a 50, **apuração**
+  que não seja "Quinzenal" nem "4 períodos".
+
+## O que o robô lê — e o que deixa de fora de propósito
+
+Ele acha as colunas **pelo nome** (MÊS, Bronze, Prata, Ouro, Diamante,
+Vendedores, Apuração, Ano passado), então inserir coluna ou linha na planilha
+não quebra nada. Na aba CAMPANHAS, vira campanha todo bloco com cabeçalho
+**Faixa + Meta + Prêmio** (hoje: Acessórios e Jogos). Cada campanha é ligada ao
+**Grupo de Produto** de mesmo nome (sem acento e sem plural: "ACESSÓRIOS" acha
+"Acessório").
+
+Ficam só na planilha, porque o sistema ainda não acompanha: **Película e Grip**
+(a regra é por unidade), **Monday** (é tarefa, não venda) e o prêmio de
+**Gerente** (suspenso desde 03/09/2026).
+
+## Atenção: existe uma segunda cópia da planilha
+
+Em 23/09/2026 havia **duas** planilhas de metas idênticas: a do Drive (que o
+robô usa) e `premiacoes/planilhas/metas-2026.xlsx`, que alimenta o
+`premiacoes/ferramentas/gerar-metas.py` (os markdowns de premiação). Duas
+fontes divergem com o tempo. O sisteminha segue **só a do Drive**; a decisão
+sobre a outra é da área de premiações.
