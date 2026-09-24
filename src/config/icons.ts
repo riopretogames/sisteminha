@@ -18,6 +18,12 @@ import {
   ShieldCheck,
   ScrollText,
   Gamepad2,
+  SquareKanban,
+  ListChecks,
+  Clock,
+  Tag,
+  ClipboardCheck,
+  Paperclip,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -51,6 +57,12 @@ export const ICONS = {
   shield: ShieldCheck,
   audit: ScrollText,
   brand: Gamepad2,
+  kanban: SquareKanban,
+  check: ListChecks,
+  clock: Clock,
+  tag: Tag,
+  review: ClipboardCheck,
+  paperclip: Paperclip,
 } as const;
 
 export type IconName = keyof typeof ICONS;

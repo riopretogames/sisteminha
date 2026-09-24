@@ -168,6 +168,23 @@ export const MENU: MenuRoot[] = [
     ],
   },
 
+  // Tarefas da equipe: o Trello e o Monday dentro do sisteminha (pedido do
+  // Felipe em 23/09 — "é só para gestão de tarefas"; vídeo, curso e coisa
+  // pessoal continuam no Trello). "Minhas Tarefas" vem primeiro porque é por
+  // ela que a equipe usa no dia a dia; os quadros são para quem gerencia.
+  {
+    kind: 'section',
+    id: 'tarefas',
+    label: 'Tarefas',
+    icon: 'kanban',
+    permission: PERMISSIONS.TASKS_VIEW,
+    children: [
+      { kind: 'link', id: 'tarefas-minhas', label: 'Minhas Tarefas', path: '/tarefas/minhas', element: 'MinhasTarefas', permission: PERMISSIONS.TASKS_VIEW, icon: 'check', hint: 'O que é seu para hoje, para marcar como feito' },
+      { kind: 'link', id: 'tarefas-quadros', label: 'Quadros', path: '/tarefas', element: 'TarefasQuadros', permission: PERMISSIONS.TASKS_VIEW, icon: 'kanban', hint: 'Os quadros da equipe: loja, assistência e o que você criar' },
+      { kind: 'link', id: 'tarefas-conferencia', label: 'Conferência', path: '/tarefas/conferencia', element: 'TarefasConferencia', permission: PERMISSIONS.TASKS_REVIEW, icon: 'review', hint: 'O que a equipe marcou como feito, para aprovar ou devolver' },
+    ],
+  },
+
   {
     kind: 'section',
     id: 'financeiro',

@@ -21,6 +21,7 @@ const OSDetalhe = lazy(() => import('./pages/OSDetalhe'));
 const ClienteFicha = lazy(() => import('./pages/ClienteFicha'));
 const EstoqueDetalhe = lazy(() => import('./pages/EstoqueDetalhe'));
 const ComprovanteVenda = lazy(() => import('./pages/ComprovanteVenda'));
+const TarefasQuadro = lazy(() => import('./pages/tarefas/Quadro'));
 
 /**
  * As rotas protegidas NÃO são escritas à mão — são derivadas de
@@ -107,6 +108,19 @@ const App = () => (
                   <RequirePermission permission={PERMISSIONS.SALES_VIEW}>
                     <Suspense fallback={<CarregandoPagina />}>
                       <ComprovanteVenda />
+                    </Suspense>
+                  </RequirePermission>
+                }
+              />
+              {/* Um quadro de tarefas: mesmo caso das rotas de drill-down
+                  acima. `/tarefas/minhas` continua indo para Minhas Tarefas:
+                  o roteador prefere caminho fixo a parâmetro. */}
+              <Route
+                path="/tarefas/:id"
+                element={
+                  <RequirePermission permission={PERMISSIONS.TASKS_VIEW}>
+                    <Suspense fallback={<CarregandoPagina />}>
+                      <TarefasQuadro />
                     </Suspense>
                   </RequirePermission>
                 }

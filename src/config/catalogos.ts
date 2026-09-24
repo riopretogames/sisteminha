@@ -34,7 +34,7 @@ import type { IconName } from './icons';
  *             selecionado). Ex.: Origem da Venda tem "Balcão" como padrão.
  */
 
-export type CatalogoGrupo = 'produto' | 'cliente' | 'venda' | 'assistencia';
+export type CatalogoGrupo = 'produto' | 'cliente' | 'venda' | 'assistencia' | 'tarefas';
 
 export interface CatalogoDef {
   tipo: string;
@@ -64,6 +64,10 @@ export const CATALOGO_GRUPOS: Record<CatalogoGrupo, { label: string; hint: strin
   assistencia: {
     label: 'Assistência Técnica',
     hint: 'Listas usadas na abertura de OS e no laudo.',
+  },
+  tarefas: {
+    label: 'Tarefas da equipe',
+    hint: 'Listas usadas nos quadros de tarefas: turnos do dia, horários e etiquetas.',
   },
 };
 
@@ -296,6 +300,50 @@ export const CATALOGOS: CatalogoDef[] = [
     icon: 'shield',
     hint: 'Estado físico do aparelho quando chegou. Registra marca de uso ANTES do reparo.',
     exemplo: 'Sem avarias, Marcas de uso, Tampa quebrada, Molhado, Já aberto por terceiros',
+  },
+
+  /* ── Tarefas da equipe ─────────────────────────────────────────────────────
+   *
+   * Os turnos e as etiquetas do quadro de tarefas (pedido do Felipe em 23/09).
+   * São da loja, não do sistema: o Monday dele tem "7 às 11", "11 às 15",
+   * "15 às 19" e "Livre", mas outra loja trabalha em outro horário.
+   */
+  {
+    tipo: 'tarefa_periodo',
+    label: 'Períodos do dia',
+    singular: 'Período',
+    genero: 'm',
+    grupo: 'tarefas',
+    icon: 'clock',
+    hint: 'Os turnos em que a tarefa deve ser feita. Minhas Tarefas agrupa o dia da pessoa por eles.',
+    exemplo: 'Manhã (7 às 11), Tarde (15 às 19), Livre',
+    permitePadrao: true,
+  },
+  {
+    tipo: 'tarefa_etiqueta',
+    label: 'Etiquetas de tarefa',
+    singular: 'Etiqueta',
+    genero: 'f',
+    grupo: 'tarefas',
+    icon: 'tag',
+    hint: 'As etiquetas coloridas dos cartões, como as do Trello. Servem para bater o olho e filtrar.',
+    exemplo: 'Atenção, Prioridade, Rotina, Conteúdo',
+  },
+  /*
+   * Horários pré-definidos (v2, 24/09 — "deixe que eu escolha os horários").
+   * O catálogo só SUGERE: a tarefa guarda a hora de verdade (tarefas.horario),
+   * e a ficha ainda aceita uma hora digitada. Item que não parece hora
+   * ("Depois do almoço") aparece desativado na ficha, com o motivo.
+   */
+  {
+    tipo: 'tarefa_horario',
+    label: 'Horários',
+    singular: 'Horário',
+    genero: 'm',
+    grupo: 'tarefas',
+    icon: 'clock',
+    hint: 'Horários que aparecem como sugestão na ficha da tarefa. Na ficha ainda dá para digitar outro.',
+    exemplo: '07:30, 10:00, 15:00',
   },
 ];
 
