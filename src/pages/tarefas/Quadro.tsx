@@ -348,6 +348,32 @@ export default function Quadro() {
   const { viewMode, setViewMode } = useViewMode('kanban', 'tarefas_view_mode');
   const [filtros, setFiltros] = useState<FiltrosTarefasValores>(FILTROS_TAREFAS_VAZIO);
   const [novaListaAberta, setNovaListaAberta] = useState(false);
+
+  /**
+   * Duas visões para duas pessoas diferentes (Felipe, 24/09): "Todas" é o
+   * Kanban, a visão de quem gerencia; "Hoje" ou um dia da semana troca sozinho
+   * para a Tabela por pessoa — "para meus funcionários operarem, eu prefiro que
+   * seja igual ao Monday, porque o Monday é muito simples, muito didático".
+   *
+   * Voltar para "Todas" devolve a visão que estava antes do dia (quem estava na
+   * Tabela continua na Tabela). O alternador manual continua valendo depois:
+   * quem quiser ver o Kanban de uma terça consegue.
+   */
+  const visaoAntesDoDia = useRef<ViewMode>(viewMode);
+  const mudarFiltros = useCallback(
+    (novos: FiltrosTarefasValores) => {
+      const estavaEmTodas = filtros.dia === 'todas';
+      const vaiParaTodas = novos.dia === 'todas';
+      if (estavaEmTodas && !vaiParaTodas) {
+        visaoAntesDoDia.current = viewMode;
+        if (viewMode !== 'grid') setViewMode('grid');
+      } else if (!estavaEmTodas && vaiParaTodas && viewMode !== visaoAntesDoDia.current) {
+        setViewMode(visaoAntesDoDia.current);
+      }
+      setFiltros(novos);
+    },
+    [filtros.dia, viewMode, setViewMode],
+  );
   const [searchParams, setSearchParams] = useSearchParams();
   const tarefaId = searchParams.get('tarefa');
   const naConferencia = searchParams.get('aba') === ABA_CONFERENCIA;
@@ -449,7 +475,7 @@ export default function Quadro() {
   );
   const resumo = useMemo(() => resumoDeStatus(semFiltroDeStatus, hoje), [semFiltroDeStatus, hoje]);
   const filtroAtivo = temFiltroAtivo(filtros);
-  const limparFiltros = useCallback(() => setFiltros(FILTROS_TAREFAS_VAZIO), []);
+  const limparFiltros = useCallback(() => mudarFiltros(FILTROS_TAREFAS_VAZIO), [mudarFiltros]);
 
   /**
    * Marcar feito pelo cartão (a bolinha, ou "Feito" na célula de status da
@@ -816,7 +842,7 @@ export default function Quadro() {
           <div className="mb-4 space-y-3 rounded-xl border bg-card/60 p-3 shadow-sm">
             <FiltrosTarefas
               valores={filtros}
-              onChange={setFiltros}
+              onChange={mudarFiltros}
               pessoas={pessoas}
               etiquetas={etiquetas}
               resultados={filtradas.length}

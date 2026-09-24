@@ -18,10 +18,17 @@ import {
 /**
  * Barra de filtros do quadro — vale igual para o Kanban e para a Tabela.
  *
- * Os chips de dia (Todas · Hoje · Seg … Dom) fazem o papel das abas
- * Segunda...Domingo que o Felipe usava no Monday: clicar em "Qua" mostra o
+ * Os chips de dia (Todas · Hoje · Seg … Sáb) fazem o papel das abas
+ * Segunda...Sábado que o Felipe usava no Monday: clicar em "Qua" mostra o
  * que cai na quarta, com as mesmas cores das etiquetas de dia do Trello, para
  * a equipe reconhecer de primeira.
+ *
+ * Domingo não tem chip, por pedido do Felipe em 24/09: "pode tirar o Domingo,
+ * porque ninguém faz nada de Domingo". A tarefa marcada para domingo continua
+ * existindo e aparece em "Todas" — só não ganha uma aba própria.
+ *
+ * Clicar num dia também troca a visão para a Tabela por pessoa (quem decide é
+ * a página do quadro): "Todas" é o Kanban do Felipe, o dia é o Monday da equipe.
  *
  * Visual compacto de propósito (não o painel grande dos filtros de OS): aqui
  * o filtro é trocado o tempo todo, e o quadro é o que importa na tela.
@@ -80,7 +87,7 @@ export function FiltrosTarefas({ valores, onChange, pessoas, etiquetas, resultad
 
         <span aria-hidden className="mx-1 h-5 w-px bg-border" />
 
-        {DIAS_SEMANA.map((d) => {
+        {DIAS_SEMANA.filter((d) => d.n !== 0).map((d) => {
           const ehHoje = d.n === diaDeHoje;
           return (
             <ChipDeDia

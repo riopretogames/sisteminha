@@ -49,6 +49,13 @@ describe('Filtros do quadro', () => {
     expect(onChange).toHaveBeenLastCalledWith({ ...FILTROS_TAREFAS_VAZIO, dia: 5 });
   });
 
+  it('vai de Seg a Sáb: Domingo não tem chip (ninguém trabalha)', () => {
+    abrir();
+    expect(screen.getByRole('button', { name: /^Seg/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Sáb/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Dom/ })).not.toBeInTheDocument();
+  });
+
   it('o chip ativo fica marcado, e o dia de hoje é identificado', () => {
     abrir({ dia: 3 });
     expect(screen.getByRole('button', { name: /^Qua/ })).toHaveAttribute('aria-pressed', 'true');

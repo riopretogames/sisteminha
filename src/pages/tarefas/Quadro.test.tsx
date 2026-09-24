@@ -166,6 +166,29 @@ describe('Tela do quadro', () => {
     expect(screen.getAllByText('Ligar os telefones da loja').length).toBeGreaterThan(0);
   });
 
+  it('"Hoje" e os dias trocam para a Tabela por pessoa; "Todas" volta ao Kanban', async () => {
+    // Felipe, 24/09: "Todas" é o Kanban dele; o dia é o Monday da equipe.
+    await abrirQuadro('/tarefas/q-loja', QUADRO_COMPLETO);
+    await screen.findByRole('heading', { level: 1, name: /loja/i });
+    expect(screen.getByRole('radio', { name: /kanban/i })).toHaveAttribute('data-state', 'on');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hoje' }));
+    expect(screen.getByRole('radio', { name: /tabela/i })).toHaveAttribute('data-state', 'on');
+
+    fireEvent.click(screen.getByRole('button', { name: /^Sex/ }));
+    expect(screen.getByRole('radio', { name: /tabela/i })).toHaveAttribute('data-state', 'on');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Todas' }));
+    expect(screen.getByRole('radio', { name: /kanban/i })).toHaveAttribute('data-state', 'on');
+  });
+
+  it('não existe chip de Domingo no quadro', async () => {
+    await abrirQuadro('/tarefas/q-loja', QUADRO_COMPLETO);
+    await screen.findByRole('heading', { level: 1, name: /loja/i });
+    expect(screen.getByRole('button', { name: /^Sáb/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Dom/ })).not.toBeInTheDocument();
+  });
+
   it('o resumo colorido conta as tarefas e filtra ao clicar', async () => {
     await abrirQuadro('/tarefas/q-loja', QUADRO_COMPLETO);
 

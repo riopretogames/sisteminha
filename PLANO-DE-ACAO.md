@@ -2085,6 +2085,19 @@ Migration `20260924100000_conferencia_anexos_e_horario.sql`, aplicada em
 24/09. Ela também tirou o nome de tabela das mensagens dos gatilhos
 (pendência da v1).
 
+Na mesma tarde, mais dois pedidos: **"Todas" é o Kanban** (a visão dele, de
+gestão) e **"Hoje" ou um dia da semana troca sozinho para a Tabela por
+pessoa** — *"para meus funcionários operarem, eu prefiro que seja igual ao
+Monday, porque é muito simples, muito didático"*. Voltar para "Todas"
+devolve a visão de antes; o alternador manual continua valendo. E **o chip de
+Domingo saiu** ("ninguém faz nada de Domingo") — tarefa de domingo continua
+existindo e aparece em "Todas".
+
+Ficou para depois, da revisão da v2: "Desfazer" o **Conferido** (hoje só dá
+para devolver, que desfaz o feito da pessoa) — precisa de um terceiro modo na
+função `conferir_tarefa`, ou seja, migration; e o banco guardar quem concluiu
+a tarefa avulsa (hoje a aba mostra o responsável da tarefa).
+
 ### Decisões tomadas na construção (23/09, à noite) — o Felipe pode reverter
 
 - **"Fazendo" de tarefa recorrente não fica para sempre.** Marcar o feito de
