@@ -1,1 +1,10 @@
 project_id = "ylhxlvqqkifayglqbzre"
+
+# A peça que recebe a planilha de metas é chamada por um robô do Google, que
+# não tem crachá (login) do Supabase — então o porteiro padrão, que exige
+# crachá, fica desligado para ELA. Quem confere a entrada é o próprio código,
+# pelo código de acesso compartilhado (ver o comentário no topo de
+# functions/sincronizar-metas/index.ts). As outras peças continuam com o
+# porteiro ligado.
+[functions.sincronizar-metas]
+verify_jwt = false

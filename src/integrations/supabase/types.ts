@@ -1172,6 +1172,63 @@ export type Database = {
           },
         ]
       }
+      metas_campanha: {
+        Row: {
+          chave: string
+          created_at: string
+          faixa: Database["public"]["Enums"]["faixa_premiacao"]
+          grupo_produto_id: string | null
+          id: string
+          meta: number
+          nome: string
+          periodicidade: string
+          premio: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          chave: string
+          created_at?: string
+          faixa: Database["public"]["Enums"]["faixa_premiacao"]
+          grupo_produto_id?: string | null
+          id?: string
+          meta: number
+          nome: string
+          periodicidade: string
+          premio: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          chave?: string
+          created_at?: string
+          faixa?: Database["public"]["Enums"]["faixa_premiacao"]
+          grupo_produto_id?: string | null
+          id?: string
+          meta?: number
+          nome?: string
+          periodicidade?: string
+          premio?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_campanha_grupo_produto_id_fkey"
+            columns: ["grupo_produto_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "metas_campanha_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       metas_faturamento: {
         Row: {
           ano: number
@@ -1206,6 +1263,100 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "metas_faturamento_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      metas_mes: {
+        Row: {
+          ano: number
+          apuracao: string
+          created_at: string
+          faturamento_ano_passado: number | null
+          id: string
+          mes: number
+          tenant_id: string
+          updated_at: string
+          vendedores: number
+        }
+        Insert: {
+          ano: number
+          apuracao: string
+          created_at?: string
+          faturamento_ano_passado?: number | null
+          id?: string
+          mes: number
+          tenant_id: string
+          updated_at?: string
+          vendedores: number
+        }
+        Update: {
+          ano?: number
+          apuracao?: string
+          created_at?: string
+          faturamento_ano_passado?: number | null
+          id?: string
+          mes?: number
+          tenant_id?: string
+          updated_at?: string
+          vendedores?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_mes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      metas_sincronizacoes: {
+        Row: {
+          ano: number | null
+          enviado_por: string | null
+          erro: string | null
+          id: string
+          planilha_id: string | null
+          planilha_nome: string | null
+          planilha_url: string | null
+          recebido_em: string
+          resumo: Json | null
+          sucesso: boolean
+          tenant_id: string
+        }
+        Insert: {
+          ano?: number | null
+          enviado_por?: string | null
+          erro?: string | null
+          id?: string
+          planilha_id?: string | null
+          planilha_nome?: string | null
+          planilha_url?: string | null
+          recebido_em?: string
+          resumo?: Json | null
+          sucesso: boolean
+          tenant_id: string
+        }
+        Update: {
+          ano?: number | null
+          enviado_por?: string | null
+          erro?: string | null
+          id?: string
+          planilha_id?: string | null
+          planilha_nome?: string | null
+          planilha_url?: string | null
+          recebido_em?: string
+          resumo?: Json | null
+          sucesso?: boolean
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_sincronizacoes_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -2748,6 +2899,50 @@ export type Database = {
         }
         Relationships: []
       }
+      vw_metas_mes: {
+        Row: {
+          ano: number | null
+          apuracao: string | null
+          created_at: string | null
+          faturamento_ano_passado: number | null
+          id: string | null
+          mes: number | null
+          tenant_id: string | null
+          updated_at: string | null
+          vendedores: number | null
+        }
+        Insert: {
+          ano?: number | null
+          apuracao?: string | null
+          created_at?: string | null
+          faturamento_ano_passado?: never
+          id?: string | null
+          mes?: number | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          vendedores?: number | null
+        }
+        Update: {
+          ano?: number | null
+          apuracao?: string | null
+          created_at?: string | null
+          faturamento_ano_passado?: never
+          id?: string | null
+          mes?: number | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          vendedores?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_mes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vw_movimentos_estoque: {
         Row: {
           created_at: string | null
@@ -3140,6 +3335,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      aplicar_metas_da_planilha: {
+        Args: { p_payload: Json; p_tenant: string }
+        Returns: Json
+      }
       aplicar_trava_de_custo: { Args: never; Returns: string }
       buscar_clientes_semelhantes: {
         Args: { _documento?: string; _nome?: string; _telefone?: string }
@@ -3188,6 +3387,13 @@ export type Database = {
           _os_id: string
         }
         Returns: undefined
+      }
+      pessoas_da_apuracao: {
+        Args: never
+        Returns: {
+          id: string
+          nome: string
+        }[]
       }
       proximo_numero_documento: {
         Args: { _documento: string; _tenant: string }
