@@ -201,6 +201,18 @@ export default function MetasDaLoja() {
 
   const ultimaTentativa = data?.sincronizacoes[0] ?? null;
   const ultimoSucesso = data?.sincronizacoes.find((s) => s.sucesso) ?? null;
+
+  /**
+   * A planilha parou de chegar? O robô reenvia tudo todo dia às 6h; se o
+   * último envio bom tem mais de 26 horas, algo parou no caminho (robô
+   * desinstalado, conta do Google sem permissão, leitura quebrada). Achado da
+   * revisão de 23/09: sem este aviso, a tela seguia com o check verde de
+   * semanas atrás enquanto a planilha já tinha outras metas.
+   */
+  const horasSemAtualizar = ultimoSucesso
+    ? (Date.now() - new Date(ultimoSucesso.recebido_em).getTime()) / 3_600_000
+    : null;
+  const planilhaParada = horasSemAtualizar !== null && horasSemAtualizar > 26;
   const urlPlanilha = linkDaPlanilha(ultimoSucesso?.planilha_url ?? ultimaTentativa?.planilha_url);
   const verAnoPassado = mesesDoAno.some((m) => m.faturamento_ano_passado != null);
 
@@ -250,6 +262,18 @@ export default function MetasDaLoja() {
                     <span className="text-muted-foreground">· por {ultimoSucesso.enviado_por}</span>
                   )}
                 </p>
+              )}
+              {planilhaParada && ultimaTentativa.sucesso && (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>A planilha não chega há mais de um dia</AlertTitle>
+                  <AlertDescription>
+                    O robô reenvia tudo todo dia às 6h, e o último envio que deu certo foi em{' '}
+                    {dataHora(ultimoSucesso!.recebido_em)}. Abra a planilha e veja o menu{' '}
+                    <strong>Sisteminha › Ver último envio</strong> — se as metas mudaram lá depois disso, o
+                    sistema ainda não sabe.
+                  </AlertDescription>
+                </Alert>
               )}
               {!ultimaTentativa.sucesso && (
                 <Alert variant="destructive">

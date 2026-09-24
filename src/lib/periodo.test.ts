@@ -141,6 +141,40 @@ describe('periodoAnterior', () => {
     expect(diasCorridos(p)).toBe(265);
   });
 
+  it('em 31/03, "este mês" não invade março: compara com fevereiro até o fim dele', () => {
+    // Achado da revisão de 23/09: 31 dias a partir de 01/02 caíam em 03/03.
+    const p = periodoAnterior({ atalho: 'este-mes' }, new Date(2026, 2, 31, 12, 0));
+    expect(paraISO(p.inicio)).toBe('2026-02-01');
+    expect(paraISO(p.fim)).toBe('2026-03-01');
+  });
+
+  it('em 31/10, "este mês" compara com setembro sem pegar o 1º de outubro', () => {
+    const p = periodoAnterior({ atalho: 'este-mes' }, new Date(2026, 9, 31, 12, 0));
+    expect(paraISO(p.inicio)).toBe('2026-09-01');
+    expect(paraISO(p.fim)).toBe('2026-10-01');
+  });
+
+  it('"mês passado" compara com o mês anterior INTEIRO — setembro contra agosto até o dia 31', () => {
+    const p = periodoAnterior({ atalho: 'mes-passado' }, new Date(2026, 9, 15, 12, 0));
+    expect(paraISO(p.inicio)).toBe('2026-08-01');
+    expect(paraISO(p.fim)).toBe('2026-09-01');
+  });
+
+  it('"trimestre passado" compara com o trimestre anterior inteiro, sem sobrepor', () => {
+    // Em 23/09: trimestre passado = abril a junho; anterior = janeiro a março.
+    const atual = resolverPeriodo({ atalho: 'trimestre-passado' }, AGORA);
+    const p = periodoAnterior({ atalho: 'trimestre-passado' }, AGORA);
+    expect(paraISO(p.inicio)).toBe('2026-01-01');
+    expect(paraISO(p.fim)).toBe('2026-04-01');
+    expect(p.fim.getTime()).toBe(atual.inicio.getTime());
+  });
+
+  it('"ano passado" compara com o ano retrasado inteiro', () => {
+    const p = periodoAnterior({ atalho: 'ano-passado' }, AGORA);
+    expect(paraISO(p.inicio)).toBe('2024-01-01');
+    expect(paraISO(p.fim)).toBe('2025-01-01');
+  });
+
   it('período personalizado compara com o mesmo tamanho logo antes', () => {
     const p = periodoAnterior(
       { atalho: 'personalizado', de: '2026-09-10', ate: '2026-09-17' },

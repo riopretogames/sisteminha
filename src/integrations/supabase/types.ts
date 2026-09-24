@@ -3389,8 +3389,9 @@ export type Database = {
         Returns: undefined
       }
       pessoas_da_apuracao: {
-        Args: never
+        Args: { p_ate: string; p_de: string }
         Returns: {
+          ativo: boolean
           id: string
           nome: string
         }[]

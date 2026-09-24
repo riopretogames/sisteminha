@@ -1515,6 +1515,38 @@ possíveis em todos os lugares possíveis"*. Os quatro painéis eram fixos em
 - [ ] Película e Grip (por unidade), Monday e prêmio de Gerente (suspenso)
   continuam só na planilha — o sistema ainda não acompanha.
 
+#### A revisão independente de 23/09 (5 revisores + verificação adversarial)
+
+37 achados confirmados, 4 derrubados. Os que importam:
+
+- [x] ✅ **🔴 As oito views `vw_*` aceitavam gravação de qualquer logado**
+  (existia antes deste trabalho, desde as views de 08/08). Gravar pela view
+  passa por cima do RLS: um vendedor mudava preço e apagava produto
+  (`vw_produtos`), apagava o rastro (`vw_auditoria`), criava movimento de
+  estoque falso. Migration `20260923160000` fechou todas e tem conferência; a
+  regra entrou no CLAUDE.md ("View nova precisa FECHAR A ESCRITA na mão").
+- [x] ✅ **Devolução de venda de outro mês não saía do vendedor** no painel de
+  metas — agora a busca traz a venda original junto.
+- [x] ✅ **Consultas cortadas em 1.000 linhas** em períodos longos ("Este ano")
+  — `lib/buscarEmPaginas.ts` busca tudo, de mil em mil, nos quatro painéis.
+- [x] ✅ **Campanha somava o preço cheio do item** (ignorava o desconto da venda
+  e contava a troca em dobro) e não descontava devolução — agora rateia e
+  desconta.
+- [x] ✅ **Comparação com o período anterior invadia o período atual** (31/03
+  contra 01/02–03/03) — `periodoAnterior` corrigida, com testes.
+- [x] ✅ Robô da planilha mais rígido (ano do título × nome, coluna pelo nome
+  exato, erro de fórmula recusado, "1500.50" recusado) e falha de leitura
+  avisada ao sistema; Cadastros › Metas avisa quando a planilha passa de um
+  dia sem chegar.
+- [x] ✅ Menores: 2ª quinzena futura aparecia como "encerrada"; mês sem meta
+  dizia "todas as faixas batidas"; tempo de reparo que piorou aparecia verde;
+  gráfico do estoque mostrava peças em R$; filtro com pessoa que saiu zerava o
+  painel sem explicar; movimento de produto desativado sumia do filtro.
+- [ ] Limite conhecido: sem histórico de perfil, quem passou de vendedor para
+  gerente aparece como gerente também nos meses antigos. A tela avisa.
+- [ ] Limite conhecido: campanhas sem data de início (a régua atual vale para
+  qualquer mês). Documentado no LEIA-ME do robô.
+
 ---
 
 ## Relatórios

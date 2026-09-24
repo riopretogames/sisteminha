@@ -33,7 +33,8 @@ import {
 } from '@/lib/ranking';
 import { resolverPeriodo, periodoAnterior, variacao, dentroDoPeriodo } from '@/lib/periodo';
 import { montarSerie, melhorPonto, nomeDoGrao } from '@/lib/serie';
-import { useFiltrosDashboard } from '@/lib/filtrosDashboard';
+import { useFiltrosDashboard, useCorrigirFiltroOrfao } from '@/lib/filtrosDashboard';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
 import {
   gruposDeProduto,
   unirOpcoes,
@@ -124,8 +125,10 @@ export default function DashboardVenda() {
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-venda', desdeISO, periodo.fim.toISOString()],
     queryFn: async (): Promise<{ vendas: VendaRow[]; devolucoes: DevolucaoComVendedor[] }> => {
-      const [resVendas, devolucoes] = await Promise.all([
-        supabase
+      // Em páginas: "Ano passado" busca dois anos de venda para comparar, e o
+      // Supabase corta calado em 1.000 linhas (lib/buscarEmPaginas.ts).
+      const [vendas, devolucoes] = await Promise.all([
+        buscarEmPaginas<VendaRow>(() => supabase
           .from('vendas')
           // Numa linha só: o TypeScript lê este texto literalmente para saber o
           // formato do resultado. Quebrado com `+`, o retorno vira "erro
@@ -137,11 +140,12 @@ export default function DashboardVenda() {
           .select('id, created_at, total, valor_faturamento_real, vendedor_id, vendedor:profiles(nome), itens_venda(produto_id, quantidade, total, produtos:vw_produtos(nome, categoria, grupo_produto_id)), pagamentos_venda(valor, formas_pagamento(descricao))')
           .gte('created_at', desdeISO)
           .lt('created_at', periodo.fim.toISOString())
-          .neq('status', 'cancelado'),
+          .neq('status', 'cancelado')
+          .order('created_at')
+          .order('id')),
         buscarDevolucoesComVendedorDesde(desdeISO),
       ]);
-      if (resVendas.error) throw resVendas.error;
-      return { vendas: (resVendas.data ?? []) as unknown as VendaRow[], devolucoes };
+      return { vendas, devolucoes };
     },
   });
 
@@ -182,6 +186,15 @@ export default function DashboardVenda() {
       categorias: gruposDeProduto(gruposCadastrados ?? [], vendeuProdutoSemGrupo),
     };
   }, [todasVendas, pessoasCadastradas, gruposCadastrados]);
+
+  // Pessoa ou grupo guardado no filtro que não existe mais volta para "Todos"
+  // — senão o painel abre zerado sem explicar por quê.
+  useCorrigirFiltroOrfao(
+    filtros,
+    setFiltros,
+    { pessoas: vendedores, categorias },
+    !isLoading && pessoasCadastradas !== undefined && gruposCadastrados !== undefined,
+  );
 
   /** Itens de uma venda que interessam ao filtro de categoria. */
   const itensQueContam = useMemo(

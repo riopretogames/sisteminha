@@ -129,6 +129,7 @@ export function CardIndicador({
   carregando,
   variacaoPct,
   rotuloComparacao,
+  menorEMelhor = false,
 }: {
   titulo: string;
   valor: string;
@@ -145,7 +146,15 @@ export function CardIndicador({
   variacaoPct?: number | null;
   /** Com o que estamos comparando: "vs mês anterior", "vs ontem"… */
   rotuloComparacao?: string;
+  /**
+   * Para número em que SUBIR é ruim (tempo de reparo, por exemplo): a seta
+   * continua mostrando a direção, mas a cor inverte — subir fica vermelho.
+   * Achado da revisão de 23/09: o tempo médio de reparo que piorou aparecia
+   * em verde, comemorando atraso.
+   */
+  menorEMelhor?: boolean;
 }) {
+  const melhorou = variacaoPct != null && (menorEMelhor ? variacaoPct <= 0 : variacaoPct >= 0);
   return (
     <Card className="overflow-hidden">
       <div className={`${faixa} p-1`} />
@@ -167,11 +176,11 @@ export function CardIndicador({
             ) : (
               <>
                 {variacaoPct >= 0 ? (
-                  <ArrowUpRight className="mr-1 h-4 w-4 text-green-500" />
+                  <ArrowUpRight className={`mr-1 h-4 w-4 ${melhorou ? 'text-green-500' : 'text-red-500'}`} />
                 ) : (
-                  <ArrowDownRight className="mr-1 h-4 w-4 text-red-500" />
+                  <ArrowDownRight className={`mr-1 h-4 w-4 ${melhorou ? 'text-green-500' : 'text-red-500'}`} />
                 )}
-                <span className={variacaoPct >= 0 ? 'text-green-500' : 'text-red-500'}>
+                <span className={melhorou ? 'text-green-500' : 'text-red-500'}>
                   {variacaoPct >= 0 ? '+' : ''}
                   {variacaoPct.toFixed(0)}%
                 </span>

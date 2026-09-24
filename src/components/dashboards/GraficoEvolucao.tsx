@@ -26,12 +26,15 @@ export function GraficoEvolucao({
   serie,
   carregando,
   rotuloValor = 'Faturamento',
+  formatarValor = moeda,
 }: {
   titulo: string;
   descricao: string;
   serie: PontoSerie[];
   carregando?: boolean;
   rotuloValor?: string;
+  /** Como mostrar o valor no balão. Dinheiro por padrão; o Estoque manda peças. */
+  formatarValor?: (v: number) => string;
 }) {
   const temMovimento = serie.some((p) => p.valor !== 0);
 
@@ -75,7 +78,7 @@ export function GraficoEvolucao({
                   tickFormatter={(v: number) => EIXO_COMPACTO.format(v)}
                 />
                 <Tooltip
-                  formatter={(v: number) => [moeda(v), rotuloValor]}
+                  formatter={(v: number) => [formatarValor(v), rotuloValor]}
                   labelFormatter={(l: string) => l}
                   contentStyle={{
                     borderRadius: 8,

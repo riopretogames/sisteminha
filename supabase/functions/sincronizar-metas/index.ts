@@ -116,6 +116,28 @@ Deno.serve(async (req) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  // ── Relato de falha do robô ────────────────────────────────────────────────
+  // Quando o robô nem consegue LER a planilha (coluna renomeada, aba apagada),
+  // ele não tem metas para mandar — mas avisa que falhou. Sem isto, a falha
+  // ficava presa na planilha e Cadastros > Metas seguia mostrando o check verde
+  // de semanas atrás, sem ninguém perceber que o sistema parou de acompanhar.
+  if (payload.tipo === 'falha') {
+    const planilha = (payload.planilha ?? {}) as Record<string, unknown>;
+    const mensagem = recorte(payload.mensagem, 1900) ?? 'Falha sem descrição.';
+    await admin.from('metas_sincronizacoes').insert({
+      tenant_id: LOJA,
+      sucesso: false,
+      erro: `O robô da planilha não conseguiu enviar: ${mensagem}`,
+      planilha_id: recorte(planilha.id, 200),
+      planilha_nome: recorte(planilha.nome, 200),
+      planilha_url: recorte(planilha.url, 500),
+      // Informativo: quem manda é o próprio robô, então o sistema anota o que
+      // ele declarou, sem conferir.
+      enviado_por: recorte(payload.enviado_por, 200),
+    });
+    return responder({ ok: true, registrado: 'falha' });
+  }
+
   const { data, error } = await admin.rpc('aplicar_metas_da_planilha', {
     p_tenant: LOJA,
     p_payload: payload,

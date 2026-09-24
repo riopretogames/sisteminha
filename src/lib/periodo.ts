@@ -242,28 +242,60 @@ export function resolverPeriodo(selecao: SelecaoPeriodo, agora: Date = new Date(
 export function periodoAnterior(selecao: SelecaoPeriodo, agora: Date = new Date()): Periodo {
   const atual = resolverPeriodo(selecao, agora);
 
+  /**
+   * Período em andamento ("este mês", "este trimestre", "este ano"): compara
+   * com o MESMO PEDAÇO da unidade anterior — até o dia 22 deste mês contra até
+   * o dia 22 do mês passado, e não contra o mês passado inteiro, que estaria
+   * sempre ganhando.
+   *
+   * O fim nunca passa do início do período atual. Achado da revisão de 23/09:
+   * em 31/03, "até o dia 31" do mês anterior (fevereiro, 28 dias) caía em
+   * 03/03 — três dias de março contavam dos dois lados da comparação.
+   */
+  const pedacoDaUnidadeAnterior = (inicio: Date, rotulo: string): Periodo => {
+    const fim = somarDias(inicio, diasCorridos(atual));
+    return { inicio, fim: fim < atual.inicio ? fim : atual.inicio, rotulo };
+  };
+
   switch (selecao.atalho) {
     case 'este-mes':
-    case 'mes-passado': {
-      const inicio = new Date(atual.inicio.getFullYear(), atual.inicio.getMonth() - 1, 1);
-      // Mesmo número de dias corridos do período atual, para comparar "até o
-      // dia 22 deste mês" com "até o dia 22 do mês passado" — e não com o mês
-      // passado inteiro, que estaria sempre ganhando.
-      const dias = diasCorridos(atual);
-      return { inicio, fim: somarDias(inicio, dias), rotulo: 'mês anterior' };
-    }
+      return pedacoDaUnidadeAnterior(
+        new Date(atual.inicio.getFullYear(), atual.inicio.getMonth() - 1, 1),
+        'mês anterior',
+      );
+
+    // Período FECHADO ("mês passado" etc.) compara com a unidade anterior
+    // INTEIRA. Antes contava pelo número de dias, e setembro inteiro era
+    // comparado com 01/08 a 30/08 — o dia 31 de agosto ficava de fora.
+    case 'mes-passado':
+      return {
+        inicio: new Date(atual.inicio.getFullYear(), atual.inicio.getMonth() - 1, 1),
+        fim: atual.inicio,
+        rotulo: 'mês anterior',
+      };
 
     case 'este-trimestre':
-    case 'trimestre-passado': {
-      const inicio = new Date(atual.inicio.getFullYear(), atual.inicio.getMonth() - 3, 1);
-      return { inicio, fim: somarDias(inicio, diasCorridos(atual)), rotulo: 'trimestre anterior' };
-    }
+      return pedacoDaUnidadeAnterior(
+        new Date(atual.inicio.getFullYear(), atual.inicio.getMonth() - 3, 1),
+        'trimestre anterior',
+      );
+
+    case 'trimestre-passado':
+      return {
+        inicio: new Date(atual.inicio.getFullYear(), atual.inicio.getMonth() - 3, 1),
+        fim: atual.inicio,
+        rotulo: 'trimestre anterior',
+      };
 
     case 'este-ano':
-    case 'ano-passado': {
-      const inicio = new Date(atual.inicio.getFullYear() - 1, 0, 1);
-      return { inicio, fim: somarDias(inicio, diasCorridos(atual)), rotulo: 'ano anterior' };
-    }
+      return pedacoDaUnidadeAnterior(new Date(atual.inicio.getFullYear() - 1, 0, 1), 'ano anterior');
+
+    case 'ano-passado':
+      return {
+        inicio: new Date(atual.inicio.getFullYear() - 1, 0, 1),
+        fim: atual.inicio,
+        rotulo: 'ano anterior',
+      };
 
     default: {
       // Todo o resto anda para trás o próprio tamanho: ontem compara com

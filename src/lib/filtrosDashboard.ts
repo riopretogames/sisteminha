@@ -81,3 +81,40 @@ export function useFiltrosDashboard(
 
   return [valores, setValores, limpar];
 }
+
+/**
+ * Tira do filtro a pessoa ou o grupo que não existe mais na lista.
+ *
+ * Achado da revisão de 23/09: o filtro fica guardado no navegador. Se a Luana
+ * é desligada e some da lista, quem tinha filtrado por ela abria o painel com
+ * o campo Vendedor EM BRANCO, todos os números zerados e nada na tela dizendo
+ * por quê. Agora, com as listas carregadas, o que não existe volta para
+ * "Todos".
+ *
+ * `prontas` precisa ser `true` só com as listas já carregadas — senão, durante
+ * o carregamento (lista ainda vazia), todo filtro pareceria órfão e sumiria.
+ */
+export function useCorrigirFiltroOrfao(
+  valores: FiltrosDashboardValores,
+  setValores: (v: FiltrosDashboardValores) => void,
+  listas: { pessoas?: { id: string }[]; categorias?: { id: string }[] },
+  prontas: boolean,
+) {
+  const { pessoas, categorias } = listas;
+  useEffect(() => {
+    if (!prontas) return;
+    const pessoaSumiu =
+      valores.pessoaId !== '' && pessoas !== undefined && !pessoas.some((p) => p.id === valores.pessoaId);
+    const categoriaSumiu =
+      valores.categoria !== '' &&
+      categorias !== undefined &&
+      !categorias.some((c) => c.id === valores.categoria);
+    if (pessoaSumiu || categoriaSumiu) {
+      setValores({
+        ...valores,
+        pessoaId: pessoaSumiu ? '' : valores.pessoaId,
+        categoria: categoriaSumiu ? '' : valores.categoria,
+      });
+    }
+  }, [prontas, pessoas, categorias, valores, setValores]);
+}

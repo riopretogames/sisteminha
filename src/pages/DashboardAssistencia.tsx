@@ -40,7 +40,8 @@ import { GraficoEvolucao } from '@/components/dashboards/GraficoEvolucao';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { resolverPeriodo, periodoAnterior, variacao, dentroDoPeriodo } from '@/lib/periodo';
 import { montarSerie, nomeDoGrao } from '@/lib/serie';
-import { useFiltrosDashboard } from '@/lib/filtrosDashboard';
+import { useFiltrosDashboard, useCorrigirFiltroOrfao } from '@/lib/filtrosDashboard';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
 import {
   unirOpcoes,
   usePessoasDoFiltro,
@@ -166,26 +167,37 @@ export default function DashboardAssistencia() {
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-assistencia', desdeISO, periodo.fim.toISOString()],
     queryFn: async (): Promise<{ doPeriodo: OSRow[]; emAberto: OSRow[] }> => {
-      const [resPeriodo, resAberto] = await Promise.all([
+      // Em páginas: a bancada recebe mais de cem aparelhos por semana, e
+      // "Este trimestre" (que busca dois trimestres para comparar) passa fácil
+      // das 1.000 linhas em que o Supabase corta calado (lib/buscarEmPaginas.ts).
+      const [doPeriodo, emAberto] = await Promise.all([
         // Entrou OU mexeu no período: uma OS aberta meses atrás e entregue
         // dentro do período conta como entrega dele, e sem o `updated_at` ela
-        // ficaria de fora do faturamento.
-        supabase
-          .from('service_orders')
-          .select(CAMPOS)
-          .or(`created_at.gte.${desdeISO},updated_at.gte.${desdeISO}`),
+        // ficaria de fora do faturamento. O limite de cima (criada antes do
+        // fim do período) evita trazer OS que nem existiam no período.
+        buscarEmPaginas<OSRow>(() =>
+          supabase
+            .from('service_orders')
+            .select(CAMPOS)
+            .or(`created_at.gte.${desdeISO},updated_at.gte.${desdeISO}`)
+            .lt('created_at', periodo.fim.toISOString())
+            .order('created_at')
+            .order('id'),
+        ),
         // A fila de verdade, sem recorte de data — inclui o aparelho parado
         // desde o mês passado, que é justamente o que precisa aparecer. Esta
         // parte da tela NÃO obedece ao filtro de período, de propósito: fila é
         // o estado de agora, não um intervalo (a tela avisa isso).
-        supabase.from('service_orders').select(CAMPOS).not('status', 'in', '("entregue","cancelado")'),
+        buscarEmPaginas<OSRow>(() =>
+          supabase
+            .from('service_orders')
+            .select(CAMPOS)
+            .not('status', 'in', '("entregue","cancelado")')
+            .order('created_at')
+            .order('id'),
+        ),
       ]);
-      if (resPeriodo.error) throw resPeriodo.error;
-      if (resAberto.error) throw resAberto.error;
-      return {
-        doPeriodo: (resPeriodo.data ?? []) as unknown as OSRow[],
-        emAberto: (resAberto.data ?? []) as unknown as OSRow[],
-      };
+      return { doPeriodo, emAberto };
     },
   });
 
@@ -218,6 +230,13 @@ export default function DashboardAssistencia() {
       equipamentos: unirOpcoes(tiposDeAparelho ?? [], equipamentosDoMovimento),
     };
   }, [todas, filaCompleta, pessoasCadastradas, tiposDeAparelho]);
+
+  useCorrigirFiltroOrfao(
+    filtros,
+    setFiltros,
+    { pessoas: tecnicos, categorias: equipamentos },
+    !isLoading && pessoasCadastradas !== undefined && tiposDeAparelho !== undefined,
+  );
 
   /** Filtros de técnico e de equipamento, aplicados a qualquer lista de OS. */
   const aplicarFiltros = useMemo(
@@ -576,6 +595,7 @@ export default function DashboardAssistencia() {
               : undefined
           }
           rotuloComparacao={`${rotuloVs} — quanto menor, melhor`}
+          menorEMelhor
         />
         <CardIndicador
           titulo="Horário de Pico"

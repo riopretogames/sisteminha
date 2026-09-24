@@ -24,7 +24,8 @@ import { moeda } from '@/lib/format';
 import { PageHeader } from '@/components/PageHeader';
 import { resolverPeriodo, periodoAnterior, variacao, dentroDoPeriodo } from '@/lib/periodo';
 import { montarSerie, nomeDoGrao } from '@/lib/serie';
-import { useFiltrosDashboard } from '@/lib/filtrosDashboard';
+import { useFiltrosDashboard, useCorrigirFiltroOrfao } from '@/lib/filtrosDashboard';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
 import { gruposDeProduto, useListaDoSistema, SEM_GRUPO } from '@/lib/listasDeFiltro';
 import { CardIndicador } from '@/components/dashboards/TabelaRanking';
 import { FiltrosDashboard } from '@/components/dashboards/FiltrosDashboard';
@@ -55,6 +56,7 @@ import { GraficoEvolucao } from '@/components/dashboards/GraficoEvolucao';
 interface ProdutoEstoque {
   id: string;
   nome: string;
+  ativo: boolean;
   categoria: string;
   /** Grupo de Produto — a lista editável que manda nos filtros desde 23/09. */
   grupo_produto_id: string | null;
@@ -92,27 +94,40 @@ export default function DashboardEstoque() {
     queryFn: async (): Promise<{ produtos: ProdutoEstoque[]; movimentos: MovimentoRow[] }> => {
       // Produto e movimento passam pelas views `vw_*` — regra de custo
       // protegido: quem não pode ver custo recebe a coluna vazia, sem erro.
-      const [resProdutos, resMovimentos] = await Promise.all([
-        supabase
-          .from('vw_produtos')
-          .select('id, nome, categoria, grupo_produto_id, estoque_atual, estoque_minimo, custo, preco')
-          .eq('ativo', true),
-        supabase
-          .from('vw_movimentos_estoque')
-          .select('created_at, produto_id, quantidade, tipo, valor_total')
-          .gte('created_at', desdeISO)
-          .lt('created_at', periodo.fim.toISOString()),
+      //
+      // TODOS os produtos, inclusive os desativados: o movimento de um produto
+      // que saiu de linha continua dentro do período, e sem ele o filtro por
+      // grupo sumia com essas entradas e saídas (achado da revisão de 23/09).
+      // As contas da prateleira (ativos, valor parado, crítico) usam só os
+      // ativos, logo abaixo.
+      //
+      // Em páginas: loja com mais de 1.000 produtos, ou "Este ano" com mais de
+      // 1.000 movimentos, era cortada calada (lib/buscarEmPaginas.ts).
+      const [produtos, movimentos] = await Promise.all([
+        buscarEmPaginas<ProdutoEstoque>(() =>
+          supabase
+            .from('vw_produtos')
+            .select('id, nome, ativo, categoria, grupo_produto_id, estoque_atual, estoque_minimo, custo, preco')
+            .order('id'),
+        ),
+        buscarEmPaginas<MovimentoRow>(() =>
+          supabase
+            .from('vw_movimentos_estoque')
+            .select('id, created_at, produto_id, quantidade, tipo, valor_total')
+            .gte('created_at', desdeISO)
+            .lt('created_at', periodo.fim.toISOString())
+            .order('created_at')
+            .order('id'),
+        ),
       ]);
-      if (resProdutos.error) throw resProdutos.error;
-      if (resMovimentos.error) throw resMovimentos.error;
-      return {
-        produtos: (resProdutos.data ?? []) as unknown as ProdutoEstoque[],
-        movimentos: (resMovimentos.data ?? []) as unknown as MovimentoRow[],
-      };
+      return { produtos, movimentos };
     },
   });
 
-  const todosProdutos = useMemo(() => data?.produtos ?? [], [data]);
+  // `catalogoInteiro` inclui os desativados (para achar o grupo do movimento);
+  // `todosProdutos` é a prateleira de hoje: só os ativos.
+  const catalogoInteiro = useMemo(() => data?.produtos ?? [], [data]);
+  const todosProdutos = useMemo(() => catalogoInteiro.filter((p) => p.ativo), [catalogoInteiro]);
   const todosMovimentos = useMemo(() => data?.movimentos ?? [], [data]);
 
   // A lista vem do CADASTRO (Cadastros > Listas do Sistema), não dos produtos
@@ -130,18 +145,29 @@ export default function DashboardEstoque() {
     [gruposCadastrados, produtosSemGrupo],
   );
 
+  useCorrigirFiltroOrfao(filtros, setFiltros, { categorias }, !isLoading && gruposCadastrados !== undefined);
+
   const produtos = useMemo(() => {
     if (!filtros.categoria) return todosProdutos;
     if (filtros.categoria === SEM_GRUPO) return todosProdutos.filter((p) => !p.grupo_produto_id);
     return todosProdutos.filter((p) => p.grupo_produto_id === filtros.categoria);
   }, [todosProdutos, filtros.categoria]);
 
-  /** Movimento pertence à categoria filtrada? Decide pelo produto que ele moveu. */
+  /**
+   * Movimento pertence ao grupo filtrado? Decide pelo produto que ele moveu —
+   * procurado no catálogo INTEIRO, inclusive produto desativado.
+   */
   const movimentos = useMemo(() => {
     if (!filtros.categoria) return todosMovimentos;
-    const daCategoria = new Set(produtos.map((p) => p.id));
-    return todosMovimentos.filter((m) => m.produto_id && daCategoria.has(m.produto_id));
-  }, [todosMovimentos, produtos, filtros.categoria]);
+    const doGrupo = new Set(
+      catalogoInteiro
+        .filter((p) =>
+          filtros.categoria === SEM_GRUPO ? !p.grupo_produto_id : p.grupo_produto_id === filtros.categoria,
+        )
+        .map((p) => p.id),
+    );
+    return todosMovimentos.filter((m) => m.produto_id && doGrupo.has(m.produto_id));
+  }, [todosMovimentos, catalogoInteiro, filtros.categoria]);
 
   const movimentosPeriodo = useMemo(
     () => movimentos.filter((m) => m.created_at && dentroDoPeriodo(m.created_at, periodo)),
@@ -324,6 +350,7 @@ export default function DashboardEstoque() {
         serie={serie}
         carregando={isLoading}
         rotuloValor="Peças movimentadas"
+        formatarValor={(v) => `${v} peça(s)`}
       />
 
       <Card>

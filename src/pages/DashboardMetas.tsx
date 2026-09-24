@@ -20,9 +20,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { PageHeader } from '@/components/PageHeader';
 import { moeda } from '@/lib/format';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
 import { periodoDoMes, periodoDaQuinzena, dentroDoPeriodo, diasCorridos } from '@/lib/periodo';
 import {
-  FAIXAS,
   ROTULO_FAIXA,
   EMOJI_FAIXA,
   ROTULO_RECORTE,
@@ -57,8 +57,14 @@ import {
  * - QUEM ENTRA NA APURAÇÃO: quem tem o perfil Vendedor. O gerente não entra,
  *   mas as vendas dele contam no faturamento da loja — ele aparece na tabela
  *   marcado "fora da apuração", para a soma fechar.
+ * - DEVOLUÇÃO: pesa no período em que aconteceu e sai de quem fez a venda
+ *   ORIGINAL, mesmo que a venda seja de outro mês (revisão de 23/09: antes, a
+ *   devolução de venda do mês anterior não saía de ninguém e o vendedor ficava
+ *   com resultado maior do que o real).
  * - CAMPANHAS (Acessórios, Jogos): por vendedor, somando as vendas do Grupo de
- *   Produto ligado a cada campanha.
+ *   Produto ligado a cada campanha — com o desconto da venda rateado entre os
+ *   itens e a devolução descontada, para a campanha falar a mesma língua da
+ *   meta individual.
  *
  * Esta tela NÃO calcula prêmio. A planilha também não: ela guarda as metas, e
  * o prêmio é apurado no processo de premiação, fora do sistema.
@@ -84,19 +90,41 @@ interface CampanhaRow {
   premio: number;
 }
 
+interface ItemDaVenda {
+  total: number | null;
+  produtos: { grupo_produto_id: string | null } | null;
+}
+
 interface VendaRow {
   id: string;
   created_at: string;
   total: number | null;
   valor_faturamento_real: number | null;
   vendedor_id: string | null;
-  itens_venda: { total: number | null; produtos: { grupo_produto_id: string | null } | null }[] | null;
+  itens_venda: ItemDaVenda[] | null;
 }
 
 interface DevolucaoRow {
   created_at: string;
   valor_devolvido_cliente: number | null;
-  venda_original_id: string;
+  /** A venda que foi devolvida — pode ser de outro mês. É dela que sai o vendedor. */
+  venda_original: {
+    vendedor_id: string | null;
+    total: number | null;
+    valor_faturamento_real: number | null;
+    itens_venda: { total: number | null }[] | null;
+  } | null;
+  devolucao_itens: {
+    quantidade: number | null;
+    preco_unitario: number | null;
+    produtos: { grupo_produto_id: string | null } | null;
+  }[] | null;
+}
+
+interface PessoaDaApuracao {
+  id: string;
+  nome: string;
+  ativo: boolean;
 }
 
 /** Os últimos 24 meses, do mais recente para trás. */
@@ -119,7 +147,27 @@ function mesesDisponiveis(hoje: Date) {
  * troca grava o preço cheio em `total`, mas só `valor_faturamento_real` é o
  * dinheiro que entrou — mesma regra do resto do sistema.
  */
-const faturamentoDa = (v: VendaRow) => Number(v.valor_faturamento_real ?? v.total ?? 0);
+const faturamentoDa = (v: { total: number | null; valor_faturamento_real: number | null }) =>
+  Number(v.valor_faturamento_real ?? v.total ?? 0);
+
+/**
+ * Quanto de cada real dos itens virou dinheiro de verdade na venda.
+ *
+ * No PDV o desconto é dado na venda inteira, mas cada item guarda o preço
+ * cheio. Sem este rateio, a campanha creditava R$ 2.000 numa venda que a loja
+ * recebeu R$ 1.500 (revisão de 23/09, venda VD-202608-0003). E na troca, a
+ * venda nova grava os itens a preço cheio mas o dinheiro novo é só a
+ * diferença — o mesmo fator impede a mercadoria de contar duas vezes.
+ */
+function fatorDaVenda(v: {
+  total: number | null;
+  valor_faturamento_real: number | null;
+  itens_venda: { total: number | null }[] | null;
+}): number {
+  const somaDosItens = (v.itens_venda ?? []).reduce((s, i) => s + Number(i.total ?? 0), 0);
+  if (somaDosItens <= 0) return 0;
+  return Math.max(0, faturamentoDa(v) / somaDosItens);
+}
 
 export default function DashboardMetas() {
   const { user, can } = useAuth();
@@ -142,36 +190,49 @@ export default function DashboardMetas() {
       const de = mesInteiro.inicio.toISOString();
       const ate = mesInteiro.fim.toISOString();
 
-      const [configRes, faixasRes, campanhasRes, vendasRes, devolucoesRes, apuracaoRes, pessoasRes] =
+      const [configRes, faixasRes, campanhasRes, apuracaoRes, pessoasRes, vendas, devolucoes] =
         await Promise.all([
           supabase.from('vw_metas_mes').select('vendedores, apuracao').eq('ano', ano).eq('mes', mes).maybeSingle(),
           supabase.from('metas_faturamento').select('faixa, valor_meta').eq('ano', ano).eq('mes', mes),
           supabase.from('metas_campanha').select('chave, nome, grupo_produto_id, periodicidade, faixa, meta, premio'),
-          supabase
-            .from('vendas')
-            // `produtos:vw_produtos(...)`: leitura de produto passa SEMPRE pela
-            // view (regra de custo protegido), mesmo sem pedir custo.
-            .select('id, created_at, total, valor_faturamento_real, vendedor_id, itens_venda(total, produtos:vw_produtos(grupo_produto_id))')
-            .gte('created_at', de)
-            .lt('created_at', ate)
-            .neq('status', 'cancelado'),
-          // Devolução do mês: dinheiro que saiu da gaveta. Pesa no mês em que
-          // aconteceu (régua do Caixa) e volta para quem fez a venda original.
-          supabase
-            .from('devolucoes')
-            .select('created_at, valor_devolvido_cliente, venda_original_id')
-            .gte('created_at', de)
-            .lt('created_at', ate),
-          // Quem tem o perfil Vendedor. É função porque ler o perfil dos outros
-          // exige permissão de gerenciar usuários — sem ela, o vendedor abriria
-          // o painel sem ninguém na tabela, nem ele.
-          supabase.rpc('pessoas_da_apuracao'),
+          // Quem tem o perfil Vendedor — os ativos de hoje e também quem já
+          // saiu mas vendeu neste mês (o desligado no dia 17 ainda recebe a 1ª
+          // quinzena). É função porque ler o perfil dos outros exige permissão
+          // de gerenciar usuários.
+          supabase.rpc('pessoas_da_apuracao', { p_de: de, p_ate: ate }),
           // Nomes de todo mundo, para quem vendeu sem estar na apuração
-          // (gerente, administrador) aparecer com nome e não como "desconhecido".
+          // (gerente, administrador) aparecer com nome.
           supabase.from('profiles').select('id, nome'),
+          // Em páginas: um mês cheio de loja movimentada passa das 1.000 linhas
+          // em que o Supabase corta calado (lib/buscarEmPaginas.ts).
+          buscarEmPaginas<VendaRow>(() =>
+            supabase
+              .from('vendas')
+              // `produtos:vw_produtos(...)`: leitura de produto passa SEMPRE
+              // pela view (regra de custo protegido).
+              .select('id, created_at, total, valor_faturamento_real, vendedor_id, itens_venda(total, produtos:vw_produtos(grupo_produto_id))')
+              .gte('created_at', de)
+              .lt('created_at', ate)
+              .neq('status', 'cancelado')
+              .order('created_at')
+              .order('id'),
+          ),
+          // Devolução do mês, com a venda ORIGINAL junto (de qualquer mês):
+          // é dela que sai o vendedor e o fator de desconto. O apelido da
+          // chave estrangeira é obrigatório — `devolucoes` aponta duas vezes
+          // para `vendas` (a original e a nova, na troca).
+          buscarEmPaginas<DevolucaoRow>(() =>
+            supabase
+              .from('devolucoes')
+              .select('created_at, valor_devolvido_cliente, venda_original:vendas!devolucoes_venda_original_id_fkey(vendedor_id, total, valor_faturamento_real, itens_venda(total)), devolucao_itens(quantidade, preco_unitario, produtos:vw_produtos(grupo_produto_id))')
+              .gte('created_at', de)
+              .lt('created_at', ate)
+              .order('created_at')
+              .order('id'),
+          ),
         ]);
 
-      for (const r of [configRes, faixasRes, campanhasRes, vendasRes, devolucoesRes, apuracaoRes, pessoasRes]) {
+      for (const r of [configRes, faixasRes, campanhasRes, apuracaoRes, pessoasRes]) {
         if (r.error) throw r.error;
       }
 
@@ -179,9 +240,9 @@ export default function DashboardMetas() {
         config: (configRes.data ?? null) as { vendedores: number; apuracao: Apuracao } | null,
         faixas: (faixasRes.data ?? []) as MetaFaixaRow[],
         campanhas: (campanhasRes.data ?? []) as unknown as CampanhaRow[],
-        vendas: (vendasRes.data ?? []) as unknown as VendaRow[],
-        devolucoes: (devolucoesRes.data ?? []) as DevolucaoRow[],
-        naApuracao: (apuracaoRes.data ?? []) as { id: string; nome: string }[],
+        vendas,
+        devolucoes,
+        naApuracao: (apuracaoRes.data ?? []) as PessoaDaApuracao[],
         nomes: new Map(((pessoasRes.data ?? []) as { id: string; nome: string }[]).map((p) => [p.id, p.nome])),
       };
     },
@@ -210,6 +271,14 @@ export default function DashboardMetas() {
   const vendedores = data?.config?.vendedores ?? 0;
   const semMetaCadastrada = !isLoading && (data?.faixas.length ?? 0) === 0;
 
+  /**
+   * Em que pé está o período: ainda não começou, em andamento ou fechado.
+   * A 2ª quinzena de um mês em curso ainda não começou — antes a tela a
+   * chamava de "Período encerrado / Resultado final" (revisão de 23/09).
+   */
+  const situacaoDoPeriodo: 'futuro' | 'em-curso' | 'encerrado' =
+    hoje < periodo.inicio ? 'futuro' : hoje < periodo.fim ? 'em-curso' : 'encerrado';
+
   // ── A loja ────────────────────────────────────────────────────────────────
   const realizadoLoja =
     vendas.reduce((s, v) => s + faturamentoDa(v), 0) -
@@ -221,12 +290,15 @@ export default function DashboardMetas() {
   }));
   const situacaoLoja = situacaoNasFaixas(realizadoLoja, faixasDaLoja);
 
-  const periodoEmCurso = hoje >= periodo.inicio && hoje < periodo.fim;
   const diasDoPeriodo = diasCorridos(periodo);
-  const diasPassados = periodoEmCurso
-    ? Math.max(1, Math.ceil((hoje.getTime() - periodo.inicio.getTime()) / 86_400_000))
-    : diasDoPeriodo;
-  const projecao = periodoEmCurso ? (realizadoLoja / diasPassados) * diasDoPeriodo : realizadoLoja;
+  const diasPassados =
+    situacaoDoPeriodo === 'em-curso'
+      ? Math.max(1, Math.ceil((hoje.getTime() - periodo.inicio.getTime()) / 86_400_000))
+      : situacaoDoPeriodo === 'encerrado'
+        ? diasDoPeriodo
+        : 0;
+  const projecao =
+    situacaoDoPeriodo === 'em-curso' ? (realizadoLoja / diasPassados) * diasDoPeriodo : realizadoLoja;
 
   // ── Cada pessoa ───────────────────────────────────────────────────────────
   const vendidoPor = useMemo(() => {
@@ -235,17 +307,15 @@ export default function DashboardMetas() {
       if (!v.vendedor_id) continue;
       mapa.set(v.vendedor_id, (mapa.get(v.vendedor_id) ?? 0) + faturamentoDa(v));
     }
-    // A devolução volta para quem fez a venda ORIGINAL. Se a venda original é
-    // de outro mês, o desconto já pesou na loja e não é atribuído a ninguém —
-    // melhor do que atribuir errado.
-    const donoDaVenda = new Map((data?.vendas ?? []).map((v) => [v.id, v.vendedor_id]));
+    // A devolução sai de quem fez a venda ORIGINAL — que vem junto na busca,
+    // mesmo sendo de outro mês.
     for (const d of devolucoes) {
-      const dono = donoDaVenda.get(d.venda_original_id);
+      const dono = d.venda_original?.vendedor_id;
       if (!dono) continue;
       mapa.set(dono, (mapa.get(dono) ?? 0) - Number(d.valor_devolvido_cliente ?? 0));
     }
     return mapa;
-  }, [vendas, devolucoes, data]);
+  }, [vendas, devolucoes]);
 
   /** A régua de cada vendedor: a da loja ÷ vendedores, no recorte. */
   const faixasIndividuais: MetaDeFaixa[] = (data?.faixas ?? [])
@@ -253,34 +323,35 @@ export default function DashboardMetas() {
     .filter((f): f is MetaDeFaixa => f.alvo !== null)
     .sort((a, b) => a.alvo - b.alvo);
 
-  const naApuracao = useMemo(() => new Set((data?.naApuracao ?? []).map((p) => p.id)), [data]);
+  const naApuracao = useMemo(() => new Map((data?.naApuracao ?? []).map((p) => [p.id, p])), [data]);
 
   const linhas = useMemo(() => {
-    const ids = new Set<string>([...naApuracao, ...vendidoPor.keys()]);
+    const ids = new Set<string>([...naApuracao.keys(), ...vendidoPor.keys()]);
     return [...ids]
       .map((id) => {
         const vendido = vendidoPor.get(id) ?? 0;
-        const entra = naApuracao.has(id);
+        const pessoa = naApuracao.get(id);
+        const entra = Boolean(pessoa) && faixasIndividuais.length > 0;
         return {
           id,
-          nome:
-            data?.naApuracao.find((p) => p.id === id)?.nome ??
-            data?.nomes.get(id) ??
-            'Pessoa não identificada',
+          nome: pessoa?.nome ?? data?.nomes.get(id) ?? 'Pessoa não identificada',
+          desligado: pessoa ? !pessoa.ativo : false,
           vendido,
-          entra,
+          naEquipe: Boolean(pessoa),
           situacao: entra ? situacaoNasFaixas(vendido, faixasIndividuais) : null,
         };
       })
-      .sort((a, b) => Number(b.entra) - Number(a.entra) || b.vendido - a.vendido);
+      .sort((a, b) => Number(b.naEquipe) - Number(a.naEquipe) || b.vendido - a.vendido);
+    // `faixasIndividuais` é recalculada a cada render; as entradas reais dela
+    // (faixas, vendedores, recorte) estão na lista.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [naApuracao, vendidoPor, data, recorte, vendedores]);
 
-  const minhaLinha = linhas.find((l) => l.id === user?.id && l.entra) ?? null;
+  const minhaLinha = linhas.find((l) => l.id === user?.id && l.naEquipe) ?? null;
 
   // ── Campanhas ─────────────────────────────────────────────────────────────
   const campanhas = useMemo(() => {
-    const porChave = new Map<string, { nome: string; grupo: string | null; periodicidade: string; faixas: MetaDeFaixa[] }>();
+    const porChave = new Map<string, { nome: string; grupo: string | null; periodicidade: 'quinzenal' | 'mensal'; faixas: MetaDeFaixa[] }>();
     for (const c of data?.campanhas ?? []) {
       const atual = porChave.get(c.chave) ?? {
         nome: c.nome,
@@ -294,13 +365,57 @@ export default function DashboardMetas() {
     return [...porChave.values()];
   }, [data]);
 
-  /** Quanto cada vendedor vendeu de um Grupo de Produto no recorte. */
-  const vendidoDoGrupo = (grupoId: string, pessoaId: string) =>
-    vendas
+  /**
+   * Quanto um vendedor fez de um Grupo de Produto no recorte: os itens do
+   * grupo, com o desconto da venda rateado, MENOS o que voltou em devolução
+   * de venda dele (com o mesmo rateio da venda original).
+   */
+  const vendidoDoGrupo = (grupoId: string, pessoaId: string) => {
+    const vendido = vendas
       .filter((v) => v.vendedor_id === pessoaId)
-      .flatMap((v) => v.itens_venda ?? [])
-      .filter((i) => i.produtos?.grupo_produto_id === grupoId)
-      .reduce((s, i) => s + Number(i.total ?? 0), 0);
+      .reduce((soma, v) => {
+        const fator = fatorDaVenda(v);
+        return (
+          soma +
+          (v.itens_venda ?? [])
+            .filter((i) => i.produtos?.grupo_produto_id === grupoId)
+            .reduce((s, i) => s + Number(i.total ?? 0) * fator, 0)
+        );
+      }, 0);
+    const devolvido = devolucoes
+      .filter((d) => d.venda_original?.vendedor_id === pessoaId)
+      .reduce((soma, d) => {
+        const fator = d.venda_original ? fatorDaVenda(d.venda_original) : 1;
+        return (
+          soma +
+          (d.devolucao_itens ?? [])
+            .filter((i) => i.produtos?.grupo_produto_id === grupoId)
+            .reduce((s, i) => s + Number(i.quantidade ?? 0) * Number(i.preco_unitario ?? 0) * fator, 0)
+        );
+      }, 0);
+    return Math.round((vendido - devolvido) * 100) / 100;
+  };
+
+  /** Itens vendidos no recorte sem Grupo de Produto: ficam de fora das campanhas. */
+  const itensSemGrupo = vendas
+    .flatMap((v) => v.itens_venda ?? [])
+    .filter((i) => i.produtos && !i.produtos.grupo_produto_id).length;
+
+  const vendedoresDaCampanha = [...naApuracao.values()];
+
+  /** Por que uma campanha não pode ser mostrada neste recorte (ou null se pode). */
+  const motivoSemCampanha = (periodicidade: 'quinzenal' | 'mensal'): string | null => {
+    if (periodicidade === 'quinzenal' && !recortes.includes('q1')) {
+      return `Em ${nomeDoMes} a apuração era em 4 períodos, então as campanhas por quinzena não se aplicam a este mês.`;
+    }
+    if (periodicidade === 'quinzenal' && recorte === 'mes') {
+      return 'Esta campanha é apurada por quinzena. Escolha a 1ª ou a 2ª quinzena em "Apuração", aqui em cima.';
+    }
+    if (periodicidade === 'mensal' && recorte !== 'mes') {
+      return 'Esta campanha é apurada no mês inteiro. Escolha "Mês inteiro" em "Apuração", aqui em cima.';
+    }
+    return null;
+  };
 
   const rotuloPeriodo =
     recorte === 'mes' ? nomeDoMes : `${ROTULO_RECORTE[recorte]} de ${MESES_NOME[mes - 1]}`;
@@ -380,7 +495,7 @@ export default function DashboardMetas() {
       )}
 
       {/* A minha meta: o que o vendedor abre o painel para ver */}
-      {minhaLinha?.situacao && (
+      {minhaLinha && (
         <Card className="overflow-hidden border-primary/40">
           <div className="kpi-vendas p-1" />
           <CardHeader className="pb-2">
@@ -390,32 +505,44 @@ export default function DashboardMetas() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <span className="text-2xl font-bold">{moeda(minhaLinha.vendido)}</span>
-              <span className="text-sm text-muted-foreground">
-                {minhaLinha.situacao.alcancada
-                  ? `Você está na faixa ${ROTULO_FAIXA[minhaLinha.situacao.alcancada.faixa]} ${EMOJI_FAIXA[minhaLinha.situacao.alcancada.faixa]}`
-                  : 'Nenhuma faixa alcançada ainda'}
-              </span>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {faixasIndividuais.map((f) => (
-                <div key={f.faixa} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium">
-                      {EMOJI_FAIXA[f.faixa]} {ROTULO_FAIXA[f.faixa]}
-                    </span>
-                    <span className="tabular-nums text-muted-foreground">{moeda(f.alvo)}</span>
-                  </div>
-                  <Progress value={percentualDaFaixa(minhaLinha.vendido, f.alvo)} />
+            {!minhaLinha.situacao ? (
+              // Sem meta no mês (ou zero vendedores): antes a tela escrevia
+              // "Todas as faixas batidas! 🎉" para quem não tinha meta nenhuma.
+              <p className="text-sm text-muted-foreground">
+                Sem meta individual para {rotuloPeriodo.toLowerCase()} — a planilha ainda não trouxe a meta
+                deste mês, ou o mês está com zero vendedores dividindo a meta. Você vendeu{' '}
+                <strong>{moeda(minhaLinha.vendido)}</strong>.
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  <span className="text-2xl font-bold">{moeda(minhaLinha.vendido)}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {minhaLinha.situacao.alcancada
+                      ? `Você está na faixa ${ROTULO_FAIXA[minhaLinha.situacao.alcancada.faixa]} ${EMOJI_FAIXA[minhaLinha.situacao.alcancada.faixa]}`
+                      : 'Nenhuma faixa alcançada ainda'}
+                  </span>
                 </div>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {minhaLinha.situacao.proxima
-                ? `Faltam ${moeda(minhaLinha.situacao.falta)} para ${ROTULO_FAIXA[minhaLinha.situacao.proxima.faixa]}.`
-                : 'Todas as faixas batidas! 🎉'}
-            </p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {faixasIndividuais.map((f) => (
+                    <div key={f.faixa} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium">
+                          {EMOJI_FAIXA[f.faixa]} {ROTULO_FAIXA[f.faixa]}
+                        </span>
+                        <span className="tabular-nums text-muted-foreground">{moeda(f.alvo)}</span>
+                      </div>
+                      <Progress value={percentualDaFaixa(minhaLinha.vendido, f.alvo)} />
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {minhaLinha.situacao.proxima
+                    ? `Faltam ${moeda(minhaLinha.situacao.falta)} para ${ROTULO_FAIXA[minhaLinha.situacao.proxima.faixa]}.`
+                    : 'Todas as faixas batidas! 🎉'}
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       )}
@@ -448,7 +575,11 @@ export default function DashboardMetas() {
                 <div className="text-2xl font-bold">{moeda(realizadoLoja)}</div>
                 <p className="text-xs text-muted-foreground">
                   {rotuloPeriodo}
-                  {periodoEmCurso ? ` · ${diasPassados} de ${diasDoPeriodo} dias` : ' · já fechado'}
+                  {situacaoDoPeriodo === 'em-curso'
+                    ? ` · ${diasPassados} de ${diasDoPeriodo} dias`
+                    : situacaoDoPeriodo === 'futuro'
+                      ? ' · ainda não começou'
+                      : ' · já fechado'}
                 </p>
               </CardContent>
             </Card>
@@ -479,20 +610,24 @@ export default function DashboardMetas() {
               <div className="kpi-os p-1" />
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">
-                  {periodoEmCurso ? 'Projeção do Período' : 'Resultado Final'}
+                  {situacaoDoPeriodo === 'encerrado' ? 'Resultado Final' : 'Projeção do Período'}
                 </CardTitle>
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{moeda(projecao)}</div>
+                <div className="text-2xl font-bold">
+                  {situacaoDoPeriodo === 'futuro' ? '—' : moeda(projecao)}
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  {!periodoEmCurso
-                    ? 'Período encerrado — este é o número fechado'
-                    : situacaoLoja.proxima
-                      ? projecao >= situacaoLoja.proxima.alvo
-                        ? `No ritmo atual, bate ${ROTULO_FAIXA[situacaoLoja.proxima.faixa]}`
-                        : `No ritmo atual, fica abaixo de ${ROTULO_FAIXA[situacaoLoja.proxima.faixa]}`
-                      : 'Todas as faixas já foram atingidas'}
+                  {situacaoDoPeriodo === 'futuro'
+                    ? 'O período ainda não começou — não há ritmo para projetar'
+                    : situacaoDoPeriodo === 'encerrado'
+                      ? 'Período encerrado — este é o número fechado'
+                      : situacaoLoja.proxima
+                        ? projecao >= situacaoLoja.proxima.alvo
+                          ? `No ritmo atual, bate ${ROTULO_FAIXA[situacaoLoja.proxima.faixa]}`
+                          : `No ritmo atual, fica abaixo de ${ROTULO_FAIXA[situacaoLoja.proxima.faixa]}`
+                        : 'Todas as faixas já foram atingidas'}
                 </p>
               </CardContent>
             </Card>
@@ -570,10 +705,11 @@ export default function DashboardMetas() {
                           <TableCell className="font-medium">
                             {l.nome}
                             {l.id === user?.id && <span className="ml-2 text-xs text-muted-foreground">(você)</span>}
+                            {l.desligado && <span className="ml-2 text-xs text-muted-foreground">(saiu da loja)</span>}
                           </TableCell>
                           <TableCell className="text-right font-medium tabular-nums">{moeda(l.vendido)}</TableCell>
                           <TableCell>
-                            {!l.entra ? (
+                            {!l.naEquipe ? (
                               <span className="text-xs text-muted-foreground">fora da apuração</span>
                             ) : l.situacao?.alcancada ? (
                               `${EMOJI_FAIXA[l.situacao.alcancada.faixa]} ${ROTULO_FAIXA[l.situacao.alcancada.faixa]}`
@@ -582,7 +718,7 @@ export default function DashboardMetas() {
                             )}
                           </TableCell>
                           <TableCell className="text-right tabular-nums text-muted-foreground">
-                            {!l.entra || !l.situacao
+                            {!l.situacao
                               ? ''
                               : l.situacao.proxima
                                 ? `${moeda(l.situacao.falta)} p/ ${ROTULO_FAIXA[l.situacao.proxima.faixa]}`
@@ -600,6 +736,11 @@ export default function DashboardMetas() {
                   {faixasIndividuais.map((f) => `${ROTULO_FAIXA[f.faixa]} ${moeda(f.alvo)}`).join(' · ')}
                 </p>
               )}
+              <p className="mt-2 text-xs text-muted-foreground">
+                Quem entra na apuração segue o perfil de hoje no cadastro de usuários. Quem saiu da loja
+                continua aparecendo nos meses em que vendeu; quem mudou de perfil (de vendedor para
+                gerente, por exemplo) aparece com o perfil novo também nos meses antigos.
+              </p>
             </CardContent>
           </Card>
 
@@ -615,13 +756,9 @@ export default function DashboardMetas() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {recorte === 'mes' && campanhas.some((c) => c.periodicidade === 'quinzenal') ? (
-                  <p className="text-sm text-muted-foreground">
-                    As campanhas são apuradas por quinzena. Escolha a 1ª ou a 2ª quinzena em
-                    "Apuração", aqui em cima, para ver o andamento de cada vendedor.
-                  </p>
-                ) : (
-                  campanhas.map((c) => (
+                {campanhas.map((c) => {
+                  const motivo = motivoSemCampanha(c.periodicidade);
+                  return (
                     <div key={c.nome} className="space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-semibold">{c.nome}</h3>
@@ -633,12 +770,14 @@ export default function DashboardMetas() {
                             .join(' · ')}
                         </span>
                       </div>
-                      {!c.grupo ? (
+                      {motivo ? (
+                        <p className="text-sm text-muted-foreground">{motivo}</p>
+                      ) : !c.grupo ? (
                         <p className="text-sm text-muted-foreground">
                           Esta campanha ainda não está ligada a um Grupo de Produto — veja em
                           Cadastros &gt; Metas.
                         </p>
-                      ) : naApuracao.size === 0 ? (
+                      ) : vendedoresDaCampanha.length === 0 ? (
                         <p className="text-sm text-muted-foreground">Ninguém com perfil Vendedor.</p>
                       ) : (
                         <div className="overflow-x-auto">
@@ -652,7 +791,7 @@ export default function DashboardMetas() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {(data?.naApuracao ?? []).map((p) => {
+                              {vendedoresDaCampanha.map((p) => {
                                 const vendido = vendidoDoGrupo(c.grupo as string, p.id);
                                 const s = situacaoNasFaixas(vendido, c.faixas);
                                 return (
@@ -673,13 +812,22 @@ export default function DashboardMetas() {
                         </div>
                       )}
                     </div>
-                  ))
+                  );
+                })}
+                {itensSemGrupo > 0 && (
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>{itensSemGrupo} item(ns) vendido(s) em {rotuloPeriodo.toLowerCase()} estão em
+                      produto sem Grupo de Produto</strong> e ficam fora de todas as campanhas. Para
+                      entrarem, preencha o grupo no cadastro do produto (Estoque).
+                    </AlertDescription>
+                  </Alert>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  A soma usa o Grupo de Produto cadastrado em cada produto: produto sem grupo não entra
-                  em campanha nenhuma. Devolução não é abatida aqui, porque ela é registrada por venda e
-                  não guarda de qual grupo era a peça. E a régua é a atual da planilha — meses antigos
-                  podem ter sido apurados com outra.
+                  O valor de cada item já vem com o desconto da venda rateado, e a devolução sai de quem
+                  fez a venda original. A régua é a atual da planilha — meses antigos podem ter sido
+                  apurados com outra.
                 </p>
               </CardContent>
             </Card>

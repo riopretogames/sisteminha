@@ -78,8 +78,26 @@ function configurarConexao() {
     return;
   }
 
-  PropertiesService.getScriptProperties().setProperty(PROP_CODIGO, codigo);
+  // Os gatilhos pertencem a quem os instalou, e uma conta não enxerga os da
+  // outra. Se outra conta já instalou, instalar de novo por esta criaria envio
+  // em dobro — então o robô avisa quem foi e pede confirmação.
+  var propriedades = PropertiesService.getScriptProperties();
+  var quemInstalou = propriedades.getProperty('INSTALADO_POR');
+  var euSou = quemEnviou_();
+  if (quemInstalou && euSou && quemInstalou !== euSou) {
+    var seguir = ui.alert(
+      'Atenção',
+      'O robô já foi instalado pela conta ' + quemInstalou + '. Instalar de novo por esta conta (' + euSou +
+      ') cria um segundo envio automático.\n\nO certo é configurar pela conta ' + quemInstalou +
+      '. Quer instalar por esta mesmo assim?',
+      ui.ButtonSet.YES_NO
+    );
+    if (seguir !== ui.Button.YES) return;
+  }
+
+  propriedades.setProperty(PROP_CODIGO, codigo);
   instalarGatilhos_();
+  if (euSou) propriedades.setProperty('INSTALADO_POR', euSou);
 
   var resultado = enviar_('configuração');
   ui.alert(resultado.ok
@@ -142,7 +160,12 @@ function aoEditar(e) {
 }
 
 function envioDiario() {
-  enviar_('envio diário');
+  var resultado = enviar_('envio diário');
+  // Falhar de verdade (lançar o erro) é o que faz o Google mandar o e-mail
+  // automático "falha no gatilho" para quem instalou o robô. Se o envio diário
+  // só registrasse a falha em silêncio, a planilha podia passar semanas sem
+  // chegar ao sistema sem ninguém saber.
+  if (!resultado.ok) throw new Error('Envio diário das metas falhou: ' + resultado.mensagem);
 }
 
 
@@ -166,7 +189,11 @@ function enviar_(motivo) {
     try {
       pedido = montarPedido_();
     } catch (erroLeitura) {
-      return registrar_(false, 'Não consegui ler a planilha: ' + erroLeitura.message, motivo);
+      var mensagemLeitura = 'Não consegui ler a planilha: ' + erroLeitura.message;
+      // Avisa o sistema que a leitura falhou, para aparecer em Cadastros >
+      // Metas — senão a falha ficaria presa aqui na planilha.
+      relatarFalha_(codigo, mensagemLeitura);
+      return registrar_(false, mensagemLeitura, motivo);
     }
 
     var resposta = UrlFetchApp.fetch(URL_SISTEMINHA, {
@@ -195,6 +222,29 @@ function enviar_(motivo) {
   } finally {
     trava.releaseLock();
   }
+}
+
+/**
+ * Conta ao sistema que o robô não conseguiu ler a planilha. Se nem isso der
+ * certo (internet fora), paciência: a falha continua registrada aqui e o
+ * envio diário vai tentar de novo.
+ */
+function relatarFalha_(codigo, mensagem) {
+  try {
+    var planilha = SpreadsheetApp.getActive();
+    UrlFetchApp.fetch(URL_SISTEMINHA, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'x-segredo-metas': codigo },
+      payload: JSON.stringify({
+        tipo: 'falha',
+        mensagem: mensagem,
+        planilha: { id: planilha.getId(), nome: planilha.getName(), url: planilha.getUrl() },
+        enviado_por: quemEnviou_()
+      }),
+      muteHttpExceptions: true
+    });
+  } catch (erroIgnorado) {}
 }
 
 function registrar_(ok, mensagem, motivo) {
@@ -238,8 +288,17 @@ function montarPedido_() {
     meses.push(mes);
   }
 
+  // A aba CAMPANHAS é obrigatória e precisa render pelo menos uma campanha.
+  // Mandar a lista vazia faria o sistema apagar todas as campanhas — e quase
+  // sempre lista vazia é leitura quebrada (aba renomeada, cabeçalho mudado),
+  // não decisão de acabar com as campanhas.
   var abaCampanhas = planilha.getSheetByName(ABA_CAMPANHAS);
-  var campanhas = abaCampanhas ? lerCampanhas_(abaCampanhas.getDataRange().getValues()) : [];
+  if (!abaCampanhas) throw new Error('não achei a aba "' + ABA_CAMPANHAS + '".');
+  var campanhas = lerCampanhas_(abaCampanhas.getDataRange().getValues());
+  if (!campanhas.length) {
+    throw new Error('não achei nenhuma campanha na aba "' + ABA_CAMPANHAS + '" (cada bloco precisa do ' +
+                    'cabeçalho Faixa / Meta… / Prêmio).');
+  }
 
   return {
     ano: ano,
@@ -250,32 +309,70 @@ function montarPedido_() {
   };
 }
 
-/** O ano vem do título da aba ("… — 2026") ou, na falta, do nome da planilha. */
+/**
+ * O ano vem do título da aba ("… — 2026") E do nome da planilha ("Metas RPG
+ * 2026"). Se os dois existem, têm que bater.
+ *
+ * Por quê: no ano que vem a planilha vai ser copiada para "Metas RPG 2027".
+ * Se alguém esquecer de trocar o título da aba, o robô leria "2026" e
+ * GRAVARIA AS METAS DE 2027 POR CIMA DAS DE 2026. Com a conferência, ele para
+ * e avisa.
+ */
 function acharAno_(dados, nomeDaPlanilha) {
+  var doTitulo = null;
   for (var i = 0; i < Math.min(3, dados.length); i++) {
-    var achado = String(dados[i].join(' ')).match(/20\d\d/);
-    if (achado) return Number(achado[0]);
+    var achado = String(dados[i].join(' ')).match(/\b(20\d\d)\b/);
+    if (achado) { doTitulo = Number(achado[1]); break; }
   }
-  var doNome = String(nomeDaPlanilha).match(/20\d\d/);
-  if (doNome) return Number(doNome[0]);
-  throw new Error('não achei o ano (esperava algo como "2026" no título da aba ou no nome da planilha).');
+  var noNome = String(nomeDaPlanilha).match(/\b(20\d\d)\b/);
+  var doNome = noNome ? Number(noNome[1]) : null;
+
+  if (doTitulo && doNome && doTitulo !== doNome) {
+    throw new Error('o título da aba diz ' + doTitulo + ' e o nome da planilha diz ' + doNome +
+                    '. Deixe os dois com o mesmo ano antes de enviar.');
+  }
+  var ano = doTitulo || doNome;
+  if (!ano) throw new Error('não achei o ano (esperava algo como "2026" no título da aba ou no nome da planilha).');
+  return ano;
 }
+
+/**
+ * Nomes aceitos para cada coluna, já sem acento e em minúsculas. A coluna é
+ * achada pelo nome EXATO — não por "contém": uma coluna auxiliar como
+ * "Prata (ano passado)" não pode roubar o lugar da coluna Prata.
+ */
+var COLUNAS_DA_LOJA = {
+  bronze: ['bronze'],
+  prata: ['prata'],
+  ouro: ['ouro'],
+  diamante: ['diamante'],
+  vendedores: ['vendedores', 'vendedor', 'n de vendedores', 'numero de vendedores', 'qtd vendedores'],
+  apuracao: ['apuracao'],
+  anoPassado: ['ano passado', 'faturamento ano passado']
+};
 
 function acharCabecalhoDaLoja_(dados) {
   for (var i = 0; i < dados.length; i++) {
     var celulas = dados[i].map(normalizar_);
     var colMes = celulas.indexOf('mes');
     if (colMes < 0) continue;
+
     var col = { mes: colMes };
-    celulas.forEach(function (c, k) {
-      FAIXAS.forEach(function (f) { if (c.indexOf(f) >= 0) col[f] = k; });
-      if (c.indexOf('vendedor') >= 0) col.vendedores = k;
-      if (c.indexOf('apuracao') >= 0) col.apuracao = k;
-      if (c.indexOf('ano passado') >= 0) col.anoPassado = k;
+    Object.keys(COLUNAS_DA_LOJA).forEach(function (nome) {
+      var achadas = [];
+      celulas.forEach(function (c, k) {
+        if (COLUNAS_DA_LOJA[nome].indexOf(c) >= 0) achadas.push(k);
+      });
+      if (achadas.length > 1) {
+        throw new Error('na aba "' + ABA_LOJA + '" há mais de uma coluna "' + nome + '". Deixe só uma.');
+      }
+      if (achadas.length === 1) col[nome] = achadas[0];
     });
+
     var faltando = FAIXAS.concat(['vendedores', 'apuracao']).filter(function (n) { return col[n] === undefined; });
     if (faltando.length) {
-      throw new Error('na aba "' + ABA_LOJA + '" faltam as colunas: ' + faltando.join(', ') + '.');
+      throw new Error('na aba "' + ABA_LOJA + '" faltam as colunas: ' + faltando.join(', ') +
+                      ' (o cabeçalho precisa ter exatamente esses nomes).');
     }
     return { linha: i, col: col };
   }
@@ -355,26 +452,45 @@ function normalizar_(valor) {
 }
 
 /**
- * Valor em reais. Célula vazia = "não vale" (vai como vazio, e o sisteminha
- * apaga aquela faixa). Célula com texto ("R$ 1.500,00" digitado como texto)
- * também é entendida — é o formato brasileiro, ponto de milhar e vírgula.
+ * Valor em reais.
+ *
+ * - Célula vazia = "não vale" (vai como vazio, e o sistema apaga aquela faixa).
+ * - Número na célula (o normal) = usado como está.
+ * - Texto só é aceito no formato brasileiro: "R$ 1.500,00", "1.500,00",
+ *   "1500,5", "1500".
+ *
+ * Todo o resto é RECUSADO com o mês e a faixa no aviso — não vira zero nem
+ * faixa apagada em silêncio. Em especial:
+ * - erro de fórmula (#REF!, #N/A…) — antes virava zero;
+ * - "1500.50" (ponto como vírgula, jeito americano) — antes virava 150050,
+ *   uma meta cem vezes maior.
  */
 function dinheiro_(valor, onde, oque) {
   if (valor === null || valor === undefined || valor === '') return null;
-  if (typeof valor === 'number') return Math.round(valor * 100) / 100;
-  var texto = String(valor).replace(/[^\d,.-]/g, '');
+  if (typeof valor === 'number') {
+    if (!isFinite(valor)) throw new Error('em ' + onde + ', o valor de ' + oque + ' não é um número.');
+    return Math.round(valor * 100) / 100;
+  }
+  var texto = String(valor).trim();
   if (!texto) return null;
-  var numero = Number(texto.replace(/\./g, '').replace(',', '.'));
-  if (!isFinite(numero)) throw new Error('em ' + onde + ', "' + valor + '" (' + oque + ') não é um valor em reais.');
-  return Math.round(numero * 100) / 100;
+  if (/^#/.test(texto)) {
+    throw new Error('em ' + onde + ', a célula de ' + oque + ' está com erro de fórmula (' + texto + ').');
+  }
+  var semMoeda = texto.replace(/^R\$\s*/i, '');
+  var brasileiro = /^\d{1,3}(\.\d{3})+(,\d{1,2})?$|^\d+(,\d{1,2})?$/;
+  if (!brasileiro.test(semMoeda)) {
+    throw new Error('em ' + onde + ', "' + texto + '" (' + oque + ') não é um valor em reais. ' +
+                    'Digite como número, ou no formato 1.500,00.');
+  }
+  return Math.round(Number(semMoeda.replace(/\./g, '').replace(',', '.')) * 100) / 100;
 }
 
+/** Número de vendedores: inteiro de verdade. "2+1", "—" ou "#REF!" são recusados. */
 function inteiro_(valor, onde) {
-  var numero = typeof valor === 'number' ? valor : Number(String(valor).replace(/[^\d]/g, ''));
-  if (valor === '' || valor === null || !isFinite(numero)) {
-    throw new Error('em ' + onde + ', o número de vendedores está vazio ou não é número.');
-  }
-  return Math.round(numero);
+  if (typeof valor === 'number' && isFinite(valor) && Math.floor(valor) === valor) return valor;
+  var texto = String(valor === null || valor === undefined ? '' : valor).trim();
+  if (/^\d+$/.test(texto)) return Number(texto);
+  throw new Error('em ' + onde + ', o número de vendedores ("' + texto + '") precisa ser um número inteiro.');
 }
 
 function apuracao_(valor, onde) {

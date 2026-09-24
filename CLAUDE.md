@@ -205,7 +205,25 @@ padrão. As regras que ficaram:
   antes de commitar. Foi ele que apontou o que as revisões anteriores não
   viram — as revisões olhavam o código, ele olha o banco.
 
-As 7 views `vw_*` continuam `SECURITY DEFINER` **de propósito** (Opção B) e o
+**View nova precisa FECHAR A ESCRITA na mão (achado de 23/09).** O padrão de
+fábrica dá ALL a `authenticated` em todo objeto novo — view inclusive — e
+`GRANT SELECT` sozinho não tira nada. Como as `vw_*` rodam com o poder do dono
+(que passa por cima do RLS), uma view simples é *gravável* e a gravação por ela
+ignora todas as policies da tabela: até 23/09 um vendedor conseguia mudar preço
+e apagar produto pela `vw_produtos`, e apagar o rastro pela `vw_auditoria`. A
+migration `20260923160000` fechou as oito e tem a conferência. Toda migration
+que cria view termina com:
+
+```sql
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+  ON public.vw_nova FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.vw_nova TO authenticated;
+ALTER VIEW public.vw_nova SET (security_barrier = true);
+```
+
+E nenhuma tela grava por view — gravação vai sempre direto na tabela.
+
+As views `vw_*` continuam `SECURITY DEFINER` **de propósito** (Opção B) e o
 parecer vai continuar marcando isso em vermelho: cada uma filtra a loja por
 `get_user_tenant_id` e esconde o custo por `has_permission`. Conferido em
 14/09 — não é achado, é o desenho. (A `vw_auditoria` e a `vw_caixa_resumo_formas`

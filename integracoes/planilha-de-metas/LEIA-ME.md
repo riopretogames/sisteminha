@@ -45,11 +45,19 @@ planilha. Fica em **três** lugares, e em nenhum outro:
 Não mande por WhatsApp nem cole em documento: quem tiver o código consegue
 mudar as metas do sistema (só as metas — ele não abre nada além disso).
 
+Um cuidado: qualquer pessoa com permissão de **editar** a planilha consegue
+abrir o Apps Script e ler o código. Então só quem pode editar metas deve ter
+acesso de edição à planilha — o que já é o certo, porque editar a planilha é
+mudar a meta. E o campo "enviado por" que aparece em Cadastros › Metas é
+informado pelo próprio robô: serve para orientar, não é prova de quem mandou.
+
 ### Trocar o código (se vazar, ou por precaução)
 
-1. Gere um novo e grave no servidor:
+1. Gere um novo (64 caracteres, só números e letras de a até f) e grave no
+   servidor. No computador da loja, na pasta do sisteminha:
    ```
-   npx.cmd supabase secrets set METAS_SYNC_SECRET=<novo código de 64 letras e números>
+   python -c "import secrets; print(secrets.token_hex(32))"
+   npx.cmd supabase secrets set METAS_SYNC_SECRET=<o código que saiu na linha de cima>
    ```
 2. Atualize o arquivo `.env.planilha-metas` com o novo código.
 3. Na planilha: **Sisteminha › Configurar conexão** e cole o novo.
@@ -64,14 +72,49 @@ menor que a anterior. As faixas precisam subir."*. Corrija na planilha e o robô
 manda de novo sozinho. Enquanto isso, o sistema continua com a última versão
 que deu certo: **nada é gravado pela metade**.
 
+Quando o robô **nem consegue ler** a planilha (coluna renomeada, aba apagada),
+ele avisa o sistema do mesmo jeito, e o aviso aparece em Cadastros › Metas. Se
+for o **envio das 6h** que falhar, o Google também manda um e-mail para a conta
+que instalou o robô. E se a planilha passar **mais de um dia** sem chegar,
+Cadastros › Metas avisa — o robô reenvia tudo todo dia, então um dia inteiro sem
+chegar é sinal de que algo parou.
+
+O que o robô recusa na leitura, antes de mandar:
+
+- **Ano diferente** no título da aba e no nome da planilha (a cópia para 2027
+  com o título esquecido gravaria 2027 por cima de 2026).
+- **Coluna repetida** ou **faltando** (as colunas são achadas pelo nome exato).
+- **Erro de fórmula** (#REF!, #N/A…) numa meta, e valor digitado como texto
+  fora do formato brasileiro ("1500.50" com ponto viraria uma meta cem vezes
+  maior).
+- **Número de vendedores** que não seja inteiro ("2+1", "—").
+- **Aba CAMPANHAS sumida** ou sem nenhum bloco reconhecível.
+
 O que o sisteminha recusa, e por quê:
 
 - **Faltar mês** (tem que vir os 12) — pedido com menos meses é sinal de
   leitura quebrada, e aplicar pela metade apagaria meses bons.
+- **Lista de campanhas vazia** — quase sempre é leitura quebrada, e aplicar
+  apagaria todas as campanhas.
 - **Faixa fora de ordem** (Prata menor que Bronze) — quase sempre é dedo
   escorregado, e vira prêmio errado.
 - **Valor negativo**, **número de vendedores** fora de 0 a 50, **apuração**
   que não seja "Quinzenal" nem "4 períodos".
+
+## Instalar pela conta certa
+
+Os gatilhos do robô (o de edição e o das 6h) pertencem à conta do Google que
+rodou *Configurar conexão*. Se outra conta rodar de novo, cria um segundo envio
+automático — por isso o robô avisa quem instalou e pede confirmação. O certo é
+instalar sempre pela mesma conta (a dona da planilha).
+
+## O que o sistema ainda não sabe
+
+As campanhas não têm data de início: o sistema guarda só a régua **atual** da
+planilha e a aplica a qualquer mês. Até setembro/2026, Acessórios e Jogos eram
+apurados por mês (com meta e prêmio em dobro); a régua quinzenal vale de
+outubro/2026 em diante. Para meses antigos, a régua de campanha mostrada no
+painel pode não ser a que valeu.
 
 ## O que o robô lê — e o que deixa de fora de propósito
 

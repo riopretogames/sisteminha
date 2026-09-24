@@ -59,7 +59,7 @@ async function abrir(tabelas: Record<string, unknown[]>) {
     metas_campanha: [],
     vendas: [],
     devolucoes: [],
-    'rpc:pessoas_da_apuracao': [{ id: 'ana', nome: 'Ana' }],
+    'rpc:pessoas_da_apuracao': [{ id: 'ana', nome: 'Ana', ativo: true }],
     profiles: [
       { id: 'ana', nome: 'Ana' },
       { id: 'richard', nome: 'Richard' },
@@ -240,7 +240,7 @@ describe('Dashboard de Metas', () => {
 
     // No mês inteiro, a tela pede para escolher a quinzena.
     await waitFor(() => {
-      expect(screen.getByText(/As campanhas são apuradas por quinzena/)).toBeInTheDocument();
+      expect(screen.getByText(/Esta campanha é apurada por quinzena/)).toBeInTheDocument();
     });
 
     await escolher('Apuração', '2ª quinzena (dia 16 ao fim)');
@@ -250,6 +250,141 @@ describe('Dashboard de Metas', () => {
       expect(screen.getByText(/R\$\s*3\.200,00/)).toBeInTheDocument();
     });
     expect(screen.getByText(/R\$\s*800,00 p\/ Prata/)).toBeInTheDocument();
+  });
+
+  it('devolução de venda de OUTRO mês sai de quem fez a venda original', async () => {
+    // Revisão de 23/09: a venda de agosto não vinha na busca de setembro, e a
+    // devolução feita em setembro não saía de ninguém — a Ana ficava com
+    // resultado maior do que o real.
+    await abrir({
+      metas_faturamento: BRONZE_10_MIL,
+      vendas: [venda({ id: 'v-set', total: 4000 })],
+      devolucoes: [
+        {
+          created_at: '2026-09-21T10:00:00',
+          valor_devolvido_cliente: 1000,
+          venda_original: { vendedor_id: 'ana', total: 1000, valor_faturamento_real: null, itens_venda: [{ total: 1000 }] },
+          devolucao_itens: [],
+        },
+      ],
+    });
+
+    // Ana: 4.000 − 1.000 = 3.000 contra a régua de 5.000 → faltam 2.000.
+    await waitFor(() => {
+      expect(screen.getAllByText(/Faltam R\$\s*2\.000,00 para Bronze/).length).toBeGreaterThan(0);
+    });
+  });
+
+  it('campanha usa o valor com o desconto da venda rateado, não o preço cheio do item', async () => {
+    // Revisão de 23/09: a VD-202608-0003 tinha R$ 2.000 em itens e R$ 1.500 de
+    // total. A campanha creditava os 2.000.
+    await abrir({
+      metas_faturamento: BRONZE_10_MIL,
+      metas_campanha: [
+        { chave: 'acessorios', nome: 'Acessórios', grupo_produto_id: 'g-acess', periodicidade: 'quinzenal', faixa: 'bronze', meta: 3000, premio: 60 },
+      ],
+      vendas: [
+        venda({
+          total: 4000, // itens somam 5.000 → 20% de desconto na venda
+          itens_venda: [
+            { total: 3200, produtos: { grupo_produto_id: 'g-acess' } },
+            { total: 1800, produtos: { grupo_produto_id: 'g-console' } },
+          ],
+        }),
+      ],
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/A sua meta/)).toBeInTheDocument();
+    });
+    await escolher('Apuração', '2ª quinzena (dia 16 ao fim)');
+
+    // 3.200 × 0,8 = 2.560 — abaixo do Bronze de 3.000.
+    await waitFor(() => {
+      expect(screen.getByText('R$ 2.560,00')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/R\$\s*440,00 p\/ Bronze/)).toBeInTheDocument();
+  });
+
+  it('campanha desconta a devolução da peça do grupo', async () => {
+    await abrir({
+      metas_faturamento: BRONZE_10_MIL,
+      metas_campanha: [
+        { chave: 'acessorios', nome: 'Acessórios', grupo_produto_id: 'g-acess', periodicidade: 'quinzenal', faixa: 'bronze', meta: 3000, premio: 60 },
+      ],
+      vendas: [venda({ total: 3200, itens_venda: [{ total: 3200, produtos: { grupo_produto_id: 'g-acess' } }] })],
+      devolucoes: [
+        {
+          created_at: '2026-09-21T10:00:00',
+          valor_devolvido_cliente: 1000,
+          venda_original: { vendedor_id: 'ana', total: 3200, valor_faturamento_real: null, itens_venda: [{ total: 3200 }] },
+          devolucao_itens: [{ quantidade: 1, preco_unitario: 1000, produtos: { grupo_produto_id: 'g-acess' } }],
+        },
+      ],
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/A sua meta/)).toBeInTheDocument();
+    });
+    await escolher('Apuração', '2ª quinzena (dia 16 ao fim)');
+
+    // 3.200 − 1.000 = 2.200: não bate o Bronze de 3.000.
+    await waitFor(() => {
+      expect(screen.getAllByText('R$ 2.200,00').length).toBeGreaterThan(0);
+    });
+  });
+
+  it('a quinzena que ainda não começou não aparece como "encerrada"', async () => {
+    vi.setSystemTime(new Date('2026-09-10T15:00:00')); // 1ª quinzena em andamento
+    await abrir({ metas_faturamento: BRONZE_10_MIL, vendas: [venda({ created_at: '2026-09-05T10:00:00', total: 1000 })] });
+    await waitFor(() => {
+      expect(screen.getByText(/A sua meta/)).toBeInTheDocument();
+    });
+
+    await escolher('Apuração', '2ª quinzena (dia 16 ao fim)');
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/ainda não começou/).length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText('Resultado Final')).not.toBeInTheDocument();
+  });
+
+  it('mês sem meta não diz ao vendedor que ele bateu todas as faixas', async () => {
+    // Revisão de 23/09: sem faixa nenhuma, a conta de "próxima faixa" dava
+    // vazio e a tela comemorava "Todas as faixas batidas! 🎉".
+    await abrir({ metas_faturamento: [], vendas: [venda({ total: 500 })] });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Sem meta individual/)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Todas as faixas batidas/)).not.toBeInTheDocument();
+  });
+
+  it('em mês de 4 períodos, a campanha por quinzena diz que não se aplica', async () => {
+    await abrir({
+      vw_metas_mes: [{ vendedores: 2, apuracao: 'quatro_periodos' }],
+      metas_faturamento: BRONZE_10_MIL,
+      metas_campanha: [
+        { chave: 'jogos', nome: 'Jogos', grupo_produto_id: 'g-jogo', periodicidade: 'quinzenal', faixa: 'bronze', meta: 750, premio: 30 },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/as campanhas por quinzena não se aplicam/)).toBeInTheDocument();
+    });
+  });
+
+  it('quem saiu da loja mas vendeu no mês continua na apuração, marcado', async () => {
+    await abrir({
+      'rpc:pessoas_da_apuracao': [
+        { id: 'ana', nome: 'Ana', ativo: true },
+        { id: 'bruno', nome: 'Bruno', ativo: false },
+      ],
+      metas_faturamento: BRONZE_10_MIL,
+      vendas: [venda({ id: 'v2', vendedor_id: 'bruno', total: 2000 })],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('(saiu da loja)')).toBeInTheDocument();
+    });
   });
 
   it('campanha sem grupo de produto ligado avisa em vez de somar zero calada', async () => {
