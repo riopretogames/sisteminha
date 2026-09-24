@@ -2427,10 +2427,13 @@ export type Database = {
         Row: {
           arquivada_em: string | null
           concluida_em: string | null
+          conferida_em: string | null
+          conferida_por: string | null
           created_at: string
           criado_por: string | null
           descricao: string | null
           dias_semana: number[]
+          horario: string | null
           id: string
           lista_id: string
           ordem: number
@@ -2446,10 +2449,13 @@ export type Database = {
         Insert: {
           arquivada_em?: string | null
           concluida_em?: string | null
+          conferida_em?: string | null
+          conferida_por?: string | null
           created_at?: string
           criado_por?: string | null
           descricao?: string | null
           dias_semana?: number[]
+          horario?: string | null
           id?: string
           lista_id: string
           ordem?: number
@@ -2465,10 +2471,13 @@ export type Database = {
         Update: {
           arquivada_em?: string | null
           concluida_em?: string | null
+          conferida_em?: string | null
+          conferida_por?: string | null
           created_at?: string
           criado_por?: string | null
           descricao?: string | null
           dias_semana?: number[]
+          horario?: string | null
           id?: string
           lista_id?: string
           ordem?: number
@@ -2505,6 +2514,57 @@ export type Database = {
           },
           {
             foreignKeyName: "tarefas_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tarefas_anexos: {
+        Row: {
+          caminho: string
+          created_at: string
+          enviado_por: string
+          id: string
+          nome: string
+          tamanho: number
+          tarefa_id: string
+          tenant_id: string
+          tipo: string | null
+        }
+        Insert: {
+          caminho: string
+          created_at?: string
+          enviado_por?: string
+          id?: string
+          nome: string
+          tamanho?: number
+          tarefa_id: string
+          tenant_id: string
+          tipo?: string | null
+        }
+        Update: {
+          caminho?: string
+          created_at?: string
+          enviado_por?: string
+          id?: string
+          nome?: string
+          tamanho?: number
+          tarefa_id?: string
+          tenant_id?: string
+          tipo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarefas_anexos_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_anexos_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -2606,6 +2666,8 @@ export type Database = {
         Row: {
           concluida_em: string
           concluida_por: string
+          conferida_em: string | null
+          conferida_por: string | null
           dia: string
           tarefa_id: string
           tenant_id: string
@@ -2613,6 +2675,8 @@ export type Database = {
         Insert: {
           concluida_em?: string
           concluida_por?: string
+          conferida_em?: string | null
+          conferida_por?: string | null
           dia: string
           tarefa_id: string
           tenant_id: string
@@ -2620,6 +2684,8 @@ export type Database = {
         Update: {
           concluida_em?: string
           concluida_por?: string
+          conferida_em?: string | null
+          conferida_por?: string | null
           dia?: string
           tarefa_id?: string
           tenant_id?: string
@@ -3763,6 +3829,10 @@ export type Database = {
       catalogo_e_do_tipo: {
         Args: { _id: string; _tipo: string }
         Returns: boolean
+      }
+      conferir_tarefa: {
+        Args: { _aprovada: boolean; _dia: string; _tarefa_id: string }
+        Returns: undefined
       }
       custo_das_pecas_do_servico: {
         Args: { _servico_id: string }
