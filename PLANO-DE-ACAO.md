@@ -1507,11 +1507,17 @@ possíveis em todos os lugares possíveis"*. Os quatro painéis eram fixos em
 - [x] ✅ **Setembro a dezembro estavam com as metas antigas de agosto no
   banco** (setembro: R$ 95.000 no sistema, R$ 108.000 na planilha).
   Corrigido pela primeira carga da planilha, em 23/09.
-- [ ] 🔸 **Apagar a tabela `metas_vendedor`** — vazia e sem uso desde 23/09.
-  Apagar tabela é migration destrutiva: **esperando o OK do Felipe**.
-- [ ] 🔸 **Duas planilhas de metas** — a do Drive (que o sistema segue) e
-  `premiacoes/planilhas/metas-2026.xlsx` (que gera os markdowns de
-  premiação). Hoje idênticas; vão divergir. Decisão da área de premiações.
+- [x] ✅ **A tabela `metas_vendedor` fica** — vazia e sem uso desde 23/09, mas
+  o Felipe decidiu em 24/09 **não apagar** ("deixa de histórico"). Nenhuma
+  tela lê nem grava nela.
+- [x] ✅ **A planilha oficial é a do Drive** (Felipe, 24/09). Conferida no mesmo
+  dia: batia 100% com o banco (12 meses, 4 faixas, vendedores, apuração e as
+  duas campanhas).
+- [ ] 🔸 A cópia `premiacoes/planilhas/metas-2026.xlsx` (que gera os markdowns
+  de premiação por `gerar-metas.py`) virou secundária e vai divergir da
+  oficial. Ajuste a combinar com a área de premiações.
+- [x] ✅ **Mesclado na main e publicado em produção em 24/09/2026** (commit
+  `c2327bf`, OK do Felipe). Falta o Felipe instalar o robô na planilha.
 - [ ] Película e Grip (por unidade), Monday e prêmio de Gerente (suspenso)
   continuam só na planilha — o sistema ainda não acompanha.
 
