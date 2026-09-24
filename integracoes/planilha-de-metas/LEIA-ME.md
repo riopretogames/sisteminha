@@ -146,6 +146,10 @@ rodou *Configurar conexão*. Se outra conta rodar de novo, cria um segundo envio
 automático — por isso o robô avisa quem instalou e pede confirmação. O certo é
 instalar sempre pela mesma conta (a dona da planilha).
 
+**Instalado em 24/09/2026 pela conta contato@riopretogames.com.br**, com a
+primeira carga às 13h13 (48 faixas e as duas campanhas). Para reinstalar, use
+sempre essa conta.
+
 ## O que o sistema ainda não sabe
 
 As campanhas não têm data de início: o sistema guarda só a régua **atual** da
@@ -167,10 +171,10 @@ Ficam só na planilha, porque o sistema ainda não acompanha: **Película e Grip
 (a regra é por unidade), **Monday** (é tarefa, não venda) e o prêmio de
 **Gerente** (suspenso desde 03/09/2026).
 
-## Atenção: existe uma segunda cópia da planilha
+## Uma planilha só (resolvido em 24/09/2026)
 
-Em 23/09/2026 havia **duas** planilhas de metas idênticas: a do Drive (que o
-robô usa) e `premiacoes/planilhas/metas-2026.xlsx`, que alimenta o
-`premiacoes/ferramentas/gerar-metas.py` (os markdowns de premiação). Duas
-fontes divergem com o tempo. O sisteminha segue **só a do Drive**; a decisão
-sobre a outra é da área de premiações.
+Em 23/09/2026 havia **duas** planilhas de metas idênticas: a do Drive e uma
+cópia em Excel na área de premiações. Em 24/09 o Felipe decidiu que a oficial é
+a do **Drive**. A cópia foi arquivada em `financeiro/historico/`, e o
+`premiacoes/ferramentas/gerar-metas.py` passou a ler direto do Drive. Hoje a
+mesma planilha alimenta o sisteminha (por este robô) e as premiações.

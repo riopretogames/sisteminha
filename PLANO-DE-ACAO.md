@@ -1513,11 +1513,15 @@ possíveis em todos os lugares possíveis"*. Os quatro painéis eram fixos em
 - [x] ✅ **A planilha oficial é a do Drive** (Felipe, 24/09). Conferida no mesmo
   dia: batia 100% com o banco (12 meses, 4 faixas, vendedores, apuração e as
   duas campanhas).
-- [ ] 🔸 A cópia `premiacoes/planilhas/metas-2026.xlsx` (que gera os markdowns
-  de premiação por `gerar-metas.py`) virou secundária e vai divergir da
-  oficial. Ajuste a combinar com a área de premiações.
+- [x] ✅ **Uma planilha só.** A cópia em Excel das premiações foi arquivada em
+  `financeiro/historico/`, e o `gerar-metas.py` passou a ler direto do Drive,
+  pelo novo login de planilhas (só leitura) do computador da loja. Feito em
+  24/09, a pedido do Felipe.
 - [x] ✅ **Mesclado na main e publicado em produção em 24/09/2026** (commit
-  `c2327bf`, OK do Felipe). Falta o Felipe instalar o robô na planilha.
+  `c2327bf`, OK do Felipe).
+- [x] ✅ **Robô instalado na planilha em 24/09/2026**, pela conta
+  contato@riopretogames.com.br. A primeira carga, às 13h13, trouxe 48 faixas e
+  as duas campanhas.
 - [ ] Película e Grip (por unidade), Monday e prêmio de Gerente (suspenso)
   continuam só na planilha — o sistema ainda não acompanha.
 
