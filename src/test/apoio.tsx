@@ -57,6 +57,11 @@ export const PERMISSOES_POR_PERFIL: Record<string, string[]> = {
     'registry.services.manage',
     'registry.suppliers.manage',
     'company.view',
+    // Tarefas da equipe (migration 20260923220000): quem gerencia a
+    // assistência cria e arquiva quadro.
+    'tasks.view',
+    'tasks.edit',
+    'tasks.manage',
   ],
   // As listas abaixo são cópia do que está NO BANCO (migrations
   // 20260801000002, 20260809150000, 20260809160000 e 20260823120000).
@@ -80,6 +85,8 @@ export const PERMISSOES_POR_PERFIL: Record<string, string[]> = {
     'orders.approve',
     'registry.view',
     'registry.customers.manage',
+    'tasks.view',
+    'tasks.edit',
   ],
   tecnico: [
     'home.view',
@@ -91,6 +98,8 @@ export const PERMISSOES_POR_PERFIL: Record<string, string[]> = {
     'orders.edit',
     'orders.diagnose',
     'registry.view',
+    'tasks.view',
+    'tasks.edit',
   ],
 };
 
@@ -135,6 +144,10 @@ function consultaFalsa(dados: unknown[], erro: unknown = null) {
   const metodos = [
     'select', 'eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'is',
     'in', 'or', 'not', 'order', 'limit', 'range', 'filter', 'match',
+    // Gravações também encadeiam (`.update(x).eq(...)`, `.insert(x).select()`):
+    // sem elas, a primeira tela que marca algo quebraria o teste com "não é
+    // uma função", em vez de mostrar o que a tela faz depois de gravar.
+    'insert', 'update', 'upsert', 'delete',
   ];
   for (const m of metodos) encadeavel[m] = () => encadeavel;
   encadeavel.single = () => Promise.resolve({ data: dados[0] ?? null, error: erro });

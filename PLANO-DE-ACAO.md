@@ -2054,13 +2054,62 @@ Anexos e vídeos, cursos, projetos, coisas pessoais. Notificação e integraçã
 com o WhatsApp/Telegram ficam para depois — o primeiro passo é a equipe
 trocar o Trello por isto e o Felipe parar de pagar o Monday.
 
+### Decisões tomadas na construção (23/09, à noite) — o Felipe pode reverter
+
+- **"Fazendo" de tarefa recorrente não fica para sempre.** Marcar o feito de
+  hoje numa tarefa que estava "Fazendo" devolve o andamento para "Não
+  iniciado"; e um "Fazendo" gravado ontem aparece hoje como "Não iniciado".
+  O desenho original dizia "marcar feito não muda o status", mas na prática
+  toda tarefa de rotina acabaria "Fazendo" para sempre — o mesmo "zerar à
+  mão" do Monday que o módulo veio acabar.
+- **Modelo "Em branco" nasce com as colunas "Esta semana", "Próxima
+  semana" e "Ideias"**, não "A fazer / Fazendo / Feito". Coluna chamada
+  "Feito" confunde: arrastar o cartão para lá NÃO marca a tarefa como feita
+  (quem marca é a bolinha), e a pessoa acharia que terminou.
+- **Na tela, a coluna do quadro se chama "coluna"** em todo lugar (Kanban,
+  Tabela, ficha, novo quadro). No código e no banco continua `lista`.
+- **Arquivar tem "Desfazer" por 10 segundos** (tarefa e coluna). Ainda não
+  existe tela de arquivados: depois disso, trazer de volta é com o Felipe.
+- **Criar tarefa/quadro pela metade não mente.** Se a tarefa gravou mas o
+  responsável não, a tela avisa "Tarefa criada, mas sem responsável" em vez
+  de "não foi possível criar" (que fazia a pessoa criar de novo, repetida).
+- **Erro do banco vira frase de gente** (`mensagemLeiga`): endereço
+  inválido, sessão expirada, registro repetido, valor recusado; o resto vira
+  "Algo deu errado no sistema. Tente de novo; se continuar, avise o Felipe."
+
+### O que ficou para depois
+
+- **Arrastar no celular** não funciona (o toque rola a tela). No celular a
+  tarefa muda de coluna pela ficha. Minhas Tarefas, que é a tela do celular,
+  não depende de arrastar.
+- **Mover pela Tabela** (arrastar linha de um grupo para outro): pela ficha.
+- **Cor da etiqueta** ainda não é escolhida em Listas do Sistema; etiqueta
+  nova ganha cor automática pelo nome (mesma regra das marcações de cliente).
+- **Tela de arquivados** (tarefas, colunas e quadros).
+- **Mensagem dos gatilhos** `travas_das_tarefas` e `travas_da_tarefa_nova`
+  cita "(tarefas_conclusoes)"; a tela já esconde esse pedaço, mas numa
+  próxima migration o texto deve sair.
+- **Ligar às premiações**: `tarefas_conclusoes` guarda quem fez o quê em
+  cada dia — é a base para pontuar rotina cumprida.
+- **Aviso no sino** de tarefa atrasada / rotina do dia não feita.
+
 ### Estado
 
 - [x] Desenho aprovado em conversa (23/09).
-- [ ] Migration escrita e aplicada; tipos regenerados.
-- [ ] Telas: Quadros, Quadro (Kanban + Tabela), Minhas Tarefas, ficha da tarefa.
-- [ ] Testes: `lib/tarefas.test.ts` + telas com o dublê do banco.
-- [ ] Felipe confere no navegador e decide se a equipe migra.
+- [x] Migration escrita e aplicada (`20260923220000`); tipos regenerados.
+- [x] Telas: Quadros, Quadro (Kanban + Tabela), Minhas Tarefas, ficha da
+      tarefa, novo quadro com modelos Loja / Assistência / Em branco.
+- [x] Testes: 14 arquivos e ~180 testes do módulo (lib, mutações, hooks,
+      Kanban, Tabela, ficha, páginas); suíte inteira com 591 testes verde,
+      typecheck e build verdes em 23/09 à noite.
+- [x] Revisão em duas lentes (regras da casa e experiência do leigo): 20
+      achados, todos tratados — inclusive um que só apareceria no banco
+      real (consulta recusada por haver duas ligações entre tarefas e
+      catálogos; corrigido com o nome da ligação).
+- [ ] **Felipe confere no navegador** (ninguém abriu logado: exige senha):
+      criar o quadro "Loja" pelo modelo, arrastar um cartão, marcar a
+      bolinha, trocar para Tabela, abrir Minhas Tarefas.
+- [ ] Felipe decide se a equipe migra do Trello/Monday.
 
 ## Arquitetura de rotas, menu e permissões (transversal)
 

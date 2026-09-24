@@ -42,6 +42,10 @@ export const PAGES: Record<string, Page> = {
   OSAguardandoRetirada: lazy(() => import('@/pages/OSAguardandoRetirada')),
   Clientes: lazy(() => import('@/pages/Clientes')),
 
+  /* ── Tarefas da equipe ──────────────────────────────────────────────────── */
+  TarefasQuadros: lazy(() => import('@/pages/tarefas/Quadros')),
+  MinhasTarefas: lazy(() => import('@/pages/tarefas/MinhasTarefas')),
+
   /* ── Cadastros ──────────────────────────────────────────────────────────── */
   CadastrosHub: lazy(() => import('@/pages/cadastros/CadastrosHub')),
   CatalogosHub: lazy(() => import('@/pages/cadastros/CatalogosHub')),

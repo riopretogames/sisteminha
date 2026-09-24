@@ -84,9 +84,19 @@ describe('Menu lateral por perfil', () => {
     expect(secaoVisivel(/^Estoque$/)).toBe(true);
   });
 
+  it('Vendedor e Técnico VEEM Tarefas — é por lá que a equipe marca o que fez', async () => {
+    // Tarefas da equipe (23/09): todos os perfis de fábrica têm tasks.view.
+    for (const perfil of ['vendedor', 'tecnico'] as const) {
+      vi.resetModules();
+      const { unmount } = await abrirMenu(perfil);
+      expect(secaoVisivel(/^Tarefas$/)).toBe(true);
+      unmount();
+    }
+  });
+
   it('o Administrador vê tudo', async () => {
     await abrirMenu('administrador');
-    for (const secao of [/^Venda$/, /^Estoque$/, /^Financeiro$/, /^Configurações$/]) {
+    for (const secao of [/^Venda$/, /^Estoque$/, /^Tarefas$/, /^Financeiro$/, /^Configurações$/]) {
       expect(secaoVisivel(secao)).toBe(true);
     }
   });

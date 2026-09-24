@@ -30,6 +30,25 @@ function linksDaSecao(nos: MenuNode[]): MenuLink[] {
   });
 }
 
+/**
+ * Qual botão fica marcado: o do caminho mais comprido que ainda contém o
+ * endereço atual (comparando pedaço a pedaço da barra, não letra a letra).
+ *
+ * Por que "o mais comprido": dentro de um quadro de tarefas (/tarefas/abc)
+ * nenhum botão tem aquele endereço exato, mas ele está "dentro" de Quadros
+ * (/tarefas) — e é Quadros que tem que acender, senão a pessoa perde a
+ * referência de onde está. Já em /tarefas/minhas os dois caminhos servem, e
+ * vence o mais específico. A mesma regra corrige Cadastros: em Importação de
+ * Clientes (/cadastros/clientes/importar) acendiam Clientes e Importação
+ * juntos; agora só Importação.
+ */
+function linkAtivo(links: Pick<MenuLink, 'id' | 'path'>[], pathname: string): string | null {
+  const contem = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
+  const candidatos = links.filter((l) => contem(l.path));
+  if (candidatos.length === 0) return null;
+  return candidatos.reduce((a, b) => (b.path.length > a.path.length ? b : a)).id;
+}
+
 interface Props {
   /** Id da seção em `config/menu.ts`. Ex.: 'cadastros'. */
   secaoId: string;
@@ -47,6 +66,7 @@ export function AbasDaSecao({ secaoId }: Props) {
   );
 
   if (links.length <= 1) return null;
+  const ativoId = linkAtivo(links, pathname);
 
   return (
     <nav
@@ -55,10 +75,7 @@ export function AbasDaSecao({ secaoId }: Props) {
     >
       {links.map((link) => {
         const Icone = getIcon(link.icon ?? 'file');
-        // `end` só na raiz da seção: sem isso, "Visão Geral" (/cadastros)
-        // ficaria marcada junto com todas as filhas.
-        const ehRaiz = link.path === `/${secaoId}`;
-        const ativo = ehRaiz ? pathname === link.path : pathname.startsWith(link.path);
+        const ativo = link.id === ativoId;
 
         return (
           <NavLink

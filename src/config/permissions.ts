@@ -44,6 +44,13 @@ export const PERMISSIONS = {
   ORDERS_APPROVE: 'orders.approve',
   ORDERS_DIAGNOSE: 'orders.diagnose',
 
+  // Tarefas da equipe (o Trello e o Monday dentro do sisteminha, 23/09).
+  // `edit` é de todos os perfis de fábrica — é assim que a equipe usa o
+  // Trello hoje. `manage` (criar/arquivar quadro) é de quem gerencia.
+  TASKS_VIEW: 'tasks.view',
+  TASKS_EDIT: 'tasks.edit',
+  TASKS_MANAGE: 'tasks.manage',
+
   FINANCE_VIEW: 'finance.view',
   FINANCE_PAYABLE_MANAGE: 'finance.payable.manage',
   FINANCE_RECEIVABLE_MANAGE: 'finance.receivable.manage',
