@@ -254,6 +254,19 @@ export const MENU: MenuRoot[] = [
       },
       {
         kind: 'group',
+        id: 'cad-metas',
+        label: 'Metas',
+        children: [
+          // Pedido do Felipe em 23/09/2026: "uma aba de metas" em Cadastros.
+          // A tela só MOSTRA — as metas vêm da planilha Metas RPG, que é a
+          // fonte (ver pages/cadastros/MetasDaLoja.tsx). `goals.manage` é de
+          // administrador e gerente; o vendedor vê a própria meta no Dashboard
+          // de Metas.
+          { kind: 'link', id: 'cad-metas-loja', label: 'Metas da Loja', path: '/cadastros/metas', element: 'MetasDaLoja', permission: PERMISSIONS.DASHBOARDS_GOALS_MANAGE, hint: 'Metas da loja, de cada vendedor e as campanhas, vindas da planilha', icon: 'target' },
+        ],
+      },
+      {
+        kind: 'group',
         id: 'cad-apoio',
         label: 'Tabelas de Apoio',
         children: [

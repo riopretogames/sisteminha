@@ -1476,6 +1476,112 @@ o arquivo antes de assumir.
   o corte do dia (herdado do `RelatorioShell`, não é regressão nova).
   **Conferido em 17/08, ainda vale.**
 
+### Filtros nos quatro painéis e metas vindas da planilha (22-23/09)
+
+Pedido do Felipe em 22/09: *"não tem filtros… quero todos os filtros
+possíveis em todos os lugares possíveis"*. Os quatro painéis eram fixos em
+"hoje" e "esta semana".
+
+- [x] ✅ **Filtro de período, pessoa e categoria em Venda, Assistência,
+  Estoque e Metas** — 13 atalhos (hoje a ano passado) e intervalo livre,
+  comparação com o período anterior e gráfico. Peças compartilhadas:
+  `lib/periodo.ts`, `lib/serie.ts`, `lib/filtrosDashboard.ts`,
+  `components/dashboards/FiltrosDashboard.tsx`.
+- [x] ✅ **As listas dos filtros vêm do CADASTRO** (23/09, achado do Felipe no
+  teste: a Luana sumia do filtro de vendedor por não ter vendido no
+  período). `lib/listasDeFiltro.ts`: a lista vem do cadastro e o movimento
+  só acrescenta. Vale para todo filtro novo.
+- [x] ✅ **O filtro de produto é o Grupo de Produto** (decisão do Felipe em
+  23/09): a Categoria é travada em 4 valores no banco e não aceita item
+  novo. ⚠️ Em 23/09, 11 dos 12 produtos ativos estavam **sem grupo** — o
+  filtro tem "Sem grupo definido" e o Estoque avisa quantos faltam.
+- [x] ✅ **As metas passam a vir da planilha Metas RPG** (23/09, decisão do
+  Felipe). Migration `20260923140000`: `metas_mes`, `metas_campanha`,
+  `metas_sincronizacoes`, a função `aplicar_metas_da_planilha` (única porta
+  de gravação) e a peça do servidor `sincronizar-metas`. O robô da planilha
+  está em `integracoes/planilha-de-metas/` (ver o LEIA-ME de lá). A tela é
+  Cadastros › Metas, só de leitura.
+- [x] ✅ **A meta individual virou a conta da planilha** (meta da loja ÷
+  vendedores; quinzena = ÷ 2, só em mês quinzenal). A versão de 22/09
+  deixava digitar um valor por pessoa, o que não é regra da loja.
+- [x] ✅ **Setembro a dezembro estavam com as metas antigas de agosto no
+  banco** (setembro: R$ 95.000 no sistema, R$ 108.000 na planilha).
+  Corrigido pela primeira carga da planilha, em 23/09.
+- [x] ✅ **A tabela `metas_vendedor` fica** — vazia e sem uso desde 23/09, mas
+  o Felipe decidiu em 24/09 **não apagar** ("deixa de histórico"). Nenhuma
+  tela lê nem grava nela.
+- [x] ✅ **A planilha oficial é a do Drive** (Felipe, 24/09). Conferida no mesmo
+  dia: batia 100% com o banco (12 meses, 4 faixas, vendedores, apuração e as
+  duas campanhas).
+- [ ] 🔸 A cópia `premiacoes/planilhas/metas-2026.xlsx` (que gera os markdowns
+  de premiação por `gerar-metas.py`) virou secundária e vai divergir da
+  oficial. Ajuste a combinar com a área de premiações.
+- [x] ✅ **Mesclado na main e publicado em produção em 24/09/2026** (commit
+  `c2327bf`, OK do Felipe). Falta o Felipe instalar o robô na planilha.
+- [ ] Película e Grip (por unidade), Monday e prêmio de Gerente (suspenso)
+  continuam só na planilha — o sistema ainda não acompanha.
+
+#### A revisão independente de 23/09 (5 revisores + verificação adversarial)
+
+37 achados confirmados, 4 derrubados. Os que importam:
+
+- [x] ✅ **🔴 As oito views `vw_*` aceitavam gravação de qualquer logado**
+  (existia antes deste trabalho, desde as views de 08/08). Gravar pela view
+  passa por cima do RLS: um vendedor mudava preço e apagava produto
+  (`vw_produtos`), apagava o rastro (`vw_auditoria`), criava movimento de
+  estoque falso. Migration `20260923160000` fechou todas e tem conferência; a
+  regra entrou no CLAUDE.md ("View nova precisa FECHAR A ESCRITA na mão").
+- [x] ✅ **Devolução de venda de outro mês não saía do vendedor** no painel de
+  metas — agora a busca traz a venda original junto.
+- [x] ✅ **Consultas cortadas em 1.000 linhas** em períodos longos ("Este ano")
+  — `lib/buscarEmPaginas.ts` busca tudo, de mil em mil, nos quatro painéis.
+- [x] ✅ **Campanha somava o preço cheio do item** (ignorava o desconto da venda
+  e contava a troca em dobro) e não descontava devolução — agora rateia e
+  desconta.
+- [x] ✅ **Comparação com o período anterior invadia o período atual** (31/03
+  contra 01/02–03/03) — `periodoAnterior` corrigida, com testes.
+- [x] ✅ Robô da planilha mais rígido (ano do título × nome, coluna pelo nome
+  exato, erro de fórmula recusado, "1500.50" recusado) e falha de leitura
+  avisada ao sistema; Cadastros › Metas avisa quando a planilha passa de um
+  dia sem chegar.
+- [x] ✅ Menores: 2ª quinzena futura aparecia como "encerrada"; mês sem meta
+  dizia "todas as faixas batidas"; tempo de reparo que piorou aparecia verde;
+  gráfico do estoque mostrava peças em R$; filtro com pessoa que saiu zerava o
+  painel sem explicar; movimento de produto desativado sumia do filtro.
+- [ ] Limite conhecido: sem histórico de perfil, quem passou de vendedor para
+  gerente aparece como gerente também nos meses antigos. A tela avisa.
+- [ ] Limite conhecido: campanhas sem data de início (a régua atual vale para
+  qualquer mês). Documentado no LEIA-ME do robô.
+
+#### Segunda rodada da revisão (23/09 à noite) — 6 achados, todos corrigidos
+
+- [x] ✅ **🔴 View nova nascia gravável de novo.** A migration `20260923160000`
+  fechou as views que existiam; uma view criada depois voltaria a aceitar
+  gravação. Migration `20260923180000` pôs um gatilho no banco
+  (`travar_escrita_de_view`) que fecha a escrita de toda view nova sozinho,
+  com conferência que cria uma view de teste e prova que ela nasce fechada.
+- [x] ✅ **A correção da troca na campanha tirava o valor duas vezes.** O
+  rateio usava o "faturamento real" da venda nova (só a diferença paga) E a
+  devolução tirava a peça que voltou: um jogo de R$ 429,90 levado numa troca
+  contava R$ 80,90. O rateio passou a usar o total da venda (só o desconto).
+  Três testes novos: cliente paga a diferença, cliente recebe dinheiro de
+  volta, troca entre grupos — e os três falham com a conta antiga.
+- [x] ✅ **Consulta em erro apagava o filtro de quem saiu da loja** (Venda,
+  Assistência, Estoque). A correção do filtro órfão agora só roda com os
+  dados carregados de verdade; o painel de Vendas ganhou aviso de erro.
+- [x] ✅ **Virada do ano.** A planilha de 2026 seguiria reenviando às 6h em
+  2027 e o sucesso dela esconderia falhas da de 2027. O robô não reenvia
+  planilha de ano passado sozinho (editar continua enviando), as falhas
+  levam o ano, e Cadastros › Metas olha só o ano corrente — com o aviso "A
+  planilha de 2027 ainda não chegou". Passo a passo no LEIA-ME.
+- [x] ✅ **Suspender todas as campanhas travava o envio.** Título com SUSPENSO
+  agora vai como aviso (`campanhas_suspensas`) e o banco aceita a lista
+  vazia só com ele; sem o aviso, continua recusando (leitura quebrada).
+- [x] ✅ **"—" ou #N/A na coluna "Ano passado" travava o envio inteiro** — a
+  coluna é só referência e agora vira vazio.
+- ⚠️ O robô mudou: o código colado na planilha precisa ser **trocado pelo
+  novo** (Extensões › Apps Script › apagar tudo › colar).
+
 ---
 
 ## Relatórios
@@ -2092,6 +2198,17 @@ Monday, porque é muito simples, muito didático"*. Voltar para "Todas"
 devolve a visão de antes; o alternador manual continua valendo. E **o chip de
 Domingo saiu** ("ninguém faz nada de Domingo") — tarefa de domingo continua
 existindo e aparece em "Todas".
+
+**Publicado na main e na Vercel em 24/09/2026, à tarde**, com o OK do Felipe
+("ficou muito bom, pode mesclar"). Os funcionários foram cadastrados no banco
+sem senha (Gabriel, Léo, Thiago, Pablo, Deivid, Henzo); o Felipe define a
+senha de cada um em Cadastros > Usuários > Redefinir senha. Na mesma
+conversa ele pediu para **ver a senha dos usuários** ("quero entrar no usuário
+do Richard para testar"): não existe — o banco guarda só o embaralhado da
+senha, sem volta. O caminho certo é um botão **"Entrar como este usuário"**
+para administrador (uma função de servidor gera um link de acesso com a chave
+mestra, com registro na auditoria de quem entrou como quem). Fica como
+pendência abaixo.
 
 Ficou para depois, da revisão da v2: "Desfazer" o **Conferido** (hoje só dá
 para devolver, que desfaz o feito da pessoa) — precisa de um terceiro modo na

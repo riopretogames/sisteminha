@@ -16,6 +16,8 @@ export const PERMISSIONS = {
   DASHBOARDS_SALES_VIEW: 'dashboards.sales.view',
   DASHBOARDS_STOCK_VIEW: 'dashboards.stock.view',
   DASHBOARDS_GOALS_VIEW: 'dashboards.goals.view',
+  /** Cadastrar e alterar as metas da loja e dos vendedores (administrador e gerente). */
+  DASHBOARDS_GOALS_MANAGE: 'dashboards.goals.manage',
   DASHBOARDS_SERVICE_VIEW: 'dashboards.service.view',
 
   BI_STOCK_VIEW: 'bi.stock.view',

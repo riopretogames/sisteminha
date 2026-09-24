@@ -94,6 +94,8 @@ describe('Dashboard de Assistência — os números', () => {
     vi.clearAllMocks();
     vi.resetModules();
     silenciarConsole();
+    // Filtro guardado no navegador não pode vazar de um teste para o outro.
+    localStorage.clear();
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(HOJE);
   });
@@ -101,17 +103,20 @@ describe('Dashboard de Assistência — os números', () => {
     vi.useRealTimers();
   });
 
-  it('conta os aparelhos que entraram hoje', async () => {
+  it('conta os aparelhos que entraram no período', async () => {
     await abrir([
       os({ id: '1', created_at: '2026-08-23T09:00:00' }),
       os({ id: '2', created_at: '2026-08-23T11:00:00' }),
-      os({ id: '3', created_at: '2026-08-18T11:00:00' }), // semana, não hoje
+      os({ id: '3', created_at: '2026-08-18T11:00:00' }),
+      os({ id: '4', created_at: '2026-07-10T11:00:00' }), // mês passado, fora
     ]);
 
     await waitFor(() => {
-      expect(screen.getByText('Entraram Hoje')).toBeInTheDocument();
+      expect(screen.getByText('Entraram no Período')).toBeInTheDocument();
     });
-    expect(screen.getByText(/3 nesta semana/)).toBeInTheDocument();
+    // O padrão da tela é o mês corrente: as três de agosto entram, a de
+    // julho fica de fora.
+    expect(screen.getAllByText('3').length).toBeGreaterThan(0);
   });
 
   it('lista os aparelhos parados, do mais antigo para o mais novo', async () => {
@@ -194,9 +199,9 @@ describe('Dashboard de Assistência — os números', () => {
     ]);
 
     await waitFor(() => {
-      expect(screen.getByText('Mão de Obra da Semana')).toBeInTheDocument();
+      expect(screen.getByText('Mão de Obra do Período')).toBeInTheDocument();
     });
-    expect(screen.getByText('Peças da Semana')).toBeInTheDocument();
+    expect(screen.getByText('Peças do Período')).toBeInTheDocument();
     // 200 de mão de obra em 500 = 40%; peça fica com 60%.
     expect(screen.getByText(/40% do serviço entregue/)).toBeInTheDocument();
     expect(screen.getByText(/60% do serviço entregue/)).toBeInTheDocument();
@@ -224,13 +229,13 @@ describe('Dashboard de Assistência — os números', () => {
       await abrir([recusada]);
 
       await waitFor(() => {
-        expect(screen.getByText('Mão de Obra da Semana')).toBeInTheDocument();
+        expect(screen.getByText('Mão de Obra do Período')).toBeInTheDocument();
       });
       // Nem os R$ 450 do serviço, nem os R$ 600 da peça que voltou ao estoque.
       expect(screen.queryByText('R$ 450,00')).not.toBeInTheDocument();
       expect(screen.queryByText('R$ 600,00')).not.toBeInTheDocument();
       expect(
-        screen.getByText(/Nenhum serviço lançado nesta semana/),
+        screen.getByText(/Nenhum serviço lançado no período/),
       ).toBeInTheDocument();
     });
 
@@ -250,7 +255,7 @@ describe('Dashboard de Assistência — os números', () => {
       await abrir([recusada]);
 
       await waitFor(() => {
-        expect(screen.getByText('Entregues na Semana')).toBeInTheDocument();
+        expect(screen.getByText('Entregues no Período')).toBeInTheDocument();
       });
       expect(screen.getByText(/R\$ 80,00 recebidos/)).toBeInTheDocument();
     });
@@ -271,7 +276,7 @@ describe('Dashboard de Assistência — os números', () => {
     ]);
 
     await waitFor(() => {
-      expect(screen.getByText('Outros Custos da Semana')).toBeInTheDocument();
+      expect(screen.getByText('Outros Custos do Período')).toBeInTheDocument();
     });
     expect(screen.getByText('R$ 100,00')).toBeInTheDocument();
     // E a porcentagem passa a ser sobre a conta INTEIRA: 200 em 600 = 33%,

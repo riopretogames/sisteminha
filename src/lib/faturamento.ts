@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
 
 /**
  * Faturamento: como somar dinheiro de venda sem contar duas vezes.
@@ -123,12 +124,16 @@ export interface DevolucaoComVendedor extends DevolucaoRow {
 export async function buscarDevolucoesComVendedorDesde(
   deISO: string,
 ): Promise<DevolucaoComVendedor[]> {
-  const { data, error } = await supabase
-    .from('devolucoes')
-    .select('created_at, valor_devolvido_cliente, venda_original:vendas!devolucoes_venda_original_id_fkey(vendedor_id, vendedor:profiles(nome))')
-    .gte('created_at', deISO);
-  if (error) throw error;
-  return (data ?? []) as unknown as DevolucaoComVendedor[];
+  // Em páginas: o painel de Vendas pode pedir "Ano passado", e o Supabase
+  // corta calado em 1.000 linhas (ver lib/buscarEmPaginas.ts).
+  return buscarEmPaginas<DevolucaoComVendedor>(() =>
+    supabase
+      .from('devolucoes')
+      .select('created_at, valor_devolvido_cliente, venda_original:vendas!devolucoes_venda_original_id_fkey(vendedor_id, vendedor:profiles(nome))')
+      .gte('created_at', deISO)
+      .order('created_at')
+      .order('id'),
+  );
 }
 
 /** Quanto de um produto voltou pela porta, e por qual valor. */
