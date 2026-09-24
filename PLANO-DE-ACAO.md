@@ -1923,6 +1923,145 @@ o arquivo antes de assumir.
 
 ---
 
+## Tarefas da equipe (Kanban) — o Trello e o Monday dentro do sisteminha (23/09)
+
+**Pedido do Felipe em 23/09/2026:** *"Eu uso o Trello e o Monday para a gestão
+de demandas. Estou gastando muito tempo nisso, sendo que eu posso fazer um
+sistema parecido."* E, na mesma conversa: *"é só para gestão de tarefas"* —
+vídeos, cursos, projetos piloto e coisas pessoais continuam no Trello. Aqui
+entra só o que é tarefa da equipe: quem faz o quê, em que dia, em que turno.
+
+### O que ele tem hoje, e o que o módulo copia de cada um
+
+| Ferramenta | O que ele usa | O que vira no sisteminha |
+|---|---|---|
+| **Trello** (quadro "Rio Preto Games LTDA" e "Assistência") | Uma coluna por pessoa (Pedro, Gabriel, Richard, Felipe...) e colunas de apoio (Conferência, Anúncios OLX, Produtos a comprar). Cartão com etiquetas coloridas de dia (TODOS OS DIAS verde, SEGUNDA vermelho, SEXTA roxo...), FAZENDO, URGENTE, NÃO FAZER POR ENQUANTO. | **Visão Kanban**: colunas = listas do quadro, cartão arrastável entre colunas. Os dias da semana deixam de ser etiqueta improvisada e viram **campo da tarefa** (chips com as mesmas cores que ele já conhece do Trello). |
+| **Monday** (quadro "Controle de Tarefas") | Grupos por pessoa; colunas Prioridade, Status, Frequência, Período (7 às 11 / 11 às 15 / 15 às 19 / Livre), Observações, Pessoas. Abas Segunda...Domingo. Status resetado **à mão** todo dia (automação limitada a 250 ações/mês no plano dele). | **Visão Tabela**: os mesmos grupos e colunas coloridas, edição na própria célula. Os **chips de dia** (Hoje, Seg...Dom) fazem o papel das abas. E o "feito" de tarefa recorrente **zera sozinho todo dia** — sem automação, sem limite. |
+
+Frase dele que fixou o desenho: *"se você for ver, tudo é um kanban... é tudo
+cards, colunas e fileiras"*. Então **os dados são um só** (quadro → listas →
+tarefas); Kanban e Tabela são só duas formas de olhar a mesma coisa, com um
+botão de troca igual ao que a tela de OS já tem (grade / quadro).
+
+### O desenho (o que fica no banco)
+
+Migration `20260923220000_tarefas_da_equipe.sql`. Sete tabelas, todas por
+loja (`tenant_id`) e todas com RLS `TO authenticated`:
+
+- **`tarefas_quadros`** — o quadro ("Loja", "Assistência"). Nome, descrição,
+  cor, ordem, `arquivado_em` (arquivar, nunca apagar por engano).
+- **`tarefas_listas`** — as colunas do quadro. Nome, cor, ordem e um
+  `responsavel_id` opcional: a "coluna do Pedro" sabe que é do Pedro, e a
+  tarefa criada nela já nasce com ele como responsável.
+- **`tarefas`** — o cartão. Título, descrição, **prioridade** (`livre`,
+  `baixa`, `normal`, `alta`, `urgente`), **status** (`nao_iniciado`,
+  `fazendo`, `feito`, `pausada` = "não fazer por enquanto"), **`dias_semana`**
+  (lista de 0=domingo a 6=sábado; os sete = "todos os dias"; vazia = tarefa
+  avulsa), **período** (item do catálogo `tarefa_periodo` — a loja cadastra
+  os turnos dela em Listas do Sistema), **prazo** (data, para avulsa),
+  `concluida_em`, `ordem` (número decimal: mover um cartão é UM update, ele
+  ganha a média entre os vizinhos), `arquivada_em`. Um gatilho copia
+  `quadro_id` e `tenant_id` da lista — o cartão nunca fica em lista de outro
+  quadro.
+- **`tarefas_responsaveis`** — quem faz (várias pessoas por tarefa, como as
+  bolinhas do Trello).
+- **`tarefas_etiquetas`** — etiquetas coloridas, itens do catálogo
+  `tarefa_etiqueta` (a loja cria as dela em Listas do Sistema; nascem
+  "Atenção", "Prioridade", "Rotina" e "Conteúdo").
+- **`tarefas_checklist`** — os subitens com caixinha.
+- **`tarefas_comentarios`** — conversa dentro do cartão.
+- **`tarefas_conclusoes`** — **a peça que substitui o "resetar status à
+  mão"**: uma linha por (tarefa, dia). Marcar "feito" numa tarefa recorrente
+  grava a conclusão de HOJE; amanhã a tarefa aparece pendente de novo, sem
+  ninguém mexer. O histórico de quem fez o quê em cada dia fica guardado —
+  base para o dia em que isso for ligado às premiações.
+
+**Permissões** (catálogo + `role_permissions`, ver `config/permissions.ts`):
+
+| Chave | O que libera | Quem tem de fábrica |
+|---|---|---|
+| `tasks.view` | Ver os quadros e as tarefas | Todos os 5 perfis |
+| `tasks.edit` | Criar, editar, mover, arquivar tarefas e listas | Todos os 5 perfis (o Felipe ajusta em Perfis e Permissões se quiser) |
+| `tasks.manage` | Criar e arquivar quadros, apagar de vez | Administrador, Gerente, Gerente Técnico |
+
+Quem **não** tem `tasks.edit` mas é responsável pela tarefa ainda pode marcar
+o andamento dela (status e "feito hoje", checklist): a policy deixa e um
+gatilho (`travas_das_tarefas`) impede que essa pessoa mude qualquer outra
+coluna. É a regra de custo protegido aplicada aqui: a permissão vale no banco,
+não só na tela.
+
+### O desenho (o que fica na tela)
+
+Seção **Tarefas** no menu (ícone de kanban), entre Ordem de Serviço e
+Financeiro, com barra de abas como Cadastros:
+
+- **Minhas Tarefas** (`/tarefas/minhas`) — a tela do funcionário. "Bom dia,
+  Pedro. Você tem 8 tarefas hoje, 3 feitas." Agrupadas por período do dia,
+  caixa grande para marcar feito. É por aqui que a equipe usa o sistema no
+  dia a dia; o quadro inteiro é para quem gerencia.
+- **Quadros** (`/tarefas`) — os quadros da loja em cartões. "Novo quadro"
+  oferece três modelos: **Em branco**, **Loja** e **Assistência** — os dois
+  últimos são o Trello atual do Felipe (listas e cartões), com os nomes das
+  listas editáveis antes de criar. Modelos moram em
+  `components/tarefas/modelosDeQuadro.ts`.
+- **Quadro** (`/tarefas/:id`) — a tela principal, com:
+  - botão de visão **Kanban / Tabela** (guardado no navegador);
+  - chips de dia **Todas · Hoje · Seg · Ter · Qua · Qui · Sex · Sáb · Dom**
+    (as abas do Monday);
+  - filtros: busca, pessoa (lista vem do cadastro de usuários, nunca do que
+    está carregado — lição da Luana), prioridade, status, etiqueta;
+  - **Kanban**: colunas com cabeçalho colorido (nome, contagem, avatar do
+    responsável), cartões com etiquetas no topo, título, chips de dia,
+    rodapé com período, prazo, checklist 2/5 e avatares; bolinha de "feito
+    hoje" no cartão; arrastar entre colunas e reordenar (biblioteca
+    `@dnd-kit`), com a tela respondendo na hora e voltando atrás se o banco
+    recusar; "+ Adicionar tarefa" no pé de cada coluna;
+  - **Tabela**: um grupo por lista, cabeçalho na cor da lista, colunas
+    Tarefa · Pessoas · Prioridade · Status · Frequência · Período · Etiquetas
+    · Prazo · Checklist; prioridade e status são células inteiras coloridas
+    que abrem um seletor ao clicar; linha "+ Adicionar tarefa" no fim do
+    grupo; barra-resumo de status por grupo (o gráfico de barrinhas do
+    Monday);
+  - clicar no cartão/linha abre a **ficha da tarefa** (diálogo): tudo
+    editável, checklist, comentários, arquivar.
+
+Cores fixas no código (regra do Tailwind: classe tem que estar escrita por
+extenso), em `config/tarefas.ts`: prioridades, status e os dias da semana com
+as cores do Trello do Felipe (todos os dias verde, segunda vermelho, terça
+laranja, quarta amarelo, quinta âmbar, sexta roxo, sábado rosa, domingo
+ciano).
+
+### Regras de negócio que a tela e a `lib/tarefas.ts` seguem
+
+- **Tarefa recorrente** (`dias_semana` não vazia): "feita" = tem linha em
+  `tarefas_conclusoes` para o dia. A tela nunca grava `status = 'feito'`
+  nela — grava a conclusão. Desmarcar apaga a conclusão.
+- **Tarefa avulsa** (`dias_semana` vazia): "feita" = `concluida_em`
+  preenchido. Prazo vencido sem concluir = **atrasada** (vermelho, sobe na
+  lista).
+- **Cai no dia X?** Recorrente: se X está em `dias_semana`. Avulsa: se o
+  prazo é X, ou se não tem prazo e ainda não foi feita (pendência aparece
+  todo dia até alguém resolver).
+- **"Pausada"** ("não fazer por enquanto") some de Minhas Tarefas e fica
+  cinza no quadro; não conta como atrasada.
+- **Ordem**: `ordemEntre(antes, depois)` devolve a média; ponta = ±1024.
+  Quando dois vizinhos ficam a menos de 0,000001, a lista inteira é
+  renumerada de 1024 em 1024.
+
+### O que NÃO entra (decisão do Felipe em 23/09)
+
+Anexos e vídeos, cursos, projetos, coisas pessoais. Notificação e integração
+com o WhatsApp/Telegram ficam para depois — o primeiro passo é a equipe
+trocar o Trello por isto e o Felipe parar de pagar o Monday.
+
+### Estado
+
+- [x] Desenho aprovado em conversa (23/09).
+- [ ] Migration escrita e aplicada; tipos regenerados.
+- [ ] Telas: Quadros, Quadro (Kanban + Tabela), Minhas Tarefas, ficha da tarefa.
+- [ ] Testes: `lib/tarefas.test.ts` + telas com o dublê do banco.
+- [ ] Felipe confere no navegador e decide se a equipe migra.
+
 ## Arquitetura de rotas, menu e permissões (transversal)
 
 **🟠 Média**

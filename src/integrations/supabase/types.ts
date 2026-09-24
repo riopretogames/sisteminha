@@ -1172,6 +1172,63 @@ export type Database = {
           },
         ]
       }
+      metas_campanha: {
+        Row: {
+          chave: string
+          created_at: string
+          faixa: Database["public"]["Enums"]["faixa_premiacao"]
+          grupo_produto_id: string | null
+          id: string
+          meta: number
+          nome: string
+          periodicidade: string
+          premio: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          chave: string
+          created_at?: string
+          faixa: Database["public"]["Enums"]["faixa_premiacao"]
+          grupo_produto_id?: string | null
+          id?: string
+          meta: number
+          nome: string
+          periodicidade: string
+          premio: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          chave?: string
+          created_at?: string
+          faixa?: Database["public"]["Enums"]["faixa_premiacao"]
+          grupo_produto_id?: string | null
+          id?: string
+          meta?: number
+          nome?: string
+          periodicidade?: string
+          premio?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_campanha_grupo_produto_id_fkey"
+            columns: ["grupo_produto_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "metas_campanha_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       metas_faturamento: {
         Row: {
           ano: number
@@ -1206,6 +1263,100 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "metas_faturamento_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      metas_mes: {
+        Row: {
+          ano: number
+          apuracao: string
+          created_at: string
+          faturamento_ano_passado: number | null
+          id: string
+          mes: number
+          tenant_id: string
+          updated_at: string
+          vendedores: number
+        }
+        Insert: {
+          ano: number
+          apuracao: string
+          created_at?: string
+          faturamento_ano_passado?: number | null
+          id?: string
+          mes: number
+          tenant_id: string
+          updated_at?: string
+          vendedores: number
+        }
+        Update: {
+          ano?: number
+          apuracao?: string
+          created_at?: string
+          faturamento_ano_passado?: number | null
+          id?: string
+          mes?: number
+          tenant_id?: string
+          updated_at?: string
+          vendedores?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_mes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      metas_sincronizacoes: {
+        Row: {
+          ano: number | null
+          enviado_por: string | null
+          erro: string | null
+          id: string
+          planilha_id: string | null
+          planilha_nome: string | null
+          planilha_url: string | null
+          recebido_em: string
+          resumo: Json | null
+          sucesso: boolean
+          tenant_id: string
+        }
+        Insert: {
+          ano?: number | null
+          enviado_por?: string | null
+          erro?: string | null
+          id?: string
+          planilha_id?: string | null
+          planilha_nome?: string | null
+          planilha_url?: string | null
+          recebido_em?: string
+          resumo?: Json | null
+          sucesso: boolean
+          tenant_id: string
+        }
+        Update: {
+          ano?: number | null
+          enviado_por?: string | null
+          erro?: string | null
+          id?: string
+          planilha_id?: string | null
+          planilha_nome?: string | null
+          planilha_url?: string | null
+          recebido_em?: string
+          resumo?: Json | null
+          sucesso?: boolean
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_sincronizacoes_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -2272,6 +2423,415 @@ export type Database = {
           },
         ]
       }
+      tarefas: {
+        Row: {
+          arquivada_em: string | null
+          concluida_em: string | null
+          created_at: string
+          criado_por: string | null
+          descricao: string | null
+          dias_semana: number[]
+          id: string
+          lista_id: string
+          ordem: number
+          periodo_id: string | null
+          prazo: string | null
+          prioridade: string
+          quadro_id: string
+          status: string
+          tenant_id: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          arquivada_em?: string | null
+          concluida_em?: string | null
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          dias_semana?: number[]
+          id?: string
+          lista_id: string
+          ordem?: number
+          periodo_id?: string | null
+          prazo?: string | null
+          prioridade?: string
+          quadro_id: string
+          status?: string
+          tenant_id: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          arquivada_em?: string | null
+          concluida_em?: string | null
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          dias_semana?: number[]
+          id?: string
+          lista_id?: string
+          ordem?: number
+          periodo_id?: string | null
+          prazo?: string | null
+          prioridade?: string
+          quadro_id?: string
+          status?: string
+          tenant_id?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarefas_lista_id_fkey"
+            columns: ["lista_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas_listas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_periodo_id_fkey"
+            columns: ["periodo_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_quadro_id_fkey"
+            columns: ["quadro_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas_quadros"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tarefas_checklist: {
+        Row: {
+          created_at: string
+          feito: boolean
+          id: string
+          ordem: number
+          tarefa_id: string
+          tenant_id: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          feito?: boolean
+          id?: string
+          ordem?: number
+          tarefa_id: string
+          tenant_id: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          feito?: boolean
+          id?: string
+          ordem?: number
+          tarefa_id?: string
+          tenant_id?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarefas_checklist_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_checklist_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tarefas_comentarios: {
+        Row: {
+          autor_id: string
+          created_at: string
+          id: string
+          tarefa_id: string
+          tenant_id: string
+          texto: string
+        }
+        Insert: {
+          autor_id?: string
+          created_at?: string
+          id?: string
+          tarefa_id: string
+          tenant_id: string
+          texto: string
+        }
+        Update: {
+          autor_id?: string
+          created_at?: string
+          id?: string
+          tarefa_id?: string
+          tenant_id?: string
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarefas_comentarios_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_comentarios_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tarefas_conclusoes: {
+        Row: {
+          concluida_em: string
+          concluida_por: string
+          dia: string
+          tarefa_id: string
+          tenant_id: string
+        }
+        Insert: {
+          concluida_em?: string
+          concluida_por?: string
+          dia: string
+          tarefa_id: string
+          tenant_id: string
+        }
+        Update: {
+          concluida_em?: string
+          concluida_por?: string
+          dia?: string
+          tarefa_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarefas_conclusoes_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_conclusoes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tarefas_etiquetas: {
+        Row: {
+          catalogo_id: string
+          tarefa_id: string
+          tenant_id: string
+        }
+        Insert: {
+          catalogo_id: string
+          tarefa_id: string
+          tenant_id: string
+        }
+        Update: {
+          catalogo_id?: string
+          tarefa_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarefas_etiquetas_catalogo_id_fkey"
+            columns: ["catalogo_id"]
+            isOneToOne: false
+            referencedRelation: "catalogos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_etiquetas_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_etiquetas_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tarefas_listas: {
+        Row: {
+          arquivada_em: string | null
+          cor: string | null
+          created_at: string
+          id: string
+          nome: string
+          ordem: number
+          quadro_id: string
+          responsavel_id: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          arquivada_em?: string | null
+          cor?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          ordem?: number
+          quadro_id: string
+          responsavel_id?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          arquivada_em?: string | null
+          cor?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          ordem?: number
+          quadro_id?: string
+          responsavel_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarefas_listas_quadro_id_fkey"
+            columns: ["quadro_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas_quadros"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_listas_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_listas_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tarefas_quadros: {
+        Row: {
+          arquivado_em: string | null
+          cor: string | null
+          created_at: string
+          criado_por: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          ordem: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          arquivado_em?: string | null
+          cor?: string | null
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          ordem?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          arquivado_em?: string | null
+          cor?: string | null
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          ordem?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarefas_quadros_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tarefas_responsaveis: {
+        Row: {
+          created_at: string
+          tarefa_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          tarefa_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          tarefa_id?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarefas_responsaveis_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_responsaveis_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_responsaveis_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           ativo: boolean | null
@@ -2748,6 +3308,50 @@ export type Database = {
         }
         Relationships: []
       }
+      vw_metas_mes: {
+        Row: {
+          ano: number | null
+          apuracao: string | null
+          created_at: string | null
+          faturamento_ano_passado: number | null
+          id: string | null
+          mes: number | null
+          tenant_id: string | null
+          updated_at: string | null
+          vendedores: number | null
+        }
+        Insert: {
+          ano?: number | null
+          apuracao?: string | null
+          created_at?: string | null
+          faturamento_ano_passado?: never
+          id?: string | null
+          mes?: number | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          vendedores?: number | null
+        }
+        Update: {
+          ano?: number | null
+          apuracao?: string | null
+          created_at?: string | null
+          faturamento_ano_passado?: never
+          id?: string | null
+          mes?: number | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          vendedores?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_mes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vw_movimentos_estoque: {
         Row: {
           created_at: string | null
@@ -3140,6 +3744,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      aplicar_metas_da_planilha: {
+        Args: { p_payload: Json; p_tenant: string }
+        Returns: Json
+      }
       aplicar_trava_de_custo: { Args: never; Returns: string }
       buscar_clientes_semelhantes: {
         Args: { _documento?: string; _nome?: string; _telefone?: string }
@@ -3159,6 +3767,10 @@ export type Database = {
       custo_das_pecas_do_servico: {
         Args: { _servico_id: string }
         Returns: number
+      }
+      eh_responsavel_da_tarefa: {
+        Args: { _tarefa_id: string; _user_id: string }
+        Returns: boolean
       }
       garantir_caixa_aberto: {
         Args: { _tenant: string; _usuario: string }
@@ -3188,6 +3800,14 @@ export type Database = {
           _os_id: string
         }
         Returns: undefined
+      }
+      pessoas_da_apuracao: {
+        Args: { p_ate: string; p_de: string }
+        Returns: {
+          ativo: boolean
+          id: string
+          nome: string
+        }[]
       }
       proximo_numero_documento: {
         Args: { _documento: string; _tenant: string }
