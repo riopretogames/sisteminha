@@ -2286,9 +2286,11 @@ export type Database = {
           id: string
           inscricao_estadual: string | null
           logo_url: string | null
+          mensagem_comprovante: string | null
           nome_loja: string
           taxa_analise: number
           telefone: string | null
+          termos_comprovante: string | null
           updated_at: string | null
           webhook_url: string | null
         }
@@ -2305,9 +2307,11 @@ export type Database = {
           id?: string
           inscricao_estadual?: string | null
           logo_url?: string | null
+          mensagem_comprovante?: string | null
           nome_loja: string
           taxa_analise?: number
           telefone?: string | null
+          termos_comprovante?: string | null
           updated_at?: string | null
           webhook_url?: string | null
         }
@@ -2324,9 +2328,11 @@ export type Database = {
           id?: string
           inscricao_estadual?: string | null
           logo_url?: string | null
+          mensagem_comprovante?: string | null
           nome_loja?: string
           taxa_analise?: number
           telefone?: string | null
+          termos_comprovante?: string | null
           updated_at?: string | null
           webhook_url?: string | null
         }

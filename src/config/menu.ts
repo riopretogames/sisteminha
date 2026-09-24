@@ -250,6 +250,11 @@ export const MENU: MenuRoot[] = [
           // migration de RBAC), então a exigência do Felipe — "quem deve
           // selecionar esse é o administrador" — já vale pela permissão, na
           // tela e no banco. Mesmo caso da tela de Usuários, logo acima.
+          // Texto que a loja escreve e que sai impresso no comprovante do
+          // cliente (condições de garantia, despedida). Fica em Cadastros a
+          // pedido do Felipe em 23/09: cada empresa que usar o sistema tem as
+          // suas regras, e isso não pode depender de programador.
+          { kind: 'link', id: 'cad-comprovantes', label: 'Comprovantes', path: '/cadastros/comprovantes', element: 'CadastroComprovantes', permission: PERMISSIONS.COMPANY_VIEW, hint: 'O que sai escrito no comprovante de venda: garantia e despedida', icon: 'clipboard' },
           { kind: 'link', id: 'cad-campos', label: 'Campos Obrigatórios', path: '/cadastros/campos-obrigatorios', element: 'CamposObrigatorios', permission: PERMISSIONS.SETTINGS_EDIT, hint: 'O que cada tela exige preenchido: venda, OS e cliente', icon: 'clipboard' },
         ],
       },

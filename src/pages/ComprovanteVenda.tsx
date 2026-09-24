@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Loader2, Printer, MessageCircle } from 'lucide-react';
@@ -90,6 +90,20 @@ interface TenantInfo {
   endereco: string | null;
   telefone: string | null;
   cnpj: string | null;
+  /** Endereço do arquivo da logo, cadastrado em Minha Empresa (bucket público
+   *  `logos`). Vazio enquanto a loja não anexou nenhuma — e aí o comprovante
+   *  sai só com o nome escrito, como saía antes. */
+  logo_url: string | null;
+  inscricao_estadual: string | null;
+  email: string | null;
+  /** Cor da marca, cadastrada em Minha Empresa. Entra como detalhe fino no
+   *  comprovante (a régua do topo e o total), nunca como fundo chapado —
+   *  impressora térmica é preto e branco, e sulfite colorida gasta tinta. */
+  cor_primaria: string | null;
+  /** Condições de garantia, uma por linha, cadastradas em Cadastros >
+   *  Comprovantes. A numeração é feita na hora de imprimir. */
+  termos_comprovante: string | null;
+  mensagem_comprovante: string | null;
 }
 
 type Formato = 'sulfite' | 'termica';
@@ -101,6 +115,22 @@ export default function ComprovanteVenda() {
   const { toast } = useToast();
   const [formato, setFormato] = useState<Formato>('sulfite');
   const [enviando, setEnviando] = useState(false);
+
+  /**
+   * Altura do papel da via térmica, em milímetros.
+   *
+   * Por que isto existe: a bobina térmica tem largura fixa (80mm) e altura
+   * variável — o papel é cortado no fim do cupom. O jeito natural de escrever
+   * isso é `@page { size: 80mm auto }`, e era assim que estava. Só que o
+   * navegador **descarta a regra inteira** quando a altura é `auto`: em vez de
+   * 80mm de largura, ele imprime no papel padrão (Carta/A4). Conferido em
+   * 23/09/2026 imprimindo os dois jeitos: com `auto` saiu 216mm de largura,
+   * com uma altura escrita saiu os 80mm certos.
+   *
+   * Então a altura é medida aqui, no cupom já montado, e escrita no `@page`.
+   */
+  const refTermica = useRef<HTMLDivElement>(null);
+  const [alturaTermicaMm, setAlturaTermicaMm] = useState<number | null>(null);
 
   const marcas = useCatalogo('marca');
   const cores = useCatalogo('cor');
@@ -159,7 +189,7 @@ export default function ComprovanteVenda() {
     queryFn: async (): Promise<TenantInfo | null> => {
       const { data, error } = await supabase
         .from('tenants')
-        .select('nome_loja, endereco, telefone, cnpj')
+        .select('nome_loja, endereco, telefone, cnpj, logo_url, inscricao_estadual, email, cor_primaria, termos_comprovante, mensagem_comprovante')
         .eq('id', tenantId!)
         .single();
       if (error) throw error;
@@ -222,6 +252,35 @@ export default function ComprovanteVenda() {
 
   const itens = detalhe?.itens ?? [];
   const pagamentos = detalhe?.pagamentos ?? [];
+
+  /**
+   * Mede o cupom e guarda a altura do papel (ver a nota lá em cima).
+   *
+   * A medição é feita com a largura que o cupom terá NO PAPEL (76mm: os 80mm
+   * da bobina menos 2mm de margem de cada lado), não com a largura que ele
+   * tem na tela. Mais estreito, o texto quebra em mais linhas e o cupom fica
+   * mais alto — medir pela tela cortaria as últimas linhas na impressão.
+   *
+   * A troca de largura acontece e volta dentro da mesma passada, antes de o
+   * navegador desenhar, então ninguém vê o cupom "piscar".
+   *
+   * 96 pixels equivalem a uma polegada (25,4mm) — é a régua que o navegador
+   * usa. Os 4mm de sobra no fim são para a faca do corte não comer a última
+   * linha.
+   */
+  useEffect(() => {
+    if (formato !== 'termica') return;
+    const el = refTermica.current;
+    if (!el) return;
+
+    const larguraOriginal = el.style.width;
+    el.style.width = '76mm';
+    const alturaPx = el.scrollHeight;
+    el.style.width = larguraOriginal;
+
+    const mm = Math.ceil((alturaPx * 25.4) / 96) + 4;
+    setAlturaTermicaMm((atual) => (atual === mm ? atual : mm));
+  }, [formato, venda, itens, pagamentos]);
 
   const textoWhatsApp = useMemo(() => {
     if (!venda) return '';
@@ -355,12 +414,18 @@ export default function ComprovanteVenda() {
       </div>
 
       {/* `@page` muda conforme o formato: A4 com margem normal pra folha,
-          80mm de largura com altura automática pra térmica. Só o formato
-          selecionado é renderizado (abaixo), então só ele aparece na
-          impressão — não precisa esconder o outro via CSS. */}
+          80mm de largura por a altura medida do cupom pra térmica (ver a nota
+          sobre o `auto` no topo do arquivo). Só o formato selecionado é
+          renderizado (abaixo), então só ele aparece na impressão — não precisa
+          esconder o outro via CSS.
+
+          Os 200mm de reserva valem só no instante entre a tela montar e a
+          medição acontecer; na prática ninguém imprime nessa fresta, mas um
+          valor escrito é melhor que `auto`, que faz o navegador ignorar a
+          regra e voltar para o papel de carta. */}
       <style>
         {formato === 'termica'
-          ? '@page { size: 80mm auto; margin: 2mm; }'
+          ? `@page { size: 80mm ${alturaTermicaMm ?? 200}mm; margin: 2mm; }`
           : '@page { size: A4; margin: 15mm; }'}
       </style>
 
@@ -368,10 +433,31 @@ export default function ComprovanteVenda() {
         <ComprovanteSulfite venda={venda} itens={itens} pagamentos={pagamentos} tenant={tenant ?? null}
           descricaoProduto={descricaoProduto} calcularPagamento={calcularPagamento} />
       ) : (
-        <ComprovanteTermica venda={venda} itens={itens} pagamentos={pagamentos} tenant={tenant ?? null}
+        <ComprovanteTermica refCupom={refTermica} venda={venda} itens={itens} pagamentos={pagamentos} tenant={tenant ?? null}
           descricaoProduto={descricaoProduto} calcularPagamento={calcularPagamento} />
       )}
     </div>
+  );
+}
+
+/**
+ * A logo da loja no comprovante, vinda do cadastro em Minha Empresa.
+ *
+ * Some sozinha em dois casos, e os dois são de propósito:
+ *
+ * - **Loja sem logo cadastrada:** o comprovante sai com o nome escrito, como
+ *   saía antes. Ninguém fica com um quadrado vazio no papel.
+ * - **Arquivo que não abre** (foi apagado do servidor, endereço quebrado, a
+ *   loja está sem internet na hora de imprimir): a imagem se apaga em vez de
+ *   virar aquele ícone de foto quebrada no meio do comprovante do cliente.
+ */
+function LogoDaLoja({ url, className }: { url: string | null | undefined; className: string }) {
+  const [falhou, setFalhou] = useState(false);
+  if (!url || falhou) return null;
+  return (
+    // `alt` vazio de propósito: o nome da loja já está escrito do lado, e um
+    // texto alternativo repetiria a informação para quem usa leitor de tela.
+    <img src={url} alt="" className={className} onError={() => setFalhou(true)} />
   );
 }
 
@@ -391,150 +477,292 @@ interface FormatoProps {
   };
 }
 
+/** Hora no formato do comprovante (14:35:07). */
+function hora(valor: string): string {
+  return new Intl.DateTimeFormat('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(new Date(valor));
+}
+
 /**
- * Via de sulfite/PDF — reproduz "Nota de Venda Nº 5579.pdf" campo a campo,
- * inclusive os 8 parágrafos de garantia (texto verbatim do formato antigo).
- * Sem o logo do urso: não temos o arquivo da imagem aqui, só o texto.
+ * As condições de garantia, na ordem cadastrada em Cadastros > Comprovantes.
+ * Loja que apagou todas imprime o comprovante sem essa parte — é escolha dela.
+ */
+function condicoesDaLoja(tenant: TenantInfo | null): string[] {
+  return (tenant?.termos_comprovante ?? '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
+/** A cor da marca, com um preto de reserva para loja que não cadastrou nenhuma. */
+function corDaMarca(tenant: TenantInfo | null): string {
+  return tenant?.cor_primaria?.trim() || '#111111';
+}
+
+/**
+ * Via de folha (sulfite/PDF) — o documento que fica com o cliente.
+ *
+ * Traz os mesmos campos da nota que a loja já usava no sistema antigo (pedido
+ * do Felipe, com a "Nota de Venda Nº 5669" como referência), mas desenhado
+ * como documento e não como planilha impressa:
+ *
+ * - **Hierarquia por peso e tamanho, não por moldura.** A grade de linhas em
+ *   volta de cada célula fazia todo campo gritar no mesmo volume. Aqui só o
+ *   que separa de fato tem linha, e ela é fina.
+ * - **Número tabular em tudo que é dinheiro**, para os valores alinharem na
+ *   casa decimal — coluna de preço desalinhada é o que faz uma nota parecer
+ *   amadora.
+ * - **A cor da marca entra como detalhe** (a régua do topo e o total), nunca
+ *   como fundo chapado: o comprovante precisa continuar legível impresso em
+ *   preto e branco, que é como a maioria vai sair.
  */
 function ComprovanteSulfite({
   venda, itens, pagamentos, tenant, descricaoProduto, calcularPagamento,
 }: FormatoProps) {
   // Só faz sentido gastar uma coluna do papel com desconto se houver algum.
   const temDescontoPorItem = itens.some((i) => Number(i.desconto ?? 0) > 0);
+  const cor = corDaMarca(tenant);
+  const condicoes = condicoesDaLoja(tenant);
+  const telefoneCliente = venda.clientes?.telefones?.[0];
 
   return (
-    <div className="relative rounded-lg border bg-white p-8 text-sm text-black print:border-0 print:p-0">
+    <div className="relative rounded-lg border bg-white p-10 text-black print:rounded-none print:border-0 print:p-0">
       {venda.status === 'cancelado' && (
-        <p className="mb-4 border-2 border-red-600 py-1 text-center text-lg font-bold text-red-600">
+        <p className="mb-6 border-2 border-red-600 py-1.5 text-center text-lg font-bold tracking-[0.2em] text-red-600">
           VENDA CANCELADA
         </p>
       )}
-      <div className="mb-4 flex items-start justify-between border-b pb-3">
+
+      {/* ── Cabeçalho ──────────────────────────────────────────────────────── */}
+      <header className="flex items-start justify-between gap-6">
+        <div className="flex items-start gap-4">
+          {/* Altura travada (não largura): logo quadrada e logo comprida ficam
+              do mesmo tamanho no papel, e `object-contain` não deixa nenhuma
+              das duas esticar. */}
+          <LogoDaLoja
+            url={tenant?.logo_url}
+            className="h-16 w-auto max-w-[45mm] shrink-0 object-contain"
+          />
+          <div className="leading-snug">
+            {/* Tracking negativo no nome: letra grande lida com espaçamento
+                normal parece solta. */}
+            <p className="text-[19px] font-bold tracking-[-0.01em]">
+              {tenant?.nome_loja ?? 'RIO PRETO GAMES'}
+            </p>
+            <div className="mt-1 space-y-px text-[11px] text-neutral-600">
+              {tenant?.cnpj && <p>CNPJ {tenant.cnpj}</p>}
+              {tenant?.inscricao_estadual && <p>IE {tenant.inscricao_estadual}</p>}
+              {tenant?.endereco && <p>{tenant.endereco}</p>}
+              <p>
+                {[tenant?.telefone, tenant?.email].filter(Boolean).join('  ·  ')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="shrink-0 text-right">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-neutral-500">
+            Comprovante de venda
+          </p>
+          {/* O maior número da página: é por ele que alguém acha este papel
+              dentro de uma pilha. Tracking negativo porque letra grande com
+              espaçamento normal parece solta. */}
+          <p className="mt-1 text-[44px] font-bold leading-[0.95] tracking-[-0.03em] tabular-nums">
+            {venda.numero_venda ?? '—'}
+          </p>
+          <p className="mt-2 text-[12px] text-neutral-600">{dataHora(venda.created_at)}</p>
+        </div>
+      </header>
+
+      {/* A régua com a cor da loja: um fio, não uma tarja. */}
+      <div className="mt-6 h-[3px] w-full" style={{ backgroundColor: cor }} />
+
+      {/* ── Quem vende, quem compra ────────────────────────────────────────── */}
+      {/* Cliente e vendedor são o que mais se consulta depois do total — quem
+          comprou e quem atendeu. Nome em corpo grande, o resto em corpo de
+          apoio: a diferença de tamanho é o que faz o olho achar sem procurar. */}
+      <section className="mt-8 grid grid-cols-2 gap-10 text-[13px]">
         <div>
-          <p className="text-lg font-bold">{tenant?.nome_loja ?? 'RIO PRETO GAMES'}</p>
-          {tenant?.endereco && <p>{tenant.endereco}</p>}
-          {tenant?.telefone && <p>{tenant.telefone}</p>}
-          {tenant?.cnpj && <p>CNPJ: {tenant.cnpj}</p>}
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+            Cliente
+          </p>
+          <p className="text-[17px] font-semibold leading-tight tracking-[-0.01em]">
+            {venda.clientes?.nome ?? 'Consumidor final'}
+          </p>
+          <div className="mt-1.5 space-y-0.5 text-neutral-700">
+            {venda.clientes?.cpf_cnpj && <p>CPF/CNPJ {venda.clientes.cpf_cnpj}</p>}
+            {telefoneCliente && <p>{telefoneCliente}</p>}
+          </div>
         </div>
-        <div className="text-right">
-          <p className="font-bold">Venda N°: {venda.numero_venda ?? '—'}</p>
-          <p>{dataHora(venda.created_at)}</p>
+        <div>
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+            Vendedor
+          </p>
+          <p className="text-[17px] font-semibold leading-tight tracking-[-0.01em]">
+            {venda.vendedor?.nome ?? '—'}
+          </p>
+          <p className="mt-1.5 text-neutral-700">Prazo {fmtData(venda.created_at)}</p>
         </div>
-      </div>
+      </section>
 
-      <div className="mb-4 space-y-0.5">
-        <p><span className="font-semibold">Vendedor:</span> {venda.vendedor?.nome ?? '—'}</p>
-        <p><span className="font-semibold">Cliente:</span> {venda.clientes?.nome ?? 'Consumidor final'}</p>
-        <p>
-          <span className="font-semibold">CPF/CNPJ:</span> {venda.clientes?.cpf_cnpj ?? '—'}
-          {'  '}
-          <span className="font-semibold">Telefone:</span> {venda.clientes?.telefones?.[0] ?? '—'}
+      {venda.observacoes && (
+        <p className="mt-6 rounded border-l-2 border-neutral-300 bg-neutral-50 px-4 py-2.5 text-[12px] text-neutral-700 print:bg-transparent">
+          <span className="font-semibold">Observações:</span> {venda.observacoes}
         </p>
-        <p><span className="font-semibold">Observações Gerais:</span> {venda.observacoes || '-'}</p>
-      </div>
+      )}
 
-      <p className="mb-1 font-semibold">Descrição dos Produtos: {itens.length} no Total</p>
-      {/*
-        A coluna Desconto só aparece se ALGUM item tiver desconto de verdade.
+      {/* ── Produtos ───────────────────────────────────────────────────────── */}
+      <section className="mt-8">
+        <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+          Produtos · {itens.length} {itens.length === 1 ? 'item' : 'itens'}
+        </p>
+        {/*
+          A coluna Desconto só aparece se ALGUM item tiver desconto de verdade.
 
-        Hoje o PDV grava desconto só no total da venda (`vendas.descontos`),
-        nunca por item — então a coluna aparecia em todo comprovante mostrando
-        R$ 0,00 em todas as linhas, mesmo numa venda que teve desconto. Para
-        quem recebe o papel, coluna zerada não diz "não houve desconto neste
-        item": diz "o sistema não sabe calcular". O desconto real continua no
-        rodapé, onde sempre esteve certo.
+          Hoje o PDV grava desconto só no total da venda (`vendas.descontos`),
+          nunca por item — então a coluna aparecia em todo comprovante mostrando
+          R$ 0,00 em todas as linhas, mesmo numa venda que teve desconto. Para
+          quem recebe o papel, coluna zerada não diz "não houve desconto neste
+          item": diz "o sistema não sabe calcular". O desconto real continua no
+          rodapé, onde sempre esteve certo.
 
-        Condicional em vez de removida de propósito: no dia em que o PDV
-        passar a dar desconto por produto, a coluna volta sozinha, sem
-        ninguém precisar lembrar de reativá-la.
-      */}
-      <table className="mb-4 w-full border-collapse border text-xs">
-        <thead>
-          <tr className="border bg-gray-50">
-            <th className="border px-2 py-1 text-left">IMEI</th>
-            <th className="border px-2 py-1 text-left">Produto</th>
-            <th className="border px-2 py-1">Defeito?</th>
-            <th className="border px-2 py-1 text-right">Valor.Unit.</th>
-            {temDescontoPorItem && <th className="border px-2 py-1 text-right">Desconto</th>}
-            <th className="border px-2 py-1">QTD</th>
-            <th className="border px-2 py-1 text-right">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {itens.map((item) => (
-            <tr key={item.id} className="border">
-              <td className="border px-2 py-1">{item.produtos?.imei_serial ?? '—'}</td>
-              <td className="border px-2 py-1">{descricaoProduto(item)}</td>
-              <td className="border px-2 py-1 text-center">{item.defeito_declarado ? 'Sim' : 'Não'}</td>
-              <td className="border px-2 py-1 text-right">{moeda(Number(item.preco_unitario))}</td>
-              {temDescontoPorItem && (
-                <td className="border px-2 py-1 text-right">{moeda(Number(item.desconto))}</td>
-              )}
-              <td className="border px-2 py-1 text-center">{item.quantidade}</td>
-              <td className="border px-2 py-1 text-right">{moeda(Number(item.total))}</td>
+          Condicional em vez de removida de propósito: no dia em que o PDV
+          passar a dar desconto por produto, a coluna volta sozinha, sem
+          ninguém precisar lembrar de reativá-la.
+        */}
+        <table className="w-full border-collapse text-[13px]">
+          <thead>
+            <tr className="border-b border-neutral-800 text-[10px] uppercase tracking-[0.08em] text-neutral-600">
+              <th className="pb-2 text-left font-medium">Produto</th>
+              <th className="pb-2 pl-3 text-right font-medium">Unitário</th>
+              {temDescontoPorItem && <th className="pb-2 pl-3 text-right font-medium">Desc.</th>}
+              <th className="pb-2 pl-3 text-right font-medium">Qtd</th>
+              <th className="pb-2 pl-3 text-right font-medium">Total</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <p className="mb-1 font-semibold">Forma de Pagamentos</p>
-      <table className="mb-4 w-full border-collapse border text-xs">
-        <thead>
-          <tr className="border bg-gray-50">
-            <th className="border px-2 py-1 text-left">Pagamento</th>
-            <th className="border px-2 py-1">Nº Parcela</th>
-            <th className="border px-2 py-1">Data Lançamento</th>
-            <th className="border px-2 py-1 text-right">Taxa</th>
-            <th className="border px-2 py-1 text-right">Valor Pago Sem Taxa</th>
-            <th className="border px-2 py-1 text-right">Total Cm. Taxas</th>
-            <th className="border px-2 py-1 text-right">Valor Parcela</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pagamentos.map((p) => {
-            const c = calcularPagamento(p);
-            return (
-              <tr key={p.id} className="border">
-                <td className="border px-2 py-1">{c.descricao}</td>
-                <td className="border px-2 py-1 text-center">{c.parcelas}X</td>
-                <td className="border px-2 py-1 text-center">{fmtData(p.created_at)}</td>
-                <td className="border px-2 py-1 text-right">{moeda(c.taxaValor)}</td>
-                <td className="border px-2 py-1 text-right">{moeda(c.semTaxa)}</td>
-                <td className="border px-2 py-1 text-right">{moeda(c.comTaxa)}</td>
-                <td className="border px-2 py-1 text-right">{moeda(c.valorParcela)}</td>
+          </thead>
+          <tbody>
+            {itens.map((item) => (
+              <tr key={item.id} className="border-b border-neutral-200 align-top">
+                <td className="py-2.5 pr-3">
+                  <span className="font-medium">{descricaoProduto(item)}</span>
+                  {/* IMEI e defeito viram linha secundária: são informação de
+                      conferência, não a identidade do produto. */}
+                  {(item.produtos?.imei_serial || item.defeito_declarado) && (
+                    <span className="mt-1 block text-[10px] text-neutral-500">
+                      {item.produtos?.imei_serial && <>IMEI/Série {item.produtos.imei_serial}</>}
+                      {item.produtos?.imei_serial && item.defeito_declarado && '  ·  '}
+                      {item.defeito_declarado && (
+                        <span className="font-semibold text-neutral-700">Com defeito declarado</span>
+                      )}
+                    </span>
+                  )}
+                </td>
+                <td className="py-2.5 pl-3 text-right tabular-nums">{moeda(Number(item.preco_unitario))}</td>
+                {temDescontoPorItem && (
+                  <td className="py-2.5 pl-3 text-right tabular-nums">{moeda(Number(item.desconto))}</td>
+                )}
+                <td className="py-2.5 pl-3 text-right tabular-nums">{item.quantidade}</td>
+                <td className="py-2.5 pl-3 text-right font-medium tabular-nums">{moeda(Number(item.total))}</td>
               </tr>
-            );
-          })}
-          {!pagamentos.length && (
-            <tr><td className="border px-2 py-1 text-center text-gray-500" colSpan={7}>Nenhum pagamento registrado.</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      {/* ── Pagamento e totais, lado a lado ────────────────────────────────── */}
+      <section className="mt-8 flex flex-wrap items-start justify-between gap-10">
+        <div className="min-w-[95mm] flex-1">
+          <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+            Pagamento
+          </p>
+          {pagamentos.length === 0 ? (
+            <p className="text-[12px] text-neutral-500">Nenhum pagamento registrado.</p>
+          ) : (
+            <table className="w-full border-collapse text-[11px]">
+              <thead>
+                <tr className="border-b border-neutral-300 text-[10px] uppercase tracking-[0.08em] text-neutral-600">
+                  <th className="pb-1 text-left font-medium">Forma</th>
+                  <th className="pb-1 pl-2 text-center font-medium">Parc.</th>
+                  <th className="pb-1 pl-2 text-right font-medium">Taxa</th>
+                  <th className="pb-1 pl-2 text-right font-medium">Parcela</th>
+                  <th className="pb-1 pl-2 text-right font-medium">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pagamentos.map((p) => {
+                  const c = calcularPagamento(p);
+                  return (
+                    <tr key={p.id} className="border-b border-neutral-100">
+                      <td className="py-1.5">
+                        {c.descricao}
+                        <span className="ml-1 text-neutral-500">{fmtData(p.created_at)}</span>
+                      </td>
+                      <td className="py-1.5 pl-2 text-center tabular-nums">{c.parcelas}x</td>
+                      <td className="py-1.5 pl-2 text-right tabular-nums">{moeda(c.taxaValor)}</td>
+                      <td className="py-1.5 pl-2 text-right tabular-nums">{moeda(c.valorParcela)}</td>
+                      <td className="py-1.5 pl-2 text-right tabular-nums">{moeda(c.comTaxa)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
-        </tbody>
-      </table>
+        </div>
 
-      <p className="mb-4 flex flex-wrap gap-6 border-y py-2 font-semibold">
-        <span>VALOR: {moeda(Number(venda.subtotal))}</span>
-        <span>DESCONTO: {moeda(Number(venda.descontos))}</span>
-        <span>TOTAL: {moeda(Number(venda.total))}</span>
-        {/* PRAZO sempre é a própria data da venda: a loja não trabalha com
-            crediário/parcelamento com vencimento futuro, então não existe
-            uma data de vencimento diferente do dia da venda. */}
-        <span>PRAZO: {fmtData(venda.created_at)}</span>
-      </p>
+        <div className="ml-auto w-[68mm] shrink-0 text-[13px]">
+          <div className="flex justify-between py-1.5 text-neutral-700">
+            <span>Valor</span>
+            <span className="tabular-nums">{moeda(Number(venda.subtotal))}</span>
+          </div>
+          <div className="flex justify-between py-1.5 text-neutral-700">
+            <span>Desconto</span>
+            <span className="tabular-nums">{moeda(Number(venda.descontos))}</span>
+          </div>
+          {/* O total é a única coisa desta página que alguém procura de longe:
+              maior, mais pesado, e com a cor da loja na linha de cima. */}
+          <div
+            className="mt-2 flex items-baseline justify-between border-t-2 pt-3"
+            style={{ borderColor: cor }}
+          >
+            <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+              Total
+            </span>
+            <span className="text-[34px] font-bold leading-none tracking-[-0.03em] tabular-nums">
+              {moeda(Number(venda.total))}
+            </span>
+          </div>
+        </div>
+      </section>
 
-      <ol className="mb-6 space-y-1 text-xs leading-snug">
-        <li>1 - Aparelhos novos possuem 1 ano de garantia pelo fabricante.</li>
-        <li>2 - Aparelhos de marca Xiaomi possuem 90 dias de garantia.</li>
-        <li>3 - Aparelhos seminovos possuem 90 dias de garantia com nossa loja.</li>
-        <li>4 - Não é dada garantia para aparelhos que apresentem sinal de queda, molhado ou riscados.</li>
-        <li>5 - Não é dada garantia para aparelhos que tenham sido aberto por técnicos terceiros.</li>
-        <li>6 - Não cobrimos mau uso do usuário.</li>
-        <li>7 - Cliente declara estar ciente de que a empresa Rio Preto Games é uma revendedora, e por isto, revende os produtos conforme a fabricante envia.</li>
-        <li>8 - Cliente declara estar ciente dos termos acima.</li>
-      </ol>
+      {/* ── Condições e assinatura ─────────────────────────────────────────── */}
+      {condicoes.length > 0 && (
+        <section className="mt-8 border-t border-neutral-200 pt-4">
+          <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+            Condições de garantia
+          </p>
+          {/* Letra miúda de propósito: é o contrato, não a informação que a
+              pessoa veio buscar. Leading folgado para continuar legível. */}
+          <ol className="space-y-1 text-[10px] leading-snug text-neutral-700">
+            {condicoes.map((texto, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="shrink-0 tabular-nums text-neutral-400">{i + 1}.</span>
+                <span>{texto}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
-      <p className="mb-10 text-center font-semibold">AGRADECEMOS A PREFERÊNCIA, VOLTE SEMPRE!</p>
+      {tenant?.mensagem_comprovante && (
+        <p className="mt-7 text-center text-[14px] font-semibold tracking-[0.04em]">
+          {tenant.mensagem_comprovante}
+        </p>
+      )}
 
-      <div className="mx-auto w-2/3 border-t pt-1 text-center text-xs">
+      <div className="mx-auto mt-10 w-2/3 border-t border-neutral-400 pt-2 text-center text-[11px] text-neutral-600">
         Assinatura do(a) cliente
       </div>
     </div>
@@ -542,63 +770,99 @@ function ComprovanteSulfite({
 }
 
 /**
- * Via térmica 80mm — desenho próprio (sem exemplo dado, pedido explícito do
- * Felipe: "desenha um padrão"). Condensada: sem tabela com borda, sem os 8
- * parágrafos por extenso (papel térmico é caro e a via de sulfite já cobre
- * os termos completos) — só um resumo de 2 linhas remetendo à via de papel.
+ * Via térmica 80mm — o cupom da bobina.
+ *
+ * Segue o modelo que a loja já usa no sistema antigo (o Felipe mandou um
+ * exemplo em 23/09/2026): topo com a loja, o bloco do cupom, os produtos em
+ * uma linha cada, os totais, o pagamento, a hora da saída e as condições de
+ * garantia por extenso. As condições saem completas aqui também — no modelo
+ * elas estão, e o cliente que leva só o cupom não pode ficar sem elas.
+ *
+ * Tudo em texto de largura fixa e alinhamento por espaço, do jeito que
+ * impressora térmica imprime melhor, com os separadores marcando os blocos.
  */
 function ComprovanteTermica({
-  venda, itens, pagamentos, tenant, descricaoProduto, calcularPagamento,
-}: FormatoProps) {
+  venda, itens, pagamentos, tenant, descricaoProduto, calcularPagamento, refCupom,
+}: FormatoProps & { refCupom?: React.Ref<HTMLDivElement> }) {
   const linha = '-'.repeat(32);
+  const condicoes = condicoesDaLoja(tenant);
+  const telefoneCliente = venda.clientes?.telefones?.[0];
+
   return (
-    <div className="mx-auto w-[80mm] bg-white p-2 font-mono text-[11px] leading-tight text-black print:w-full">
+    // Na tela o cupom aparece com a largura real do papel (80mm), para dar a
+    // noção de como vai sair. Na impressão a largura passa a ser a da própria
+    // bobina (`@page size: 80mm`) e a margem do papel já vem do `@page` — o
+    // recuo de tela aqui só roubaria caracteres de cada linha.
+    <div ref={refCupom} className="mx-auto w-[80mm] bg-white p-2 font-mono text-[11px] leading-tight text-black print:mx-0 print:w-full print:p-0">
       {venda.status === 'cancelado' && (
         <p className="mb-1 text-center font-bold">*** VENDA CANCELADA ***</p>
       )}
+
       <div className="text-center">
+        {/* Em preto e branco de propósito: impressora térmica não tem cor, e
+            uma logo colorida vira um borrão cinza sem contraste. */}
+        <LogoDaLoja
+          url={tenant?.logo_url}
+          className="mx-auto mb-1 h-12 w-auto max-w-[40mm] object-contain grayscale contrast-125"
+        />
         <p className="font-bold">{(tenant?.nome_loja ?? 'RIO PRETO GAMES').toUpperCase()}</p>
-        {tenant?.endereco && <p>{tenant.endereco}</p>}
         {tenant?.telefone && <p>{tenant.telefone}</p>}
-        {tenant?.cnpj && <p>CNPJ: {tenant.cnpj}</p>}
+        {tenant?.cnpj && <p>{tenant.cnpj}</p>}
+        {tenant?.endereco && <p>{tenant.endereco}</p>}
       </div>
+
       <p>{linha}</p>
-      <p>Venda: {venda.numero_venda ?? '—'}</p>
-      <p>{dataHora(venda.created_at)}</p>
-      <p>Vendedor: {venda.vendedor?.nome ?? '—'}</p>
-      <p>Cliente: {venda.clientes?.nome ?? 'Consumidor final'}</p>
-      {venda.clientes?.cpf_cnpj && <p>CPF/CNPJ: {venda.clientes.cpf_cnpj}</p>}
+      {/* Mesma ideia da via de folha: cupom, cliente, vendedor e total um
+          degrau acima do resto. No papel estreito o degrau é menor — letra
+          grande demais quebra linha e come bobina. */}
+      <p className="text-[15px] font-bold leading-tight">CUPOM {venda.numero_venda ?? '—'}</p>
+      <p>{hora(venda.created_at)} {fmtData(venda.created_at)}</p>
+      <p className="text-[12px] font-bold">VENDEDOR: {(venda.vendedor?.nome ?? '—').toUpperCase()}</p>
+      <p className="text-[12px] font-bold">CLIENTE: {(venda.clientes?.nome ?? 'CONSUMIDOR FINAL').toUpperCase()}</p>
+      {telefoneCliente && <p>{telefoneCliente}</p>}
+      {venda.clientes?.cpf_cnpj && <p>{venda.clientes.cpf_cnpj}</p>}
+
       <p>{linha}</p>
+      <p>Descricao dos produtos {itens.length}x</p>
       {itens.map((item) => (
         <div key={item.id} className="mb-1">
-          <p>{descricaoProduto(item)}</p>
-          {item.produtos?.imei_serial && <p>IMEI/Série: {item.produtos.imei_serial}</p>}
           <p>
-            {item.quantidade}x {moeda(Number(item.preco_unitario))}
-            {Number(item.desconto) > 0 ? ` (-${moeda(Number(item.desconto))})` : ''}
-            {'  '}= {moeda(Number(item.total))}
+            {item.quantidade}X - {descricaoProduto(item)} - {moeda(Number(item.total))}
           </p>
+          {item.produtos?.imei_serial && <p>IMEI/Serie: {item.produtos.imei_serial}</p>}
           {item.defeito_declarado && <p>*** DEFEITO DECLARADO ***</p>}
         </div>
       ))}
+
       <p>{linha}</p>
+      <p className="text-[15px] font-bold leading-tight">VALOR TOTAL: {moeda(Number(venda.total))}</p>
+      {Number(venda.descontos) > 0 && <p>VALOR DESCONTO: {moeda(Number(venda.descontos))}</p>}
       {pagamentos.map((p) => {
         const c = calcularPagamento(p);
         return (
           <p key={p.id}>
-            {c.descricao} {c.parcelas}X — {moeda(c.comTaxa)}
+            {c.parcelas}X - {c.descricao} - {moeda(c.comTaxa)} - {fmtData(p.created_at)}
           </p>
         );
       })}
-      <p>{linha}</p>
-      <p>VALOR: {moeda(Number(venda.subtotal))}</p>
-      {Number(venda.descontos) > 0 && <p>DESCONTO: {moeda(Number(venda.descontos))}</p>}
-      <p className="font-bold">TOTAL: {moeda(Number(venda.total))}</p>
-      <p>{linha}</p>
-      <p className="text-center">
-        Seminovo: 90 dias de garantia com a loja. Novo: garantia do fabricante. Termos completos na via de papel.
-      </p>
-      <p className="mt-2 text-center font-bold">Obrigado pela preferência, volte sempre!</p>
+      <p>Data Saida: {fmtData(venda.created_at)}</p>
+      <p>Hora Saida: {hora(venda.created_at)}</p>
+
+      {condicoes.length > 0 && (
+        <>
+          <p>{linha}</p>
+          <div className="space-y-1">
+            {condicoes.map((texto, i) => (
+              <p key={i}>{i + 1} - {texto.toUpperCase()}</p>
+            ))}
+          </div>
+        </>
+      )}
+
+      {tenant?.mensagem_comprovante && (
+        <p className="mt-2 text-center font-bold">{tenant.mensagem_comprovante}</p>
+      )}
+
       <p className="mt-4 text-center">x_______________________</p>
       <p className="text-center">Assinatura do(a) cliente</p>
     </div>
