@@ -2207,8 +2207,14 @@ conversa ele pediu para **ver a senha dos usuários** ("quero entrar no usuário
 do Richard para testar"): não existe — o banco guarda só o embaralhado da
 senha, sem volta. O caminho certo é um botão **"Entrar como este usuário"**
 para administrador (uma função de servidor gera um link de acesso com a chave
-mestra, com registro na auditoria de quem entrou como quem). Fica como
-pendência abaixo.
+mestra, com registro na auditoria de quem entrou como quem). **Construído na
+mesma tarde:** botões "Entrar como" e "Copiar link" (para janela anônima) na
+ficha do usuário, só para quem gerencia usuários — e entrar como um
+administrador exige `roles.manage`, a mesma trava da troca de senha. Enquanto
+durar, uma faixa amarela no topo lembra "você está como Fulano", com o botão
+para sair. Cada uso grava `ENTRAR_COMO` na auditoria (a tela de Logs mostra
+"Entrou como"). O campo de senha já tinha o olhinho para conferir a senha
+digitada antes de salvar.
 
 Ficou para depois, da revisão da v2: "Desfazer" o **Conferido** (hoje só dá
 para devolver, que desfaz o feito da pessoa) — precisa de um terceiro modo na

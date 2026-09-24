@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import type { Role, Permission } from '@/config/permissions';
+import { gravarEntrouComo, montarLinkDeAcesso } from '@/lib/entrarComo';
 
 /**
  * Gestão de usuários da loja.
@@ -69,6 +70,7 @@ async function chamarAdminUsuarios(corpo: Record<string, unknown>) {
  */
 export function useUsuarios(verArquivados = false) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const aoFalhar = (error: unknown) => {
@@ -284,6 +286,69 @@ export function useUsuarios(verArquivados = false) {
     },
   });
 
+  /**
+   * Entra na conta de outra pessoa, para ver o sistema como ela vê.
+   *
+   * O servidor confere o crachá, gera um acesso de uso único e registra na
+   * auditoria quem entrou como quem (ver lib/entrarComo.ts). Aqui a sessão
+   * do navegador vira a da pessoa e a página recarrega inteira, de propósito:
+   * tudo que está em cache (permissões, menu, listas) é da conta de quem
+   * clicou, e não pode sobrar nada dela na tela do outro.
+   */
+  const entrarComo = useMutation({
+    mutationFn: async (dados: { userId: string; nome: string }) => {
+      const resposta = await chamarAdminUsuarios({ acao: 'entrar_como', user_id: dados.userId });
+      const tokenHash = String(resposta?.token_hash ?? '');
+      if (!tokenHash) throw new Error('O servidor não devolveu o acesso.');
+      const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'magiclink' });
+      if (error) throw error;
+      gravarEntrouComo({
+        nome: String(resposta?.nome ?? dados.nome),
+        por: user?.profile?.nome ?? '',
+        quando: new Date().toISOString(),
+      });
+      window.location.assign(import.meta.env.BASE_URL.replace(/\/$/, '') + '/home');
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: 'Não foi possível entrar como essa pessoa',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  /**
+   * O mesmo acesso, mas como link para abrir numa janela anônima — assim o
+   * administrador testa como a pessoa sem sair da própria conta.
+   */
+  const linkDeAcesso = useMutation({
+    mutationFn: async (userId: string) => {
+      const resposta = await chamarAdminUsuarios({ acao: 'entrar_como', user_id: userId });
+      const tokenHash = String(resposta?.token_hash ?? '');
+      if (!tokenHash) throw new Error('O servidor não devolveu o acesso.');
+      const link = montarLinkDeAcesso(window.location.origin, import.meta.env.BASE_URL, tokenHash);
+      await navigator.clipboard.writeText(link);
+      return { link, nome: String(resposta?.nome ?? '') };
+    },
+    onSuccess: ({ nome }) => {
+      toast({
+        title: 'Link copiado',
+        description:
+          'Abra numa janela anônima para entrar como ' + nome +
+          ' sem sair da sua conta. Vale por uma hora e só uma vez.',
+        variant: 'success',
+      });
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: 'Não foi possível gerar o link',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    },
+  });
+
   return {
     usuarios,
     definirPapel,
@@ -293,6 +358,8 @@ export function useUsuarios(verArquivados = false) {
     redefinirSenha,
     excluirUsuario,
     desarquivarUsuario,
+    entrarComo,
+    linkDeAcesso,
   };
 }
 

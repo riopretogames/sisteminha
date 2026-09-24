@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Pencil, Trash2, LogIn } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { dataHora } from '@/lib/format';
 import { PageHeader, Vazio } from '@/components/PageHeader';
@@ -26,7 +26,7 @@ import {
 
 interface Registro {
   id: string;
-  acao: 'INSERT' | 'UPDATE' | 'DELETE';
+  acao: 'INSERT' | 'UPDATE' | 'DELETE' | 'ENTRAR_COMO';
   tabela: string;
   registro_id: string | null;
   dados_antes: Record<string, unknown> | null;
@@ -39,6 +39,10 @@ const ACAO_META: Record<string, { label: string; classe: string; Icone: typeof P
   INSERT: { label: 'Criou', classe: 'bg-emerald-500/10 text-emerald-600', Icone: Plus },
   UPDATE: { label: 'Alterou', classe: 'bg-blue-500/10 text-blue-600', Icone: Pencil },
   DELETE: { label: 'Excluiu', classe: 'bg-red-500/10 text-red-600', Icone: Trash2 },
+  // Um administrador entrou na conta de outra pessoa ("Entrar como", 24/09).
+  // Não é gatilho de tabela: a função de servidor grava a linha na mão, e é o
+  // único jeito de saber que a venda "do Richard" foi feita pelo Felipe.
+  ENTRAR_COMO: { label: 'Entrou como', classe: 'bg-amber-500/10 text-amber-700', Icone: LogIn },
 };
 
 // `os_pagamentos` e `user_permissions` ganharam gatilho de auditoria em
@@ -57,6 +61,7 @@ const TABELA_LABEL: Record<string, string> = {
   caixa_movimentos: 'Movimento de caixa',
   os_pagamentos: 'Pagamento de OS',
   user_permissions: 'Exceção de permissão',
+  profiles: 'Usuário',
 };
 
 const TABELAS = ['todas', ...Object.keys(TABELA_LABEL)];

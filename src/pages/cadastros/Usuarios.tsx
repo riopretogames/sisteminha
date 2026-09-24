@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Loader2, Search, ShieldCheck, UserCog, RotateCcw, MessageSquare,
-  Plus, KeyRound, Eye, EyeOff, Dices, Trash2, AlertTriangle, Archive, Undo2,
+  Plus, KeyRound, Eye, EyeOff, Dices, Trash2, AlertTriangle, Archive, Undo2, LogIn, Link2,
 } from 'lucide-react';
+import { primeiroNomeDe } from '@/lib/entrarComo';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { ROLES, ROLE_LABELS, PERMISSIONS, type Role, type Permission, rotuloDoPapel } from '@/config/permissions';
@@ -66,8 +67,10 @@ export default function Usuarios() {
     redefinirSenha,
     excluirUsuario,
     desarquivarUsuario,
+    entrarComo,
+    linkDeAcesso,
   } = useUsuarios(verArquivados);
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const podeGerenciar = can(PERMISSIONS.USERS_MANAGE);
   const [busca, setBusca] = useState('');
   const [editando, setEditando] = useState<UsuarioLinha | null>(null);
@@ -193,6 +196,11 @@ export default function Usuarios() {
           onNome={(nome) => renomear.mutate({ userId: editando.id, nome })}
           onSenha={(senha) => redefinirSenha.mutate({ userId: editando.id, senha })}
           trocandoSenha={redefinirSenha.isPending}
+          onEntrarComo={() => entrarComo.mutate({ userId: editando.id, nome: editando.nome })}
+          entrando={entrarComo.isPending}
+          onLinkDeAcesso={() => linkDeAcesso.mutate(editando.id)}
+          gerandoLink={linkDeAcesso.isPending}
+          euId={user?.id ?? ''}
           onExcluir={() =>
             excluirUsuario.mutate(editando.id, { onSuccess: () => setEditando(null) })
           }
@@ -556,6 +564,11 @@ function DialogUsuario({
   trocandoSenha,
   onExcluir,
   excluindo,
+  onEntrarComo,
+  entrando,
+  onLinkDeAcesso,
+  gerandoLink,
+  euId,
 }: {
   usuario: UsuarioLinha;
   onFechar: () => void;
@@ -566,11 +579,18 @@ function DialogUsuario({
   trocandoSenha: boolean;
   onExcluir: () => void;
   excluindo: boolean;
+  onEntrarComo: () => void;
+  entrando: boolean;
+  onLinkDeAcesso: () => void;
+  gerandoLink: boolean;
+  /** Quem está olhando: a própria ficha não ganha "Entrar como". */
+  euId: string;
 }) {
   const { can } = useAuth();
   const [senhaNova, setSenhaNova] = useState('');
   const [trocandoAberto, setTrocandoAberto] = useState(false);
   const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
+  const [confirmandoEntrar, setConfirmandoEntrar] = useState(false);
   // Conta o rastro da pessoa ao ABRIR a ficha, para a tela poder dizer que
   // não dá para excluir antes do clique. Botão que existe só para recusar
   // ensina a ignorar aviso.
@@ -737,6 +757,77 @@ function DialogUsuario({
               </div>
             )}
           </div>
+
+          {/* Entrar como: o jeito certo de "ver o que a pessoa vê" sem saber a
+              senha dela (pedido do Felipe em 24/09; ver lib/entrarComo.ts).
+              Não aparece na própria ficha — entrar como si mesmo não faz sentido. */}
+          {usuario.id !== euId && (
+            <div className="rounded-lg border p-3">
+              {!confirmandoEntrar ? (
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Entrar como {primeiroNomeDe(usuario.nome)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Abre o sistema do jeito que {primeiroNomeDe(usuario.nome)} vê, sem precisar da
+                      senha. Fica registrado na auditoria que foi você.
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!usuario.ativo || gerandoLink}
+                      onClick={onLinkDeAcesso}
+                      title="Copia um link para abrir numa janela anônima, sem sair da sua conta"
+                    >
+                      {gerandoLink ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Link2 className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      Copiar link
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={!usuario.ativo || entrando}
+                      onClick={() => setConfirmandoEntrar(true)}
+                    >
+                      <LogIn className="mr-1.5 h-3.5 w-3.5" />
+                      Entrar como
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Entrar como {usuario.nome}?</p>
+                  <p className="text-xs text-muted-foreground">
+                    Você sai da sua conta neste navegador e passa a ver o sistema como{' '}
+                    {primeiroNomeDe(usuario.nome)}. Para voltar, use "Sair e voltar para a minha
+                    conta" na faixa amarela do topo e entre de novo com a sua senha.
+                  </p>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setConfirmandoEntrar(false)}
+                      disabled={entrando}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button size="sm" onClick={onEntrarComo} disabled={entrando}>
+                      {entrando && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                      Entrar como {primeiroNomeDe(usuario.nome)}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {!usuario.ativo && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Conta desativada: ative antes de entrar como ela.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Excluir de vez. Separado do resto de propósito: é a única
               ação desta tela que não tem volta. */}

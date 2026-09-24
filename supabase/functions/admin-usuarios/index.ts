@@ -346,5 +346,85 @@ Deno.serve(async (req) => {
     return responder({ id: userId });
   }
 
+  // ── Entrar como esta pessoa ──────────────────────────────────────────────
+  //
+  // Pedido do Felipe em 24/09: "quero entrar no usuário do Richard, mas não
+  // sei a senha dele, para poder testar". Ele pediu para VER a senha — isso
+  // não existe (o banco guarda só um embaralhado sem volta) e guardar senha
+  // escrita seria expor a de todo mundo num vazamento. Isto aqui resolve o
+  // que ele precisa: um acesso de uso único, gerado com a chave mestra, que a
+  // tela usa para trocar a sessão para a da pessoa. E fica na auditoria QUEM
+  // entrou COMO QUEM — sem isso, uma venda "feita pelo Richard" poderia ter
+  // sido feita por qualquer administrador.
+  if (acao === 'entrar_como') {
+    const userId = String(corpo.user_id ?? '');
+    if (!userId) return erro('Informe como quem entrar.');
+    if (userId === quemPediu) return erro('Você já está na sua própria conta.');
+
+    // Com o crachá de quem pediu: o RLS só devolve gente da loja dela.
+    const { data: alvo, error: erroAlvo } = await comoUsuario
+      .from('profiles')
+      .select('id, nome, ativo, arquivado_em, tenant_id')
+      .eq('id', userId)
+      .maybeSingle();
+    if (erroAlvo) return erro('Não consegui localizar esse usuário.', 500);
+    if (!alvo) return erro('Esse usuário não é da sua loja.', 404);
+    if (alvo.ativo === false || alvo.arquivado_em) {
+      return erro('Essa conta está desativada ou arquivada. Ative-a antes de entrar como ela.', 409);
+    }
+
+    // Entrar como um ADMINISTRADOR é virar administrador: mesma trava da
+    // troca de senha (exige roles.manage).
+    {
+      const { data: papeisDoAlvo } = await comoUsuario
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId);
+      const alvoEAdmin = (papeisDoAlvo ?? []).some((r) => r.role === 'administrador');
+      if (alvoEAdmin) {
+        const { data: podeDefinirPapel } = await comoUsuario.rpc('has_permission', {
+          _user_id: quemPediu,
+          _permission: 'roles.manage',
+        });
+        if (podeDefinirPapel !== true) {
+          return erro('Só quem define perfis de acesso pode entrar como um administrador.', 403);
+        }
+      }
+    }
+
+    // O e-mail de acesso vem da conta, não do cadastro (o cadastro pode
+    // estar sem e-mail em conta antiga).
+    const { data: conta, error: erroConta } = await comoServidor.auth.admin.getUserById(userId);
+    const email = conta?.user?.email;
+    if (erroConta || !email) return erro('Essa conta não tem e-mail de acesso.', 500);
+
+    // Acesso de uso único, do tipo "link mágico". A tela troca a sessão com
+    // ele; ele expira em uma hora e morre no primeiro uso.
+    const { data: link, error: erroLink } = await comoServidor.auth.admin.generateLink({
+      type: 'magiclink',
+      email,
+    });
+    const tokenHash = link?.properties?.hashed_token;
+    if (erroLink || !tokenHash) {
+      return erro('Não foi possível gerar o acesso: ' + (erroLink?.message ?? ''), 500);
+    }
+
+    // O rastro. Se não der para registrar, não entra: acesso sem registro
+    // é exatamente o que este recurso não pode ser.
+    const { error: erroAuditoria } = await comoServidor.from('auditoria').insert({
+      tabela: 'profiles',
+      acao: 'ENTRAR_COMO',
+      registro_id: userId,
+      usuario_id: quemPediu,
+      tenant_id: alvo.tenant_id,
+      dados_depois: { entrou_como: alvo.nome, email },
+    });
+    if (erroAuditoria) {
+      return erro('Não foi possível registrar na auditoria; a entrada foi cancelada.', 500);
+    }
+
+    return responder({ token_hash: tokenHash, nome: alvo.nome, email });
+  }
+
   return erro('Ação desconhecida.');
 });

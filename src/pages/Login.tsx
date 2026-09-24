@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, Navigate, useSearchParams } from 'react-router-dom';
 import { Gamepad2, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 /**
  * Tela de entrada do RPG System.IO.
@@ -34,6 +35,37 @@ export default function Login() {
   const { signIn, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Link de "Entrar como" aberto numa janela anônima: o acesso de uso único
+  // vem no endereço (?acesso=) e vira a sessão da pessoa, sem senha. Ver
+  // lib/entrarComo.ts. O efeito vem ANTES do redirecionamento abaixo porque
+  // hook não pode ficar depois de um return.
+  const [searchParams] = useSearchParams();
+  const acesso = searchParams.get('acesso');
+  useEffect(() => {
+    if (!acesso) return;
+    let ativo = true;
+    setLoading(true);
+    void supabase.auth
+      .verifyOtp({ token_hash: acesso, type: 'magiclink' })
+      .then(({ error }) => {
+        if (!ativo) return;
+        setLoading(false);
+        if (error) {
+          toast({
+            title: 'Este link de acesso não vale mais',
+            description: 'Ele vale por uma hora e só uma vez. Peça outro em Cadastros › Usuários.',
+            variant: 'destructive',
+          });
+        } else {
+          navigate('/home', { replace: true });
+        }
+      });
+    return () => {
+      ativo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acesso]);
 
   if (user) return <Navigate to="/home" replace />;
 
