@@ -17,6 +17,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
+import { separarRepetidosPorNome } from '@/lib/clienteDuplicado';
 
 /**
  * Importação de Clientes via CSV.
@@ -27,14 +29,16 @@ import { supabase } from '@/integrations/supabase/client';
  * das linhas antes de gravar qualquer coisa, e insere em lotes de até 200
  * registros por chamada ao banco.
  *
- * Limitação assumida (V1): não há verificação de duplicidade. Importar a
- * mesma planilha duas vezes — ou uma planilha com um cliente que já existe
- * no cadastro (mesmo CPF ou telefone) — duplica o cliente. Não existe hoje
- * uma constraint única de CPF/telefone em `clientes` que permita detectar
- * isso com segurança (várias linhas legitimamente não têm CPF nem telefone
- * preenchidos). Aceitável para uma primeira versão; se virar problema, o
- * caminho é cruzar por CPF/telefone contra a base atual antes de inserir, ou
- * criar um índice único parcial no banco e tratar o erro de conflito.
+ * Cliente repetido (regra de cliente único, CLAUDE.md):
+ * - CPF/CNPJ e telefone repetidos o BANCO recusa desde 08/08 (índice único e
+ *   gatilho). Por isso o lote é refeito linha a linha quando falha — ver
+ *   `handleImportar`.
+ * - Nome repetido sem telefone nem CPF o banco NÃO recusa: a regra mora na
+ *   tela. Até 24/09 a importação gravava direto e passava por cima dela —
+ *   importar a mesma planilha duas vezes criava fichas repetidas. Agora as
+ *   linhas são cruzadas pelo nome (sem acento nem espaço sobrando) com a base
+ *   e com a própria planilha antes de gravar, e as barradas aparecem na lista
+ *   de "já existiam" (`separarRepetidosPorNome`).
  */
 
 const TAMANHO_LOTE = 200;
@@ -281,11 +285,34 @@ export default function ClientesImportar() {
     setImportando(true);
     setResumo(null);
 
-    const lotes = dividirEmLotes(validas, TAMANHO_LOTE);
+    // Os nomes que já existem, de mil em mil (o Supabase corta calado no
+    // milésimo — ver lib/buscarEmPaginas.ts). Sem esta lista não dá para
+    // aplicar a regra do nome repetido, e a importação não grava às cegas.
+    let nomesDaBase: string[];
+    try {
+      const existentes = await buscarEmPaginas<{ nome: string }>(() =>
+        supabase.from('clientes').select('nome').eq('ativo', true).order('nome').order('id'),
+      );
+      nomesDaBase = existentes.map((c) => c.nome);
+    } catch (erro) {
+      setImportando(false);
+      toast({
+        title: 'Não consegui conferir os clientes que já existem',
+        description:
+          'Sem essa conferência a importação poderia criar fichas repetidas. Verifique a internet e tente de novo.',
+        variant: 'destructive',
+      });
+      console.error('Importação de clientes: falha ao ler a base', erro);
+      return;
+    }
+
+    const { paraGravar, repetidos: repetidosPorNome } = separarRepetidosPorNome(validas, nomesDaBase);
+
+    const lotes = dividirEmLotes(paraGravar, TAMANHO_LOTE);
     let sucesso = 0;
     let falha = 0;
     const erros = new Set<string>();
-    const repetidos: string[] = [];
+    const repetidos: string[] = repetidosPorNome.map((l) => l.nome);
 
     const paraBanco = (l: (typeof validas)[number]) => ({
       tenant_id: tenantId,

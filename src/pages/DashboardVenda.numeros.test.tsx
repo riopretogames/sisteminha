@@ -219,6 +219,66 @@ describe('Dashboard de Vendas — os números', () => {
     });
   });
 
+  it('com grupo escolhido, o item leva o desconto da venda e a peça devolvida do grupo sai', async () => {
+    // Achados 62 e 70 (revisão de 24/09/2026). A venda cobrou 1.080 por um
+    // console de 1.000 e um jogo de 200 (10% de desconto): o jogo vale 180,
+    // não 200. E um jogo de 100 voltou (de outra venda, sem desconto) junto
+    // com um console de 500 — em "Jogo" sai só o jogo: 180 − 100 = 80.
+    filtrar({ atalho: 'este-mes' }, { categoria: 'g-jogo' });
+    await abrir(
+      [
+        venda({
+          id: '1',
+          total: 1080,
+          itens_venda: [
+            ITEM('Console', 'acessorio', 1, 1000, 'g-console'),
+            ITEM('Jogo X', 'acessorio', 1, 200, 'g-jogo'),
+          ],
+        }),
+      ],
+      [
+        {
+          created_at: HOJE_PICO,
+          valor_devolvido_cliente: 600,
+          venda_original: {
+            vendedor_id: 'ana',
+            vendedor: { nome: 'Ana' },
+            total: 600,
+            itens_venda: [{ total: 100 }, { total: 500 }],
+          },
+          devolucao_itens: [
+            { quantidade: 1, preco_unitario: 100, produtos: { grupo_produto_id: 'g-jogo' } },
+            { quantidade: 1, preco_unitario: 500, produtos: { grupo_produto_id: 'g-console' } },
+          ],
+        },
+      ],
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/R\$\s*80,00/).length).toBeGreaterThan(0);
+    });
+    // O aviso não diz mais que a devolução "não guarda de qual grupo era".
+    expect(screen.queryByText(/não guarda de qual grupo/i)).not.toBeInTheDocument();
+  });
+
+  it('"Como o Cliente Paga" mostra o dinheiro sem o troco', async () => {
+    // Achado 63: venda de 80 paga com nota de 100. Ficaram 80 na gaveta.
+    await abrir([
+      venda({
+        id: '1',
+        total: 80,
+        pagamentos_venda: [
+          { valor: 100, formas_pagamento: { descricao: 'Dinheiro', entra_no_caixa: true } },
+        ],
+      }),
+    ]);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Dinheiro').length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText(/R\$\s*100,00/)).not.toBeInTheDocument();
+  });
+
   it('compara com o período anterior em porcentagem', async () => {
     // Ontem 200, hoje 300: +50%.
     filtrar({ atalho: 'hoje' });

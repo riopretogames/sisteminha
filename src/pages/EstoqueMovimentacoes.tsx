@@ -10,12 +10,14 @@ import {
   sentidoDoMovimento,
   quantidadeComSinal,
   corDaQuantidade,
+  limitesDoPeriodo,
 } from '@/lib/movimentoEstoque';
 import { Indicador } from '@/components/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { RelatorioShell, usePeriodo, type Coluna } from './relatorios/RelatorioShell';
 import { FichaDaVenda } from '@/components/vendas/FichaDaVenda';
 import { lerOrigem } from '@/lib/origemMovimento';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
 import { useToast } from '@/hooks/use-toast';
 
 /**
@@ -121,14 +123,22 @@ export default function EstoqueMovimentacoes() {
   const { data, isLoading } = useQuery({
     queryKey: ['estoque-movimentacoes', periodo.de, periodo.ate],
     queryFn: async (): Promise<LinhaMovimento[]> => {
-      const { data, error } = await supabase
-        .from('vw_movimentos_estoque')
-        .select('*, produtos:vw_produtos(nome)')
-        .gte('created_at', periodo.de)
-        .lte('created_at', `${periodo.ate}T23:59:59`)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as unknown as LinhaMovimento[];
+      const { inicio, fimExclusivo } = limitesDoPeriodo(periodo.de, periodo.ate);
+      // Em páginas: a API do banco corta calada em 1.000 linhas, e em ordem
+      // decrescente o corte comia os movimentos MAIS ANTIGOS do período —
+      // contadores de Entradas/Saídas e o CSV saíam errados sem aviso
+      // (lib/buscarEmPaginas.ts). O `id` no fim deixa a ordem estável entre
+      // uma página e outra.
+      return buscarEmPaginas<LinhaMovimento>(() => {
+        let consulta = supabase
+          .from('vw_movimentos_estoque')
+          .select('*, produtos:vw_produtos(nome)');
+        if (inicio) consulta = consulta.gte('created_at', inicio);
+        if (fimExclusivo) consulta = consulta.lt('created_at', fimExclusivo);
+        return consulta
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false });
+      });
     },
   });
 

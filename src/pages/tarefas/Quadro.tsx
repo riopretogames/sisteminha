@@ -26,7 +26,7 @@ import { QuadroTabela } from '@/components/tarefas/tabela/QuadroTabela';
 import { TarefaDialog } from '@/components/tarefas/TarefaDialog';
 import { FiltrosTarefas } from '@/components/tarefas/FiltrosTarefas';
 import { PERMISSIONS } from '@/config/permissions';
-import { STATUS_ATRASADA, TAREFA_STATUS } from '@/config/tarefas';
+import { DIAS_SEMANA, STATUS_ATRASADA, TAREFA_STATUS } from '@/config/tarefas';
 import { useAuth } from '@/hooks/useAuth';
 import { useCatalogo } from '@/hooks/useCatalogos';
 import { useConferencia } from '@/hooks/useConferencia';
@@ -345,7 +345,6 @@ export default function Quadro() {
   const catalogoEtiquetas = useCatalogo('tarefa_etiqueta').data;
   const catalogoHorarios = useCatalogo('tarefa_horario').data;
 
-  const { viewMode, setViewMode } = useViewMode('kanban', 'tarefas_view_mode');
   const [filtros, setFiltros] = useState<FiltrosTarefasValores>(FILTROS_TAREFAS_VAZIO);
   const [novaListaAberta, setNovaListaAberta] = useState(false);
 
@@ -355,24 +354,39 @@ export default function Quadro() {
    * para a Tabela por pessoa — "para meus funcionários operarem, eu prefiro que
    * seja igual ao Monday, porque o Monday é muito simples, muito didático".
    *
-   * Voltar para "Todas" devolve a visão que estava antes do dia (quem estava na
-   * Tabela continua na Tabela). O alternador manual continua valendo depois:
-   * quem quiser ver o Kanban de uma terça consegue.
+   * Por isso são DUAS visões, guardadas separadas:
+   * - a de "Todas": a escolha de quem clicou no alternador com "Todas" ligado.
+   *   Fica lembrada no navegador;
+   * - a do dia: vale só enquanto um chip de dia está ligado e NUNCA é gravada.
+   *   Toda vez que se sai de "Todas" para um dia, ela começa na Tabela.
+   *
+   * Até 24/09 era uma visão só, e a troca automática para a Tabela ficava
+   * gravada no navegador: bastava alguém clicar "Hoje" e sair da tela para o
+   * quadro abrir, da próxima vez, em "Todas" com a Tabela — no computador do
+   * balcão, para todo mundo. A chave do navegador mudou de nome junto
+   * ('tarefas_view_mode' → 'tarefas_visao_todas') porque a antiga guardava
+   * justamente essas trocas automáticas: com a chave nova, todo mundo volta a
+   * abrir no Kanban, e dali em diante só conta o que foi escolhido à mão.
+   *
+   * O alternador continua valendo com um dia ligado (quem quiser ver o Kanban
+   * de uma terça consegue); essa escolha dura até voltar para "Todas". E como
+   * a visão sai do filtro, trocar de quadro (que zera o filtro) também volta
+   * para a visão de "Todas", sem precisar de mais nada.
    */
-  const visaoAntesDoDia = useRef<ViewMode>(viewMode);
+  const { viewMode: visaoDeTodas, setViewMode: setVisaoDeTodas } = useViewMode('kanban', 'tarefas_visao_todas');
+  const [visaoDoDia, setVisaoDoDia] = useState<ViewMode>('grid');
+  const emTodas = filtros.dia === 'todas';
+  const viewMode: ViewMode = emTodas ? visaoDeTodas : visaoDoDia;
+  const escolherVisao = useCallback(
+    (v: ViewMode) => (emTodas ? setVisaoDeTodas(v) : setVisaoDoDia(v)),
+    [emTodas, setVisaoDeTodas],
+  );
   const mudarFiltros = useCallback(
     (novos: FiltrosTarefasValores) => {
-      const estavaEmTodas = filtros.dia === 'todas';
-      const vaiParaTodas = novos.dia === 'todas';
-      if (estavaEmTodas && !vaiParaTodas) {
-        visaoAntesDoDia.current = viewMode;
-        if (viewMode !== 'grid') setViewMode('grid');
-      } else if (!estavaEmTodas && vaiParaTodas && viewMode !== visaoAntesDoDia.current) {
-        setViewMode(visaoAntesDoDia.current);
-      }
+      if (filtros.dia === 'todas' && novos.dia !== 'todas') setVisaoDoDia('grid');
       setFiltros(novos);
     },
-    [filtros.dia, viewMode, setViewMode],
+    [filtros.dia],
   );
   const [searchParams, setSearchParams] = useSearchParams();
   const tarefaId = searchParams.get('tarefa');
@@ -386,9 +400,10 @@ export default function Quadro() {
   })();
 
   /**
-   * Troca entre Kanban, Tabela e Conferência. Kanban e Tabela continuam
-   * lembrados no navegador (useViewMode, o mesmo alternador da OS — por isso
-   * a Conferência não entra no tipo dele); a Conferência fica no endereço, e
+   * Troca entre Kanban, Tabela e Conferência. Kanban e Tabela vão para a
+   * visão de "Todas" ou para a do dia, conforme o chip ligado (ver
+   * escolherVisao; é o mesmo alternador da OS — por isso a Conferência não
+   * entra no tipo dele); a Conferência fica no endereço, e
    * é assim que a página Conferência do menu abre um quadro direto nela.
    * `replace`, como a ficha: trocar de aba não enche o "voltar" do navegador.
    */
@@ -404,9 +419,9 @@ export default function Quadro() {
         },
         { replace: true },
       );
-      if (aba !== ABA_CONFERENCIA) setViewMode(aba as ViewMode);
+      if (aba !== ABA_CONFERENCIA) escolherVisao(aba as ViewMode);
     },
-    [setSearchParams, setViewMode],
+    [setSearchParams, escolherVisao],
   );
 
   // Filtro é do quadro que está aberto: ao trocar de quadro, começa limpo.
@@ -697,7 +712,15 @@ export default function Quadro() {
     pessoas,
     periodos,
     etiquetas,
+    diaDoFiltro: filtros.dia,
   };
+  // Chip de OUTRO dia (numa terça, o "Seg"): a lista é a daquele dia, mas a
+  // situação e a bolinha são sempre as de hoje. Sem este aviso, quem confere
+  // a segunda numa terça lê "Não iniciado" no que foi feito ontem.
+  const nomeDoDiaDeOutroDia =
+    typeof filtros.dia === 'number' && filtros.dia !== diaDaSemana
+      ? DIAS_SEMANA.find((d) => d.n === filtros.dia)?.nome.toLowerCase() ?? null
+      : null;
   const criarLista = (d: { nome: string; cor: string | null }) => acoes.criarLista(d);
 
   return (
@@ -852,6 +875,16 @@ export default function Quadro() {
               ativo={filtros.status}
               onEscolher={(status) => setFiltros((f) => ({ ...f, status }))}
             />
+            {nomeDoDiaDeOutroDia && (
+              <p className="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Mostrando as tarefas de <strong>{nomeDoDiaDeOutroDia}</strong>. A situação de cada uma (feito,
+                  fazendo) é a de hoje, e o feito só se marca no próprio dia: para marcar, use o chip
+                  "Hoje". O que foi feito em outro dia e ainda não foi conferido está na aba Conferência.
+                </span>
+              </p>
+            )}
           </div>
 
           <div className="min-w-0">

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { acaoParaAvancar } from './acaoDaEtapa';
+import { acaoParaAvancar, entregaSemCobranca, textoDeSubirValorAprovado } from './acaoDaEtapa';
 import { OS_ETAPAS } from '@/config/osStatus';
 
 /**
@@ -50,5 +50,31 @@ describe('O nome do botão que avança a OS', () => {
     // a clicar "ok" sem ler.
     expect(acaoParaAvancar(OS_ETAPAS.APROVADO, OS_ETAPAS.FINALIZADO)?.confirmar).toBeUndefined();
     expect(acaoParaAvancar(OS_ETAPAS.FINALIZADO, OS_ETAPAS.ENTREGUE)?.confirmar).toBeUndefined();
+  });
+});
+
+describe('o serviço tabelado na Entrada (24/09)', () => {
+  it('o passo seguinte é executar, e confirma dizendo por que não há laudo', () => {
+    // PROCESSO-ORDEM-DE-SERVICO.md, passo 9: tabelado pula o laudo e vai
+    // direto para a Etapa 3.
+    const acao = acaoParaAvancar(OS_ETAPAS.AGUARDANDO_ANALISE, OS_ETAPAS.APROVADO);
+    expect(acao?.rotulo).toBe('Ir para a execução');
+    expect(acao?.confirmar).toMatch(/tabelado/i);
+  });
+});
+
+describe('a OS paga que sairia sem cobrança (24/09)', () => {
+  it('paga em R$ 0 é "sem cobrança"; garantia e cortesia em R$ 0 são o combinado', () => {
+    expect(entregaSemCobranca('paga', 0)).toBe(true);
+    expect(entregaSemCobranca('paga', null)).toBe(true);
+    expect(entregaSemCobranca('paga', 150)).toBe(false);
+    expect(entregaSemCobranca('garantia', 0)).toBe(false);
+    expect(entregaSemCobranca('cortesia', 0)).toBe(false);
+  });
+
+  it('subir o valor aprovado mostra os dois números antes de salvar', () => {
+    const texto = textoDeSubirValorAprovado(200, 350);
+    expect(texto).toContain('200');
+    expect(texto).toContain('350');
   });
 });

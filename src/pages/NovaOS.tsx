@@ -41,6 +41,8 @@ import { faltandoParaAbrirOS } from '@/lib/osObrigatorios';
 import { useCamposObrigatorios } from '@/hooks/useCamposObrigatorios';
 import { useTaxaDeAnalise } from '@/hooks/useTaxaDeAnalise';
 import { moeda } from '@/lib/format';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
+import { mensagemDoErro } from '@/lib/mensagemDoErro';
 
 /**
  * Abertura de Ordem de Serviço — o check-in do aparelho.
@@ -130,6 +132,9 @@ const FORM_VAZIO = {
   // antes de abrir o aparelho. Se fosse o contrário, o esquecimento levaria o
   // aparelho para a bancada sem ninguém ter combinado a análise com o cliente.
   laudo_eletronico: true,
+  // Preço do serviço TABELADO, combinado no balcão (texto do campo; vazio =
+  // não informado). Ver o campo "Preço combinado" na tela.
+  valor_combinado: '',
   // Padrão da loja. Decisão do Felipe em 09/08.
   garantia_dias: '90',
   prioridade: 'normal' as OsPrioridade,
@@ -250,13 +255,75 @@ export default function NovaOS() {
     fetchPessoas();
   }, []);
 
+  /**
+   * Em páginas: o Supabase corta calado em 1.000 linhas (lib/buscarEmPaginas),
+   * e a base de clientes importada do sistema antigo passa disso fácil. Sem as
+   * páginas, quem estivesse depois do corte não aparecia na busca desta tela —
+   * e criar de novo é barrado pela regra de cliente único (achado de 24/09).
+   */
   const fetchClientes = async () => {
-    const { data } = await supabase
+    try {
+      const data = await buscarEmPaginas<Cliente>(() =>
+        supabase
+          .from('clientes')
+          .select('id, nome, telefones, liberado_venda')
+          .eq('ativo', true)
+          .order('nome')
+          .order('id'),
+      );
+      setClientes(data);
+    } catch (erro) {
+      console.error('Erro ao carregar clientes:', erro);
+      toast({
+        title: 'Não foi possível carregar os clientes',
+        description: mensagemDoErro(erro),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  /**
+   * O formulário de cliente achou um cadastro que já existia e o atendente
+   * escolheu usá-lo — decisão de 08/08: um cliente, um cadastro.
+   *
+   * Achado na revisão de 24/09: esta tela procurava o cliente só na lista
+   * carregada quando ela abriu. Cliente cadastrado depois (em outro terminal,
+   * no PDV) não estava lá, e o clique em "Usar este cadastro" fechava o
+   * diálogo sem selecionar ninguém e sem aviso — criar de novo era barrado
+   * pela regra de cliente único, e o atendente só saía recarregando a página
+   * e perdendo o check-in preenchido. Mesmo conserto que o PDV já tinha.
+   */
+  const usarClienteExistente = async (id: string) => {
+    const jaCarregado = clientes.find((c) => c.id === id);
+    if (jaCarregado) {
+      setSelectedCliente(jaCarregado);
+      setClienteBusca('');
+      return;
+    }
+
+    const { data, error } = await supabase
       .from('clientes')
       .select('id, nome, telefones, liberado_venda')
-      .eq('ativo', true)
-      .order('nome');
-    setClientes(data ?? []);
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error || !data) {
+      toast({
+        title: 'Não foi possível trazer o cadastro deste cliente',
+        description: error
+          ? mensagemDoErro(error)
+          : 'O cadastro não foi encontrado. Procure o cliente pela busca.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const encontrado = data as Cliente;
+    setClientes((atuais) =>
+      [...atuais, encontrado].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+    );
+    setSelectedCliente(encontrado);
+    setClienteBusca('');
   };
 
   /** Técnico e vendedor saem da mesma lista: quem tem acesso ao sistema. */
@@ -350,6 +417,13 @@ export default function NovaOS() {
           .filter(Boolean)
           .join('; ');
 
+      // Preço do serviço tabelado, combinado no balcão. Só entra em OS paga e
+      // sem laudo: na de laudo, o valor é o do laudo, e vem depois.
+      const valorCombinado =
+        !form.laudo_eletronico && form.tipo === 'paga'
+          ? Number(String(form.valor_combinado).replace(',', '.'))
+          : NaN;
+
       const { data: os, error } = await supabase
         .from('service_orders')
         .insert([
@@ -388,6 +462,9 @@ export default function NovaOS() {
             tecnico_id: form.tecnico_id || null,
             vendedor_id: form.vendedor_id || null,
             laudo_eletronico: form.laudo_eletronico,
+            ...(Number.isFinite(valorCombinado) && valorCombinado > 0
+              ? { total_orcamento: valorCombinado }
+              : {}),
             prazo_previsto: form.prazo_previsto || null,
             // Sem automação nenhuma por enquanto: só guarda o prazo prometido.
             // A contagem a partir da retirada entra junto com os status.
@@ -436,12 +513,9 @@ export default function NovaOS() {
       navigate(`/os/${os.id}`);
     } catch (error) {
       console.error('Erro ao criar OS:', error);
-      const msg = error instanceof Error ? error.message : 'Tente novamente.';
       toast({
         title: 'Erro ao criar OS',
-        description: /row-level security|policy/i.test(msg)
-          ? 'Seu perfil de acesso não permite abrir OS.'
-          : msg,
+        description: mensagemDoErro(error, { semAcesso: 'Seu perfil de acesso não permite abrir OS.' }),
         variant: 'destructive',
       });
     } finally {
@@ -873,6 +947,32 @@ export default function NovaOS() {
                   </>
                 )}
               </div>
+
+              {/* O preço da tabela, já na abertura (achado de 24/09). Sem ele a
+                  OS tabelada nascia em R$ 0 — o preço ficava só na conversa do
+                  balcão, e a OS podia chegar à entrega sem nada a cobrar. Não é
+                  obrigatório para não travar o balcão; a entrega de OS paga em
+                  R$ 0 pede confirmação de quem aprova orçamento. */}
+              {!form.laudo_eletronico && form.tipo === 'paga' && (
+                <div className="mt-3 space-y-1.5">
+                  <Label htmlFor="valor_combinado">Preço combinado (R$)</Label>
+                  <Input
+                    id="valor_combinado"
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    className="w-40"
+                    value={form.valor_combinado}
+                    onChange={(e) => alterar('valor_combinado', e.target.value)}
+                    placeholder="0,00"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    O valor da tabela que você informou ao cliente. É o que vai ser cobrado na
+                    retirada — dá para ajustar depois na ficha da OS.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -1058,11 +1158,7 @@ export default function NovaOS() {
           setClienteBusca('');
         }}
         onUsarExistente={(id) => {
-          const existente = clientes.find((c) => c.id === id);
-          if (existente) {
-            setSelectedCliente(existente);
-            setClienteBusca('');
-          }
+          void usarClienteExistente(id);
         }}
       />
     </div>

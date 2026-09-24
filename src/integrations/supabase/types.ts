@@ -3807,6 +3807,7 @@ export type Database = {
           _motivo?: string
           _nova_quantidade: number
           _produto_id: string
+          _saldo_anterior?: number
         }
         Returns: undefined
       }
@@ -3879,6 +3880,7 @@ export type Database = {
           nome: string
         }[]
       }
+      pode_mexer_na_conta_de: { Args: { _alvo: string }; Returns: boolean }
       proximo_numero_documento: {
         Args: { _documento: string; _tenant: string }
         Returns: string

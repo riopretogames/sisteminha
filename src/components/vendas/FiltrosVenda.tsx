@@ -10,7 +10,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { FORMAS_PAGAMENTO } from '@/lib/constants';
 import { FILTROS_VENDA_VAZIO, type FiltrosVendaValores } from '@/lib/filtrosVenda';
 
 /**
@@ -36,11 +35,18 @@ const STATUS = [
 interface Props {
   valores: FiltrosVendaValores;
   onChange: (v: FiltrosVendaValores) => void;
+  /** Quem vendeu: o cadastro de pessoas, mais quem já saiu e vendeu no período. */
   vendedores?: { id: string; nome: string }[];
+  /**
+   * As formas de pagamento CADASTRADAS pela loja (Cadastros > Formas de
+   * Pagamento), não uma lista fixa do código. Regra das listas editáveis: forma
+   * nova criada lá aparece aqui sozinha. Ver `pagamentoDaForma`.
+   */
+  formas?: { id: string; nome: string }[];
   resultados?: number;
 }
 
-export function FiltrosVenda({ valores, onChange, vendedores = [], resultados }: Props) {
+export function FiltrosVenda({ valores, onChange, vendedores = [], formas = [], resultados }: Props) {
   const alterar = <C extends keyof FiltrosVendaValores>(
     campo: C,
     valor: FiltrosVendaValores[C]
@@ -192,9 +198,9 @@ export function FiltrosVenda({ valores, onChange, vendedores = [], resultados }:
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todas">Todas</SelectItem>
-                {Object.entries(FORMAS_PAGAMENTO).map(([chave, cfg]) => (
-                  <SelectItem key={chave} value={chave}>
-                    {cfg.label}
+                {formas.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {f.nome}
                   </SelectItem>
                 ))}
               </SelectContent>

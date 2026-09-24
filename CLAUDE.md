@@ -73,6 +73,23 @@ apagar linha — continua exigindo confirmação do Felipe.
   Cuidado com o modo de falha: o arquivo commitado e o que está no ar podem
   divergir em silêncio, e nada avisa. Mexeu na função, publique na mesma hora.
 
+- **Migration que depende de decisão do Felipe NÃO fica em
+  `supabase/migrations/`** (regra de 24/09). O `db push` aplica tudo o que
+  estiver lá, sem perguntar. Ela mora em `supabase/pendentes/`, sem carimbo de
+  data; quando o Felipe aprovar, ganha um carimbo NOVO (mais recente que a
+  última aplicada) e vai para `migrations/`.
+- **Erro do banco na tela passa por `lib/mensagemDoErro.ts`** (revisão de
+  24/09). O Supabase devolve o erro como objeto comum, não como `Error`: o
+  velho `erro instanceof Error ? erro.message : 'Tente novamente'` dava falso
+  sempre e escondia o motivo em português que os gatilhos escrevem para o
+  balcão. Use `mensagemDoErro(erro)` para mostrar e `mensagemCrua(erro)`
+  quando a tela precisa olhar o texto antes de escolher o aviso.
+- **Estoque só muda por função com chave de dono** (migration
+  `20260924164000`). Um gatilho recusa mudança de `produtos.estoque_atual`
+  feita por quem está logado. Função nova que mexa em estoque tem que ser
+  `SECURITY DEFINER` e gravar a linha em `movimentos_estoque`, senão falha na
+  hora com "O estoque só muda por venda, OS, entrada…".
+
 - **`src/integrations/supabase/types.ts` é gerado de verdade** desde 08/08:
   `npx supabase gen types typescript --project-id ylhxlvqqkifayglqbzre >
   src/integrations/supabase/types.ts`. Não escreva mais nada à mão ali.
@@ -153,6 +170,12 @@ dela vira função em `supabase/functions/`, e lá:
    de `roles.manage` e a proteção do último administrador continuam valendo. Um
    segundo lugar decidindo permissão é como as duas versões divergem sem
    ninguém notar.
+3. Ação sobre a conta de OUTRA pessoa (trocar senha, excluir/arquivar, Entrar
+   como) passa por `pode_mexer_na_conta_de` (migration `20260924166000`),
+   chamada com o crachá de quem pediu; só `true` libera — erro ou vazio é
+   recusa. Nunca decidir isso lendo `user_roles` com o crachá de quem pediu
+   (achado 73 da revisão de 24/09: quem não enxergava o papel do alvo concluía
+   "não é administrador" e trocava a senha do Felipe).
 
 ## Regra das portas fechadas (14/09)
 

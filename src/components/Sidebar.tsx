@@ -1,13 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { ChevronDown, LogOut, Gamepad2 } from 'lucide-react';
+import { ChevronDown, LogOut, Gamepad2, Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { MENU, findSectionIdByPath, type MenuLink, type MenuGroup, type MenuSection, type MenuRoot } from '@/config/menu';
 import { getIcon } from '@/config/icons';
 import { ROLE_LABELS, rotuloDoPapel } from '@/config/permissions';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 /**
- * Sidebar do RPG System.IO.
+ * Menu lateral do RPG System.IO.
  *
  * Renderiza `config/menu.ts` e nada além disso. Não existe aqui nenhum `if`
  * para item específico — a versão anterior tinha um `item.id === 'dashboards'`
@@ -27,18 +29,38 @@ import {
  * Filtragem por permissão: um `link` sem permissão do usuário some. Um `group`
  * que ficou sem filhos visíveis some. Uma `section` sem filhos visíveis some.
  * Ninguém vê porta que não pode abrir.
+ *
+ * O menu mora em DOIS lugares (24/09), com o mesmo miolo (`MenuDoSistema`):
+ * - no computador (tela de 1024 px para cima), fixo na esquerda, como sempre
+ *   foi (`AppSidebar`);
+ * - no celular e no tablet em pé, escondido atrás do botão de menu do
+ *   cabeçalho, numa gaveta que desliza da esquerda (`MenuCelular`).
+ * Antes disso o menu ficava fixo com 240 px em qualquer tela: num celular de
+ * 390 px sobravam 150 px para a tela de verdade — justo a Minhas Tarefas, que
+ * é a tela que o funcionário abre no celular. O miolo é um só de propósito:
+ * se a regra de permissão fosse escrita duas vezes, um dia as duas versões
+ * iam discordar e o celular mostraria uma porta que o computador esconde.
  */
 
 /* -------------------------------------------------------------------------- */
 /*  Item folha                                                                */
 /* -------------------------------------------------------------------------- */
 
-function SubLink({ link, pathname }: { link: MenuLink; pathname: string }) {
+function SubLink({
+  link,
+  pathname,
+  aoNavegar,
+}: {
+  link: MenuLink;
+  pathname: string;
+  aoNavegar?: () => void;
+}) {
   const isActive = pathname === link.path || pathname.startsWith(link.path + '/');
 
   return (
     <NavLink
       to={link.path}
+      onClick={aoNavegar}
       className={cn(
         'block rounded-md px-3 py-2 text-[13px] transition-colors duration-150',
         isActive
@@ -60,11 +82,13 @@ function SectionItem({
   isOpen,
   onToggle,
   pathname,
+  aoNavegar,
 }: {
   section: MenuSection;
   isOpen: boolean;
   onToggle: () => void;
   pathname: string;
+  aoNavegar?: () => void;
 }) {
   const Icon = getIcon(section.icon);
 
@@ -115,7 +139,7 @@ function SectionItem({
         <div className="ml-[22px] mt-1 space-y-3 border-l border-sidebar-border pl-3">
           {section.children.map((child) =>
             child.kind === 'link' ? (
-              <SubLink key={child.id} link={child} pathname={pathname} />
+              <SubLink key={child.id} link={child} pathname={pathname} aoNavegar={aoNavegar} />
             ) : (
               // Grupo: rótulo puro, não clicável. Só organiza visualmente.
               <div key={child.id}>
@@ -125,7 +149,7 @@ function SectionItem({
                 <ul className="space-y-0.5">
                   {child.children.map((link) => (
                     <li key={link.id}>
-                      <SubLink link={link} pathname={pathname} />
+                      <SubLink link={link} pathname={pathname} aoNavegar={aoNavegar} />
                     </li>
                   ))}
                 </ul>
@@ -139,10 +163,23 @@ function SectionItem({
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Sidebar                                                                   */
+/*  Miolo do menu (o mesmo no computador e no celular)                        */
 /* -------------------------------------------------------------------------- */
 
-export function AppSidebar() {
+/**
+ * Marca, lista de seções e o rodapé com o usuário.
+ *
+ * Devolve só os três blocos, sem caixa em volta: quem usa (a barra fixa do
+ * computador ou a gaveta do celular) é que decide largura, altura e fundo.
+ * Assim a barra do computador continua com exatamente o mesmo desenho de
+ * antes de a versão de celular existir.
+ *
+ * `aoNavegar` é chamado quando a pessoa toca num destino (não quando só abre
+ * ou fecha uma seção). A gaveta do celular usa isso para se fechar sozinha:
+ * sem isso, a pessoa tocava em "Minhas Tarefas", a tela trocava por baixo e o
+ * menu continuava cobrindo tudo.
+ */
+export function MenuDoSistema({ aoNavegar }: { aoNavegar?: () => void }) {
   const { user, signOut, can } = useAuth();
   const location = useLocation();
   const [openId, setOpenId] = useState<string | null>(() =>
@@ -200,7 +237,7 @@ export function AppSidebar() {
   const papelPrincipal = user?.roles?.[0];
 
   return (
-    <aside className="fixed left-0 top-0 z-40 flex h-screen w-60 flex-col border-r border-sidebar-border bg-sidebar print:hidden">
+    <>
       {/* Marca */}
       <div className="flex h-16 items-center gap-2.5 border-b border-sidebar-border px-5">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
@@ -219,6 +256,7 @@ export function AppSidebar() {
               <NavLink
                 key={node.id}
                 to={node.path}
+                onClick={aoNavegar}
                 className={({ isActive }) =>
                   cn(
                     'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-200',
@@ -241,6 +279,7 @@ export function AppSidebar() {
                 isOpen={openId === node.id}
                 onToggle={() => setOpenId((prev) => (prev === node.id ? null : node.id))}
                 pathname={location.pathname}
+                aoNavegar={aoNavegar}
               />
             ),
           )}
@@ -283,6 +322,63 @@ export function AppSidebar() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+    </>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Computador: barra fixa na esquerda                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Some abaixo de 1024 px (`hidden lg:flex`); dali para cima é a mesma barra de
+ * sempre. O `print:hidden` continua valendo em qualquer largura de papel: no
+ * CSS que o Tailwind gera, a regra de impressão vem DEPOIS da regra de tela
+ * larga e ganha dela (conferido em 24/09) — senão o menu voltaria a sair no
+ * comprovante impresso em folha deitada.
+ */
+export function AppSidebar() {
+  return (
+    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-60 flex-col border-r border-sidebar-border bg-sidebar lg:flex print:hidden">
+      <MenuDoSistema />
     </aside>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Celular: botão no cabeçalho + gaveta                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * O botão de menu (os três risquinhos) que o cabeçalho mostra abaixo de
+ * 1024 px, e a gaveta que ele abre com o mesmo menu do computador.
+ *
+ * A gaveta fecha sozinha quando a pessoa escolhe uma tela (ver `aoNavegar` em
+ * `MenuDoSistema`). Abrir e fechar uma seção não fecha a gaveta, porque a
+ * pessoa ainda está procurando para onde ir.
+ */
+export function MenuCelular() {
+  const [aberto, setAberto] = useState(false);
+
+  return (
+    <Sheet open={aberto} onOpenChange={setAberto}>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon" className="shrink-0 lg:hidden" aria-label="Abrir o menu">
+          <Menu className="h-5 w-5" />
+        </Button>
+      </SheetTrigger>
+      {/* `text-sidebar-foreground`: o X de fechar herda a cor do texto, e sem
+          isto ele sairia escuro sobre o fundo escuro do menu, invisível. */}
+      <SheetContent
+        side="left"
+        className="flex w-72 max-w-[85vw] flex-col gap-0 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground"
+      >
+        {/* Título e descrição só para leitor de tela: a janela precisa dizer o
+            que ela é para quem não enxerga a tela. */}
+        <SheetTitle className="sr-only">Menu do sistema</SheetTitle>
+        <SheetDescription className="sr-only">Escolha a tela que quer abrir.</SheetDescription>
+        <MenuDoSistema aoNavegar={() => setAberto(false)} />
+      </SheetContent>
+    </Sheet>
   );
 }

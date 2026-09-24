@@ -34,7 +34,7 @@ import { corDaLista, idDeLista, idDeTarefa, podeMarcarTarefa } from '@/component
 import { CORES_ETIQUETA, corDaEtiqueta } from '@/lib/cores';
 import { estaFeita } from '@/lib/tarefas';
 import { cn } from '@/lib/utils';
-import type { AcoesDoQuadro, Lista, Pessoa, Tarefa } from '@/types/tarefas';
+import type { AcoesDoQuadro, DiaFiltro, Lista, Pessoa, Tarefa } from '@/types/tarefas';
 
 export interface PropsListaKanban {
   lista: Lista;
@@ -53,6 +53,8 @@ export interface PropsListaKanban {
   /** Há filtro ligado: coluna sem cartão pode ser só o filtro escondendo. */
   filtroAtivo?: boolean;
   onLimparFiltros?: () => void;
+  /** O chip de dia ligado no quadro (trava a bolinha no chip de outro dia; ver CartaoTarefa). */
+  diaDoFiltro?: DiaFiltro;
 }
 
 /** Valores de mentira para as opções "sem nada" dos menus (o menu não aceita vazio com segurança). */
@@ -69,6 +71,7 @@ function CartaoArrastavel({
   acoes,
   onAbrirTarefa,
   periodoPadraoId,
+  diaDoFiltro,
 }: {
   tarefa: Tarefa;
   lista: Lista;
@@ -78,6 +81,7 @@ function CartaoArrastavel({
   acoes: AcoesDoQuadro;
   onAbrirTarefa: (tarefaId: string) => void;
   periodoPadraoId: string | null;
+  diaDoFiltro: DiaFiltro;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: idDeTarefa(tarefa.id),
@@ -109,6 +113,7 @@ function CartaoArrastavel({
       podeMarcar={podeMarcarTarefa(tarefa, lista, podeEditar, usuarioId)}
       fantasma={isDragging}
       periodoPadraoId={periodoPadraoId}
+      diaDoFiltro={diaDoFiltro}
       onAbrir={() => onAbrirTarefa(tarefa.id)}
       onAlternarFeito={() => void acoes.alternarFeito(tarefa.id)}
     />
@@ -138,6 +143,7 @@ export function ListaKanban({
   periodoPadraoId = null,
   filtroAtivo = false,
   onLimparFiltros,
+  diaDoFiltro = 'todas',
 }: PropsListaKanban) {
   const [editandoNome, setEditandoNome] = useState(false);
   const [nome, setNome] = useState(lista.nome);
@@ -439,6 +445,7 @@ export function ListaKanban({
               acoes={acoes}
               onAbrirTarefa={onAbrirTarefa}
               periodoPadraoId={periodoPadraoId}
+              diaDoFiltro={diaDoFiltro}
             />
           ))}
         </SortableContext>

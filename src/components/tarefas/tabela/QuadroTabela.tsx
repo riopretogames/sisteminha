@@ -77,6 +77,7 @@ export function QuadroTabela({
   etiquetas,
   filtroAtivo = false,
   onLimparFiltros,
+  diaDoFiltro = 'todas',
 }: PropsVisaoQuadro) {
   const { user } = useAuth();
   const meuId = user?.id ?? null;
@@ -124,6 +125,7 @@ export function QuadroTabela({
             etiquetas={etiquetas}
             filtroAtivo={filtroAtivo}
             onLimparFiltros={onLimparFiltros}
+            diaDoFiltro={diaDoFiltro}
           />
         ))}
       </div>

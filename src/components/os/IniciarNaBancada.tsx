@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PERMISSIONS } from '@/config/permissions';
 import { OS_ETAPAS } from '@/config/osStatus';
 import { dataHora } from '@/lib/format';
+import { mensagemDoErro } from '@/lib/mensagemDoErro';
 
 /**
  * Os dois botões de "começar" da bancada, do organograma do Felipe (30/08).
@@ -106,12 +107,12 @@ export function IniciarNaBancada({
       toast({ variant: 'success', title: fase.rotulo.replace('Iniciar', 'Iniciado'), description: fase.aviso });
       onMudou();
     } catch (erro: unknown) {
-      const msg = erro instanceof Error ? erro.message : 'Tente novamente.';
       toast({
         title: `Não foi possível ${fase.rotulo.toLowerCase()}`,
-        description: /privilege|permission|policy/i.test(msg)
-          ? 'Só quem trabalha na bancada pode começar — peça a um administrador a permissão de diagnóstico.'
-          : msg,
+        description: mensagemDoErro(erro, {
+          semAcesso:
+            'Só quem trabalha na bancada pode começar — peça a um administrador a permissão de diagnóstico.',
+        }),
         variant: 'destructive',
       });
     } finally {

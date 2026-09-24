@@ -32,6 +32,14 @@
 --   API (gatilho travas_das_tarefas), e uma conclusão já conferida não pode
 --   ser desmarcada por quem não confere (gatilho na tabela de conclusões).
 --
+--   ATENÇÃO (revisão de 24/09, achado 17): como escrita aqui, a promessa
+--   acima só valia para ALTERAR. Ao CRIAR, dava para gravar o feito já
+--   conferido e em qualquer dia, e criar avulsa já conferida. Quem fecha isso
+--   é a migration 20260924162000 (gatilho travas_da_conclusao_nova e as novas
+--   versões de travas_da_tarefa_nova, travas_das_tarefas e
+--   trava_conclusao_conferida). Este arquivo já foi aplicado; só este
+--   comentário mudou.
+--
 -- Não é migration destrutiva: acrescenta colunas, tabela, bucket e função.
 -- =============================================================================
 

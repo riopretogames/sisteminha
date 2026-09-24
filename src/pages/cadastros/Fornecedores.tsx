@@ -35,6 +35,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import { mascaraCpfCnpj, mascaraTelefone, mascaraCep } from '@/lib/documento';
 import { useAtalhosDeDialogo } from '@/hooks/useAtalhosDeDialogo';
+import { mensagemCrua } from '@/lib/mensagemDoErro';
 
 /**
  * Cadastro de Fornecedores.
@@ -94,7 +95,7 @@ const FORM_VAZIO: FornecedorFormData = {
 
 /** Mensagem de RLS é críptica; traduz pro que de fato aconteceu. */
 function traduzirErro(error: unknown): string {
-  const msg = error instanceof Error ? error.message : 'Tente novamente.';
+  const msg = mensagemCrua(error) || 'Tente novamente.';
   return /row-level security|policy/i.test(msg)
     ? 'Seu perfil de acesso não permite fazer isso.'
     : msg;

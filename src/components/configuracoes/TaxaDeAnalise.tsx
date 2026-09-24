@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { PERMISSIONS } from '@/config/permissions';
 import { moeda } from '@/lib/format';
+import { mensagemCrua } from '@/lib/mensagemDoErro';
 
 /**
  * Quanto a loja cobra pela análise quando o cliente NÃO aprova o orçamento.
@@ -89,7 +90,7 @@ export function TaxaDeAnalise() {
       });
     },
     onError: (erro: unknown) => {
-      const msg = erro instanceof Error ? erro.message : 'Erro desconhecido';
+      const msg = mensagemCrua(erro) || 'Erro desconhecido';
       toast({
         title: 'Não foi possível salvar',
         description: /row-level security|policy/i.test(msg)

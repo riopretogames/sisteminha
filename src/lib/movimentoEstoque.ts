@@ -1,3 +1,5 @@
+import { deISO } from '@/lib/periodo';
+
 /**
  * Sentido de um movimento de estoque: entrou ou saiu mercadoria?
  *
@@ -53,4 +55,25 @@ export function corDaQuantidade(m: MovimentoParaSentido): string {
   if (sentido === 'entrada') return 'text-emerald-600';
   if (sentido === 'saida') return 'text-red-600';
   return 'text-muted-foreground';
+}
+
+/**
+ * Os limites do período no relógio de Rio Preto, prontos para o banco.
+ *
+ * O banco guarda a hora em UTC, e a tela mandava as datas como texto sem fuso
+ * ("2026-09-24T23:59:59"), que o banco lê como UTC — o dia de Londres. Na
+ * prática, o movimento feito depois das 21h do último dia ficava de fora, e o
+ * das 21h à meia-noite da véspera do primeiro dia entrava (em 24/09, 10 dos 47
+ * movimentos da loja caíam em dia diferente). Agora cada limite é a
+ * meia-noite LOCAL convertida para o instante exato, e o fim é a meia-noite
+ * do dia seguinte, exclusiva (mesma regra de lib/periodo.ts).
+ *
+ * Data apagada no seletor vira "sem limite daquele lado", em vez de erro.
+ */
+export function limitesDoPeriodo(de: string, ate: string): { inicio: string | null; fimExclusivo: string | null } {
+  const inicio = de ? deISO(de) : null;
+  const fim = ate ? deISO(ate) : null;
+  if (fim) fim.setDate(fim.getDate() + 1);
+  const valida = (d: Date | null) => (d && !Number.isNaN(d.getTime()) ? d.toISOString() : null);
+  return { inicio: valida(inicio), fimExclusivo: valida(fim) };
 }

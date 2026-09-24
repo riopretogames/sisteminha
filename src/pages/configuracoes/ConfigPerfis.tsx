@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { mensagemCrua } from '@/lib/mensagemDoErro';
 
 /**
  * Perfis e Permissões.
@@ -95,7 +96,7 @@ export default function ConfigPerfis() {
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['role-permissions'] }),
     onError: (error) => {
-      const msg = error instanceof Error ? error.message : 'Erro desconhecido';
+      const msg = mensagemCrua(error) || 'Erro desconhecido';
       toast({
         title: 'Não foi possível alterar',
         description: /row-level security|policy/i.test(msg)

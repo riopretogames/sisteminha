@@ -1,5 +1,6 @@
 import { DIAS_SEMANA, TAREFA_PRIORIDADES, TAREFA_STATUS } from '@/config/tarefas';
 import type {
+  DiaFiltro,
   EstadoConferencia,
   Etiqueta,
   FiltrosTarefasValores,
@@ -108,6 +109,48 @@ export function tarefaCaiNoDia(t: Tarefa, dia: number, dataISO: string): boolean
   if (ehRecorrente(t)) return t.dias_semana.includes(dia);
   if (t.concluida_em) return dataLocalISO(new Date(t.concluida_em)) === dataISO;
   return t.prazo ? t.prazo <= dataISO : true;
+}
+
+/** Dia da semana (0 = domingo ... 6 = sábado) de uma data 'YYYY-MM-DD', sem passar por fuso. */
+export function diaDaSemanaDe(dataISO: string): number {
+  const [a, m, d] = dataISO.split('-').map(Number);
+  return new Date(a, m - 1, d).getDay();
+}
+
+/**
+ * Por que a bolinha de "feito" desta tarefa fica travada agora — ou `null`
+ * quando dá para marcar. Kanban, Tabela e ficha perguntam aqui.
+ *
+ * O feito de uma tarefa que se repete é SEMPRE o de hoje (é o que a tela
+ * grava). Achado da revisão de 24/09: a bolinha deixava marcar numa quinta a
+ * tarefa "seg, qua e sex" — gravava um feito de quinta, a tarefa ia para a
+ * Conferência e na sexta voltava pendente, e quem "adiantou" achava que já
+ * tinha feito. Por isso, duas travas (decisão da revisão; o Felipe pode pedir
+ * o contrário, que é o chip de um dia gravar a data daquele dia):
+ *
+ * 1. hoje não é dia da tarefa: a bolinha não marca;
+ * 2. o chip ligado é de OUTRO dia (numa terça, o chip "Seg"): a lista mostra
+ *    as tarefas de segunda, mas a situação e a bolinha são as de hoje. Marcar
+ *    ali gravaria o feito de terça achando que era o de segunda.
+ *
+ * Tarefa avulsa não trava (o feito dela não é de um dia), e o feito já
+ * marcado sempre pode ser desmarcado — é a saída de quem clicou sem querer.
+ */
+export function travaDoFeito(
+  t: Pick<Tarefa, 'dias_semana' | 'feita_hoje' | 'concluida_em'>,
+  hojeISO: string,
+  diaDoFiltro: DiaFiltro = 'todas',
+): string | null {
+  if (!ehRecorrente(t) || estaFeita(t)) return null;
+  const diaDeHoje = diaDaSemanaDe(hojeISO);
+  if (!t.dias_semana.includes(diaDeHoje)) {
+    return `Hoje não é dia desta tarefa (${descreverDias(t.dias_semana)}). O feito só se marca no dia dela.`;
+  }
+  if (typeof diaDoFiltro === 'number' && diaDoFiltro !== diaDeHoje) {
+    const nome = DIAS_SEMANA.find((d) => d.n === diaDoFiltro)?.nome.toLowerCase() ?? 'outro dia';
+    return `Você está vendo as tarefas de ${nome}. A bolinha marca o feito de hoje: para marcar, use o chip "Hoje".`;
+  }
+  return null;
 }
 
 /* ── Conferência do gerente (v2, 24/09) ────────────────────────────────────── */

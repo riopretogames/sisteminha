@@ -118,10 +118,31 @@ describe('periodoAnterior', () => {
     expect(paraISO(p.fim)).toBe('2026-09-21');
   });
 
-  it('esta semana compara com a semana passada', () => {
+  it('esta semana compara com o MESMO pedaço da semana passada', () => {
+    // Terça 22/09: esta semana é segunda e terça (21 e 22). O anterior tem de
+    // ser segunda e terça da semana passada (14 e 15) — e não sábado e
+    // domingo (19 e 20), que era o que o teste antigo conferia sem perceber.
     const p = periodoAnterior({ atalho: 'esta-semana' }, AGORA);
-    expect(paraISO(p.inicio)).toBe('2026-09-19');
-    expect(paraISO(p.fim)).toBe('2026-09-21');
+    expect(paraISO(p.inicio)).toBe('2026-09-14');
+    expect(paraISO(p.fim)).toBe('2026-09-16');
+    expect(p.rotulo).toBe('semana anterior');
+  });
+
+  it('numa quarta, esta semana não compara dia útil com fim de semana', () => {
+    // O caso do achado 64: quarta 23/09 comparava 21-23/09 com 18-21/09
+    // (sexta a domingo).
+    const quarta = new Date(2026, 8, 23, 10, 0);
+    const p = periodoAnterior({ atalho: 'esta-semana' }, quarta);
+    expect(paraISO(p.inicio)).toBe('2026-09-14');
+    expect(paraISO(p.fim)).toBe('2026-09-17');
+    expect(diasCorridos(p)).toBe(3);
+  });
+
+  it('semana passada compara com a semana inteira anterior', () => {
+    const p = periodoAnterior({ atalho: 'semana-passada' }, AGORA);
+    expect(paraISO(p.inicio)).toBe('2026-09-07');
+    expect(paraISO(p.fim)).toBe('2026-09-14');
+    expect(diasCorridos(p)).toBe(7);
   });
 
   it('este mês compara com o mesmo pedaço do mês passado, não com o mês inteiro', () => {

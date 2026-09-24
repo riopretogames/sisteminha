@@ -34,6 +34,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { mascaraCpfCnpj, mascaraTelefone, mascaraCep } from '@/lib/documento';
 import { useAtalhosDeDialogo } from '@/hooks/useAtalhosDeDialogo';
+import { mensagemCrua } from '@/lib/mensagemDoErro';
 
 /**
  * Cadastro de Transportadoras.
@@ -54,7 +55,7 @@ interface Transportadora {
 }
 
 const friendlyError = (error: unknown): string => {
-  const msg = error instanceof Error ? error.message : String(error);
+  const msg = mensagemCrua(error);
   // Mensagem de RLS é críptica; traduz pro que de fato aconteceu.
   return /row-level security|policy/i.test(msg)
     ? 'Seu perfil de acesso não permite fazer isso.'

@@ -11,6 +11,9 @@ import { Button } from '@/components/ui/button';
 import { moeda, data as fmtData, dataHora } from '@/lib/format';
 import { soDigitos } from '@/lib/documento';
 import { FORMAS_PAGAMENTO } from '@/lib/constants';
+import { emReais } from '@/lib/dinheiro';
+import { acertoDaVenda } from '@/lib/valoresDaVenda';
+import { mensagemDoErro } from '@/lib/mensagemDoErro';
 
 /**
  * Comprovante de Venda — reproduz o formato que a loja já usa em papel
@@ -156,8 +159,12 @@ export default function ComprovanteVenda() {
 
   const { data: detalhe, isLoading: carregandoDetalhe } = useQuery({
     queryKey: ['venda-comprovante-detalhe', id],
-    queryFn: async (): Promise<{ itens: ItemComprovante[]; pagamentos: PagamentoComprovante[] }> => {
-      const [itensRes, pagamentosRes] = await Promise.all([
+    queryFn: async (): Promise<{
+      itens: ItemComprovante[];
+      pagamentos: PagamentoComprovante[];
+      devolucaoDeOrigem: string | null;
+    }> => {
+      const [itensRes, pagamentosRes, devolucaoRes] = await Promise.all([
         supabase
           .from('itens_venda')
           .select(
@@ -172,12 +179,24 @@ export default function ComprovanteVenda() {
              formas_pagamento(descricao, contem_taxa, taxa_percent)`
           )
           .eq('venda_id', id!),
+        // Esta venda é a venda NOVA de uma troca? Então parte dela foi paga com
+        // o crédito do produto devolvido, e o papel precisa dizer isso.
+        supabase
+          .from('devolucoes')
+          .select('numero_devolucao')
+          .eq('venda_nova_id', id!)
+          .limit(1),
       ]);
       if (itensRes.error) throw itensRes.error;
       if (pagamentosRes.error) throw pagamentosRes.error;
+      if (devolucaoRes.error) throw devolucaoRes.error;
+      const devolucao = (devolucaoRes.data ?? [])[0] as { numero_devolucao: string | null } | undefined;
       return {
         itens: (itensRes.data ?? []) as unknown as ItemComprovante[],
         pagamentos: (pagamentosRes.data ?? []) as unknown as PagamentoComprovante[],
+        // Texto vazio (e não nulo) quando a devolução existe sem número ainda:
+        // o que importa é saber que ELA existe.
+        devolucaoDeOrigem: devolucao ? (devolucao.numero_devolucao ?? '') : null,
       };
     },
     enabled: !!id,
@@ -252,6 +271,21 @@ export default function ComprovanteVenda() {
 
   const itens = detalhe?.itens ?? [];
   const pagamentos = detalhe?.pagamentos ?? [];
+
+  /**
+   * Troco e crédito da devolução (achado de 24/09). O pagamento é gravado
+   * pelo valor ENTREGUE: sem estas linhas o papel mostrava "Dinheiro R$ 100"
+   * numa venda de R$ 80, e na venda nova de uma troca, "Total R$ 429,90" com
+   * pagamento de R$ 80,90 — parecia que o cliente ficou devendo.
+   */
+  const acerto: AcertoDoComprovante = {
+    ...acertoDaVenda({
+      total: venda?.total ?? 0,
+      pagamentos,
+      veioDeTroca: detalhe?.devolucaoDeOrigem != null,
+    }),
+    numeroDevolucao: detalhe?.devolucaoDeOrigem ?? null,
+  };
 
   /**
    * Mede o cupom e guarda a altura do papel (ver a nota lá em cima).
@@ -333,7 +367,7 @@ export default function ComprovanteVenda() {
     } catch (error) {
       toast({
         title: 'Erro ao enviar',
-        description: error instanceof Error ? error.message : 'Tente novamente.',
+        description: mensagemDoErro(error),
         variant: 'destructive',
       });
     } finally {
@@ -430,10 +464,10 @@ export default function ComprovanteVenda() {
       </style>
 
       {formato === 'sulfite' ? (
-        <ComprovanteSulfite venda={venda} itens={itens} pagamentos={pagamentos} tenant={tenant ?? null}
+        <ComprovanteSulfite acerto={acerto} venda={venda} itens={itens} pagamentos={pagamentos} tenant={tenant ?? null}
           descricaoProduto={descricaoProduto} calcularPagamento={calcularPagamento} />
       ) : (
-        <ComprovanteTermica refCupom={refTermica} venda={venda} itens={itens} pagamentos={pagamentos} tenant={tenant ?? null}
+        <ComprovanteTermica acerto={acerto} refCupom={refTermica} venda={venda} itens={itens} pagamentos={pagamentos} tenant={tenant ?? null}
           descricaoProduto={descricaoProduto} calcularPagamento={calcularPagamento} />
       )}
     </div>
@@ -461,7 +495,15 @@ function LogoDaLoja({ url, className }: { url: string | null | undefined; classN
   );
 }
 
+/** Troco e crédito da troca, já calculados, para as duas vias. */
+interface AcertoDoComprovante {
+  trocoCentavos: number;
+  creditoCentavos: number;
+  numeroDevolucao: string | null;
+}
+
 interface FormatoProps {
+  acerto: AcertoDoComprovante;
   venda: VendaComprovante;
   itens: ItemComprovante[];
   pagamentos: PagamentoComprovante[];
@@ -520,7 +562,7 @@ function corDaMarca(tenant: TenantInfo | null): string {
  *   preto e branco, que é como a maioria vai sair.
  */
 function ComprovanteSulfite({
-  venda, itens, pagamentos, tenant, descricaoProduto, calcularPagamento,
+  acerto, venda, itens, pagamentos, tenant, descricaoProduto, calcularPagamento,
 }: FormatoProps) {
   // Só faz sentido gastar uma coluna do papel com desconto se houver algum.
   const temDescontoPorItem = itens.some((i) => Number(i.desconto ?? 0) > 0);
@@ -721,6 +763,14 @@ function ComprovanteSulfite({
             <span>Desconto</span>
             <span className="tabular-nums">{moeda(Number(venda.descontos))}</span>
           </div>
+          {acerto.creditoCentavos > 0 && (
+            <div className="flex justify-between gap-3 py-1.5 text-neutral-700">
+              <span>
+                Crédito da devolução{acerto.numeroDevolucao ? ` ${acerto.numeroDevolucao}` : ''}
+              </span>
+              <span className="tabular-nums">{moeda(emReais(acerto.creditoCentavos))}</span>
+            </div>
+          )}
           {/* O total é a única coisa desta página que alguém procura de longe:
               maior, mais pesado, e com a cor da loja na linha de cima. */}
           <div
@@ -734,6 +784,13 @@ function ComprovanteSulfite({
               {moeda(Number(venda.total))}
             </span>
           </div>
+          {/* O pagamento acima é o valor ENTREGUE; o troco explica a diferença. */}
+          {acerto.trocoCentavos > 0 && (
+            <div className="mt-2 flex justify-between py-1.5 text-neutral-700">
+              <span>Troco</span>
+              <span className="tabular-nums">{moeda(emReais(acerto.trocoCentavos))}</span>
+            </div>
+          )}
         </div>
       </section>
 
@@ -782,7 +839,7 @@ function ComprovanteSulfite({
  * impressora térmica imprime melhor, com os separadores marcando os blocos.
  */
 function ComprovanteTermica({
-  venda, itens, pagamentos, tenant, descricaoProduto, calcularPagamento, refCupom,
+  acerto, venda, itens, pagamentos, tenant, descricaoProduto, calcularPagamento, refCupom,
 }: FormatoProps & { refCupom?: React.Ref<HTMLDivElement> }) {
   const linha = '-'.repeat(32);
   const condicoes = condicoesDaLoja(tenant);
@@ -845,6 +902,13 @@ function ComprovanteTermica({
           </p>
         );
       })}
+      {acerto.creditoCentavos > 0 && (
+        <p>
+          CREDITO DA DEVOLUCAO{acerto.numeroDevolucao ? ` ${acerto.numeroDevolucao}` : ''}:{' '}
+          {moeda(emReais(acerto.creditoCentavos))}
+        </p>
+      )}
+      {acerto.trocoCentavos > 0 && <p>TROCO: {moeda(emReais(acerto.trocoCentavos))}</p>}
       <p>Data Saida: {fmtData(venda.created_at)}</p>
       <p>Hora Saida: {hora(venda.created_at)}</p>
 

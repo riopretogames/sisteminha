@@ -46,6 +46,7 @@ import type { Database } from '@/integrations/supabase/types';
 import { moeda } from '@/lib/format';
 import { PecasDoServico } from '@/components/servicos/PecasDoServico';
 import { useAtalhosDeDialogo } from '@/hooks/useAtalhosDeDialogo';
+import { mensagemCrua } from '@/lib/mensagemDoErro';
 
 /**
  * Cadastro de Serviços.
@@ -89,7 +90,7 @@ const SEM_GRUPO = '__sem_grupo__';
 
 /** Mensagem de RLS é críptica; traduz pro que de fato aconteceu. */
 function traduzirErro(error: unknown): string {
-  const msg = error instanceof Error ? error.message : 'Tente novamente.';
+  const msg = mensagemCrua(error) || 'Tente novamente.';
 
   // Correção proativa: a tabela tem UNIQUE (tenant_id, nome) e nenhuma tela
   // irmã traduzia esse erro — o Postgres cru ("duplicate key value violates

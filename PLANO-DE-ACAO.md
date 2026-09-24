@@ -823,6 +823,16 @@ o arquivo antes de assumir.
 
 ## Ordens de Serviço / Assistência Técnica
 
+- [x] ✅ 24/09 — **Regra única para a resposta do cliente** (`lib/decisaoDoLaudo.ts`
+  + migration `20260924161000`, ainda não aplicada): pular a resposta vale
+  para todos; tabelado vai direto para a execução; desfazer recusa só por quem
+  aprova, com o motivo na linha do tempo; taxa da OS recusada travada; OS paga
+  em R$ 0 só sai com quem aprova; o quadro relê a OS antes de mover e busca em
+  páginas (encerradas de 30 dias); erro do banco aparece inteiro
+  (`lib/mensagemDoErro.ts`). Detalhe em "Revisão completa de 24/09/2026".
+- [ ] 🟡 **Decisão do Felipe:** valor aprovado que sobe deve exigir nova
+  aprovação do cliente? Hoje a ficha só pede confirmação de quem sobe.
+
 **🔴 Alta**
 - [x] ✅ **Resolvido em 20/08 — a trava de "Aprovar orçamento" (17/08) tinha
   um QUARTO caminho, mais simples que os três já fechados, e ainda aberto:
@@ -1712,7 +1722,10 @@ possíveis em todos os lugares possíveis"*. Os quatro painéis eram fixos em
   (só preço e custo? qualquer campo? entrada e saída de estoque também?) muda
   bastante o tamanho do trabalho.
 
-- [ ] 🔴 🆕 **Repor estoque pela tela de Estoque Crítico dá erro.** Achado do
+- [x] ✅ ~~**Repor estoque pela tela de Estoque Crítico dá erro.**~~ **Superado
+  em 24/09** (revisão completa, achado 48): o Repor não usa mais o ajuste
+  manual — abre a Entrada de Mercadoria já preenchida, que soma o estoque e
+  lança a compra no financeiro. O texto abaixo fica de histórico. Achado do
   Felipe no teste do passo 7, em 23/08 — a anotação só chegou até mim em
   27/08, porque ficou guardada no navegador dele: *"Erro ao repor estoque,
   não tá dando certo"*.
@@ -2248,6 +2261,18 @@ a tarefa avulsa (hoje a aba mostra o responsável da tarefa).
   inválido, sessão expirada, registro repetido, valor recusado; o resto vira
   "Algo deu errado no sistema. Tente de novo; se continuar, avise o Felipe."
 
+### Revisão de 24/09 — o que mudou no módulo
+
+Detalhe na seção "Revisão completa de 24/09/2026". Em resumo: (a) a bolinha
+trava quando hoje não é dia da tarefa e no chip de outro dia (o feito é sempre
+o de hoje); o banco recusa o mesmo (migration `20260924162000`), e quem não
+confere não cria feito já conferido, não marca outro dia e não desfaz
+conferência. Alternativa que o Felipe pode pedir: o chip de um dia ler e
+gravar a data daquele dia. (b) "Todas" volta a abrir no Kanban: a troca
+automática para a Tabela não é mais gravada no navegador. (c) A faixa do
+"Entrar como" vale no navegador inteiro, ligada à pessoa, e "Sair e voltar"
+sai só daquela sessão.
+
 ### O que ficou para depois
 
 - **Arrastar no celular** não funciona (o toque rola a tela). No celular a
@@ -2281,6 +2306,272 @@ a tarefa avulsa (hoje a aba mostra o responsável da tarefa).
       criar o quadro "Loja" pelo modelo, arrastar um cartão, marcar a
       bolinha, trocar para Tabela, abrir Minhas Tarefas.
 - [ ] Felipe decide se a equipe migra do Trello/Monday.
+
+## Revisão completa de 24/09/2026
+
+Pedido do Felipe: *"faz uma revisão completa no sistema e testa tudo que você
+precisar"*, com foco na **Ordem de Serviço** e no módulo novo de **Tarefas**.
+Seis frentes revisaram uma área cada; cada achado passou por um cético antes
+de virar correção. Saíram 86 achados numerados: um foi refutado, os outros
+foram corrigidos — os que dependem de decisão do Felipe estão marcados com 🟡
+e repetidos em "O que ficou para depois". Cada correção veio com teste
+automático; no fechamento, a suíte inteira, a conferência de tipos, o build e
+o lint terminaram verdes.
+
+**O que isto NÃO fez ainda:** nenhuma regra nova do banco está valendo. As
+correções de tela funcionam assim que o site for publicado; as travas do banco
+só depois que as migrations da lista do fim desta seção forem aplicadas.
+
+### Um defeito que estava em quase todas as telas
+
+- [x] ✅ **O motivo que o banco escreve não chegava na tela.** O banco devolve o
+  erro num formato que a tela não reconhecia como erro, e ela mostrava
+  "Tente novamente" no lugar de frases como *"O cliente está bloqueado para
+  venda"* ou *"Registre o pagamento… falta R$ 50"*. Agora toda tela passa pelo
+  mesmo ajudante, `lib/mensagemDoErro.ts`: a frase em português do banco passa
+  inteira, e o inglês técnico vira frase de gente. Aplicado na assistência
+  (8 arquivos) e, no fechamento, em mais 23: PDV, Troca/Devolução, Estoque,
+  ficha do produto, Comprovante, Caixa, Minha Empresa, todos os Cadastros,
+  Perfis, Preferências e os ajudantes de clientes, usuários, títulos e
+  catálogos. Efeito colateral bom: o Caixa voltou a perceber quando outra
+  pessoa fechou o caixa no meio (ele procurava essa frase e nunca achava).
+
+### Ordens de Serviço (assistência)
+
+- [x] ✅ Erro do banco aparece inteiro, e "Confirmar" de novo na entrega não
+  grava o pagamento duas vezes — `EntregarOSDialog.tsx`, `lib/mensagemDoErro.ts`.
+- [x] ✅ **Uma regra só para a resposta do cliente**, na ficha, na lista e no
+  quadro (`lib/decisaoDoLaudo.ts`, `lib/acaoDaEtapa.ts`): serviço tabelado vai
+  da Entrada para Aprovado pelo botão "Ir para a execução"; OS com laudo só sai
+  da Entrada para Aguardando aprovação ou Cancelar; desligar o laudo depois de
+  aberta exige quem aprova. Banco: migration `20260924161000`.
+- [x] ✅ OS paga com R$ 0: técnico não entrega, quem aprova confirma "sem
+  cobrar", "Laudo aprovado" em R$ 0 é recusado; Nova OS ganhou "Preço
+  combinado" na tabelada paga — `TrocarEtapaOS.tsx`, `OrdensServico.tsx`,
+  `DecisaoDoLaudo.tsx`, `NovaOS.tsx`.
+- [x] ✅ De "Aguardando aprovação" só se sai pela resposta do cliente, para todo
+  mundo — `TrocarEtapaOS.tsx` + migration.
+- [x] ✅ Desfazer a recusa só por quem aprova, com confirmação (valor, motivo,
+  peças) e o motivo na linha do tempo — `OSDetalhe.tsx` + migration.
+- [x] ✅ Valor da OS recusada travado para quem não aprova; o registro da
+  resposta do cliente não pode ser mexido por fora — `OSDetalhe.tsx` + migration.
+- [x] 🟡 Subir um valor já aprovado pede confirmação — `OSDetalhe.tsx`. **Fica
+  para o Felipe:** valor aprovado que sobe deve exigir nova aprovação do cliente?
+- [x] ✅ A janela de entrega relê valor e etapa no banco antes de cobrar; o
+  quadro relê a OS antes de mover — `EntregarOSDialog.tsx`, `OrdensServico.tsx`.
+- [x] ✅ O quadro busca em páginas (tudo em andamento + encerradas dos últimos
+  30 dias, com aviso) e OS sem cliente não some mais — `OrdensServico.tsx`.
+- [x] ✅ "Usar este cadastro" na Nova OS acha o cliente mesmo fora da lista
+  carregada — `NovaOS.tsx`.
+- [x] ✅ OS recusada conta como respondida: o técnico devolve para Aprovado.
+- [x] ✅ Renomear etapa aparece na hora na ficha — `StatusManagerDialog.tsx`.
+- [x] ✅ OS Finalizadas sem o corte em 500 e na ordem da entrega — `OSFinalizadas.tsx`.
+- [x] ✅ "Nova OS" só aparece para quem pode criar — `OSTableView.tsx`.
+- [x] ✅ Texto neutro da devolução de peças em OS parada — migration `20260924161000`.
+- Documento: `PROCESSO-ORDEM-DE-SERVICO.md` ganhou "Para onde a OS pode ir".
+- Dado real sem mexer: a OS-202608-0007 continua parada na Peça sem resposta
+  do cliente.
+
+### Tarefas da equipe e "Entrar como"
+
+- [x] ✅ A faixa amarela do "Entrar como" vale no navegador inteiro (todas as
+  abas), ligada à pessoa certa; "Sair e voltar" sai só desta sessão e não
+  derruba o celular da outra pessoa — `lib/entrarComo.ts`, `AppLayout.tsx`,
+  `hooks/useEntrarComo.ts`, `Usuarios.tsx`.
+- [x] ✅ Feito e conferência valem no banco: o feito é sempre de hoje, só no dia
+  da tarefa, e quem não confere não cria feito "já conferido" nem desfaz
+  conferência — migration `20260924162000`.
+- [x] ✅ "Todas" volta a abrir no Kanban (a troca automática para a Tabela não é
+  mais gravada) — `pages/tarefas/Quadro.tsx`.
+- [x] ✅ A bolinha trava quando hoje não é dia da tarefa e no chip de outro
+  dia, com o motivo escrito — `lib/tarefas.ts` e as visões Kanban/Tabela/ficha.
+  **Alternativa que o Felipe pode pedir:** o chip de um dia ler e gravar a
+  data daquele dia (contradiz a regra "feito é só de hoje").
+- [x] ✅ Minhas Tarefas não mostra a lista de quem saiu para quem entrou na
+  mesma aba — `hooks/useMinhasTarefas.ts` e, no fechamento, `hooks/useAuth.tsx`
+  apaga tudo o que a tela guardou quando alguém sai.
+- [x] ✅ Anexos das tarefas: só envia quem edita ou é responsável; só apaga quem
+  enviou ou edita — migration `20260924166000`.
+- [x] ✅ "Copiar link" fica registrado como "Gerou link de acesso", não como
+  "Entrou como"; se não der para copiar, o link aparece para cópia manual —
+  `supabase/functions/admin-usuarios/index.ts`, `ConfigLogs.tsx`. **Precisa
+  publicar a função.**
+- [x] ✅ A contagem do cartão do quadro não conta coluna nem tarefa arquivada —
+  `hooks/useQuadros.ts`.
+- Dado real: a única conclusão gravada (24/09, quinta, numa tarefa seg/qua/sex)
+  continua lá; o gerente deve **devolver** esse feito pela aba Conferência.
+
+### Vendas e clientes
+
+- [x] ✅ Devolução paga o que o cliente PAGOU (desconto rateado entre os itens),
+  não o preço de tabela — `lib/valoresDaVenda.ts`, `TrocaDevolucao.tsx`;
+  banco confere na migration `20260924163000`.
+- [x] ✅ A busca da troca vai ao banco inteiro (número, cliente, produto, IMEI,
+  vendedor) e a ficha da venda ganhou "Trocar ou devolver" e "Imprimir
+  comprovante" — `TrocaDevolucao.tsx`, `FichaDaVenda.tsx`.
+- [x] ✅ Conta do PDV e da troca em centavos inteiros — `lib/dinheiro.ts`.
+- [x] 🟡 Troco maior que o dinheiro recebido: o PDV avisa que sai da gaveta.
+  **Fica para o Felipe** a regra do banco (ver migrations pendentes).
+- [x] ✅ Pagamentos do período mostram troco e devolução como saída, e o
+  aparelho da troca não conta como dinheiro recebido — `VendasPagamentos.tsx`.
+- [x] ✅ O dia é o da loja, não o de Londres (venda depois das 21h caía no dia
+  seguinte) — `lib/filtrosVenda.ts`, Histórico, Pagamentos e, no fechamento,
+  `relatorios/RelatorioVendas.tsx`.
+- [x] ✅ PDV, Clientes e Pagamentos buscam tudo em páginas — `PDV.tsx`,
+  `hooks/useClientes.ts`, `Clientes.tsx`, `VendasPagamentos.tsx`.
+- [x] ✅ O banco carimba data, vendedor e número da venda, confere preço de
+  cadastro e soma dos itens — migration `20260924163000`. **Continua possível**
+  gravar venda sem nenhum item por fora da tela (precisaria de uma função
+  `fechar_venda`; para depois).
+- [x] 🟡 Produto devolvido com defeito: o aviso manda tirar da venda no Estoque,
+  com atalho. **Fica para o Felipe:** o produto devolvido deve voltar direto ao
+  estoque de venda?
+- [x] ✅ Janela "Venda finalizada!" com Imprimir comprovante, Nova venda e o
+  troco — `PDV.tsx`.
+- [x] ✅ "Já gastou" do cliente desconta devoluções — `lib/faturamento.ts`,
+  `ClienteFicha.tsx`.
+- [x] ✅ Importar clientes não duplica por nome (sem acento/espaço) —
+  `lib/clienteDuplicado.ts`, `ClientesImportar.tsx`; a busca de parecidos do
+  banco passa a ignorar acento — migration `20260924163000`.
+- [x] ✅ Telefone extra também é procurado — `ClienteFormDialog.tsx`.
+- [x] ✅ Filtros de forma e vendedor vêm do cadastro — `FiltrosVenda.tsx`.
+- [x] ✅ Comprovante mostra troco e crédito da devolução — `ComprovanteVenda.tsx`.
+- [x] ✅ Venda nova da troca herda a origem e passa pelos campos obrigatórios —
+  `TrocaDevolucao.tsx`.
+
+### Estoque
+
+- [x] ✅ Entrada de mercadoria lê "12,50" como R$ 12,50 e trava quantidade
+  quebrada — `components/produtos/DialogNovaEntrada.tsx`, `lib/estoque.ts`.
+- [x] ✅ A ficha do produto não desfaz venda feita enquanto ela estava aberta:
+  só ajusta se a pessoa mexeu no campo, e o banco recusa se o estoque mudou no
+  meio — `EstoqueDetalhe.tsx` + migration `20260924164000`.
+- [x] ✅ "Aguardando revisão" lê quem veio de troca; os outros fora da venda
+  ganham "Inativo" — `Estoque.tsx`.
+- [x] 🟡 Mínimo 0 grava, e **mínimo 0 = "não se repõe"** — `lib/estoque.ts`.
+  **Regra nova, falta o Felipe confirmar.** No fechamento, o aparelho de troca
+  passou a nascer com mínimo 0 — migration `20260924167000`.
+- [x] ✅ O Repor do Estoque Crítico abre a Entrada de Mercadoria já preenchida
+  (e lança a compra no financeiro) — `EstoqueCritico.tsx`.
+- [x] ✅ Loja sem fornecedor recebe aviso com link; o botão cinza diz o que falta.
+- [x] ✅ Estoque só muda por venda, OS, devolução, entrada ou ajuste da ficha —
+  sempre com rastro em Movimentações — migration `20260924164000`.
+- [x] ✅ Estoque, Crítico e Movimentações buscam de mil em mil.
+- [x] ✅ Movimentações usam o dia de Rio Preto — `EstoqueMovimentacoes.tsx`.
+- [x] ✅ Link errado mostra "Produto não encontrado" — `EstoqueDetalhe.tsx`.
+- [x] ✅ Excluir na ficha pede a mesma permissão da lista.
+- Dado real sem mexer: "Ps5 slim" e "PS4 TESTE" seguem com mínimo 1 no Crítico
+  até alguém pôr 0 na ficha.
+
+### Financeiro, painéis, relatórios e metas
+
+- [x] ✅ O próprio banco calcula o esperado e a diferença no fechamento; dois
+  fechando ao mesmo tempo não se atropelam — `FinanceiroCaixa.tsx` + migration
+  `20260924165000`.
+- [x] ✅ Fechamento às cegas de verdade: o esperado só aparece depois da
+  contagem — `FinanceiroCaixa.tsx`.
+- [x] 🟡 Vendas do balcão entram no Fluxo de Caixa e no Relatório Financeiro
+  (linha feita na tela) — `lib/vendasDoBalcao.ts`, `FluxoCaixa.tsx`,
+  `RelatorioFinanceiro.tsx`. **Fica para o Felipe:** o banco criar um título
+  por venda, em vez de a linha ser montada na tela?
+- [x] ✅ "Já pago" e "Já recebido" pela data do pagamento — `RelatorioFinanceiro.tsx`.
+- [x] ✅ Venda cancelada tira o dinheiro dela do caixa (ou estorna, se o caixa
+  já fechou) — migration `20260924165000`.
+- [x] ✅ Devolução em dinheiro abre o caixa sozinha — migration `20260924165000`.
+- [x] ✅ "OS Abertas" na Home para quem vê OS — `Dashboard.tsx`.
+- [x] ✅ Desconto rateado nas metas, IE Comercial e Painel de Vendas —
+  `lib/dinheiroDaVenda.ts`, `IeComercial.tsx`, `DashboardVenda.tsx`.
+- [x] ✅ Resumo do caixa sem troco, só OS entregue, sem buraco entre caixas —
+  migration + `DashboardVenda.tsx`.
+- [x] ✅ "Esta semana" compara com o mesmo pedaço da semana passada — `lib/periodo.ts`.
+- [x] ✅ Título automático (da OS/venda) não é reaberto nem cancelado por fora —
+  `TitulosPage.tsx` + migration.
+- [x] ✅ Relatórios, painéis e avisos em páginas, sem corte em 1.000 — vários
+  arquivos e, no fechamento, as devoluções em `lib/faturamento.ts`.
+- [x] ✅ Aviso de caixa aberto desde ontem pela data da loja — `useAvisos.ts`.
+- [x] ✅ Pagamento de OS em caixa já fechado só lança a diferença — migration.
+- [x] ✅ Painéis e IE leem devoluções e categorias com a permissão deles — migration.
+- [x] ✅ "Fechamentos anteriores" no Caixa — `FinanceiroCaixa.tsx`.
+- [x] ✅ Texto de Contas a Receber fala de repasse e acerto, não de fiado — `TitulosPage.tsx`.
+
+### Segurança, usuários e permissões
+
+- [x] ✅ Quem cuida de usuários não troca senha, exclui nem "entra como" quem
+  tem mais poder que ele: o banco decide (`pode_mexer_na_conta_de`) —
+  migration `20260924166000`, `admin-usuarios/alcada.ts`. Regra anotada no
+  `CLAUDE.md` (chave mestra, item 3).
+- [x] ✅ Quem cuida de usuários vê perfis, exceções e histórico; as caixinhas de
+  exceção travam sem "Alterar perfis e permissões" — `Usuarios.tsx`, migration.
+- [x] ✅ Link de acesso com alguém já logado é recusado com explicação — `Login.tsx`.
+- [x] ✅ Ninguém cria nem apaga cadastro de pessoa por fora — migration.
+- [x] ✅ Auditoria de mudança de perfil e de permissão, com frase legível nos
+  Logs — migration + `ConfigLogs.tsx`.
+- [x] ✅ Conta desativada sai na hora, com o motivo certo — `useAuth.tsx`, `Login.tsx`.
+- [x] ✅ Conta nova nasce na loja de quem criou — migration.
+- [x] ✅ A regra de quem registra pagamento de OS citava uma permissão que não
+  existe no catálogo (`orders.deliver`); saiu — migration.
+- [ ] 🟡 **17 exceções do Richard só repetem o perfil.** A ficha mostra o aviso e
+  o botão "Voltar a seguir o perfil"; o Felipe limpa com um clique.
+- [ ] 🔴 **Tarefa do Felipe no painel do Supabase:** desligar "Allow new users
+  to sign up" e ligar a proteção contra senha vazada.
+- [ ] 🟠 Para depois: (1) desativar/renomear quem tem mais poder ainda só exige
+  "gerenciar usuários" — pôr `pode_mexer_na_conta_de` na regra de `profiles`;
+  (2) o mapa de permissões dos perfis não tem loja (só pesa com a 2ª loja);
+  (3) esconder "Trocar senha / Entrar como / Excluir" de quem não tem alçada
+  (hoje o servidor recusa com frase clara).
+
+### O que foi refutado
+
+- **Taxa da maquininha no comprovante (achado 34).** O revisor achou que o
+  comprovante somava ao cliente uma taxa que é custo da loja. Refutado: o
+  Felipe disse em 23/09 que a taxa é **repassada** ao cliente, e a loja tem a
+  forma "Cartão Crédito - Taxa" separada para isso. O que sobra é menor e
+  depende do Felipe: o PDV não mostra ao vendedor o valor com taxa a cobrar na
+  maquininha, os juros cadastrados não são usados, e o caixa grava o valor sem
+  taxa (não vai bater com o extrato da maquininha). Hoje todas as taxas estão
+  em 0,00.
+- Sem veredito: nenhum.
+
+### O que ficou para depois
+
+- [ ] Decisões do Felipe: valor aprovado que sobe exige nova aprovação? (OS);
+  chip do dia grava a data daquele dia? (Tarefas); troco além do dinheiro sai
+  da gaveta? (Vendas, migration em `supabase/pendentes/`); produto devolvido
+  volta direto à venda? (Vendas); mínimo 0 = não se repõe? (Estoque); título
+  por venda no banco? (Financeiro); taxa da maquininha (achado 34).
+- [ ] Venda sem nenhum item ainda passa por fora da tela (função `fechar_venda`).
+- [ ] O troco e o desconto rateado são calculados em dois ajudantes com o mesmo
+  resultado (`lib/dinheiroDaVenda.ts` e `lib/valoresDaVenda.ts`). Juntar num só.
+- [ ] Depois de aplicar as migrations: regerar `src/integrations/supabase/types.ts`
+  (o ajuste de estoque ganhou o "saldo que eu vi" e há a função nova
+  `pode_mexer_na_conta_de`) e rodar o parecer de segurança (`get_advisors`).
+
+### Migrations escritas e AINDA NÃO APLICADAS
+
+Aplicar nesta ordem (`npx.cmd supabase db push`); cada uma tem conferência no
+fim e derruba a si mesma se algo não bater:
+
+- [ ] `20260924161000_os_regra_unica_da_resposta_do_cliente.sql` — a regra da
+  resposta do cliente, R$ 0, recusa e taxa travadas, no banco.
+- [ ] `20260924162000_tarefas_feito_e_conferencia_valem_no_banco.sql` — feito só
+  de hoje e no dia da tarefa; conferência só por quem confere.
+- [ ] `20260924163000_venda_e_devolucao_conferidas_no_banco.sql` — banco carimba
+  e confere a venda e o valor devolvido; busca de cliente ignora acento.
+- [ ] `20260924164000_estoque_so_muda_com_rastro.sql` — ajuste com "saldo que eu
+  vi" e estoque só muda pelas portas com rastro. **Sem ela, a ficha do produto
+  dá erro ao salvar mudança de estoque.**
+- [ ] `20260924165000_caixa_e_titulos_conferem_no_banco.sql` — fechamento
+  calculado pelo banco, venda cancelada e devolução no caixa, títulos
+  automáticos travados, resumo do caixa sem troco.
+- [ ] `20260924166000_seguranca_usuarios_e_permissoes.sql` — alçada sobre a
+  conta dos outros, auditoria de perfis, anexos das tarefas, conta nova na loja
+  certa. **Depois dela, publicar a função:**
+  `npx.cmd supabase functions deploy admin-usuarios --use-api`.
+- [ ] `20260924167000_aparelho_de_troca_nao_se_repoe.sql` — aparelho de troca
+  nasce com mínimo 0.
+- [ ] ⏸️ `supabase/pendentes/troco_alem_do_dinheiro_sai_do_caixa.sql` — **só com
+  o OK do Felipe.** Fica fora da pasta de migrations de propósito (o `db push`
+  aplicaria sem perguntar); quando aprovada, ganha data nova e entra na fila.
 
 ## Arquitetura de rotas, menu e permissões (transversal)
 

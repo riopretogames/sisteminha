@@ -17,6 +17,10 @@
  * código pergunta ao banco — usando o crachá da pessoa, não a chave mestra —
  * se ela pode gerenciar usuários. Só depois usa a chave.
  *
+ * Trocar senha, excluir/arquivar e "Entrar como" alguém ainda passam por uma
+ * segunda pergunta ao banco (alcada.ts): quem pediu tem alçada sobre a conta
+ * DESTA pessoa? Ninguém mexe na conta de quem tem mais acesso que ele.
+ *
  * E a regra de qual perfil a pessoa nova recebe NÃO é decidida aqui: este
  * código chama `trocar_papel_do_usuario`, a mesma função que a tela de
  * Usuários já usa, e também com o crachá de quem clicou. Assim a proteção do
@@ -26,6 +30,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { conferirAlcada } from './alcada.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -178,26 +183,15 @@ Deno.serve(async (req) => {
     if (erroAlvo) return erro('Não consegui localizar esse usuário.', 500);
     if (!alvo) return erro('Esse usuário não é da sua loja.', 404);
 
-    // Trocar a senha de um ADMINISTRADOR é virar administrador: quem faz isso
-    // entra como ele em seguida. Então exige o mesmo que dar o papel de
-    // administrador exige (`roles.manage`). A própria senha cada um troca.
-    // Achado da auditoria de 14/09: com só `users.manage`, dava para trocar a
-    // senha do dono e virar dono.
+    // Trocar a senha de quem tem MAIS acesso que você é ganhar esse acesso:
+    // quem faz isso entra como a pessoa em seguida. Achado da auditoria de
+    // 14/09 (dava para trocar a senha do dono e virar dono) e de novo em 24/09
+    // (achado 73: a trava lia o papel do alvo com o crachá de quem pediu, não
+    // enxergava, e deixava passar). Quem decide é o banco, e na dúvida recusa
+    // — ver alcada.ts. A própria senha cada um troca.
     if (userId !== quemPediu) {
-      const { data: papeisDoAlvo } = await comoUsuario
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId);
-      const alvoEAdmin = (papeisDoAlvo ?? []).some((r) => r.role === 'administrador');
-      if (alvoEAdmin) {
-        const { data: podeDefinirPapel } = await comoUsuario.rpc('has_permission', {
-          _user_id: quemPediu,
-          _permission: 'roles.manage',
-        });
-        if (podeDefinirPapel !== true) {
-          return erro('Só quem define perfis de acesso pode trocar a senha de um administrador.', 403);
-        }
-      }
+      const recusa = await conferirAlcada(comoUsuario, userId, 'trocar_senha');
+      if (recusa) return erro(recusa.mensagem, recusa.status);
     }
 
     const { error: erroSenha } = await comoServidor.auth.admin.updateUserById(userId, {
@@ -233,24 +227,12 @@ Deno.serve(async (req) => {
     if (erroAlvo) return erro('Não consegui localizar esse usuário.', 500);
     if (!alvo) return erro('Esse usuário não é da sua loja.', 404);
 
-    // Tirar um administrador da loja é da mesma alçada que dar/tirar o papel
-    // de administrador: exige `roles.manage`, não só `users.manage`. (Mesma
-    // trava da troca de senha; achado da auditoria de 14/09.)
+    // Tirar da loja alguém com mais acesso que você (um administrador, por
+    // exemplo) é da mesma alçada que mexer no perfil dele. Mesma trava da
+    // troca de senha — ver alcada.ts (achados de 14/09 e 73, de 24/09).
     {
-      const { data: papeisDoAlvo } = await comoUsuario
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId);
-      const alvoEAdmin = (papeisDoAlvo ?? []).some((r) => r.role === 'administrador');
-      if (alvoEAdmin) {
-        const { data: podeDefinirPapel } = await comoUsuario.rpc('has_permission', {
-          _user_id: quemPediu,
-          _permission: 'roles.manage',
-        });
-        if (podeDefinirPapel !== true) {
-          return erro('Só quem define perfis de acesso pode remover um administrador.', 403);
-        }
-      }
+      const recusa = await conferirAlcada(comoUsuario, userId, 'excluir');
+      if (recusa) return erro(recusa.mensagem, recusa.status);
     }
 
     const { data: historico, error: erroHistorico } = await comoUsuario.rpc(
@@ -373,23 +355,11 @@ Deno.serve(async (req) => {
       return erro('Essa conta está desativada ou arquivada. Ative-a antes de entrar como ela.', 409);
     }
 
-    // Entrar como um ADMINISTRADOR é virar administrador: mesma trava da
-    // troca de senha (exige roles.manage).
+    // Entrar como alguém com mais acesso que você é ganhar esse acesso: mesma
+    // trava da troca de senha — ver alcada.ts (achado 73, de 24/09).
     {
-      const { data: papeisDoAlvo } = await comoUsuario
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId);
-      const alvoEAdmin = (papeisDoAlvo ?? []).some((r) => r.role === 'administrador');
-      if (alvoEAdmin) {
-        const { data: podeDefinirPapel } = await comoUsuario.rpc('has_permission', {
-          _user_id: quemPediu,
-          _permission: 'roles.manage',
-        });
-        if (podeDefinirPapel !== true) {
-          return erro('Só quem define perfis de acesso pode entrar como um administrador.', 403);
-        }
-      }
+      const recusa = await conferirAlcada(comoUsuario, userId, 'entrar_como');
+      if (recusa) return erro(recusa.mensagem, recusa.status);
     }
 
     // O e-mail de acesso vem da conta, não do cadastro (o cadastro pode
@@ -411,13 +381,22 @@ Deno.serve(async (req) => {
 
     // O rastro. Se não der para registrar, não entra: acesso sem registro
     // é exatamente o que este recurso não pode ser.
+    //
+    // "Copiar link" (`modo: 'link'`) só GERA o acesso: ninguém entrou ainda,
+    // e talvez ninguém entre. Até 24/09 os dois botões gravavam "Entrou como"
+    // e o histórico dizia que o Felipe entrou quando só tinha copiado um link
+    // (achado 23 da revisão). O uso do link não passa por esta função, então
+    // o registro honesto é "gerou o acesso", com o mesmo peso de rastro.
+    const soGerouLink = corpo.modo === 'link';
     const { error: erroAuditoria } = await comoServidor.from('auditoria').insert({
       tabela: 'profiles',
-      acao: 'ENTRAR_COMO',
+      acao: soGerouLink ? 'GEROU_ACESSO' : 'ENTRAR_COMO',
       registro_id: userId,
       usuario_id: quemPediu,
       tenant_id: alvo.tenant_id,
-      dados_depois: { entrou_como: alvo.nome, email },
+      dados_depois: soGerouLink
+        ? { gerou_acesso_para: alvo.nome, email, modo: 'link' }
+        : { entrou_como: alvo.nome, email },
     });
     if (erroAuditoria) {
       return erro('Não foi possível registrar na auditoria; a entrada foi cancelada.', 500);

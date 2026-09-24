@@ -7,6 +7,8 @@
  * lista que `Estoque.tsx` já busca inteira (ativos e inativos).
  */
 
+import { paraISO } from '@/lib/periodo';
+
 export interface FiltrosProdutosValores {
   /** Nome, código de barras ou IMEI/série. */
   busca: string;
@@ -90,7 +92,12 @@ export function aplicarFiltrosProdutos<T extends ProdutoFiltravel>(
 
     // Compara só a parte da data: created_at é timestamp, e comparar texto
     // completo deixaria a própria data do "até" de fora.
-    const dia = p.created_at.slice(0, 10);
+    //
+    // A data é a de Rio Preto, não a do banco (revisão de 24/09): o banco
+    // guarda a hora em UTC, e cortar o texto (`created_at.slice(0, 10)`)
+    // pegava o dia de Londres — produto cadastrado depois das 21h caía no dia
+    // seguinte e sumia do filtro "até hoje".
+    const dia = paraISO(new Date(p.created_at));
     if (f.de && dia < f.de) return false;
     if (f.ate && dia > f.ate) return false;
 

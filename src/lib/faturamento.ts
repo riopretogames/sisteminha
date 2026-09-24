@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
+import { emCentavos, emReais } from '@/lib/dinheiro';
 
 /**
  * Faturamento: como somar dinheiro de venda sem contar duas vezes.
@@ -31,6 +32,37 @@ export function faturamentoDaVenda(v: {
   return Number(v.valor_faturamento_real ?? v.total ?? 0);
 }
 
+/**
+ * Quanto um cliente gastou de verdade na loja — o "Já gastou" da ficha dele.
+ *
+ * Dinheiro novo de cada venda não cancelada (`faturamentoDaVenda`: na venda
+ * nova de uma troca, só a diferença paga) menos o que foi devolvido ao cliente
+ * nas devoluções daquela venda. Achado de 24/09: a ficha somava `total` puro,
+ * e quem devolveu tudo aparecia como se tivesse gastado; quem trocou aparecia
+ * com os dois aparelhos somados.
+ *
+ * Nunca negativo: devolução maior que o gasto seria dado errado, não crédito.
+ */
+export function gastoDoCliente(
+  vendas: ReadonlyArray<{
+    status: string | null;
+    total: number | null;
+    valor_faturamento_real?: number | null;
+    devolucoes?: ReadonlyArray<{ valor_devolvido_cliente: number | null }> | null;
+  }>,
+): number {
+  const centavos = vendas
+    .filter((v) => v.status !== 'cancelado')
+    .reduce((soma, v) => {
+      const devolvido = (v.devolucoes ?? []).reduce(
+        (s, d) => s + emCentavos(d.valor_devolvido_cliente ?? 0),
+        0,
+      );
+      return soma + emCentavos(faturamentoDaVenda(v)) - devolvido;
+    }, 0);
+  return emReais(Math.max(0, centavos));
+}
+
 /** Soma o dinheiro novo de uma lista de vendas. */
 export function somarFaturamento(
   vendas: Array<{ total: number | null; valor_faturamento_real?: number | null }>
@@ -50,27 +82,31 @@ export function somarFaturamento(
  * nada é descontado — que é o certo.
  *
  * @param deISO   início do intervalo (ISO, inclusive)
- * @param ateISO  fim do intervalo (ISO, TAMBÉM inclusive). Omitido = sem
- *                limite. Inclusive de propósito: as telas de período do
- *                projeto filtram venda com `.lte('created_at', ate+T23:59:59)`
- *                — se aqui fosse exclusivo, uma devolução feita exatamente
- *                às 23:59:59 ficaria de fora do desconto e a venda dela não.
+ * @param ateISO  fim do intervalo (ISO). Omitido = sem limite. Por padrão é
+ *                INCLUSIVO, para casar com telas que filtram a venda com
+ *                `.lte(...)`. Tela que filtra a venda com fim exclusivo
+ *                (`intervaloDoDia`, meia-noite do dia seguinte no horário da
+ *                loja) passa `{ ateExclusivo: true }` — as duas pontas têm que
+ *                usar a mesma régua, senão uma devolução cai de um lado só.
  */
 export async function totalDevolvidoNoPeriodo(
   deISO: string,
-  ateISO?: string
+  ateISO?: string,
+  opcoes: { ateExclusivo?: boolean } = {}
 ): Promise<number> {
-  let q = supabase
-    .from('devolucoes')
-    .select('valor_devolvido_cliente')
-    .gte('created_at', deISO);
+  // Em páginas (achado 66 da revisão de 24/09): o Supabase devolve no máximo
+  // 1.000 linhas por pedido e corta calado — um relatório de ano inteiro
+  // descontaria só uma parte qualquer das devoluções.
+  const data = await buscarEmPaginas<{ valor_devolvido_cliente: number | null }>(() => {
+    let q = supabase
+      .from('devolucoes')
+      .select('id, valor_devolvido_cliente')
+      .gte('created_at', deISO);
+    if (ateISO) q = opcoes.ateExclusivo ? q.lt('created_at', ateISO) : q.lte('created_at', ateISO);
+    return q.order('created_at').order('id');
+  });
 
-  if (ateISO) q = q.lte('created_at', ateISO);
-
-  const { data, error } = await q;
-  if (error) throw error;
-
-  return (data ?? []).reduce(
+  return data.reduce(
     (acc, d) => acc + Number(d.valor_devolvido_cliente ?? 0),
     0
   );
@@ -92,12 +128,15 @@ export function somarDevolucoes(devolucoes: DevolucaoRow[]): number {
 
 /** Busca as devoluções de um intervalo, para filtrar por dia no cliente. */
 export async function buscarDevolucoesDesde(deISO: string): Promise<DevolucaoRow[]> {
-  const { data, error } = await supabase
-    .from('devolucoes')
-    .select('created_at, valor_devolvido_cliente')
-    .gte('created_at', deISO);
-  if (error) throw error;
-  return (data ?? []) as DevolucaoRow[];
+  // Em páginas, pelo mesmo motivo de `totalDevolvidoNoPeriodo`.
+  return buscarEmPaginas<DevolucaoRow>(() =>
+    supabase
+      .from('devolucoes')
+      .select('id, created_at, valor_devolvido_cliente')
+      .gte('created_at', deISO)
+      .order('created_at')
+      .order('id'),
+  );
 }
 
 /** Uma devolução, com quem fechou a venda que foi devolvida. */
@@ -164,22 +203,23 @@ export async function devolvidosPorProdutoNoPeriodo(
   deISO: string,
   ateISO?: string
 ): Promise<Map<string, DevolvidoDoProduto>> {
-  let q = supabase
-    .from('devolucao_itens')
-    .select('produto_id, quantidade, preco_unitario, devolucoes!inner(created_at)')
-    .gte('devolucoes.created_at', deISO);
-
-  if (ateISO) q = q.lte('devolucoes.created_at', ateISO);
-
-  const { data, error } = await q;
-  if (error) throw error;
-
-  const porProduto = new Map<string, DevolvidoDoProduto>();
-  for (const item of (data ?? []) as unknown as Array<{
+  // Em páginas, pelo mesmo motivo de `totalDevolvidoNoPeriodo`; a ordem
+  // pelo id deixa as páginas estáveis (sem linha repetida nem pulada).
+  const data = await buscarEmPaginas<{
     produto_id: string;
     quantidade: number;
     preco_unitario: number | null;
-  }>) {
+  }>(() => {
+    let q = supabase
+      .from('devolucao_itens')
+      .select('id, produto_id, quantidade, preco_unitario, devolucoes!inner(created_at)')
+      .gte('devolucoes.created_at', deISO);
+    if (ateISO) q = q.lte('devolucoes.created_at', ateISO);
+    return q.order('id');
+  });
+
+  const porProduto = new Map<string, DevolvidoDoProduto>();
+  for (const item of data) {
     const atual = porProduto.get(item.produto_id) ?? { quantidade: 0, valor: 0 };
     atual.quantidade += Number(item.quantidade ?? 0);
     atual.valor += Number(item.quantidade ?? 0) * Number(item.preco_unitario ?? 0);

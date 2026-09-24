@@ -20,7 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { mensagemDoErro } from '@/lib/mensagemDoErro';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Plus, Trash2, GripVertical, Save } from 'lucide-react';
@@ -45,6 +47,7 @@ export function StatusManagerDialog({
 }: StatusManagerDialogProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [localStatuses, setLocalStatuses] = useState<StatusConfig[]>([]);
   const [newLabel, setNewLabel] = useState('');
   const [newColor, setNewColor] = useState(COLOR_OPTIONS[0].value);
@@ -232,12 +235,17 @@ export function StatusManagerDialog({
         variant: 'success',
       });
 
+      // A ficha da OS, o seletor de etapa e OS Finalizadas leem as etapas por
+      // `useOsStatuses`, que guarda a lista por 5 minutos. Sem renovar aqui, a
+      // etapa criada ou renomeada só aparecia na ficha minutos depois — o
+      // quadro mudava e a ficha não (achado de 24/09).
+      queryClient.invalidateQueries({ queryKey: ['os-status-config'] });
       onStatusesChange();
       onOpenChange(false);
     } catch (error: unknown) {
       toast({
         title: 'Erro ao salvar',
-        description: error instanceof Error ? error.message : 'Tente novamente.',
+        description: mensagemDoErro(error),
         variant: 'destructive',
       });
     } finally {

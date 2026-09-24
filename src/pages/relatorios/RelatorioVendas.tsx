@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { moeda, data as fmtData } from '@/lib/format';
 import { totalDevolvidoNoPeriodo } from '@/lib/faturamento';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
+import { intervaloDoDia } from '@/lib/filtrosVenda';
 import { Indicador } from '@/components/PageHeader';
 import { RelatorioShell, usePeriodo, type Coluna } from './RelatorioShell';
 import { useAuth } from '@/hooks/useAuth';
@@ -101,20 +103,27 @@ export default function RelatorioVendas() {
   const { data, isLoading } = useQuery({
     queryKey: ['rel-vendas', periodo],
     queryFn: async (): Promise<{ linhas: LinhaVenda[]; devolvido: number }> => {
-      const [res, devolvido] = await Promise.all([
-        supabase
-          .from('vendas')
-          .select('id, numero_venda, created_at, status, subtotal, descontos, total, valor_faturamento_real, clientes(nome)')
-          .gte('created_at', periodo.de)
-          // O `ate` é uma data pura; sem o T23:59:59 o último dia ficaria de fora.
-          .lte('created_at', `${periodo.ate}T23:59:59`)
-          .order('created_at', { ascending: false }),
+      // O dia é o da loja (horário de Rio Preto), não o de Londres: sem isso
+      // uma venda feita depois das 21h caía no dia seguinte do relatório
+      // (achado 31 da revisão de 24/09 — mesma régua do Histórico de vendas).
+      const { inicio, fimExclusivo } = intervaloDoDia(periodo.de, periodo.ate);
+      const [linhas, devolvido] = await Promise.all([
+        // Em páginas: o Supabase devolve no máximo 1.000 linhas por pedido e
+        // corta calado — um relatório de ano inteiro somaria só uma parte
+        // qualquer das vendas (lib/buscarEmPaginas.ts).
+        buscarEmPaginas<LinhaVenda>(() => {
+          let q = supabase
+            .from('vendas')
+            .select('id, numero_venda, created_at, status, subtotal, descontos, total, valor_faturamento_real, clientes(nome)');
+          if (inicio) q = q.gte('created_at', inicio);
+          if (fimExclusivo) q = q.lt('created_at', fimExclusivo);
+          return q.order('created_at', { ascending: false }).order('id');
+        }),
         // Dinheiro devolvido no mesmo período: sai da gaveta e não está em
         // venda nenhuma — a venda original fica gravada com o valor cheio.
-        totalDevolvidoNoPeriodo(periodo.de, `${periodo.ate}T23:59:59`),
+        totalDevolvidoNoPeriodo(inicio ?? periodo.de, fimExclusivo, { ateExclusivo: true }),
       ]);
-      if (res.error) throw res.error;
-      return { linhas: (res.data ?? []) as unknown as LinhaVenda[], devolvido };
+      return { linhas, devolvido };
     },
   });
 

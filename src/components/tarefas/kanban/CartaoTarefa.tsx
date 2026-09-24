@@ -15,9 +15,9 @@ import { BadgeStatus } from '@/components/tarefas/BadgeStatus';
 import { BolinhaFeito } from '@/components/tarefas/BolinhaFeito';
 import { ChipDia } from '@/components/tarefas/ChipDia';
 import { EtiquetaChip } from '@/components/tarefas/EtiquetaChip';
-import { ehRecorrente, estaFeita, statusNoDia } from '@/lib/tarefas';
+import { ehRecorrente, estaFeita, statusNoDia, travaDoFeito } from '@/lib/tarefas';
 import { cn } from '@/lib/utils';
-import type { Tarefa } from '@/types/tarefas';
+import type { DiaFiltro, Tarefa } from '@/types/tarefas';
 
 export interface PropsCartaoTarefa {
   tarefa: Tarefa;
@@ -42,6 +42,8 @@ export interface PropsCartaoTarefa {
    * só quando ele diz alguma coisa (Manhã, Meio do dia, Tarde).
    */
   periodoPadraoId?: string | null;
+  /** O chip de dia ligado no quadro: com o de outro dia, a bolinha da recorrente trava (lib/tarefas, travaDoFeito). */
+  diaDoFiltro?: DiaFiltro;
 }
 
 /** '2026-09-20' => '20/09'. A data do prazo nunca passa por `new Date` (fuso). */
@@ -84,6 +86,7 @@ export const CartaoTarefa = forwardRef<HTMLDivElement, PropsCartaoTarefa & HTMLA
       flutuando = false,
       fantasma = false,
       periodoPadraoId = null,
+      diaDoFiltro = 'todas',
       className,
       onKeyDown,
       ...resto
@@ -97,7 +100,11 @@ export const CartaoTarefa = forwardRef<HTMLDivElement, PropsCartaoTarefa & HTMLA
     const atrasada = situacao === 'atrasada';
     const conferida = tarefa.conferencia === 'conferida';
     const aguardando = tarefa.conferencia === 'aguardando';
-    const marcar = (podeMarcar ?? podeEditar) && !flutuando && !conferida;
+    // Hoje não é dia da tarefa, ou o chip ligado é de outro dia: a bolinha
+    // marcaria o feito de hoje no lugar errado (ver travaDoFeito).
+    const trava = travaDoFeito(tarefa, hojeISO, diaDoFiltro);
+    const temPermissao = podeMarcar ?? podeEditar;
+    const marcar = temPermissao && !flutuando && !conferida && !trava;
 
     const venceHoje = !feita && tarefa.prazo === hojeISO;
     const textoDoPrazo = tarefa.prazo
@@ -130,15 +137,17 @@ export const CartaoTarefa = forwardRef<HTMLDivElement, PropsCartaoTarefa & HTMLA
 
     const tituloDaBolinha = conferida
       ? 'Conferida pelo gerente. Só ele pode devolver.'
-      : !marcar
+      : !temPermissao
         ? 'Só quem edita o quadro ou é responsável por esta tarefa pode marcar'
-        : recorrente
-          ? feita
-            ? 'Desmarcar o feito de hoje'
-            : 'Marcar como feita hoje'
-          : feita
-            ? 'Reabrir a tarefa'
-            : 'Marcar como concluída';
+        : trava && !flutuando
+          ? trava
+          : recorrente
+            ? feita
+              ? 'Desmarcar o feito de hoje'
+              : 'Marcar como feita hoje'
+            : feita
+              ? 'Reabrir a tarefa'
+              : 'Marcar como concluída';
 
     return (
       <div

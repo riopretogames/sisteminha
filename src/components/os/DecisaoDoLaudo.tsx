@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PERMISSIONS } from '@/config/permissions';
 import { OS_ETAPAS } from '@/config/osStatus';
 import { moeda } from '@/lib/format';
+import { mensagemDoErro } from '@/lib/mensagemDoErro';
 
 /**
  * A resposta do cliente ao laudo — o par aprovou / não aprovou.
@@ -138,12 +139,9 @@ export function DecisaoDoLaudo({
       setMotivo('');
       onMudou();
     } catch (erro: unknown) {
-      const msg = erro instanceof Error ? erro.message : 'Tente novamente.';
       toast({
         title: 'Não foi possível registrar a resposta',
-        description: /privilege|permission|policy/i.test(msg)
-          ? 'Seu acesso não permite decidir orçamento.'
-          : msg,
+        description: mensagemDoErro(erro, { semAcesso: 'Seu acesso não permite decidir orçamento.' }),
         variant: 'destructive',
       });
     } finally {
@@ -152,6 +150,21 @@ export function DecisaoDoLaudo({
   };
 
   const aprovar = () => {
+    // OS paga sem valor não se aprova. Achado na revisão de 24/09: aprovar
+    // R$ 0 deixava a OS seguir até a entrega e sair sem cobrança nenhuma —
+    // e a fila de Orçamentos já dizia "preencha o orçamento antes de
+    // aprovar", só que não barrava. O banco confere o mesmo
+    // (`registrar_decisao_do_laudo`, migration 20260924161000). Garantia e
+    // cortesia ficam de fora: nelas R$ 0 é o combinado.
+    if (tipo === 'paga' && !(totalOrcamento > 0)) {
+      toast({
+        title: 'Preencha o valor do orçamento antes',
+        description:
+          'Esta OS está sem valor. Abra a ficha, preencha o "Valor do orçamento" (o que está no laudo) e aí registre que o cliente aprovou.',
+        variant: 'destructive',
+      });
+      return;
+    }
     const valor = totalOrcamento > 0 ? ` de ${moeda(totalOrcamento)}` : '';
     if (
       !window.confirm(

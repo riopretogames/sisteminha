@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { PageHeader } from '@/components/PageHeader';
 import { PERMISSIONS } from '@/config/permissions';
+import { mensagemCrua } from '@/lib/mensagemDoErro';
 
 /**
  * Cadastros > Comprovantes — o que a loja escreve no comprovante de venda.
@@ -122,7 +123,7 @@ export default function CadastroComprovantes() {
       });
     } catch (erro) {
       console.error('Erro ao salvar os textos do comprovante:', erro);
-      const msg = erro instanceof Error ? erro.message : 'Tente novamente.';
+      const msg = mensagemCrua(erro) || 'Tente novamente.';
       toast({
         title: 'Erro ao salvar',
         description: /row-level security|policy/i.test(msg)

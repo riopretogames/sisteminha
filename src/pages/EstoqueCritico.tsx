@@ -1,23 +1,19 @@
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, PackagePlus, PartyPopper } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { estoqueCritico } from '@/lib/estoque';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
-import { PageHeader, Indicador, Vazio } from '@/components/PageHeader';
+import { PageHeader, Indicador } from '@/components/PageHeader';
+import { DialogNovaEntrada } from '@/components/produtos/DialogNovaEntrada';
 import { moeda } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog';
-import { useToast } from '@/hooks/use-toast';
 
 /**
  * Estoque Crítico — o alerta de reposição.
@@ -25,7 +21,16 @@ import { useToast } from '@/hooks/use-toast';
  * Cada produto tem seu próprio `estoque_minimo` (não é um número fixo pra
  * todo mundo): esta tela lista quem está NO mínimo ou abaixo dele, do mais
  * urgente pro menos urgente, com um jeito rápido de repor sem precisar abrir
- * o cadastro completo do produto.
+ * o cadastro completo do produto. Produto com mínimo 0 (peça única, como
+ * seminovo e troca) não entra — ver `lib/estoque.ts`.
+ *
+ * O "Repor" abre a ENTRADA DE MERCADORIA já com o produto e a quantidade que
+ * falta (revisão de 24/09). Antes ele fazia um ajuste manual por fora: somava
+ * o número, mas não pedia fornecedor nem preço pago, não recalculava o custo e
+ * não lançava a compra no financeiro. Como o botão estava mais à mão que a
+ * Entrada, a compra sumia do contas a pagar e o custo ficava parado. E somava
+ * em cima do número carregado quando a tela abriu: uma venda no meio do
+ * caminho "desvendia" a unidade. A Entrada soma no banco, sobre o saldo real.
  *
  * O corte crítico/ok é sempre calculado no cliente (estoque_atual <=
  * estoque_minimo) porque o PostgREST não compara duas colunas da mesma
@@ -43,28 +48,32 @@ interface Produto {
   preco?: number | null;
   estoque_atual: number;
   estoque_minimo: number;
+  codigo_barra: string | null;
 }
 
 export default function EstoqueCritico() {
   const { can } = useAuth();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const podeRepor = can(PERMISSIONS.INVENTORY_ADJUST);
+  // Repor = dar entrada de mercadoria, que exige as mesmas duas permissões
+  // que o banco exige em `registrar_entrada_mercadoria`: movimentar estoque E
+  // ver custo (o preço de compra é digitado ali).
+  const podeRepor =
+    can(PERMISSIONS.INVENTORY_ADJUST) && can(PERMISSIONS.INVENTORY_COST_VIEW);
 
   const [repondo, setRepondo] = useState<Produto | null>(null);
-  const [quantidadeRepor, setQuantidadeRepor] = useState('');
-  const [salvando, setSalvando] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['estoque-critico'],
-    queryFn: async (): Promise<Produto[]> => {
-      const { data, error } = await supabase
-        .from('vw_produtos')
-        .select('id, nome, marca, categoria, estoque_atual, estoque_minimo, custo, preco')
-        .eq('ativo', true);
-      if (error) throw error;
-      return (data ?? []) as Produto[];
-    },
+    // Em páginas: a API do banco corta calada em 1.000 linhas, e o crítico
+    // passaria a ser contado sobre uma parte qualquer do catálogo
+    // (lib/buscarEmPaginas.ts).
+    queryFn: () =>
+      buscarEmPaginas<Produto>(() =>
+        supabase
+          .from('vw_produtos')
+          .select('id, nome, marca, categoria, codigo_barra, estoque_atual, estoque_minimo, custo, preco')
+          .eq('ativo', true)
+          .order('id'),
+      ),
   });
 
   const criticos = (data ?? [])
@@ -105,51 +114,11 @@ export default function EstoqueCritico() {
   // permissão direto, como RelatorioEstoque.tsx já fazia.
   const veCusto = can(PERMISSIONS.INVENTORY_COST_VIEW);
 
-  const abrirReposicao = (produto: Produto) => {
-    setRepondo(produto);
-    setQuantidadeRepor(String(Math.max(produto.estoque_minimo - produto.estoque_atual, 1)));
-  };
-
-  const confirmarReposicao = async () => {
-    if (!repondo) return;
-    const quantidade = parseInt(quantidadeRepor, 10);
-    if (!quantidade || quantidade <= 0) {
-      toast({ title: 'Informe uma quantidade válida', variant: 'destructive' });
-      return;
-    }
-
-    setSalvando(true);
-    try {
-      const { error } = await supabase.rpc('ajustar_estoque_produto', {
-        _produto_id: repondo.id,
-        _nova_quantidade: repondo.estoque_atual + quantidade,
-        _motivo: 'Reposição de estoque',
-      });
-      if (error) throw error;
-
-      toast({
-        title: 'Estoque reposto!',
-        description: `${repondo.nome}: +${quantidade} unidade(s).`,
-        variant: 'success',
-      });
-      setRepondo(null);
-      queryClient.invalidateQueries({ queryKey: ['estoque-critico'] });
-    } catch (error: unknown) {
-      toast({
-        title: 'Erro ao repor estoque',
-        description: error instanceof Error ? error.message : 'Tente novamente.',
-        variant: 'destructive',
-      });
-    } finally {
-      setSalvando(false);
-    }
-  };
-
   return (
     <div className="mx-auto max-w-5xl">
       <PageHeader
         titulo="Estoque Crítico"
-        hint="Produtos no ou abaixo do estoque mínimo — cada um tem seu próprio limite de reposição, configurado no cadastro do produto."
+        hint="Produtos no ou abaixo do estoque mínimo — cada um tem seu próprio limite de reposição, configurado na ficha do produto. Peça única (seminovo, troca) com mínimo 0 não aparece aqui. O botão Repor abre a Entrada de Mercadoria, que soma o estoque e lança a compra no financeiro."
       />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -234,7 +203,7 @@ export default function EstoqueCritico() {
                     </TableCell>
                     {podeRepor && (
                       <TableCell>
-                        <Button size="sm" variant="outline" onClick={() => abrirReposicao(p)}>
+                        <Button size="sm" variant="outline" onClick={() => setRepondo(p)}>
                           <PackagePlus className="mr-1.5 h-3.5 w-3.5" />
                           Repor
                         </Button>
@@ -248,33 +217,25 @@ export default function EstoqueCritico() {
         </div>
       )}
 
-      <Dialog open={!!repondo} onOpenChange={(open) => !open && setRepondo(null)}>
-        <DialogContent className="sm:max-w-[420px]">
-          <DialogHeader>
-            <DialogTitle>Repor estoque</DialogTitle>
-            <DialogDescription>
-              {repondo?.nome} — atualmente {repondo?.estoque_atual} unidade(s).
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 py-2">
-            <Label htmlFor="qtd-repor">Quantidade a adicionar</Label>
-            <Input
-              id="qtd-repor"
-              type="number"
-              min={1}
-              value={quantidadeRepor}
-              onChange={(e) => setQuantidadeRepor(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="cancelar" onClick={() => setRepondo(null)}>Cancelar</Button>
-            <Button onClick={confirmarReposicao} disabled={salvando}>
-              {salvando ? 'Salvando…' : 'Confirmar reposição'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {repondo && (
+        <DialogNovaEntrada
+          onFechar={() => setRepondo(null)}
+          itensIniciais={[
+            {
+              produto: {
+                id: repondo.id,
+                nome: repondo.nome,
+                codigo_barra: repondo.codigo_barra,
+                estoque_atual: repondo.estoque_atual,
+                custo: repondo.custo ?? null,
+              },
+              // O que falta para chegar ao mínimo — no mínimo 1, porque
+              // produto exatamente no mínimo também está aqui.
+              quantidade: Math.max(repondo.estoque_minimo - repondo.estoque_atual, 1),
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }

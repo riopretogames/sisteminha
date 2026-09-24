@@ -11,9 +11,13 @@ import { FiltrosVenda } from '@/components/vendas/FiltrosVenda';
 import { FichaDaVenda } from '@/components/vendas/FichaDaVenda';
 import {
   FILTROS_VENDA_VAZIO,
+  FORMA_PELO_TIPO,
   aplicarFiltrosVenda,
+  intervaloDoDia,
   type FiltrosVendaValores,
 } from '@/lib/filtrosVenda';
+import { unirOpcoes, usePessoasDoFiltro, type OpcaoFiltro } from '@/lib/listasDeFiltro';
+import { FORMAS_PAGAMENTO } from '@/lib/constants';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -50,7 +54,7 @@ interface Venda {
   /** Só o necessário para os filtros de produto e número de série. O detalhe
    *  completo dos itens continua sendo buscado ao abrir a venda. */
   itens_venda: { produtos: { nome: string; imei_serial: string | null } | null }[] | null;
-  pagamentos_venda: { forma: string | null }[] | null;
+  pagamentos_venda: { forma: string | null; forma_pagamento_id: string | null }[] | null;
   /** Devoluções desta venda. Vem presa à linha, e não somada por período,
    *  porque esta tela filtra no cliente por critério livre — assim o
    *  desconto acompanha qualquer filtro que o usuário aplicar. */
@@ -103,16 +107,19 @@ export default function VendasHistorico() {
            clientes(nome),
            vendedor:profiles!vendas_vendedor_id_fkey(nome),
            itens_venda(produtos:vw_produtos(nome, imei_serial)),
-           pagamentos_venda(forma),
+           pagamentos_venda(forma, forma_pagamento_id),
            devolucoes!venda_original_id(valor_devolvido_cliente)`
         )
         .order('created_at', { ascending: false })
         .limit(500);
 
-      if (filtros.de) q = q.gte('created_at', filtros.de);
-      // O `ate` é data pura; sem o T23:59:59 o último dia ficaria de fora —
-      // mesma régua do Relatório de Vendas.
-      if (filtros.ate) q = q.lte('created_at', `${filtros.ate}T23:59:59`);
+      // O dia no horário da loja, com fim exclusivo (meia-noite do dia
+      // seguinte). Até 24/09 ia '2026-09-14T23:59:59' sem fuso, que o banco lê
+      // como horário de Londres: a venda das 21h36 do dia 14 caía no dia 15.
+      // Ver `intervaloDoDia`.
+      const { inicio, fimExclusivo } = intervaloDoDia(filtros.de, filtros.ate);
+      if (inicio) q = q.gte('created_at', inicio);
+      if (fimExclusivo) q = q.lt('created_at', fimExclusivo);
 
       const { data, error } = await q;
       if (error) throw error;
@@ -120,19 +127,51 @@ export default function VendasHistorico() {
     },
   });
 
-  const { data: vendedores } = useQuery({
-    queryKey: ['profiles-ativos'],
+  // As listas dos filtros vêm do CADASTRO, e o movimento só acrescenta (regra
+  // de lib/listasDeFiltro.ts). Até 24/09 o vendedor vinha só dos perfis
+  // ativos — as vendas de quem saiu da loja não davam para filtrar — e a forma
+  // de pagamento era uma lista fixa no código.
+  const { data: pessoas } = usePessoasDoFiltro();
+
+  const { data: formasCadastro } = useQuery({
+    queryKey: ['formas-pagamento-filtro'],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, nome')
-        .eq('ativo', true)
-        .order('nome');
+      const { data, error } = await supabase
+        .from('formas_pagamento')
+        .select('id, descricao, ativo')
+        .order('ordem', { ascending: true })
+        .order('descricao', { ascending: true });
+      if (error) throw error;
       return data ?? [];
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   const vendas = data ?? [];
+
+  const vendedores = unirOpcoes(
+    pessoas ?? [],
+    vendas
+      .filter((v) => v.vendedor_id)
+      .map((v) => ({ id: v.vendedor_id!, nome: `${v.vendedor?.nome ?? 'Sem nome'} (inativo)` })),
+  );
+
+  // Forma desativada continua na lista (as vendas antigas a usaram). Pagamento
+  // de antes de 07/08, sem forma cadastrada, entra pelo tipo.
+  const formas: OpcaoFiltro[] = unirOpcoes(
+    (formasCadastro ?? []).map((f) => ({
+      id: f.id,
+      nome: f.ativo === false ? `${f.descricao} (desativada)` : f.descricao,
+    })),
+    vendas.flatMap((v) =>
+      (v.pagamentos_venda ?? [])
+        .filter((p) => !p.forma_pagamento_id && p.forma)
+        .map((p) => ({
+          id: `${FORMA_PELO_TIPO}${p.forma}`,
+          nome: `${FORMAS_PAGAMENTO[p.forma as keyof typeof FORMAS_PAGAMENTO]?.label ?? p.forma} (antes do cadastro)`,
+        })),
+    ),
+  );
   // Bateu exatamente no teto: quase certo que há mais fora da lista.
   const atingiuOLimite = vendas.length === 500;
   const filtradas = aplicarFiltrosVenda(vendas, filtros);
@@ -193,7 +232,8 @@ export default function VendasHistorico() {
       <FiltrosVenda
         valores={filtros}
         onChange={setFiltros}
-        vendedores={vendedores ?? []}
+        vendedores={vendedores}
+        formas={formas}
         resultados={filtradas.length}
       />
 

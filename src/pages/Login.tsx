@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Navigate, useSearchParams } from 'react-router-dom';
-import { Gamepad2, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Gamepad2, Mail, Lock, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { gravarEntrouComo } from '@/lib/entrarComo';
 
 /**
  * Tela de entrada do RPG System.IO.
@@ -32,7 +33,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { signIn, user } = useAuth();
+  const { signIn, user, avisoDeEntrada } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -40,34 +41,88 @@ export default function Login() {
   // vem no endereço (?acesso=) e vira a sessão da pessoa, sem senha. Ver
   // lib/entrarComo.ts. O efeito vem ANTES do redirecionamento abaixo porque
   // hook não pode ficar depois de um return.
+  //
+  // Achado 75 da revisão de 24/09: o link era aplicado MESMO com alguém já
+  // logado naquele navegador. Colado numa janela normal, trocava a conta do
+  // administrador pela do funcionário — em todas as abas, sem faixa nenhuma.
+  // Agora, com alguém logado, o link não é usado e a tela explica o porquê.
   const [searchParams] = useSearchParams();
   const acesso = searchParams.get('acesso');
+  const [linkRecusado, setLinkRecusado] = useState(false);
   useEffect(() => {
     if (!acesso) return;
     let ativo = true;
     setLoading(true);
-    void supabase.auth
-      .verifyOtp({ token_hash: acesso, type: 'magiclink' })
-      .then(({ error }) => {
-        if (!ativo) return;
+    void (async () => {
+      const { data: atual } = await supabase.auth.getSession();
+      if (atual?.session) {
+        // Sem conferir `ativo`: a decisão de NÃO usar o link vale mesmo que a
+        // tela já tenha mudado.
+        setLinkRecusado(true);
         setLoading(false);
-        if (error) {
-          toast({
-            title: 'Este link de acesso não vale mais',
-            description: 'Ele vale por uma hora e só uma vez. Peça outro em Cadastros › Usuários.',
-            variant: 'destructive',
-          });
-        } else {
-          navigate('/home', { replace: true });
-        }
-      });
+        return;
+      }
+
+      const { data, error } = await supabase.auth.verifyOtp({ token_hash: acesso, type: 'magiclink' });
+      if (!error && data?.user) {
+        // A faixa amarela também nesta janela: quem abriu o link está vendo o
+        // sistema como outra pessoa, e tudo que fizer sai no nome dela.
+        const meta = (data.user.user_metadata ?? {}) as { nome?: unknown };
+        gravarEntrouComo({
+          alvoId: data.user.id,
+          nome: typeof meta.nome === 'string' && meta.nome ? meta.nome : data.user.email ?? 'outra pessoa',
+          por: '',
+          quando: new Date().toISOString(),
+        });
+      }
+      if (!ativo) return;
+      setLoading(false);
+      if (error) {
+        toast({
+          title: 'Este link de acesso não vale mais',
+          description: 'Ele vale por uma hora e só uma vez. Peça outro em Cadastros › Usuários.',
+          variant: 'destructive',
+        });
+      } else {
+        navigate('/home', { replace: true });
+      }
+    })();
     return () => {
       ativo = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acesso]);
 
-  if (user) return <Navigate to="/home" replace />;
+  if (acesso && linkRecusado) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md shadow-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              Já tem uma conta aberta neste navegador
+            </CardTitle>
+            <CardDescription>
+              Este link de acesso não foi usado. Se fosse, a sua conta seria trocada pela da outra
+              pessoa em todas as abas do sisteminha abertas aqui, e o que você fizesse sairia no nome
+              dela.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Para entrar como a outra pessoa sem sair da sua conta, copie o link e abra numa{' '}
+            <strong>janela anônima</strong> (Ctrl+Shift+N no Chrome).
+          </CardContent>
+          <CardFooter>
+            <Button className="w-full" onClick={() => navigate('/home', { replace: true })}>
+              Continuar na minha conta
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
+  if (user && !acesso) return <Navigate to="/home" replace />;
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,6 +167,14 @@ export default function Login() {
             </CardHeader>
 
             <CardContent className="space-y-4">
+              {avisoDeEntrada && (
+                <p
+                  role="alert"
+                  className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200"
+                >
+                  {avisoDeEntrada}
+                </p>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="email">E-mail</Label>
                 <div className="relative">

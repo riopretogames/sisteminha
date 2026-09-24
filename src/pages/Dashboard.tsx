@@ -21,6 +21,7 @@ import { estoqueCritico } from '@/lib/estoque';
 import { OS_STATUS } from '@/lib/constants';
 import { OS_ETAPAS } from '@/config/osStatus';
 import { somarFaturamento, totalDevolvidoNoPeriodo } from '@/lib/faturamento';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
 import { AvisoAguardandoRetirada } from '@/components/os/AvisoAguardandoRetirada';
 
 interface DashboardStats {
@@ -123,10 +124,20 @@ export default function Dashboard() {
       // comparava com o TEXTO "estoque_minimo", não com a coluna: sempre
       // deu número errado). Traz as duas colunas e conta no cliente, mesmo
       // padrão usado em Estoque.tsx e EstoqueCritico.tsx.
-      const { data: estoqueData } = await supabase
-        .from('vw_produtos')
-        .select('estoque_atual, estoque_minimo')
-        .eq('ativo', true);
+      //
+      // Em páginas: com o catálogo da loja importado passa das 1.000 linhas
+      // em que o Supabase corta calado, e a contagem sairia de uma parte
+      // qualquer dos produtos (lib/buscarEmPaginas.ts).
+      const estoqueData = await buscarEmPaginas<{
+        estoque_atual: number | null;
+        estoque_minimo: number | null;
+      }>(() =>
+        supabase
+          .from('vw_produtos')
+          .select('id, estoque_atual, estoque_minimo')
+          .eq('ativo', true)
+          .order('id'),
+      );
 
       // Nome diferente da função de propósito: `estoqueCritico` é a regra
       // (importada de lib/estoque), isto aqui é a CONTAGEM.
@@ -284,23 +295,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* OS Abertas */}
-        <Card className="overflow-hidden">
-          <div className="kpi-os p-1" />
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">OS Abertas</CardTitle>
-            <ClipboardList className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.osAbertas}</div>
-            <div className="flex items-center text-xs text-muted-foreground">
-              <Clock className="mr-1 h-4 w-4 text-orange-500" />
-              <span className="text-orange-500">{stats.osPendentes}</span>
-              <span className="ml-1">aguardando aprovação</span>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Caixa Hoje */}
         <Card className="overflow-hidden">
           <div className="kpi-caixa p-1" />
@@ -316,6 +310,29 @@ export default function Dashboard() {
           </CardContent>
         </Card>
           </>
+        ) : null}
+
+        {/* OS Abertas — fora do bloco de dinheiro de propósito (achado 61,
+            revisão de 24/09/2026). Em 15/09 o bloco foi feito para esconder
+            os cartões de VENDA de quem não vê venda, e este cartão foi junto
+            por engano: o técnico e o gerente técnico (o Leo) abriam a Home
+            sem saber quantas OS estavam abertas. Vale a permissão de ver OS. */}
+        {can(PERMISSIONS.ORDERS_VIEW) ? (
+          <Card className="overflow-hidden">
+            <div className="kpi-os p-1" />
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">OS Abertas</CardTitle>
+              <ClipboardList className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.osAbertas}</div>
+              <div className="flex items-center text-xs text-muted-foreground">
+                <Clock className="mr-1 h-4 w-4 text-orange-500" />
+                <span className="text-orange-500">{stats.osPendentes}</span>
+                <span className="ml-1">aguardando aprovação</span>
+              </div>
+            </CardContent>
+          </Card>
         ) : null}
 
         {/* Estoque Crítico */}

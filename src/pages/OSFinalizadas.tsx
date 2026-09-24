@@ -13,6 +13,7 @@ import {
   type FiltrosOSValores,
 } from '@/lib/filtrosOS';
 import { OS_STATUS_ENCERRADOS } from '@/config/osStatus';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
 import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -43,7 +44,15 @@ interface OSFinalizada {
   valor_final_pago: number | null;
   data_finalizacao: string | null;
   created_at: string;
+  /** Quando a OS mexeu pela última vez — na cancelada, é quando ela parou
+   *  (a cancelada não tem data de finalização: essa só a entrega preenche). */
+  updated_at: string | null;
   clientes: { nome: string; telefones: string[] | null } | null;
+}
+
+/** A data que ordena a lista: a da entrega, ou, na cancelada, a do cancelamento. */
+function quandoTerminou(o: OSFinalizada): string {
+  return o.data_finalizacao ?? o.updated_at ?? o.created_at;
 }
 
 export default function OSFinalizadas() {
@@ -53,17 +62,30 @@ export default function OSFinalizadas() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['os-finalizadas'],
+    /**
+     * TODAS as encerradas, em páginas.
+     *
+     * Achado na revisão de 24/09: a consulta parava em 500, ordenada pela data
+     * de finalização — que a cancelada não tem. Com mais de 500 entregas,
+     * nenhuma cancelada aparecia, e a "Receita de OS entregues" somava só as
+     * 500 carregadas, mesmo com o filtro de período apontando para meses
+     * antigos. Os filtros desta tela rodam sobre a lista carregada, então a
+     * lista tem que ser a inteira.
+     */
     queryFn: async (): Promise<OSFinalizada[]> => {
-      const { data, error } = await supabase
-        .from('service_orders')
-        .select(
-          'id, numero_os, status, modelo, marca, numero_serie, equipamento_id, marca_id, modelo_id, tecnico_id, valor_final_pago, data_finalizacao, created_at, clientes(nome, telefones)'
-        )
-        .in('status', OS_STATUS_ENCERRADOS)
-        .order('data_finalizacao', { ascending: false, nullsFirst: false })
-        .limit(500);
-      if (error) throw error;
-      return (data ?? []) as unknown as OSFinalizada[];
+      const data = await buscarEmPaginas<OSFinalizada>(() =>
+        supabase
+          .from('service_orders')
+          .select(
+            'id, numero_os, status, modelo, marca, numero_serie, equipamento_id, marca_id, modelo_id, tecnico_id, valor_final_pago, data_finalizacao, created_at, updated_at, clientes(nome, telefones)'
+          )
+          .in('status', OS_STATUS_ENCERRADOS)
+          .order('created_at')
+          .order('id'),
+      );
+      // Da que terminou por último para a mais antiga — entregue e cancelada
+      // na mesma régua.
+      return [...data].sort((a, b) => quandoTerminou(b).localeCompare(quandoTerminou(a)));
     },
   });
 

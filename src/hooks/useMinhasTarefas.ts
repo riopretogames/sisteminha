@@ -38,6 +38,11 @@ import type { TarefaMinha, TarefaStatus } from '@/types/tarefas';
  *
  * A chave leva a data de hoje: na virada do dia a lista se refaz sozinha, e
  * as recorrentes voltam a aparecer pendentes sem ninguém zerar nada.
+ *
+ * E leva QUEM está logado (achado 21 da revisão de 24/09). Sem isso, no
+ * computador do balcão, o Pedro saía, o Gabriel entrava na mesma aba e via
+ * "Bom dia, Gabriel" com as tarefas do Pedro até o banco responder — e a
+ * bolinha, nesse meio-tempo, marcava a tarefa do Pedro no nome do Gabriel.
  */
 
 type LinhaMinha = LinhaTarefaDoBanco & {
@@ -102,8 +107,8 @@ export function useMinhasTarefas() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const hoje = hojeISO();
-  const chave = ['minhas-tarefas', hoje] as const;
   const userId = user?.id ?? null;
+  const chave = ['minhas-tarefas', userId, hoje] as const;
 
   const consulta = useQuery({
     queryKey: chave,
@@ -148,8 +153,8 @@ export function useMinhasTarefas() {
 
   const { mutateAsync } = aplicar;
   const tarefaAgora = useCallback(
-    (id: string) => qc.getQueryData<TarefaMinha[]>(['minhas-tarefas', hojeISO()])?.find((t) => t.id === id),
-    [qc],
+    (id: string) => qc.getQueryData<TarefaMinha[]>(['minhas-tarefas', userId, hojeISO()])?.find((t) => t.id === id),
+    [qc, userId],
   );
 
   /** Mesma regra do quadro (lib/tarefasMutacoes). Nunca rejeita. */

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { AvataresPessoas } from '@/components/tarefas/AvataresPessoas';
 import { estaFeita, primeiroNome, resumoDeStatus } from '@/lib/tarefas';
 import { cn } from '@/lib/utils';
-import type { AcoesDoQuadro, Etiqueta, Lista, PeriodoOpcao, Pessoa, Tarefa } from '@/types/tarefas';
+import type { AcoesDoQuadro, DiaFiltro, Etiqueta, Lista, PeriodoOpcao, Pessoa, Tarefa } from '@/types/tarefas';
 import { BarraResumo } from './BarraResumo';
 import {
   descreverResumoDePrioridade,
@@ -116,6 +116,7 @@ export function GrupoTabela({
   etiquetas,
   filtroAtivo = false,
   onLimparFiltros,
+  diaDoFiltro = 'todas',
 }: {
   lista: Lista;
   /** Só as desta lista, já em ordem. */
@@ -134,6 +135,8 @@ export function GrupoTabela({
   /** Há filtro ligado: grupo sem linha pode ser só o filtro escondendo. */
   filtroAtivo?: boolean;
   onLimparFiltros?: () => void;
+  /** O chip de dia ligado no quadro (trava a bolinha no chip de outro dia; ver LinhaTarefa). */
+  diaDoFiltro?: DiaFiltro;
 }) {
   const estilo = estiloDaLista(lista);
   const status = resumoDeStatus(tarefas, hojeISO);
@@ -247,6 +250,7 @@ export function GrupoTabela({
                 hojeISO={hojeISO}
                 podeEditar={podeEditar}
                 podeMarcarAndamento={podeEditar || ehResponsavel(t)}
+                diaDoFiltro={diaDoFiltro}
                 acoes={acoes}
                 onAbrir={onAbrirTarefa}
                 pessoas={pessoas}

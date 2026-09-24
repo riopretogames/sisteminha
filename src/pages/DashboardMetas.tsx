@@ -21,6 +21,7 @@ import { PERMISSIONS } from '@/config/permissions';
 import { PageHeader } from '@/components/PageHeader';
 import { moeda } from '@/lib/format';
 import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
+import { fatorDaVenda } from '@/lib/dinheiroDaVenda';
 import { periodoDoMes, periodoDaQuinzena, dentroDoPeriodo, diasCorridos } from '@/lib/periodo';
 import {
   ROTULO_FAIXA,
@@ -149,26 +150,11 @@ function mesesDisponiveis(hoje: Date) {
 const faturamentoDa = (v: { total: number | null; valor_faturamento_real: number | null }) =>
   Number(v.valor_faturamento_real ?? v.total ?? 0);
 
-/**
- * Quanto de cada real dos itens a loja cobrou de verdade na venda — o
- * desconto da venda rateado entre os itens.
- *
- * No PDV o desconto é dado na venda inteira (`total` = itens − desconto), mas
- * cada item guarda o preço cheio. Sem este rateio, a campanha creditava
- * R$ 2.000 numa venda que a loja recebeu R$ 1.500 (revisão de 23/09, venda
- * VD-202608-0003).
- *
- * Usa `total`, e NÃO `valor_faturamento_real`, de propósito (segunda rodada da
- * revisão, 23/09): na troca, o dinheiro novo já é descontado pela DEVOLUÇÃO da
- * peça que voltou, item a item (ver `vendidoDoGrupo`). Usar o faturamento real
- * aqui tirava o valor da troca duas vezes — um jogo de R$ 429,90 levado numa
- * troca aparecia como R$ 80,90 na campanha.
- */
-function fatorDaVenda(v: { total: number | null; itens_venda: { total: number | null }[] | null }): number {
-  const somaDosItens = (v.itens_venda ?? []).reduce((s, i) => s + Number(i.total ?? 0), 0);
-  if (somaDosItens <= 0) return 0;
-  return Math.max(0, Number(v.total ?? 0) / somaDosItens);
-}
+// `fatorDaVenda` (o desconto da venda rateado entre os itens) mora em
+// lib/dinheiroDaVenda.ts desde 24/09/2026: o IE Comercial e o painel de
+// Vendas por grupo precisavam da MESMA conta, e cada um somava o preço cheio.
+// Sem este rateio, a campanha creditava R$ 2.000 numa venda que a loja
+// recebeu R$ 1.500 (revisão de 23/09, venda VD-202608-0003).
 
 export default function DashboardMetas() {
   const { user, can } = useAuth();

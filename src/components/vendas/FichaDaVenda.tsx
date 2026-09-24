@@ -1,10 +1,14 @@
 import { useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Clock, ArrowRight } from 'lucide-react';
+import { Clock, ArrowRight, ArrowLeftRight, Printer } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { PERMISSIONS } from '@/config/permissions';
 import { moeda, dataHora } from '@/lib/format';
 import { FORMAS_PAGAMENTO } from '@/lib/constants';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -125,6 +129,21 @@ interface Props {
 }
 
 export function FichaDaVenda({ vendaId, aoFechar }: Props) {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const { can } = useAuth();
+  /**
+   * A ficha é a segunda porta da devolução (achado de 24/09). A tela de Troca
+   * e Devolução começava por uma lista das vendas recentes; uma venda antiga,
+   * ainda na garantia, só era alcançável se a busca a achasse. Daqui, quem
+   * achou a venda pelo Histórico (que filtra por período, produto e IMEI) vai
+   * direto para a devolução dela.
+   *
+   * Dentro da própria tela de Troca o botão some: lá a venda já está
+   * escolhida, e clicar apagaria o que foi preenchido.
+   */
+  const podeDevolver =
+    can(PERMISSIONS.SALES_CANCEL) && pathname !== '/vendas/troca-devolucao';
   const { data: venda, isLoading: carregandoVenda } = useQuery({
     queryKey: ['venda-ficha', vendaId],
     queryFn: async (): Promise<Venda | null> => {
@@ -304,6 +323,29 @@ export function FichaDaVenda({ vendaId, aoFechar }: Props) {
         ) : (
           venda && (
           <div className="space-y-5">
+            {/* As duas ações que o balcão faz com uma venda achada: imprimir o
+                comprovante de novo e começar uma troca ou devolução. */}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/vendas/${venda.id}/comprovante`)}
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                Imprimir comprovante
+              </Button>
+              {podeDevolver && venda.status !== 'cancelado' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/vendas/troca-devolucao?venda=${venda.id}`)}
+                >
+                  <ArrowLeftRight className="mr-2 h-4 w-4" />
+                  Trocar ou devolver
+                </Button>
+              )}
+            </div>
+
             {/* Quem, quando, por quanto. Antes era preciso abrir o cadastro
                 do cliente para ver um telefone — no meio de um atendimento
                 em que a pergunta costuma ser "liga pra ele". */}

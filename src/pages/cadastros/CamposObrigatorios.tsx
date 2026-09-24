@@ -15,6 +15,7 @@ import {
   type CampoConfiguravel,
   type Formulario,
 } from '@/config/camposObrigatorios';
+import { mensagemCrua } from '@/lib/mensagemDoErro';
 
 /**
  * Campos obrigatórios — cada loja escolhe o que exige.
@@ -99,7 +100,7 @@ function ListaDeCampos({ formulario }: { formulario: Formulario }) {
       });
     },
     onError: (erro: unknown) => {
-      const msg = erro instanceof Error ? erro.message : 'Erro desconhecido';
+      const msg = mensagemCrua(erro) || 'Erro desconhecido';
       toast({
         title: 'Não foi possível salvar',
         description: /row-level security|policy/i.test(msg)

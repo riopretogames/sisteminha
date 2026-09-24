@@ -149,7 +149,7 @@ export function TitulosPage({ natureza }: { natureza: NaturezaTitulo }) {
         hint={
           ehPagar
             ? 'Tudo que a loja precisa pagar: fornecedor, aluguel, folha, imposto. Um título vencido aparece em vermelho.'
-            : 'Tudo que a loja tem para receber: crediário, venda a prazo, serviço entregue e ainda não pago.'
+            : 'Tudo que a loja tem para receber: repasse de cartão ou de marketplace, acerto com parceiro, e o serviço de OS entregue (esse entra sozinho, já recebido).'
         }
         acoes={
           <Dialog open={aberto} onOpenChange={setAberto}>
@@ -171,7 +171,7 @@ export function TitulosPage({ natureza }: { natureza: NaturezaTitulo }) {
                     id="descricao"
                     value={form.descricao}
                     onChange={(e) => setForm({ ...form, descricao: e.target.value })}
-                    placeholder={ehPagar ? 'Aluguel de agosto' : 'Crediário — João Silva'}
+                    placeholder={ehPagar ? 'Aluguel de agosto' : 'Repasse do cartão — agosto'}
                   />
                 </div>
 
@@ -333,6 +333,12 @@ export function TitulosPage({ natureza }: { natureza: NaturezaTitulo }) {
             <TableBody>
               {visiveis.map((t) => {
                 const meta = SITUACAO_META[t.situacao];
+                // Título que o sistema criou sozinho (entrega da OS, venda):
+                // espelha o documento de origem. Reabrir e cancelar aqui
+                // tirava a receita do Fluxo com a OS entregue e paga, e
+                // reentregar a OS não recriava — o banco agora recusa, e a
+                // tela nem oferece os botões.
+                const automatico = Boolean(t.os_id || t.venda_id);
                 return (
                   <TableRow key={t.id} className={cn(t.situacao === 'cancelado' && 'opacity-50')}>
                     <TableCell className="font-medium">
@@ -360,7 +366,19 @@ export function TitulosPage({ natureza }: { natureza: NaturezaTitulo }) {
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
-                        {t.status === 'aberto' && (
+                        {automatico && (
+                          <span
+                            className="self-center text-xs text-muted-foreground"
+                            title={
+                              t.os_id
+                                ? 'Criado sozinho pela entrega da OS. Se o valor estiver errado, corrija na própria OS.'
+                                : 'Criado sozinho pela venda. Se estiver errado, corrija pela venda.'
+                            }
+                          >
+                            {t.os_id ? 'Automático (OS)' : 'Automático (venda)'}
+                          </span>
+                        )}
+                        {!automatico && t.status === 'aberto' && (
                           <>
                             <Button
                               size="icon"
@@ -382,7 +400,7 @@ export function TitulosPage({ natureza }: { natureza: NaturezaTitulo }) {
                             </Button>
                           </>
                         )}
-                        {t.status === 'pago' && (
+                        {!automatico && t.status === 'pago' && (
                           <Button
                             size="icon"
                             variant="ghost"

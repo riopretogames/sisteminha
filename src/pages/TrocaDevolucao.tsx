@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Search, Package, ShoppingCart, Plus, Minus, Trash2, ArrowLeftRight, ArrowLeft, FileText,
 } from 'lucide-react';
@@ -7,9 +8,17 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { moeda, dataHora } from '@/lib/format';
+import { emCentavos, emReais } from '@/lib/dinheiro';
+import { pagoPorLinha, valorDaDevolucao } from '@/lib/valoresDaVenda';
+import { faltandoParaFecharVenda } from '@/lib/vendaObrigatorios';
+import { mensagemDoErro } from '@/lib/mensagemDoErro';
+import { useCamposObrigatorios } from '@/hooks/useCamposObrigatorios';
+import { useCatalogo } from '@/hooks/useCatalogos';
+import { CampoCatalogo } from '@/components/CampoCatalogo';
 import { PageHeader, Vazio } from '@/components/PageHeader';
 import { FichaDaVenda } from '@/components/vendas/FichaDaVenda';
 import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -56,8 +65,10 @@ import {
  * 1. ✅ O dinheiro devolvido agora entra na conferência de Caixa: o
  *    gatilho `registrar_devolucao_no_caixa` (migration `20260817120000`)
  *    lança `devolucoes.valor_devolvido_cliente` como saída no caixa
- *    aberto do momento. Sem caixa aberto, não lança nada (mesma limitação
- *    que venda/OS pagas ainda têm — não é regressão desta correção).
+ *    aberto do momento. Desde 24/09 (migration `20260924163000`) ele abre o
+ *    caixa sozinho quando não há nenhum aberto, igual a venda e a OS já
+ *    faziam desde 21/08 — antes, a devolução em dinheiro feita antes da
+ *    primeira venda do dia saía da gaveta sem aparecer na conferência.
  * 2. ✅ A venda nova continua gravando o preço CHEIO do produto novo em
  *    `vendas.total` (precisa disso pra contagem de vendas por produto nos
  *    dashboards), mas agora também grava `valor_faturamento_real` — quanto
@@ -67,10 +78,16 @@ import {
  *    `COALESCE(valor_faturamento_real, total)` em vez de `total` sozinho —
  *    não conta mais o produto trocado duas vezes.
  *
- * Sem trava no banco (só client-side) contra devolver mais unidades do
- * que foi vendido em devoluções parciais simultâneas — risco baixo com
- * terminal único, mas é uma lacuna real se um dia tiver mais de um PDV
- * rodando ao mesmo tempo.
+ * A trava contra devolver mais unidades do que foi vendido mora no banco desde
+ * 21/08 (gatilho `trg_quantidade_devolvida`), inclusive no caso de dois
+ * terminais devolvendo a mesma venda ao mesmo tempo.
+ *
+ * **O valor devolvido é o que o cliente PAGOU, não o preço de tabela** (achado
+ * de 24/09). O PDV dá o desconto na venda inteira e grava o preço cheio em
+ * cada item; esta tela multiplicava quantidade × preço do item e mandava
+ * devolver R$ 2.000,00 a quem tinha pago R$ 1.500 (VD-202608-0003). Agora o
+ * desconto é rateado entre os itens (`lib/valoresDaVenda.ts`) e toda a conta
+ * é feita em centavos inteiros (`lib/dinheiro.ts`), como no PDV.
  */
 
 interface VendaResumo {
@@ -79,10 +96,132 @@ interface VendaResumo {
   created_at: string;
   status: string;
   total: number | null;
+  /** De onde a venda veio. A venda nova de uma troca herda a mesma origem. */
+  origem_venda_id: string | null;
   clientes: { id: string; nome: string } | null;
   vendedor: { nome: string } | null;
-  itens_venda: Array<{ quantidade: number; produtos: { nome: string } | null }>;
+  itens_venda: Array<{
+    quantidade: number;
+    produtos: { nome: string; imei_serial: string | null } | null;
+  }>;
   devolucoes: Array<{ devolucao_itens: Array<{ quantidade: number }> }>;
+}
+
+/**
+ * Quantas vendas a lista traz quando ninguém está procurando nada.
+ *
+ * A busca NÃO fica presa a elas: com texto digitado, a procura vai ao banco
+ * inteiro (ver `buscarVendas`). Até 24/09 a busca filtrava só estas 200 já
+ * carregadas, e uma venda mais antiga — ainda dentro da garantia de 90 dias —
+ * simplesmente não existia para esta tela, que é a única porta da devolução.
+ */
+const LIMITE_LISTA = 200;
+
+/** Quantas linhas a tabela desenha; o resto se alcança pela busca. */
+const LINHAS_NA_TABELA = 50;
+
+const SELECT_VENDA = `id, numero_venda, created_at, status, total, origem_venda_id,
+   clientes(id, nome),
+   vendedor:profiles!vendas_vendedor_id_fkey(nome),
+   itens_venda(quantidade, produtos:vw_produtos(nome, imei_serial)),
+   devolucoes!venda_original_id(devolucao_itens(quantidade))`;
+
+/**
+ * Tira do texto digitado o que a linguagem de filtro do banco usa como
+ * separador (vírgula, parênteses, aspas) ou como curinga (% e _). Sem isso,
+ * uma vírgula no nome do cliente quebraria a consulta inteira.
+ */
+function limparTermo(texto: string): string {
+  return texto.replace(/[%_,()*\\"]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * As vendas que a tela oferece para devolver.
+ *
+ * Sem termo: as `LIMITE_LISTA` mais recentes. Com termo: procura NO BANCO pelo
+ * número da venda, pelo nome do cliente, pelo nome ou IMEI/série do produto e
+ * pelo nome do vendedor — cada caminho numa consulta, juntando o resultado. É
+ * mais consultas do que uma busca só, mas o banco de dados não deixa combinar
+ * "OU" entre tabelas diferentes numa consulta só, e é exatamente essa
+ * combinação que o balcão pede ("é do João, um controle, lá de julho").
+ */
+async function buscarVendas(termo: string): Promise<VendaResumo[]> {
+  const base = () =>
+    supabase.from('vendas').select(SELECT_VENDA).neq('status', 'cancelado');
+
+  if (!termo) {
+    const { data, error } = await base()
+      .order('created_at', { ascending: false })
+      .limit(LIMITE_LISTA);
+    if (error) throw error;
+    return (data ?? []) as unknown as VendaResumo[];
+  }
+
+  const padrao = `%${termo}%`;
+  const ids = (linhas: Array<{ id: string }> | null) => (linhas ?? []).map((l) => l.id);
+
+  const [clientesRes, produtosRes, pessoasRes] = await Promise.all([
+    supabase.from('clientes').select('id').ilike('nome', padrao).limit(100),
+    // Produto vem por `vw_produtos` (regra de custo protegido). IMEI entra junto
+    // com o nome: é o que está escrito no aparelho que o cliente trouxe.
+    supabase
+      .from('vw_produtos')
+      .select('id')
+      .or(`nome.ilike."${padrao}",imei_serial.ilike."${padrao}"`)
+      .limit(100),
+    supabase.from('profiles').select('id').ilike('nome', padrao).limit(50),
+  ]);
+  if (clientesRes.error) throw clientesRes.error;
+  if (produtosRes.error) throw produtosRes.error;
+  if (pessoasRes.error) throw pessoasRes.error;
+
+  const clienteIds = ids(clientesRes.data as Array<{ id: string }> | null);
+  const produtoIds = ids(produtosRes.data as Array<{ id: string }> | null);
+  const pessoaIds = ids(pessoasRes.data as Array<{ id: string }> | null);
+
+  let vendaIdsDoProduto: string[] = [];
+  if (produtoIds.length > 0) {
+    const { data, error } = await supabase
+      .from('itens_venda')
+      .select('venda_id')
+      .in('produto_id', produtoIds)
+      .limit(500);
+    if (error) throw error;
+    // Um produto muito vendido traria centenas de vendas; 150 cabem no
+    // endereço da consulta e sobram para o que o balcão procura.
+    vendaIdsDoProduto = [
+      ...new Set(((data ?? []) as Array<{ venda_id: string }>).map((i) => i.venda_id)),
+    ].slice(0, 150);
+  }
+
+  const consultas = [
+    base().ilike('numero_venda', padrao).order('created_at', { ascending: false }).limit(LIMITE_LISTA),
+  ];
+  if (clienteIds.length > 0) {
+    consultas.push(
+      base().in('cliente_id', clienteIds).order('created_at', { ascending: false }).limit(LIMITE_LISTA),
+    );
+  }
+  if (pessoaIds.length > 0) {
+    consultas.push(
+      base().in('vendedor_id', pessoaIds).order('created_at', { ascending: false }).limit(LIMITE_LISTA),
+    );
+  }
+  if (vendaIdsDoProduto.length > 0) {
+    consultas.push(
+      base().in('id', vendaIdsDoProduto).order('created_at', { ascending: false }).limit(LIMITE_LISTA),
+    );
+  }
+
+  const resultados = await Promise.all(consultas);
+  const porId = new Map<string, VendaResumo>();
+  for (const { data, error } of resultados) {
+    if (error) throw error;
+    for (const v of (data ?? []) as unknown as VendaResumo[]) porId.set(v.id, v);
+  }
+  return [...porId.values()]
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0))
+    .slice(0, LIMITE_LISTA);
 }
 
 /**
@@ -104,6 +243,12 @@ interface LinhaDaLista {
   produtos: string;
   /** null = nada devolvido; 'parte' e 'tudo' viram selo na linha. */
   devolucao: 'parte' | 'tudo' | null;
+  /**
+   * Tudo que a busca na tela compara: TODOS os produtos da venda e os IMEIs.
+   * O texto `produtos` mostra só o primeiro ("Carregador + 2 itens"), e a
+   * busca comparava só ele — procurar o segundo produto da venda não achava.
+   */
+  textoDeBusca: string;
 }
 
 function montarLinha(venda: VendaResumo): LinhaDaLista {
@@ -112,6 +257,16 @@ function montarLinha(venda: VendaResumo): LinhaDaLista {
   const primeiro = nomes[0] ?? '—';
   const resto = nomes.length - 1;
   const produtos = resto > 0 ? `${primeiro} + ${resto} ${resto === 1 ? 'item' : 'itens'}` : primeiro;
+  const imeis = itens.map((i) => i.produtos?.imei_serial).filter(Boolean) as string[];
+  const textoDeBusca = [
+    venda.numero_venda ?? '',
+    venda.clientes?.nome ?? '',
+    venda.vendedor?.nome ?? '',
+    ...nomes,
+    ...imeis,
+  ]
+    .join(' ')
+    .toLowerCase();
 
   // Compara em PEÇAS, não em número de linhas: devolver 1 de 3 unidades do
   // mesmo produto é devolução parcial, e contar linhas diria "tudo devolvido".
@@ -125,14 +280,23 @@ function montarLinha(venda: VendaResumo): LinhaDaLista {
     venda,
     produtos,
     devolucao: devolvido <= 0 ? null : devolvido >= vendido && vendido > 0 ? 'tudo' : 'parte',
+    textoDeBusca,
   };
 }
 
 interface ItemVendaOriginal {
   id: string;
   produto_id: string;
+  /** Quanto AINDA dá para devolver (vendido − já devolvido antes). */
   quantidade: number;
+  /** Quanto a venda teve deste item, sem descontar devolução nenhuma. */
+  quantidadeVendida: number;
+  /** Quanto já voltou em devoluções anteriores. */
+  jaDevolvida: number;
+  /** Preço de tabela gravado no item (sem o desconto da venda). */
   preco_unitario: number;
+  /** Centavos que esta linha recebeu de verdade, com o desconto rateado. */
+  pagoCentavos: number;
   produtos: { nome: string } | null;
 }
 
@@ -158,6 +322,8 @@ export default function TrocaDevolucao() {
   const { toast } = useToast();
   const { user, can } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [parametros] = useSearchParams();
   const podeRegistrar = can(PERMISSIONS.SALES_CANCEL);
   /**
    * Ver a ficha completa é outra permissão, não a de devolver.
@@ -180,39 +346,90 @@ export default function TrocaDevolucao() {
   const [motivo, setMotivo] = useState('');
   const [salvando, setSalvando] = useState(false);
 
+  /**
+   * De onde veio a venda NOVA de uma troca. Herda a da venda original; se ela
+   * não tinha, começa no item marcado como padrão (Balcão), igual ao PDV.
+   *
+   * A troca grava uma venda de verdade, então passa pelas mesmas exigências
+   * de Cadastros > Campos Obrigatórios que o PDV cobra (achado de 24/09: era
+   * uma segunda porta de gravação de venda com meia regra).
+   */
+  const [origemVendaId, setOrigemVendaId] = useState('');
+  const catalogoOrigemVenda = useCatalogo('origem_venda');
+  const { exige: exigeNaVenda, exigencias: exigenciasDaVenda } = useCamposObrigatorios('venda');
+
+  /**
+   * O texto da busca vai ao banco com um pequeno atraso: sem isso, cada letra
+   * digitada dispararia uma rodada de consultas. A lista na tela, porém,
+   * filtra na hora pelo que já está carregado — quem digita vê a resposta
+   * andando junto.
+   */
+  const [termoNoBanco, setTermoNoBanco] = useState('');
+  useEffect(() => {
+    const termo = limparTermo(busca);
+    const espera = setTimeout(() => setTermoNoBanco(termo.length >= 2 ? termo : ''), 300);
+    return () => clearTimeout(espera);
+  }, [busca]);
+
   const { data: vendas, isLoading: carregandoVendas } = useQuery({
-    queryKey: ['troca-devolucao-vendas'],
-    queryFn: async (): Promise<VendaResumo[]> => {
+    queryKey: ['troca-devolucao-vendas', termoNoBanco],
+    // Produto vem por `vw_produtos` (regra de custo protegido), com apelido
+    // para o JSON manter a chave `produtos`. As devoluções anteriores vêm
+    // junto para a linha poder avisar o que já voltou — ver `montarLinha`.
+    queryFn: () => buscarVendas(termoNoBanco),
+    // Enquanto a busca nova não volta, a lista anterior continua na tela (e
+    // filtrada pelo que foi digitado), em vez de piscar "Carregando…".
+    placeholderData: keepPreviousData,
+  });
+
+  /**
+   * Chegou aqui pelo botão "Trocar ou devolver" da ficha da venda
+   * (Histórico, Pagamentos, Relatório). A ficha manda o id no endereço, e a
+   * tela já abre com a venda escolhida — sem precisar achá-la de novo na
+   * lista, que é justamente onde uma venda antiga podia não estar.
+   */
+  const vendaDoEndereco = parametros.get('venda');
+  const { data: vendaPedida } = useQuery({
+    queryKey: ['troca-devolucao-venda', vendaDoEndereco],
+    enabled: Boolean(vendaDoEndereco),
+    queryFn: async (): Promise<VendaResumo | null> => {
       const { data, error } = await supabase
         .from('vendas')
-        // Produto vem por `vw_produtos` (regra de custo protegido), com apelido
-        // para o JSON manter a chave `produtos`. As devoluções anteriores vêm
-        // junto para a linha poder avisar o que já voltou — ver `montarLinha`.
-        .select(
-          `id, numero_venda, created_at, status, total,
-           clientes(id, nome),
-           vendedor:profiles!vendas_vendedor_id_fkey(nome),
-           itens_venda(quantidade, produtos:vw_produtos(nome)),
-           devolucoes!venda_original_id(devolucao_itens(quantidade))`,
-        )
-        .neq('status', 'cancelado')
-        .order('created_at', { ascending: false })
-        .limit(200);
+        .select(SELECT_VENDA)
+        .eq('id', vendaDoEndereco!)
+        .maybeSingle();
       if (error) throw error;
-      return (data ?? []) as unknown as VendaResumo[];
+      return (data as unknown as VendaResumo | null) ?? null;
     },
   });
+  const jaAbriuAVendaPedida = useRef(false);
+  useEffect(() => {
+    if (!vendaPedida || jaAbriuAVendaPedida.current) return;
+    jaAbriuAVendaPedida.current = true;
+    if (vendaPedida.status === 'cancelado') {
+      toast({
+        title: 'Esta venda foi cancelada',
+        description: 'Venda cancelada não tem o que devolver: o estoque já voltou no cancelamento.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    selecionarVenda(vendaPedida);
+    // `selecionarVenda` só mexe em estado desta tela; não precisa ser dependência.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vendaPedida]);
 
   // Itens da venda original + quanto já foi devolvido antes (pra não
   // deixar devolver mais do que foi vendido, mesmo em devoluções
-  // parciais anteriores).
+  // parciais anteriores) + quanto cada linha recebeu de verdade, com o
+  // desconto da venda rateado (ver `pagoPorLinha`).
   const { data: itensOriginais, isLoading: carregandoItens } = useQuery({
-    queryKey: ['troca-devolucao-itens', vendaSelecionada?.id],
+    queryKey: ['troca-devolucao-itens', vendaSelecionada?.id, vendaSelecionada?.total],
     queryFn: async (): Promise<ItemVendaOriginal[]> => {
       const [itensRes, devolvidosRes] = await Promise.all([
         supabase
           .from('itens_venda')
-          .select('id, produto_id, quantidade, preco_unitario, produtos:vw_produtos(nome)')
+          .select('id, produto_id, quantidade, preco_unitario, total, produtos:vw_produtos(nome)')
           .eq('venda_id', vendaSelecionada!.id),
         supabase
           .from('devolucoes')
@@ -234,12 +451,37 @@ export default function TrocaDevolucao() {
         }
       }
 
-      return ((itensRes.data ?? []) as unknown as ItemVendaOriginal[]).map((item) => ({
-        ...item,
-        // Desconta o que já voltou antes — o campo abaixo não é do banco,
-        // é calculado aqui pra limitar o input de quantidade no render.
-        quantidade: item.quantidade - (jaDevolvidoPorProduto.get(item.produto_id) ?? 0),
-      }));
+      const itens = (itensRes.data ?? []) as unknown as Array<{
+        id: string;
+        produto_id: string;
+        quantidade: number;
+        preco_unitario: number;
+        total: number | null;
+        produtos: { nome: string } | null;
+      }>;
+
+      // O rateio usa TODOS os itens da venda, inclusive os que já voltaram
+      // inteiros: o desconto foi dado sobre a venda toda, não sobre o que sobrou.
+      const pago = pagoPorLinha(
+        vendaSelecionada!.total,
+        itens.map((i) => ({ id: i.id, total: i.total ?? Number(i.preco_unitario) * i.quantidade })),
+      );
+
+      return itens.map((item) => {
+        const jaDevolvida = Math.min(item.quantidade, jaDevolvidoPorProduto.get(item.produto_id) ?? 0);
+        return {
+          id: item.id,
+          produto_id: item.produto_id,
+          produtos: item.produtos,
+          preco_unitario: Number(item.preco_unitario),
+          quantidadeVendida: item.quantidade,
+          jaDevolvida,
+          // Desconta o que já voltou antes — não é do banco, é calculado aqui
+          // pra limitar o campo de quantidade na tela.
+          quantidade: item.quantidade - jaDevolvida,
+          pagoCentavos: pago.get(item.id) ?? 0,
+        };
+      });
     },
     enabled: !!vendaSelecionada,
   });
@@ -278,15 +520,16 @@ export default function TrocaDevolucao() {
   // frente e o aparelho na mão — ele lembra do que comprou, não do número da
   // venda. Vendedor entra junto porque agora está na tela: campo que se lê e
   // não se busca vira pergunta ("e como eu acho as vendas da Ana?").
+  //
+  // A busca de verdade vai ao banco (`buscarVendas`); este filtro refina o que
+  // voltou pelas mesmas regras, e responde na hora enquanto a consulta anda.
   const linhas = (vendas ?? []).map(montarLinha);
-  const linhasFiltradas = linhas.filter(({ venda, produtos }) =>
-    !buscaLower
-      ? true
-      : (venda.numero_venda ?? '').toLowerCase().includes(buscaLower) ||
-        (venda.clientes?.nome ?? '').toLowerCase().includes(buscaLower) ||
-        (venda.vendedor?.nome ?? '').toLowerCase().includes(buscaLower) ||
-        produtos.toLowerCase().includes(buscaLower),
+  const linhasFiltradas = linhas.filter(({ textoDeBusca }) =>
+    !buscaLower ? true : textoDeBusca.includes(buscaLower),
   );
+  // Bateu no teto sem ninguém procurar nada: há vendas mais antigas fora da
+  // lista. A tela precisa dizer isso — e dizer como achá-las.
+  const listaCortada = !termoNoBanco && (vendas ?? []).length >= LIMITE_LISTA;
 
   const selecionarVenda = (venda: VendaResumo) => {
     setVendaSelecionada(venda);
@@ -294,23 +537,38 @@ export default function TrocaDevolucao() {
     setItensNovos([]);
     setFormaAcertoId('');
     setMotivo('');
+    const padrao = catalogoOrigemVenda.data?.find((i) => i.padrao);
+    setOrigemVendaId(venda.origem_venda_id ?? padrao?.id ?? '');
   };
 
-  const valorDevolvido = (itensOriginais ?? []).reduce((acc, item) => {
-    const qtd = Math.min(
-      item.quantidade,
-      Math.max(0, parseInt(quantidadesDevolvidas[item.id] ?? '0', 10) || 0)
-    );
-    return acc + qtd * Number(item.preco_unitario);
-  }, 0);
+  /** Quantas unidades deste item o vendedor marcou para voltar. */
+  const quantidadeMarcada = (item: ItemVendaOriginal) =>
+    Math.min(item.quantidade, Math.max(0, parseInt(quantidadesDevolvidas[item.id] ?? '0', 10) || 0));
 
-  const valorNovosItens = itensNovos.reduce(
-    (acc, item) => acc + item.produto.preco * item.quantidade,
+  /** Centavos a devolver por este item, com o desconto da venda já rateado. */
+  const devolverDoItem = (item: ItemVendaOriginal) =>
+    valorDaDevolucao({
+      pagoDaLinha: item.pagoCentavos,
+      vendida: item.quantidadeVendida,
+      jaDevolvida: item.jaDevolvida,
+      agora: quantidadeMarcada(item),
+    });
+
+  // Tudo em centavos inteiros — ver lib/dinheiro.ts. Com número quebrado, uma
+  // troca "sem diferença" podia sobrar R$ 0,00000000001 e obrigar a escolher
+  // forma de pagamento para acertar nada.
+  const devolvidoCentavos = (itensOriginais ?? []).reduce((acc, item) => acc + devolverDoItem(item), 0);
+  const novosItensCentavos = itensNovos.reduce(
+    (acc, item) => acc + emCentavos(item.produto.preco) * item.quantidade,
     0
   );
-
   // Positivo = devolve pro cliente. Negativo = cliente paga a diferença.
-  const diferenca = valorDevolvido - valorNovosItens;
+  const diferencaCentavos = devolvidoCentavos - novosItensCentavos;
+
+  // Em reais só para mostrar e gravar.
+  const valorDevolvido = emReais(devolvidoCentavos);
+  const valorNovosItens = emReais(novosItensCentavos);
+  const diferenca = emReais(diferencaCentavos);
   const temDevolucaoOuTroca = (itensOriginais ?? []).some(
     (item) => (parseInt(quantidadesDevolvidas[item.id] ?? '0', 10) || 0) > 0
   );
@@ -348,13 +606,37 @@ export default function TrocaDevolucao() {
       return;
     }
 
-    if (diferenca !== 0 && !formaAcertoId) {
+    if (diferencaCentavos !== 0 && !formaAcertoId) {
       toast({
         title: 'Escolha a forma de pagamento',
-        description: diferenca > 0 ? 'Como o dinheiro será devolvido ao cliente.' : 'Como o cliente vai pagar a diferença.',
+        description: diferencaCentavos > 0 ? 'Como o dinheiro será devolvido ao cliente.' : 'Como o cliente vai pagar a diferença.',
         variant: 'destructive',
       });
       return;
+    }
+
+    // A troca grava uma VENDA nova — então cobra o mesmo que o PDV cobra.
+    // Devolução pura não grava venda nenhuma e não passa por aqui.
+    if (itensNovos.length > 0) {
+      const falta = faltandoParaFecharVenda(
+        { cliente_id: vendaSelecionada.clientes?.id ?? '', origem_venda_id: origemVendaId },
+        exigenciasDaVenda,
+      );
+      if (falta.length > 0) {
+        const primeiro = falta[0];
+        toast({
+          title: primeiro.titulo,
+          // O "como resolver" da regra fala do botão do PDV, que não existe
+          // aqui. O cliente da troca é o da venda original e não se troca.
+          description:
+            primeiro.campo === 'cliente_id'
+              ? 'Esta loja exige cliente na venda, e a venda original foi feita sem cliente. ' +
+                'Registre aqui só a devolução e lance o produto novo pelo PDV, com o cliente.'
+              : 'Escolha a origem da venda no passo 4, logo acima do motivo.',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     const tenantId = user.profile.tenant_id;
@@ -379,7 +661,8 @@ export default function TrocaDevolucao() {
             // Preço cheio em `total` (contagem de vendas por produto), mas
             // só a diferença cobrada do cliente conta como faturamento
             // novo de verdade — ver comentário no topo do arquivo.
-            valor_faturamento_real: diferenca < 0 ? Math.abs(diferenca) : 0,
+            valor_faturamento_real: diferencaCentavos < 0 ? emReais(-diferencaCentavos) : 0,
+            origem_venda_id: origemVendaId || null,
             observacoes: `Produto(s) novo(s) de troca — devolução da venda ${vendaSelecionada.numero_venda ?? vendaSelecionada.id}.`,
           })
           .select()
@@ -393,21 +676,21 @@ export default function TrocaDevolucao() {
               venda_id: vendaNovaId,
               produto_id: i.produto.id,
               quantidade: i.quantidade,
-              preco_unitario: i.produto.preco,
-              total: i.produto.preco * i.quantidade,
+              preco_unitario: emReais(emCentavos(i.produto.preco)),
+              total: emReais(emCentavos(i.produto.preco) * i.quantidade),
             }))
           );
           if (itensError) throw itensError;
 
           // Cliente paga a diferença: registra como pagamento da venda nova.
-          if (diferenca < 0) {
+          if (diferencaCentavos < 0) {
             const forma = (formasPagamento ?? []).find((f) => f.id === formaAcertoId);
             const { error: pagamentoError } = await supabase.from('pagamentos_venda').insert({
               venda_id: vendaNovaId,
               forma: forma?.forma_enum ?? 'dinheiro',
               forma_pagamento_id: formaAcertoId,
               parcelas: 1,
-              valor: Math.abs(diferenca),
+              valor: emReais(-diferencaCentavos),
             });
             if (pagamentoError) throw pagamentoError;
           }
@@ -439,9 +722,9 @@ export default function TrocaDevolucao() {
             tenant_id: tenantId,
             venda_original_id: vendaSelecionada.id,
             venda_nova_id: vendaNovaId,
-            valor_devolvido_cliente: diferenca > 0 ? diferenca : 0,
-            valor_cliente_pagou_a_mais: diferenca < 0 ? Math.abs(diferenca) : 0,
-            forma_pagamento_id: diferenca !== 0 ? formaAcertoId : null,
+            valor_devolvido_cliente: diferencaCentavos > 0 ? diferenca : 0,
+            valor_cliente_pagou_a_mais: diferencaCentavos < 0 ? emReais(-diferencaCentavos) : 0,
+            forma_pagamento_id: diferencaCentavos !== 0 ? formaAcertoId : null,
             motivo: motivo.trim() || null,
             usuario_id: user.id,
           })
@@ -450,15 +733,22 @@ export default function TrocaDevolucao() {
         if (devolucaoError) throw devolucaoError;
 
         // Itens devolvidos — dispara o estorno de estoque automático.
+        //
+        // O preço gravado é o que o cliente PAGOU por unidade, com o desconto
+        // da venda rateado, e não o de tabela. Os painéis de Inteligência tiram
+        // da receita `quantidade × preco_unitario` desta tabela
+        // (`devolvidosPorProdutoNoPeriodo`): com o preço de tabela, devolver
+        // um item vendido com desconto tirava da receita mais do que entrou.
         const itensParaDevolver = (itensOriginais ?? [])
-          .map((item) => ({
-            produto_id: item.produto_id,
-            quantidade: Math.min(
-              item.quantidade,
-              Math.max(0, parseInt(quantidadesDevolvidas[item.id] ?? '0', 10) || 0)
-            ),
-            preco_unitario: item.preco_unitario,
-          }))
+          .map((item) => {
+            const quantidade = quantidadeMarcada(item);
+            return {
+              produto_id: item.produto_id,
+              quantidade,
+              preco_unitario:
+                quantidade > 0 ? emReais(Math.round(devolverDoItem(item) / quantidade)) : 0,
+            };
+          })
           .filter((item) => item.quantidade > 0);
 
         const { error: itensDevolucaoError } = await supabase.from('devolucao_itens').insert(
@@ -471,16 +761,31 @@ export default function TrocaDevolucao() {
           throw itensDevolucaoError;
         }
 
+        // O produto que voltou entra DIRETO no estoque de venda (gatilho
+        // `estornar_estoque_devolucao`) — inclusive o que voltou com defeito.
+        // Um seminovo com IMEI, que é uma linha única, reaparece no PDV pronto
+        // para ser vendido a outro cliente. Separar "volta para venda" de "vai
+        // para revisão" é decisão do Felipe (achado de 24/09); até lá, a tela
+        // lembra de conferir e leva direto ao produto.
+        const primeiroDevolvido = itensParaDevolver[0]?.produto_id;
         toast({
           title: 'Devolução registrada!',
           description: `${devolucao.numero_devolucao} — ${
-            diferenca > 0
+            diferencaCentavos > 0
               ? `devolver ${moeda(diferenca)} ao cliente.`
-              : diferenca < 0
-                ? `cliente pagou ${moeda(Math.abs(diferenca))} a mais.`
+              : diferencaCentavos < 0
+                ? `cliente pagou ${moeda(emReais(-diferencaCentavos))} a mais.`
                 : 'troca sem diferença a acertar.'
-          }`,
+          } O produto voltou para o estoque de venda: se veio com defeito, tire da venda no Estoque.`,
           variant: 'success',
+          action: primeiroDevolvido ? (
+            <ToastAction
+              altText="Abrir no estoque o produto que voltou"
+              onClick={() => navigate(`/estoque/${primeiroDevolvido}`)}
+            >
+              Ver no estoque
+            </ToastAction>
+          ) : undefined,
         });
 
         queryClient.invalidateQueries({ queryKey: ['troca-devolucao-vendas'] });
@@ -498,12 +803,9 @@ export default function TrocaDevolucao() {
     } catch (error) {
       toast({
         title: 'Erro ao registrar devolução',
-        description:
-          error instanceof Error && /row-level security|policy/i.test(error.message)
-            ? 'Seu perfil de acesso não permite fazer isso.'
-            : error instanceof Error
-              ? error.message
-              : 'Tente novamente.',
+        // mensagemDoErro: o erro do banco chega como objeto comum, não como
+        // `Error` — sem isso o motivo em português dos gatilhos sumia.
+        description: mensagemDoErro(error),
         variant: 'destructive',
       });
     } finally {
@@ -538,13 +840,20 @@ export default function TrocaDevolucao() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar por número, cliente, produto ou vendedor…"
+                placeholder="Buscar por número, cliente, produto, IMEI ou vendedor…"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
                 className="pl-9"
                 autoFocus
               />
             </div>
+            {listaCortada && (
+              <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-sm text-amber-800">
+                Aqui estão as <strong>{LIMITE_LISTA} vendas mais recentes</strong>. Venda mais
+                antiga? Digite o número, o cliente, o produto, o IMEI ou o vendedor — a busca
+                procura em todas as vendas da loja.
+              </p>
+            )}
             {carregandoVendas ? (
               <p className="py-8 text-center text-sm text-muted-foreground">Carregando…</p>
             ) : linhasFiltradas.length === 0 ? (
@@ -564,7 +873,7 @@ export default function TrocaDevolucao() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {linhasFiltradas.slice(0, 50).map(({ venda: v, produtos, devolucao }) => (
+                    {linhasFiltradas.slice(0, LINHAS_NA_TABELA).map(({ venda: v, produtos, devolucao }) => (
                       <TableRow key={v.id}>
                         <TableCell className="font-medium">
                           <div className="flex flex-wrap items-center gap-1.5">
@@ -630,6 +939,12 @@ export default function TrocaDevolucao() {
                     ))}
                   </TableBody>
                 </Table>
+                {linhasFiltradas.length > LINHAS_NA_TABELA && (
+                  <p className="border-t p-2.5 text-center text-xs text-muted-foreground">
+                    Mostrando {LINHAS_NA_TABELA} de {linhasFiltradas.length} vendas. Digite na busca
+                    para achar a que você procura.
+                  </p>
+                )}
               </div>
             )}
           </CardContent>
@@ -690,18 +1005,35 @@ export default function TrocaDevolucao() {
                     <TableRow>
                       <TableHead>Produto</TableHead>
                       <TableHead className="text-right">Vendido</TableHead>
-                      <TableHead className="text-right">Preço</TableHead>
+                      <TableHead className="text-right">Pago por unidade</TableHead>
                       <TableHead className="text-right w-32">Devolver</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {(itensOriginais ?? [])
                       .filter((item) => item.quantidade > 0)
-                      .map((item) => (
+                      .map((item) => {
+                        // O que o cliente pagou por unidade, com o desconto da
+                        // venda já rateado — é isso que ele tem de volta.
+                        const pagoPorUnidade = emReais(
+                          Math.round(item.pagoCentavos / Math.max(1, item.quantidadeVendida)),
+                        );
+                        const teveDesconto =
+                          emCentavos(pagoPorUnidade) !== emCentavos(item.preco_unitario);
+                        return (
                         <TableRow key={item.id}>
                           <TableCell className="font-medium">{item.produtos?.nome ?? '—'}</TableCell>
                           <TableCell className="text-right text-muted-foreground">{item.quantidade}</TableCell>
-                          <TableCell className="text-right">{moeda(Number(item.preco_unitario))}</TableCell>
+                          <TableCell className="text-right">
+                            {moeda(pagoPorUnidade)}
+                            {/* Sem esta linha, o vendedor vê um valor menor que
+                                o preço da etiqueta e acha que o sistema errou. */}
+                            {teveDesconto && (
+                              <span className="block text-xs text-muted-foreground">
+                                tabela {moeda(item.preco_unitario)} — a venda teve desconto
+                              </span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right">
                             <Input
                               type="number"
@@ -716,7 +1048,8 @@ export default function TrocaDevolucao() {
                             />
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                   </TableBody>
                 </Table>
               )}
@@ -833,7 +1166,22 @@ export default function TrocaDevolucao() {
                 </div>
               </div>
 
-              {diferenca !== 0 && (
+              {/* Só na troca: é ela que grava uma venda nova. Nasce com a
+                  origem da venda original — o cliente que comprou pelo
+                  Instagram e volta para trocar continua sendo do Instagram. */}
+              {itensNovos.length > 0 && (
+                <CampoCatalogo
+                  tipo="origem_venda"
+                  label="Origem da venda nova"
+                  obrigatorio={exigeNaVenda('origem_venda_id')}
+                  valor={origemVendaId}
+                  onChange={setOrigemVendaId}
+                  placeholder="Balcão"
+                  permiteCriar={false}
+                />
+              )}
+
+              {diferencaCentavos !== 0 && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium">
                     Forma de pagamento {diferenca > 0 ? '(da devolução)' : '(que o cliente vai pagar)'}

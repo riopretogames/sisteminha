@@ -121,7 +121,9 @@ describe('Tela de Usuários por perfil', () => {
 
     const ficha = await screen.findByRole('dialog');
     await waitFor(() => {
-      expect(within(ficha).getByText(/gerenciar perfis de acesso/i)).toBeInTheDocument();
+      // O nome da permissão é o do catálogo (é o que aparece nas caixinhas da
+      // ficha e em Perfis e Permissões) — não um apelido que ninguém acha.
+      expect(within(ficha).getAllByText(/alterar perfis e permissões/i).length).toBeGreaterThan(0);
     });
 
     // O seletor existe, mas desabilitado — some a possibilidade, não a
@@ -141,5 +143,130 @@ describe('Tela de Usuários por perfil', () => {
     const ficha = await screen.findByRole('dialog');
     const seletor = within(ficha).getAllByRole('combobox')[0];
     expect(seletor).not.toBeDisabled();
+  });
+});
+
+/**
+ * A "Lista de Perfil" da ficha (as caixinhas de exceção).
+ *
+ * Achado 74 (revisão de 24/09): quem tinha só "Criar, editar e desativar
+ * usuários" abria a ficha com as caixinhas LIBERADAS, e cada clique voltava
+ * erro do banco — criar ou tirar exceção exige "Alterar perfis e permissões".
+ *
+ * Achado 81: o gerente tinha 17 exceções que repetiam o perfil. Não mudavam
+ * nada no dia, mas faziam o perfil deixar de valer para ele — tirar "Ver
+ * financeiro" do perfil Gerente não tirava dele. A ficha agora aponta e
+ * oferece voltar a seguir o perfil.
+ */
+describe('Ficha do usuário: exceções de permissão', () => {
+  const CATALOGO = [
+    { key: 'sales.view', modulo: 'Vendas', descricao: 'Ver vendas' },
+    { key: 'finance.view', modulo: 'Financeiro', descricao: 'Ver financeiro' },
+    { key: 'inventory.cost.view', modulo: 'Estoque', descricao: 'Ver custo e margem' },
+  ];
+  const DO_PERFIL = [
+    { role: 'vendedor', permission_key: 'sales.view' },
+    { role: 'vendedor', permission_key: 'finance.view' },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    silenciarConsole();
+  });
+
+  async function abrirFichaDaMaria(
+    opcoes: Parameters<typeof montarCan>[0],
+    excecoes: unknown[],
+  ) {
+    mockCan.mockImplementation(montarCan(opcoes));
+    const banco = bancoFalso({
+      profiles: PERFIS,
+      user_roles: PAPEIS,
+      permissions: CATALOGO,
+      role_permissions: DO_PERFIL,
+      user_permissions: excecoes,
+    });
+    // Anota cada "apagar" pedido ao banco, para o teste conferir o que a
+    // tela mandou apagar.
+    const apagados: string[] = [];
+    const fromOriginal = banco.from;
+    banco.from = (tabela: string) => {
+      const consulta = fromOriginal(tabela) as Record<string, (...a: unknown[]) => unknown>;
+      const apagar = consulta.delete;
+      consulta.delete = (...a: unknown[]) => {
+        apagados.push(tabela);
+        return apagar(...a);
+      };
+      return consulta;
+    };
+    mockSupabase.atual = banco;
+
+    const { default: Usuarios } = await import('./Usuarios');
+    renderizarTela(<Usuarios />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /gerenciar/i }).length).toBe(2);
+    });
+    // A lista vem na ordem do banco: Felipe, depois Maria (vendedora).
+    fireEvent.click(screen.getAllByRole('button', { name: /gerenciar/i })[1]);
+    const ficha = await screen.findByRole('dialog');
+    await waitFor(() => {
+      expect(within(ficha).getByText('Ver vendas')).toBeInTheDocument();
+    });
+    return { ficha, apagados };
+  }
+
+  it('quem só gerencia usuários vê as caixinhas, mas travadas, e a tela diz por quê', async () => {
+    const { ficha } = await abrirFichaDaMaria(
+      { perfil: 'vendedor', extras: ['users.manage'] },
+      [],
+    );
+
+    const caixas = within(ficha).getAllByRole('checkbox');
+    expect(caixas.length).toBe(3);
+    for (const caixa of caixas) expect(caixa).toBeDisabled();
+    expect(within(ficha).getByText(/criar ou tirar uma exceção exige/i)).toBeInTheDocument();
+  });
+
+  it('quem pode alterar perfis e permissões mexe nas caixinhas', async () => {
+    const { ficha } = await abrirFichaDaMaria({ perfil: 'administrador' }, []);
+
+    for (const caixa of within(ficha).getAllByRole('checkbox')) expect(caixa).not.toBeDisabled();
+    expect(within(ficha).queryByText(/criar ou tirar uma exceção exige/i)).not.toBeInTheDocument();
+  });
+
+  it('aponta a exceção que só repete o perfil e oferece voltar a seguir o perfil', async () => {
+    const { ficha, apagados } = await abrirFichaDaMaria({ perfil: 'administrador' }, [
+      // Repete o perfil (vendedor já tem "Ver financeiro" neste teste).
+      { permission_key: 'finance.view', concedida: true, motivo: null, definida_por: null },
+      // Exceção de verdade: dá algo que o perfil não dá.
+      { permission_key: 'inventory.cost.view', concedida: true, motivo: null, definida_por: null },
+    ]);
+
+    await waitFor(() => {
+      expect(within(ficha).getByText(/1 exceção repete/i)).toBeInTheDocument();
+    });
+    expect(within(ficha).getByText('repete o perfil')).toBeInTheDocument();
+    expect(within(ficha).getByText('concedido à parte')).toBeInTheDocument();
+
+    fireEvent.click(within(ficha).getByRole('button', { name: /voltar a seguir o perfil/i }));
+    await waitFor(() => {
+      expect(apagados).toContain('user_permissions');
+    });
+  });
+
+  it('quem não pode alterar exceções vê o aviso de repetida, mas sem o botão', async () => {
+    const { ficha } = await abrirFichaDaMaria(
+      { perfil: 'vendedor', extras: ['users.manage'] },
+      [{ permission_key: 'finance.view', concedida: true, motivo: null, definida_por: null }],
+    );
+
+    await waitFor(() => {
+      expect(within(ficha).getByText(/1 exceção repete/i)).toBeInTheDocument();
+    });
+    expect(
+      within(ficha).queryByRole('button', { name: /voltar a seguir o perfil/i }),
+    ).not.toBeInTheDocument();
   });
 });

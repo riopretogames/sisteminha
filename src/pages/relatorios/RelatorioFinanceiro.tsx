@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { moeda, data as fmtData } from '@/lib/format';
 import { Indicador } from '@/components/PageHeader';
 import { situacaoDoTitulo, SITUACAO_META, type Titulo } from '@/hooks/useTitulos';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
+import { buscarVendasDoBalcao, type VendasDoBalcao } from '@/lib/vendasDoBalcao';
 import { Badge } from '@/components/ui/badge';
 import { RelatorioShell, usePeriodo, type Coluna } from './RelatorioShell';
 
@@ -72,21 +74,62 @@ const COLUNAS: Coluna<LinhaFin>[] = [
 export default function RelatorioFinanceiro() {
   const [periodo, setPeriodo] = usePeriodo();
 
+  /**
+   * Três leituras, com recortes de data DIFERENTES de propósito — a mesma
+   * correção que o Fluxo de Caixa ganhou em 21/08 e este relatório não tinha
+   * (achado 58, revisão de 24/09/2026):
+   *
+   *   Lista e previsto = o que VENCE no período   → filtra por `vencimento`
+   *   Já pago/recebido = o que foi PAGO no período → filtra por `pago_em`
+   *   Vendas do balcão = as vendas do PDV do período (achado 57)
+   *
+   * Antes, "Já pago" e "Resultado realizado" eram o pedaço pago de quem
+   * VENCIA no período. Em setembro de 2026: o título de R$ 10.000 venceu em
+   * 14/08 e foi pago em 14/09 — este relatório dizia "Já pago R$ 0,00" em
+   * setembro, e o Fluxo de Caixa, "Saiu R$ 11.111". Duas telas respondendo a
+   * mesma pergunta com números opostos.
+   */
   const { data, isLoading } = useQuery({
     queryKey: ['rel-financeiro', periodo],
-    queryFn: async (): Promise<LinhaFin[]> => {
-      const { data, error } = await supabase
-        .from('titulos_financeiros')
-        .select('*, categorias_financeiras(nome)')
-        .gte('vencimento', periodo.de)
-        .lte('vencimento', periodo.ate)
-        .order('vencimento');
-      if (error) throw error;
-      return ((data ?? []) as Titulo[]).map((t) => ({ ...t, situacao: situacaoDoTitulo(t) }));
+    queryFn: async (): Promise<{
+      linhas: LinhaFin[];
+      pagosNoPeriodo: Titulo[];
+      vendas: VendasDoBalcao;
+    }> => {
+      // Em páginas: o Supabase corta calado em 1.000 linhas por pedido.
+      const [previstos, pagosNoPeriodo, vendas] = await Promise.all([
+        buscarEmPaginas<Titulo>(() =>
+          supabase
+            .from('titulos_financeiros')
+            .select('*, categorias_financeiras(nome)')
+            .gte('vencimento', periodo.de)
+            .lte('vencimento', periodo.ate)
+            .order('vencimento')
+            .order('id'),
+        ),
+        buscarEmPaginas<Titulo>(() =>
+          supabase
+            .from('titulos_financeiros')
+            .select('id, natureza, valor, status, pago_em')
+            .eq('status', 'pago')
+            .gte('pago_em', periodo.de)
+            .lte('pago_em', periodo.ate)
+            .order('pago_em')
+            .order('id'),
+        ),
+        buscarVendasDoBalcao(periodo.de, periodo.ate),
+      ]);
+      return {
+        linhas: previstos.map((t) => ({ ...t, situacao: situacaoDoTitulo(t) })),
+        pagosNoPeriodo,
+        vendas,
+      };
     },
   });
 
-  const linhas = data ?? [];
+  const linhas = data?.linhas ?? [];
+  const pagosNoPeriodo = data?.pagosNoPeriodo ?? [];
+  const vendas = data?.vendas.liquido ?? 0;
   const ativos = linhas.filter((t) => t.status !== 'cancelado');
   const soma = (lista: LinhaFin[]) => lista.reduce((a, t) => a + Number(t.valor), 0);
 
@@ -102,9 +145,16 @@ export default function RelatorioFinanceiro() {
    * vence daqui a 20 dias. São coisas diferentes: um é dinheiro que entrou, o
    * outro é promessa. Quem olha o resultado do mês precisa dos dois separados
    * para saber se o mês foi bom ou se só ainda não venceu nada.
+   *
+   * O que JÁ ACONTECEU vem da lista filtrada pela DATA DO PAGAMENTO — é o mês
+   * em que o dinheiro se moveu, não o mês em que a conta vencia.
    */
-  const recebido = soma(aReceber.filter((t) => t.situacao === 'pago'));
-  const pago = soma(aPagar.filter((t) => t.situacao === 'pago'));
+  const somaPagos = (natureza: 'pagar' | 'receber') =>
+    pagosNoPeriodo
+      .filter((t) => t.natureza === natureza)
+      .reduce((a, t) => a + Number(t.valor), 0);
+  const recebido = somaPagos('receber');
+  const pago = somaPagos('pagar');
 
   const vencidosReceber = aReceber.filter((t) => t.situacao === 'vencido');
   const vencidosPagar = aPagar.filter((t) => t.situacao === 'vencido');
@@ -116,7 +166,7 @@ export default function RelatorioFinanceiro() {
   return (
     <RelatorioShell
       titulo="Relatório Financeiro"
-      hint="Todos os títulos com vencimento no período — a pagar e a receber juntos, para ver o resultado do mês de uma vez. Título cancelado aparece na lista mas fica fora do total."
+      hint="A lista traz os títulos que VENCEM no período — a pagar e a receber juntos. Os indicadores de 'Já pago', 'Já recebido' e 'Resultado realizado' olham outra data: a do PAGAMENTO, que é quando o dinheiro se moveu (os mesmos números do Fluxo de Caixa). As vendas do balcão entram nos resultados, já sem o que foi devolvido a cliente. Título cancelado aparece na lista mas fica fora do total."
       arquivo="relatorio_financeiro"
       colunas={COLUNAS}
       dados={linhas}
@@ -141,26 +191,38 @@ export default function RelatorioFinanceiro() {
           />
           <Indicador
             rotulo="Resultado previsto"
-            valor={moeda(receber - pagar)}
-            detalhe="Se tudo for pago e recebido"
-            tom={receber - pagar >= 0 ? 'positivo' : 'negativo'}
+            valor={moeda(receber + vendas - pagar)}
+            detalhe="Contas do período + vendas do balcão, se tudo for pago e recebido"
+            tom={receber + vendas - pagar >= 0 ? 'positivo' : 'negativo'}
           />
           <Indicador
             rotulo="Resultado realizado"
-            valor={moeda(recebido - pago)}
-            detalhe="Só o que já entrou e saiu de verdade"
-            tom={recebido - pago >= 0 ? 'positivo' : 'negativo'}
+            valor={moeda(recebido + vendas - pago)}
+            detalhe="Só o que já entrou e saiu de verdade no período, com as vendas do balcão"
+            tom={recebido + vendas - pago >= 0 ? 'positivo' : 'negativo'}
           />
 
+          {/* A venda do PDV não vira título: sem esta linha o resultado do
+              mês só enxergava gastos e OS (achado 57). */}
+          <Indicador
+            rotulo="Vendas do balcão"
+            valor={moeda(vendas)}
+            detalhe={
+              data?.vendas
+                ? `${data.vendas.quantidade} venda(s), já sem ${moeda(data.vendas.devolvido)} devolvidos`
+                : undefined
+            }
+            tom="positivo"
+          />
           <Indicador
             rotulo="Já recebido"
             valor={moeda(recebido)}
-            detalhe={receber > 0 ? `${((recebido / receber) * 100).toFixed(0)}% do previsto` : undefined}
+            detalhe="Contas a receber pagas no período (pela data do pagamento)"
           />
           <Indicador
             rotulo="Já pago"
             valor={moeda(pago)}
-            detalhe={pagar > 0 ? `${((pago / pagar) * 100).toFixed(0)}% do previsto` : undefined}
+            detalhe="Contas pagas no período (pela data do pagamento)"
           />
           {/* Vencido separado por natureza: cliente que não pagou e conta que a
               loja atrasou exigem ações opostas, e somados viram um número que

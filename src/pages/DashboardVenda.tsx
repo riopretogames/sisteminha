@@ -17,11 +17,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { PageHeader } from '@/components/PageHeader';
 import { moeda } from '@/lib/format';
-import {
-  buscarDevolucoesComVendedorDesde,
-  somarDevolucoes,
-  type DevolucaoComVendedor,
-} from '@/lib/faturamento';
+import { fatorDaVenda, pagamentosSemTroco } from '@/lib/dinheiroDaVenda';
 import {
   agrupar,
   porValor,
@@ -62,12 +58,15 @@ import { GraficoEvolucao } from '@/components/dashboards/GraficoEvolucao';
  * - **Sem categoria escolhida**, o valor de uma venda é o dinheiro novo que
  *   ela representou (`valor_faturamento_real`, que difere de `total` quando
  *   houve troca), com as devoluções do período abatidas.
- * - **Com uma categoria escolhida**, a tela passa a somar apenas os itens
- *   daquela categoria — senão uma venda de um console mais um jogo apareceria
- *   inteira dentro de "Jogos". Nesse modo a devolução não é abatida, porque a
- *   devolução é registrada por venda e não guarda de qual categoria era a peça
- *   devolvida; a tela avisa isso na cara, em vez de mostrar um número que
- *   parece exato e não é.
+ * - **Com um grupo escolhido**, a tela passa a somar apenas os itens daquele
+ *   grupo — senão uma venda de um console mais um jogo apareceria inteira
+ *   dentro de "Jogos". Cada item vale o seu preço com o desconto da venda
+ *   rateado (`fatorDaVenda`), e a devolução é abatida pelas PEÇAS DO GRUPO que
+ *   voltaram (`devolucao_itens` guarda o produto), com o mesmo rateio da venda
+ *   original — a mesma conta do painel de Metas. Até 24/09 este modo somava o
+ *   preço cheio (sem o desconto) e ignorava a devolução, e a tela ainda
+ *   afirmava que a devolução "não guarda de qual grupo era a peça" — não era
+ *   verdade (achados 62 e 70 da revisão de 24/09/2026).
  *
  * A permissão (PERMISSIONS.DASHBOARDS_SALES_VIEW) já gate a rota em
  * config/menu.ts, então não repetimos `can()` aqui — é tela só de leitura.
@@ -99,7 +98,31 @@ interface VendaRow {
   vendedor_id: string | null;
   vendedor: { nome: string } | null;
   itens_venda: ItemVendaRow[] | null;
-  pagamentos_venda: { valor: number; formas_pagamento: { descricao: string } | null }[] | null;
+  pagamentos_venda: {
+    valor: number;
+    formas_pagamento: { descricao: string; entra_no_caixa: boolean } | null;
+  }[] | null;
+}
+
+/**
+ * Uma devolução, com o que o painel precisa para abatê-la: quem fez a venda
+ * original (ranking), quanto a venda original cobrou de verdade (o rateio do
+ * desconto) e as peças que voltaram, com o grupo de cada uma (modo por grupo).
+ */
+interface DevolucaoDoPainel {
+  created_at: string;
+  valor_devolvido_cliente: number | null;
+  venda_original: {
+    vendedor_id: string | null;
+    vendedor: { nome: string } | null;
+    total: number | null;
+    itens_venda: { total: number | null }[] | null;
+  } | null;
+  devolucao_itens: Array<{
+    quantidade: number;
+    preco_unitario: number | null;
+    produtos: { grupo_produto_id: string | null } | null;
+  }> | null;
 }
 
 /** Dinheiro novo que essa venda representou de verdade — ver
@@ -124,7 +147,7 @@ export default function DashboardVenda() {
 
   const { data, isLoading, isSuccess, error } = useQuery({
     queryKey: ['dashboard-venda', desdeISO, periodo.fim.toISOString()],
-    queryFn: async (): Promise<{ vendas: VendaRow[]; devolucoes: DevolucaoComVendedor[] }> => {
+    queryFn: async (): Promise<{ vendas: VendaRow[]; devolucoes: DevolucaoDoPainel[] }> => {
       // Em páginas: "Ano passado" busca dois anos de venda para comparar, e o
       // Supabase corta calado em 1.000 linhas (lib/buscarEmPaginas.ts).
       const [vendas, devolucoes] = await Promise.all([
@@ -137,13 +160,22 @@ export default function DashboardVenda() {
           // `produtos:vw_produtos(...)` é a regra de custo protegido — leitura
           // de produto passa SEMPRE pela view, mesmo sem pedir custo. O apelido
           // mantém a chave `produtos` no JSON.
-          .select('id, created_at, total, valor_faturamento_real, vendedor_id, vendedor:profiles(nome), itens_venda(produto_id, quantidade, total, produtos:vw_produtos(nome, categoria, grupo_produto_id)), pagamentos_venda(valor, formas_pagamento(descricao))')
+          .select('id, created_at, total, valor_faturamento_real, vendedor_id, vendedor:profiles(nome), itens_venda(produto_id, quantidade, total, produtos:vw_produtos(nome, categoria, grupo_produto_id)), pagamentos_venda(valor, formas_pagamento(descricao, entra_no_caixa))')
           .gte('created_at', desdeISO)
           .lt('created_at', periodo.fim.toISOString())
           .neq('status', 'cancelado')
           .order('created_at')
           .order('id')),
-        buscarDevolucoesComVendedorDesde(desdeISO),
+        // Devoluções com a venda original (vendedor e rateio do desconto) e
+        // as peças que voltaram, com o grupo de cada uma. O apelido da chave
+        // estrangeira é obrigatório: `devolucoes` aponta duas vezes para
+        // `vendas` (a original e a nova, na troca).
+        buscarEmPaginas<DevolucaoDoPainel>(() => supabase
+          .from('devolucoes')
+          .select('created_at, valor_devolvido_cliente, venda_original:vendas!devolucoes_venda_original_id_fkey(vendedor_id, total, vendedor:profiles(nome), itens_venda(total)), devolucao_itens(quantidade, preco_unitario, produtos:vw_produtos(grupo_produto_id))')
+          .gte('created_at', desdeISO)
+          .order('created_at')
+          .order('id')),
       ]);
       return { vendas, devolucoes };
     },
@@ -212,13 +244,41 @@ export default function DashboardVenda() {
     [porCategoria, filtros.categoria],
   );
 
-  /** Quanto essa venda vale para o recorte escolhido — ver nota no topo. */
+  /**
+   * Quanto essa venda vale para o recorte escolhido — ver nota no topo. Com
+   * grupo escolhido, cada item leva o desconto da venda rateado: sem isso a
+   * soma dos itens passava do que a venda cobrou.
+   */
   const valorDaVenda = useMemo(
-    () => (v: VendaRow) =>
-      porCategoria
-        ? itensQueContam(v).reduce((acc, i) => acc + Number(i.total ?? 0), 0)
-        : faturamentoReal(v),
+    () => (v: VendaRow) => {
+      if (!porCategoria) return faturamentoReal(v);
+      const fator = fatorDaVenda(v);
+      return itensQueContam(v).reduce((acc, i) => acc + Number(i.total ?? 0) * fator, 0);
+    },
     [porCategoria, itensQueContam],
+  );
+
+  /** A peça devolvida conta para o grupo escolhido? */
+  const pecaDoGrupo = useMemo(
+    () => (grupoId: string | null) =>
+      filtros.categoria === SEM_GRUPO ? !grupoId : grupoId === filtros.categoria,
+    [filtros.categoria],
+  );
+
+  /**
+   * Quanto uma devolução tira do recorte. Sem grupo: o dinheiro devolvido ao
+   * cliente. Com grupo: só as peças daquele grupo que voltaram, pelo preço
+   * que o cliente pagou (o desconto da venda original rateado).
+   */
+  const valorDaDevolucao = useMemo(
+    () => (d: DevolucaoDoPainel) => {
+      if (!porCategoria) return Number(d.valor_devolvido_cliente ?? 0);
+      const fator = d.venda_original ? fatorDaVenda(d.venda_original) : 1;
+      return (d.devolucao_itens ?? [])
+        .filter((i) => i.produtos != null && pecaDoGrupo(i.produtos.grupo_produto_id))
+        .reduce((s, i) => s + Number(i.quantidade ?? 0) * Number(i.preco_unitario ?? 0) * fator, 0);
+    },
+    [porCategoria, pecaDoGrupo],
   );
 
   /** As vendas que sobram depois dos filtros de vendedor e de categoria. */
@@ -244,30 +304,31 @@ export default function DashboardVenda() {
   /**
    * Devoluções que entram na conta.
    *
-   * Com categoria escolhida ficam todas de fora (ver nota no topo). Com
+   * Com grupo escolhido, só as que devolveram alguma peça daquele grupo. Com
    * vendedor escolhido, só as devoluções de vendas que ele fez — senão o
    * painel de um vendedor levaria o desconto de venda que era de outro.
    */
   const devolucoesDe = useMemo(
-    () => (p: typeof periodo) => {
-      if (porCategoria) return [];
-      return todasDevolucoes.filter((d) => {
+    () => (p: typeof periodo) =>
+      todasDevolucoes.filter((d) => {
         if (!dentroDoPeriodo(d.created_at, p)) return false;
         if (filtros.pessoaId && d.venda_original?.vendedor_id !== filtros.pessoaId) return false;
+        if (porCategoria && valorDaDevolucao(d) === 0) return false;
         return true;
-      });
-    },
-    [todasDevolucoes, porCategoria, filtros.pessoaId],
+      }),
+    [todasDevolucoes, porCategoria, filtros.pessoaId, valorDaDevolucao],
   );
+  const somarDevolvido = (lista: DevolucaoDoPainel[]) =>
+    lista.reduce((s, d) => s + valorDaDevolucao(d), 0);
 
   const devolucoesPeriodo = devolucoesDe(periodo);
   const devolucoesAnterior = devolucoesDe(anterior);
 
   const faturamento =
-    vendasPeriodo.reduce((acc, v) => acc + valorDaVenda(v), 0) - somarDevolucoes(devolucoesPeriodo);
+    vendasPeriodo.reduce((acc, v) => acc + valorDaVenda(v), 0) - somarDevolvido(devolucoesPeriodo);
   const faturamentoAnterior =
     vendasAnterior.reduce((acc, v) => acc + valorDaVenda(v), 0) -
-    somarDevolucoes(devolucoesAnterior);
+    somarDevolvido(devolucoesAnterior);
 
   const quantidade = vendasPeriodo.length;
   const quantidadeAnterior = vendasAnterior.length;
@@ -292,16 +353,21 @@ export default function DashboardVenda() {
           itens: devolucoesPeriodo,
           extrair: {
             data: (d) => d.created_at,
-            valor: (d) => Number(d.valor_devolvido_cliente ?? 0),
+            valor: valorDaDevolucao,
           },
         },
       ),
-    [periodo, vendasPeriodo, valorDaVenda, devolucoesPeriodo],
+    [periodo, vendasPeriodo, valorDaVenda, devolucoesPeriodo, valorDaDevolucao],
   );
   const melhor = melhorPonto(serie);
   const grao = nomeDoGrao(periodo);
 
-  const itensDoPeriodo = vendasPeriodo.flatMap(itensQueContam);
+  // Cada item já com o desconto da venda rateado: a receita dos rankings de
+  // grupo e de produto soma o que a loja cobrou, não o preço de tabela.
+  const itensDoPeriodo = vendasPeriodo.flatMap((v) => {
+    const fator = fatorDaVenda(v);
+    return itensQueContam(v).map((i) => ({ ...i, valorCobrado: Number(i.total ?? 0) * fator }));
+  });
 
   // Produto: item órfão (produto excluído do cadastro) fica de fora — sem o
   // cadastro não há nome para mostrar.
@@ -310,7 +376,7 @@ export default function DashboardVenda() {
       chave: (i) => (i.produtos ? i.produto_id : null),
       nome: (i) => i.produtos?.nome,
       quantidade: (i) => i.quantidade,
-      valor: (i) => Number(i.total ?? 0),
+      valor: (i) => i.valorCobrado,
     }),
   );
 
@@ -328,7 +394,7 @@ export default function DashboardVenda() {
           ? (nomeDoGrupo.get(i.produtos.grupo_produto_id) ?? 'Grupo removido do cadastro')
           : 'Sem grupo definido',
       quantidade: (i) => i.quantidade,
-      valor: (i) => Number(i.total ?? 0),
+      valor: (i) => i.valorCobrado,
     }),
   );
 
@@ -355,19 +421,28 @@ export default function DashboardVenda() {
         .map((d) => ({
           chave: d.venda_original!.vendedor_id!,
           nome: d.venda_original!.vendedor?.nome ?? 'Sem nome',
-          valor: Number(d.valor_devolvido_cliente ?? 0),
+          valor: valorDaDevolucao(d),
         })),
     ),
   );
   const melhorVendedor = lider(rankingVendedores);
 
+  // Sem o troco: o PDV grava o que o cliente ENTREGOU (R$ 100 numa venda de
+  // R$ 80), e o dinheiro que ficou foi R$ 80 — a mesma conta do Caixa
+  // (achado 63, revisão de 24/09/2026).
   const formasPagamento = porValor(
     agrupar(
-      vendasPeriodo.flatMap((v) => v.pagamentos_venda ?? []),
+      vendasPeriodo.flatMap((v) =>
+        pagamentosSemTroco(
+          Number(v.total ?? 0),
+          v.pagamentos_venda ?? [],
+          (p) => p.formas_pagamento?.entra_no_caixa === true,
+        ),
+      ),
       {
-        chave: (p) => p.formas_pagamento?.descricao,
-        nome: (p) => p.formas_pagamento?.descricao,
-        valor: (p) => Number(p.valor ?? 0),
+        chave: (x) => x.pagamento.formas_pagamento?.descricao,
+        nome: (x) => x.pagamento.formas_pagamento?.descricao,
+        valor: (x) => x.valor,
       },
     ),
   );
@@ -415,8 +490,9 @@ export default function DashboardVenda() {
           <Info className="h-4 w-4" />
           <AlertDescription>
             Com um grupo escolhido, os valores somam <strong>apenas os itens desse
-            grupo</strong> dentro de cada venda. Devolução não é abatida neste modo: ela é
-            registrada por venda e não guarda de qual grupo era a peça devolvida.
+            grupo</strong> dentro de cada venda, já com o desconto da venda dividido entre
+            os itens. A devolução também é abatida por grupo: sai só a peça desse grupo
+            que voltou, pelo preço que o cliente pagou.
           </AlertDescription>
         </Alert>
       )}

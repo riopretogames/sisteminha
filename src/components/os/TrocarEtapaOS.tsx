@@ -16,8 +16,20 @@ import { supabase } from '@/integrations/supabase/client';
 import { PERMISSIONS } from '@/config/permissions';
 import { OS_ETAPAS, OS_CANCELADO } from '@/config/osStatus';
 import { confirmarReaberturaDeOSEntregue } from '@/lib/reabrirOS';
-import { acaoParaAvancar, AVISO_REPARO_NUNCA_INICIADO } from '@/lib/acaoDaEtapa';
-import { passagemPedeDecisaoDoLaudo } from '@/lib/decisaoDoLaudo';
+import {
+  acaoParaAvancar,
+  AVISO_REPARO_NUNCA_INICIADO,
+  AVISO_ENTREGA_SEM_COBRANCA_SEM_PERMISSAO,
+  entregaSemCobranca,
+  textoDeEntregaSemCobranca,
+} from '@/lib/acaoDaEtapa';
+import {
+  bloqueioDaPassagem,
+  ehServicoTabelado,
+  passagemDesfazRecusa,
+  textoDeDesfazerRecusa,
+} from '@/lib/decisaoDoLaudo';
+import { mensagemDoErro } from '@/lib/mensagemDoErro';
 import { corDeBotaoDaEtapa } from '@/lib/cores';
 import { cn } from '@/lib/utils';
 import { EntregarOSDialog } from '@/components/os/EntregarOSDialog';
@@ -47,8 +59,18 @@ interface Props {
   statusAtual: string;
   tipo: 'paga' | 'garantia' | 'cortesia';
   totalOrcamento: number;
-  /** O cliente já respondeu o orçamento? true = aprovou. Ver `aprovarBloqueado`. */
+  /** O cliente já respondeu o orçamento? TRUE aprovou, FALSE recusou, NULL ainda não. */
   laudoAprovado: boolean | null;
+  /**
+   * A OS foi aberta com laudo eletrônico? FALSE = serviço tabelado, que vai da
+   * Entrada direto para a execução (PROCESSO-ORDEM-DE-SERVICO.md, passo 9).
+   * Vazio conta como "tem laudo", igual ao banco.
+   */
+  laudoEletronico?: boolean | null;
+  /** Na OS recusada: quanto era o orçamento recusado e por quê — para a
+   *  confirmação de "desfazer a recusa" dizer o que vai mudar. */
+  valorOrcadoRecusado?: number | null;
+  motivoRecusa?: string | null;
   /**
    * Quando alguém apertou "Iniciar a execução". Nulo = o reparo nunca começou
    * oficialmente — ver `AVISO_REPARO_NUNCA_INICIADO`.
@@ -64,6 +86,9 @@ export function TrocarEtapaOS({
   tipo,
   totalOrcamento,
   laudoAprovado,
+  laudoEletronico = null,
+  valorOrcadoRecusado = null,
+  motivoRecusa = null,
   execucaoIniciadaEm,
   onMudou,
 }: Props) {
@@ -74,7 +99,8 @@ export function TrocarEtapaOS({
   // OS paga com orçamento > 0 precisa capturar o pagamento antes de virar
   // "entregue" — o banco já tranca essa regra (migration 20260818100000),
   // este diálogo só existe pra não deixar o vendedor descobrir isso pelo
-  // erro cru do gatilho. Garantia/cortesia/orçamento zerado seguem direto.
+  // erro cru do gatilho. Garantia/cortesia seguem direto; a paga em R$ 0 pede
+  // confirmação de quem aprova orçamento (ver `irPara`).
   const [dialogEntregaAberto, setDialogEntregaAberto] = useState(false);
 
   const podeEditar = can(PERMISSIONS.ORDERS_EDIT);
@@ -82,37 +108,21 @@ export function TrocarEtapaOS({
 
   if (!podeEditar) return null;
 
-  // Sair de "aguardando aprovação" pra "cancelado" é RECUSAR o orçamento —
-  // mesma regra de OSOrcamentos.tsx e do gatilho `validar_aprovacao_orcamento_os`
-  // no banco (migration 20260817140000): exige orders.approve, não só
-  // orders.edit. Só essa saída específica; cancelar de qualquer outra etapa
-  // não é "recusar orçamento" e o banco nunca travou isso.
+  // O texto de ajuda embaixo do seletor: em "Aguardando aprovação", quem não
+  // aprova orçamento fica sabendo de quem é a vez.
   const decisaoDeOrcamentoBloqueada =
     statusAtual === OS_ETAPAS.AGUARDANDO_APROVACAO && !podeAprovar;
 
-  // "Aprovado" é decisão de orçamento (APROVAR) não importa de qual etapa se
-  // está saindo — achado na revisão de 20/08: o seletor só escondia
-  // "Aprovado" quando a OS JÁ estava em "Aguardando aprovação", mas o
-  // dropdown sempre ofereceu TODAS as etapas como destino (é assim de
-  // propósito, para "voltar uma etapa" ou "pular pra etapa extra"). Vindo de
-  // qualquer outra etapa — inclusive uma OS recém-aberta em
-  // "Aguardando análise" — dava pra pular direto pra "Aprovado" num clique
-  // só. O gatilho do banco só confere `OLD.status = 'aguardando_aprovacao'`
-  // (migration 20260817140000), então esse pulo passava batido também no
-  // banco: um técnico com `orders.edit` aprovava orçamento sem nunca ter
-  // `orders.approve`, driblando a permissão inteira. Por isso "Aprovado"
-  // exige `podeAprovar` sempre, e não só quando `decisaoDeOrcamentoBloqueada`.
-  //
-  // MAS: isso vale enquanto a aprovação AINDA NÃO ACONTECEU. Numa OS que o
-  // cliente já aprovou, mandar de volta para "Aprovado / Executar" não aprova
-  // nada — é retomar o trabalho depois de um desvio.
-  //
-  // Sem esta segunda condição, o técnico ficava PRESO: ele é quem põe a OS em
-  // "Aguardando Peça", a peça chega dois dias depois, e ele não tinha como
-  // devolver o aparelho para a bancada — nem botão, nem opção no seletor,
-  // porque "Aprovado" sumia dos dois. Achado na revisão de 31/08, e é beco sem
-  // saída de verdade: só um gerente destravava.
-  const aprovarBloqueado = !podeAprovar && laudoAprovado !== true;
+  /**
+   * Quem pode levar esta OS para qual etapa. A regra inteira — aprovar,
+   * recusar, pular a resposta do cliente, desfazer a recusa, o serviço
+   * tabelado — mora em lib/decisaoDoLaudo.ts, e é a mesma do quadro, da lista
+   * e do banco. Cada tela com a sua cópia foi como a trava de 20/08 ficou
+   * consertada "numa porta de três" (revisão de 01/09), e como o técnico
+   * recebia do banco um "não" para uma opção que a tela oferecia (24/09).
+   */
+  const situacao = { status: statusAtual, laudoAprovado, laudoEletronico };
+  const bloqueio = (para: string) => bloqueioDaPassagem(situacao, para, podeAprovar);
 
   // Etapas na ordem do quadro. Cancelado fica fora da esteira e entra à parte.
   const etapas = statuses
@@ -135,11 +145,15 @@ export function TrocarEtapaOS({
    * de sistema. Estando NUMA etapa extra, sugere a próxima de sistema depois
    * dela — de Aguardando Peça vai para Aprovado (a peça chegou, pode
    * executar), de Terceirizada vai para Finalizado (voltou de fora, pronto).
-   * O desvio continua alcançável pelo seletor ao lado, que oferece todas.
+   * O desvio continua alcançável pelo seletor ao lado.
+   *
+   * A exceção é o SERVIÇO TABELADO na Entrada (24/09): não há laudo para o
+   * cliente aprovar, então o passo seguinte é executar — "Ir para a execução".
    */
-  const proximaBruta = etapas.find((s) => s.sistema && s.ordem > (atual?.ordem ?? -1));
-  // Some o atalho de avançar quando o próximo passo seria justamente a
-  // decisão bloqueada (aguardando_aprovacao → aprovado).
+  const proximaBruta =
+    statusAtual === OS_ETAPAS.AGUARDANDO_ANALISE && ehServicoTabelado(laudoEletronico)
+      ? etapas.find((s) => s.key === OS_ETAPAS.APROVADO)
+      : etapas.find((s) => s.sistema && s.ordem > (atual?.ordem ?? -1));
   const proxima =
     // Em "Aguardando aprovação" quem move a OS é o par de botões da decisão do
     // laudo (components/os/DecisaoDoLaudo), que registra a resposta do cliente
@@ -147,25 +161,15 @@ export function TrocarEtapaOS({
     // registrar nada, faria o registro valer só quando alguém lembrasse.
     statusAtual === OS_ETAPAS.AGUARDANDO_APROVACAO
       ? undefined
-      : aprovarBloqueado && proximaBruta?.key === OS_ETAPAS.APROVADO
-        ? undefined
-        : proximaBruta;
-  // "Aprovado" some sempre que falta orders.approve, não só saindo de
-  // aguardando_aprovacao (ver comentário de `aprovarBloqueado`). "Cancelar
-  // OS" continua com a regra estreita de sempre (só some saindo de
-  // aguardando_aprovacao), porque é a única saída de cancelamento que o
-  // banco de fato trava.
-  //
-  // O seletor era o caminho de fora da decisão do laudo: o BOTÃO de avançar já
-  // sumia em "Aguardando aprovação" (acima), mas a lista ao lado continuava
-  // oferecendo "Aprovado" e "Finalizado" — os dois destinos da resposta do
-  // cliente — como escolha crua de etapa, sem registrar quem respondeu nem o
-  // motivo da recusa. Tirar o botão e deixar a lista é não ter tirado nada.
-  const etapasSelecionaveis = etapas.filter((s) => {
-    if (aprovarBloqueado && s.key === OS_ETAPAS.APROVADO) return false;
-    if (passagemPedeDecisaoDoLaudo(statusAtual, s.key)) return false;
-    return true;
-  });
+      : proximaBruta && !bloqueio(proximaBruta.key)
+        ? proximaBruta
+        : undefined;
+
+  // O seletor oferece só o que esta pessoa PODE fazer com esta OS. O seletor
+  // era o caminho de fora da decisão do laudo: tirar o botão e deixar a lista
+  // é não ter tirado nada.
+  const etapasSelecionaveis = etapas.filter((s) => s.key === statusAtual || !bloqueio(s.key));
+  const podeCancelar = statusAtual !== OS_CANCELADO && !bloqueio(OS_CANCELADO);
 
   const mudar = async (novoStatus: string) => {
     setSalvando(true);
@@ -181,12 +185,12 @@ export function TrocarEtapaOS({
       toast({ variant: 'success', title: 'Etapa alterada', description: `OS movida para ${nome}.` });
       onMudou();
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Tente novamente.';
+      // O motivo que o banco escreveu ("O cliente ainda não respondeu…",
+      // "Reponha o estoque antes de reabrir a OS") chega inteiro na tela. Até
+      // 24/09 ele sumia atrás de "Tente novamente" — ver mensagemDoErro.
       toast({
         title: 'Não foi possível mudar a etapa',
-        description: /permission|privilege|policy/i.test(msg)
-          ? 'Seu acesso não permite esta mudança.'
-          : msg,
+        description: mensagemDoErro(error, { semAcesso: 'Seu acesso não permite esta mudança.' }),
         variant: 'destructive',
       });
     } finally {
@@ -195,22 +199,38 @@ export function TrocarEtapaOS({
   };
 
   /**
-   * Ponto único de decisão antes de mudar de etapa:
-   *
-   *   - Entregar uma OS paga (com orçamento > 0) precisa do diálogo de
-   *     pagamento primeiro.
-   *   - REABRIR uma OS já entregue precisa de confirmação — ver abaixo.
-   *
-   * Qualquer outra transição segue direto pro `mudar` de sempre.
-   */
-  /**
    * O nome do passo, como o processo o chama (ver lib/acaoDaEtapa.ts). Quando
    * a passagem não tem nome próprio — etapa extra que a loja criou —, volta
    * para "Avançar para <etapa>", que é o certo ali.
    */
   const acao = proxima ? acaoParaAvancar(statusAtual, proxima.key) : undefined;
 
+  /**
+   * Ponto único de decisão antes de mudar de etapa, nesta ordem:
+   *
+   *   - passagem barrada (lib/decisaoDoLaudo) não acontece;
+   *   - REABRIR uma OS já entregue pede confirmação (lib/reabrirOS);
+   *   - DESFAZER a recusa do cliente pede confirmação, dizendo o que volta a
+   *     ser cobrado;
+   *   - ENTREGAR uma OS paga abre o diálogo de pagamento — e, se ela estiver
+   *     em R$ 0, confirma que vai sair sem cobrança (só quem aprova);
+   *   - concluir reparo nunca iniciado avisa; o passo com nome que marca hora
+   *     confirma.
+   *
+   * Qualquer outra transição segue direto pro `mudar` de sempre.
+   */
+
   const irPara = (novoStatus: string) => {
+    if (novoStatus === statusAtual) return;
+
+    // O seletor já não oferece o que está barrado; conferir aqui de novo é o
+    // que garante que o aviso certo apareça se alguma porta nova surgir.
+    const barrado = bloqueio(novoStatus);
+    if (barrado) {
+      toast({ title: barrado.titulo, description: barrado.descricao, variant: 'destructive' });
+      return;
+    }
+
     // Reabrir OS entregue: avisa o que continua lançado no financeiro antes
     // de deixar seguir. O porquê está em `lib/reabrirOS.ts`, junto do texto.
     if (statusAtual === OS_ETAPAS.ENTREGUE && novoStatus !== OS_ETAPAS.ENTREGUE) {
@@ -223,10 +243,43 @@ export function TrocarEtapaOS({
       if (!seguir) return;
     }
 
-    if (novoStatus === OS_ETAPAS.ENTREGUE && tipo === 'paga' && totalOrcamento > 0) {
-      setDialogEntregaAberto(true);
-      return;
+    // Voltar uma OS recusada para a análise desfaz a recusa (o banco faz
+    // sozinho). Quem pode, confirma lendo o que muda — ver lib/decisaoDoLaudo.
+    if (passagemDesfazRecusa(situacao, novoStatus)) {
+      const seguir = window.confirm(
+        textoDeDesfazerRecusa({
+          numeroOs,
+          destino: statuses.find((s) => s.key === novoStatus)?.label ?? novoStatus,
+          valorRecusado: valorOrcadoRecusado,
+          valorAtual: totalOrcamento,
+          motivo: motivoRecusa,
+        }),
+      );
+      if (!seguir) return;
     }
+
+    if (novoStatus === OS_ETAPAS.ENTREGUE) {
+      // OS paga esquecida em R$ 0: sairia sem cobrança e sem pergunta nenhuma
+      // (achado de 24/09). Ver lib/acaoDaEtapa.ts.
+      if (entregaSemCobranca(tipo, totalOrcamento)) {
+        if (!podeAprovar) {
+          toast({
+            title: AVISO_ENTREGA_SEM_COBRANCA_SEM_PERMISSAO.titulo,
+            description: AVISO_ENTREGA_SEM_COBRANCA_SEM_PERMISSAO.descricao,
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (!window.confirm(textoDeEntregaSemCobranca(numeroOs))) return;
+        mudar(novoStatus);
+        return;
+      }
+      if (tipo === 'paga') {
+        setDialogEntregaAberto(true);
+        return;
+      }
+    }
+
     // Concluir um reparo que ninguém marcou como iniciado: avisa, não barra.
     // O porquê da escolha está junto do texto, em lib/acaoDaEtapa.ts.
     if (
@@ -293,7 +346,7 @@ export function TrocarEtapaOS({
               </span>
             </SelectItem>
           ))}
-          {!decisaoDeOrcamentoBloqueada && (
+          {podeCancelar && (
             <SelectItem value={OS_CANCELADO}>
               <span className="flex items-center gap-2">
                 <Check className="h-3.5 w-3.5 opacity-0" />

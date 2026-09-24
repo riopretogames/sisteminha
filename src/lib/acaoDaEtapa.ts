@@ -1,4 +1,5 @@
 import { OS_ETAPAS } from '@/config/osStatus';
+import { moeda } from '@/lib/format';
 
 /**
  * O nome do botão que avança a OS — dito como a bancada fala, não como o
@@ -54,6 +55,19 @@ export function acaoParaAvancar(de: string, para: string): AcaoDeEtapa | undefin
     };
   }
 
+  if (de === OS_ETAPAS.AGUARDANDO_ANALISE && para === OS_ETAPAS.APROVADO) {
+    // Só aparece na OS TABELADA: na de laudo eletrônico, a próxima etapa
+    // sugerida é o envio do laudo, e pular a resposta do cliente é barrado
+    // (lib/decisaoDoLaudo.ts). PROCESSO-ORDEM-DE-SERVICO.md, passo 9: "se for
+    // tabelado, pula o laudo eletrônico e vai direto para a Etapa 3".
+    return {
+      rotulo: 'Ir para a execução',
+      confirmar:
+        'Serviço tabelado: preço e prazo já foram combinados no balcão, então não há laudo ' +
+        'para o cliente aprovar. A OS vai direto para a bancada executar. Confirma?',
+    };
+  }
+
   if (de === OS_ETAPAS.AGUARDANDO_APROVACAO && para === OS_ETAPAS.APROVADO) {
     // No organograma quem registra isto é o VENDEDOR, porque é ele que fala
     // com o cliente — mas quem PODE registrar continua sendo quem tem a
@@ -97,3 +111,60 @@ export const AVISO_REPARO_NUNCA_INICIADO =
   'Ninguém apertou "Iniciar a execução" nesta OS. Marcando concluído agora, ' +
   'o sistema fica sem saber quando o reparo começou — e o tempo de bancada ' +
   'desta OS não entra em nenhum relatório. Concluir mesmo assim?';
+
+/**
+ * OS PAGA indo para "Entregue" com valor R$ 0,00 — sai sem cobrança nenhuma.
+ *
+ * Achado na revisão de 24/09. A Nova OS não pedia valor (toda OS nascia com
+ * R$ 0), e o diálogo de pagamento só abre quando há o que cobrar. Resultado:
+ * "Entregar ao cliente" numa OS paga esquecida em R$ 0 entregava na hora, sem
+ * pergunta — e o banco também deixava, sem título e sem caixa. O serviço
+ * tabelado, com preço combinado no balcão e ninguém obrigado a digitar, era o
+ * caso típico. Peça do estoque lançada nela saía de graça.
+ *
+ * A regra: sair sem cobrar é decisão de quem aprova orçamento (o banco confere
+ * a mesma permissão — `conferir_pagamento_ao_entregar_os`), e mesmo essa
+ * pessoa confirma lendo o valor. Garantia e cortesia não entram: nelas R$ 0 é
+ * o combinado.
+ */
+export function entregaSemCobranca(
+  tipo: 'paga' | 'garantia' | 'cortesia' | null | undefined,
+  totalOrcamento: number | null | undefined,
+): boolean {
+  return tipo === 'paga' && Number(totalOrcamento ?? 0) <= 0;
+}
+
+export function textoDeEntregaSemCobranca(numeroOs: string): string {
+  return (
+    `A OS ${numeroOs} é PAGA, mas está com valor R$ 0,00: entregar agora é sair sem cobrar nada ` +
+    '(nem peça, nem serviço).\n\n' +
+    'Se o cliente vai pagar, cancele aqui e preencha o "Valor do orçamento" na ficha da OS antes de entregar.\n\n' +
+    'Entregar SEM cobrança mesmo assim?'
+  );
+}
+
+export const AVISO_ENTREGA_SEM_COBRANCA_SEM_PERMISSAO = {
+  titulo: 'Esta OS está sem valor',
+  descricao:
+    'É uma OS paga com valor R$ 0,00 — entregar assim é sair sem cobrar nada. Preencha o valor do ' +
+    'orçamento na ficha da OS, ou peça a um vendedor ou gerente para entregar sem cobrança.',
+} as const;
+
+/**
+ * Subir o valor de um orçamento que o cliente JÁ aprovou.
+ *
+ * Achado na revisão de 24/09: o banco deixa subir (baixar exige a permissão de
+ * aprovar), e o comentário do gatilho prometia que "peça a mais descoberta na
+ * bancada vira um novo aguardando aprovação pela tela" — mas nenhuma tela faz
+ * isso. O cliente aprova R$ 200, a bancada troca para R$ 350, e a entrega cobra
+ * R$ 350 sem registro de nova aprovação. Exigir nova aprovação (ou devolver a
+ * OS para "Aguardando aprovação") é decisão do Felipe, anotada no plano; até
+ * lá, quem salva lê o que está fazendo.
+ */
+export function textoDeSubirValorAprovado(valorAprovado: number, novoValor: number): string {
+  return (
+    `O cliente aprovou ${moeda(valorAprovado)}. O novo valor, ${moeda(novoValor)}, ` +
+    'só vale com o OK dele — combine com quem fala com o cliente antes de salvar.\n\n' +
+    'O cliente já concordou com o novo valor?'
+  );
+}

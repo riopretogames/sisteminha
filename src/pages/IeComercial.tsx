@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { devolvidosPorProdutoNoPeriodo } from '@/lib/faturamento';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
+import { fatorDaVenda } from '@/lib/dinheiroDaVenda';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { moeda } from '@/lib/format';
@@ -19,7 +20,32 @@ import { RelatorioShell, usePeriodo, type Coluna } from './relatorios/RelatorioS
  * Se o preço de custo mudar com o tempo, vendas antigas recalculam com o
  * custo de hoje. Aceitável pra uma primeira versão; se virar problema,
  * a solução é gravar `custo_unitario` em `itens_venda` no momento da venda.
+ *
+ * DESCONTO DA VENDA (achado 62, revisão de 24/09/2026). A receita era a soma
+ * do preço CHEIO de cada item, e o desconto dado na venda inteira nunca saía:
+ * agosto mostrava R$ 37.371,20 de receita com R$ 36.871,20 vendidos — R$ 500
+ * a mais de receita E de lucro. Agora cada item vale o seu preço vezes o
+ * quanto a venda cobrou de verdade (`fatorDaVenda`, a mesma conta do painel de
+ * Metas). A devolução sai com o mesmo rateio da venda original.
  */
+
+interface VendaIE {
+  total: number | null;
+  itens_venda: Array<{
+    quantidade: number;
+    total: number | null;
+    produtos: { id: string; nome: string; categoria: string; custo: number } | null;
+  }> | null;
+}
+
+interface ItemDevolvidoIE {
+  produto_id: string;
+  quantidade: number;
+  preco_unitario: number | null;
+  devolucoes: {
+    venda_original: { total: number | null; itens_venda: { total: number | null }[] | null } | null;
+  } | null;
+}
 
 interface LinhaProduto {
   produtoId: string;
@@ -39,34 +65,46 @@ export default function IeComercial() {
     queryKey: ['ie-comercial', periodo.de, periodo.ate],
     queryFn: async (): Promise<LinhaProduto[]> => {
       const ate = `${periodo.ate}T23:59:59`;
-      const [res, devolvidos] = await Promise.all([
-        supabase
-          .from('vendas')
-          .select(
-            'id, created_at, status, itens_venda(quantidade, preco_unitario, total, produtos:vw_produtos(id, nome, categoria, custo))'
-          )
-          .gte('created_at', periodo.de)
-          .lte('created_at', ate)
-          .neq('status', 'cancelado'),
+      // Em páginas: o Supabase corta calado em 1.000 linhas por pedido
+      // (lib/buscarEmPaginas.ts) — um ano de vendas passa disso.
+      const [vendas, itensDevolvidos] = await Promise.all([
+        buscarEmPaginas<VendaIE>(() =>
+          supabase
+            .from('vendas')
+            .select(
+              'id, created_at, status, total, itens_venda(quantidade, preco_unitario, total, produtos:vw_produtos(id, nome, categoria, custo))'
+            )
+            .gte('created_at', periodo.de)
+            .lte('created_at', ate)
+            .neq('status', 'cancelado')
+            .order('created_at')
+            .order('id'),
+        ),
         // Produto devolvido continuava contando como vendido aqui: este
         // painel agrega por PRODUTO (soma itens_venda), então o desconto por
-        // período que consertou os outros painéis não alcançava ele.
-        devolvidosPorProdutoNoPeriodo(periodo.de, ate),
+        // período que consertou os outros painéis não alcançava ele. Vem com
+        // a venda ORIGINAL junto, para a devolução sair com o mesmo desconto
+        // que a venda teve.
+        buscarEmPaginas<ItemDevolvidoIE>(() =>
+          supabase
+            .from('devolucao_itens')
+            .select(
+              'id, produto_id, quantidade, preco_unitario, devolucoes!inner(created_at, venda_original:vendas!devolucoes_venda_original_id_fkey(total, itens_venda(total)))'
+            )
+            .gte('devolucoes.created_at', periodo.de)
+            .lte('devolucoes.created_at', ate)
+            .order('id'),
+        ),
       ]);
-      const { data, error } = res;
-      if (error) throw error;
 
       // Agrupa por produto — uma venda pode ter vários itens, e o mesmo
       // produto pode aparecer em várias vendas do período.
       const porProduto = new Map<string, LinhaProduto>();
 
-      for (const venda of (data ?? []) as unknown as Array<{
-        itens_venda: Array<{
-          quantidade: number;
-          total: number;
-          produtos: { id: string; nome: string; categoria: string; custo: number } | null;
-        }>;
-      }>) {
+      for (const venda of vendas) {
+        // Quanto de cada real de item a venda cobrou de verdade (desconto
+        // rateado). Sem isto a receita somava o preço cheio.
+        const fator = fatorDaVenda(venda);
         for (const item of venda.itens_venda ?? []) {
           const produto = item.produtos;
           if (!produto) continue; // item órfão (produto excluído) — ignora
@@ -80,7 +118,7 @@ export default function IeComercial() {
             custo: 0,
           };
           atual.quantidade += item.quantidade;
-          atual.receita += Number(item.total);
+          atual.receita += Number(item.total ?? 0) * fator;
           atual.custo += Number(produto.custo) * item.quantidade;
           porProduto.set(produto.id, atual);
         }
@@ -89,6 +127,17 @@ export default function IeComercial() {
       // Desconta o que voltou pela porta. A quantidade sai do ranking de mais
       // vendidos, a receita sai do faturamento por produto, e o custo sai
       // junto — senão a margem ficaria negativa por subtrair só um lado.
+      const devolvidos = new Map<string, { quantidade: number; valor: number }>();
+      for (const item of itensDevolvidos) {
+        const original = item.devolucoes?.venda_original;
+        // Devolução avulsa (sem venda de origem) sai pelo preço gravado nela.
+        const fator = original ? fatorDaVenda(original) : 1;
+        const atual = devolvidos.get(item.produto_id) ?? { quantidade: 0, valor: 0 };
+        atual.quantidade += Number(item.quantidade ?? 0);
+        atual.valor += Number(item.quantidade ?? 0) * Number(item.preco_unitario ?? 0) * fator;
+        devolvidos.set(item.produto_id, atual);
+      }
+
       for (const [produtoId, dev] of devolvidos) {
         const linha = porProduto.get(produtoId);
         if (!linha) continue; // devolução de venda de outro período
@@ -183,7 +232,7 @@ export default function IeComercial() {
   return (
     <RelatorioShell
       titulo="IE Comercial — Lucro por Produto"
-      hint="Cruza vendas do período com o custo de cada produto: quanto vendeu, quanto deu de lucro e a margem, por item."
+      hint="Cruza vendas do período com o custo de cada produto: quanto vendeu, quanto deu de lucro e a margem, por item. A receita já vem com o desconto da venda dividido entre os itens, e sem o que foi devolvido no período."
       arquivo="ie_comercial_lucro_por_produto"
       colunas={colunas}
       dados={linhas}

@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCatalogo } from '@/hooks/useCatalogos';
 import { PERMISSIONS } from '@/config/permissions';
 import { dataHora } from '@/lib/format';
+import { inteiroOu, numeroDoCampo } from '@/lib/estoque';
 import { quantidadeComSinal, corDaQuantidade } from '@/lib/movimentoEstoque';
 import { PRODUTO_CATEGORIAS, PRODUTO_LOCALIZACOES, MOVIMENTO_TIPOS } from '@/lib/constants';
 import { PageHeader, Vazio } from '@/components/PageHeader';
@@ -34,6 +35,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
+import { mensagemDoErro } from '@/lib/mensagemDoErro';
 
 /**
  * Ficha completa do produto — página própria, no lugar do Dialog pequeno que
@@ -122,7 +124,12 @@ export default function EstoqueDetalhe() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const podeEditar = can(PERMISSIONS.INVENTORY_EDIT);
-  const podeExcluir = can(PERMISSIONS.INVENTORY_DELETE);
+  // "Excluir" é soft-delete (um UPDATE em `ativo`), e quem manda no banco é a
+  // policy de EDIÇÃO — a mesma pergunta que a lista do Estoque já faz desde
+  // 21/08. Esta ficha perguntava `inventory.delete`, que o Gerente Técnico não
+  // tem: ele excluía pela lista e não achava o botão na ficha do mesmo produto
+  // (revisão de 24/09).
+  const podeExcluir = can(PERMISSIONS.INVENTORY_EDIT);
   const veCusto = can(PERMISSIONS.INVENTORY_COST_VIEW);
   // Achado na revisão de 18/08: a migration 20260818110000 passou a exigir
   // `inventory.adjust` dentro do próprio `ajustar_estoque_produto` (antes não
@@ -140,8 +147,25 @@ export default function EstoqueDetalhe() {
 
   const [formData, setFormData] = useState<FormState | null>(null);
   const [salvando, setSalvando] = useState(false);
+  /**
+   * O estoque que a pessoa VIU no campo quando ele foi preenchido.
+   *
+   * Achado da revisão de 24/09: o formulário é preenchido uma vez só (ver o
+   * efeito abaixo), mas o produto é relido sozinho quando a pessoa volta para
+   * a janela. Se o balcão vendeu 1 unidade no meio do caminho, o campo seguia
+   * mostrando 3 com o banco em 2 — e salvar QUALQUER coisa (só o preço, por
+   * exemplo) comparava o 3 velho com o 2 relido e "ajustava" o estoque de
+   * volta para 3, no nome de quem salvou. Estoque fantasma: o sistema passava
+   * a oferecer um aparelho que não existe.
+   *
+   * Agora: o ajuste só acontece se a pessoa MEXEU no campo (comparado com
+   * este número, não com o produto relido); campo não mexido acompanha o
+   * banco sozinho; e o banco recebe este número como "saldo que eu vi" e
+   * recusa o ajuste se o estoque mudou no meio do caminho.
+   */
+  const [estoqueOriginal, setEstoqueOriginal] = useState<number | null>(null);
 
-  const { data: produto, isLoading } = useQuery({
+  const { data: produto, isLoading, isError, refetch } = useQuery({
     queryKey: ['produto-detalhe', id],
     queryFn: async (): Promise<ProdutoCompleto | null> => {
       // vw_produtos, nunca a tabela — quem não tem inventory.cost.view
@@ -190,23 +214,71 @@ export default function EstoqueDetalhe() {
         categoria: produto.categoria,
         custo: String(produto.custo ?? 0),
         preco: String(produto.preco),
-        estoqueAtual: String(produto.estoque_atual),
-        estoqueMinimo: String(produto.estoque_minimo),
-        estoqueMaximo: String(produto.estoque_maximo),
+        estoqueAtual: String(produto.estoque_atual ?? 0),
+        estoqueMinimo: String(produto.estoque_minimo ?? ''),
+        estoqueMaximo: String(produto.estoque_maximo ?? ''),
         localizacao: produto.localizacao,
         garantiaMeses: String(produto.garantia_meses),
         observacoes: produto.observacoes || '',
         ativo: produto.ativo,
       });
+      setEstoqueOriginal(produto.estoque_atual ?? 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [produto?.id]);
+
+  // O estoque mudou no banco (venda, entrada, OS) enquanto a ficha estava
+  // aberta. Campo que a pessoa não mexeu acompanha o número novo — senão ela
+  // olha um saldo que já não existe. Campo mexido fica como ela digitou; na
+  // hora de salvar, o banco confere e avisa que o saldo mudou.
+  useEffect(() => {
+    if (!produto || !formData || estoqueOriginal === null) return;
+    const noBanco = produto.estoque_atual ?? 0;
+    if (noBanco === estoqueOriginal) return;
+    if (formData.estoqueAtual.trim() !== String(estoqueOriginal)) return;
+    setFormData({ ...formData, estoqueAtual: String(noBanco) });
+    setEstoqueOriginal(noBanco);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [produto?.estoque_atual]);
+
+  /** Relê o produto e põe o campo de estoque no número que está no banco. */
+  const recarregarEstoque = async () => {
+    const { data: atualizado } = await refetch();
+    if (!atualizado) return;
+    const noBanco = atualizado.estoque_atual ?? 0;
+    setEstoqueOriginal(noBanco);
+    setFormData((f) => (f ? { ...f, estoqueAtual: String(noBanco) } : f));
+  };
 
   const handleSave = async () => {
     if (!produto || !formData) return;
 
     if (!formData.nome.trim()) {
       toast({ title: 'Nome obrigatório', variant: 'destructive' });
+      return;
+    }
+
+    // estoque_atual sai do UPDATE genérico e vai pela função
+    // ajustar_estoque_produto, que grava a auditoria em movimentos_estoque
+    // (motivo "Ajuste manual") — mesma regra que Estoque.tsx já seguia.
+    //
+    // Só ajusta se a pessoa MEXEU no campo — comparando com o número que ela
+    // viu (`estoqueOriginal`), nunca com o produto relido (ver o comentário do
+    // `estoqueOriginal`). O campo já vem desabilitado sem `inventory.adjust`,
+    // e a trava aqui é defensiva: o banco exige a permissão de qualquer forma.
+    const mexeuNoEstoque =
+      podeAjustarEstoque &&
+      estoqueOriginal !== null &&
+      formData.estoqueAtual.trim() !== String(estoqueOriginal);
+    const novoEstoque = numeroDoCampo(formData.estoqueAtual);
+    if (mexeuNoEstoque && (!Number.isInteger(novoEstoque) || novoEstoque < 0)) {
+      // Antes, campo apagado virava ZERO (`parseInt(...) || 0`) e zerava o
+      // estoque de verdade.
+      toast({
+        title: 'Estoque atual inválido',
+        description: 'Informe um número inteiro, zero ou mais. Nada foi salvo.',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -245,8 +317,11 @@ export default function EstoqueDetalhe() {
         memoria_id: formData.memoriaId || null,
         categoria: formData.categoria,
         preco: parseFloat(formData.preco) || 0,
-        estoque_minimo: parseInt(formData.estoqueMinimo, 10) || 1,
-        estoque_maximo: parseInt(formData.estoqueMaximo, 10) || 100,
+        // Zero é aceito de propósito (o antigo `|| 1` trocava 0 por 1):
+        // mínimo 0 é o "não se repõe" da peça única, ver lib/estoque.ts.
+        // Campo apagado volta ao padrão do banco.
+        estoque_minimo: Math.max(0, inteiroOu(formData.estoqueMinimo, 1)),
+        estoque_maximo: Math.max(0, inteiroOu(formData.estoqueMaximo, 100)),
         localizacao: formData.localizacao,
         garantia_meses: parseInt(formData.garantiaMeses, 10) || 0,
         observacoes: formData.observacoes.trim() || null,
@@ -263,29 +338,40 @@ export default function EstoqueDetalhe() {
 
       if (error) throw error;
 
-      // estoque_atual sai do UPDATE genérico e vai pela função
-      // ajustar_estoque_produto, que grava a auditoria em
-      // movimentos_estoque (motivo "Ajuste manual") — mesma regra que
-      // Estoque.tsx já seguia.
-      const novoEstoque = parseInt(formData.estoqueAtual, 10) || 0;
-      // O campo já vem desabilitado sem `inventory.adjust` (não deveria mudar
-      // de valor), mas a trava aqui é defensiva: o banco exige a permissão de
-      // qualquer forma, então nem tenta chamar a função sem ela.
-      if (podeAjustarEstoque && novoEstoque !== produto.estoque_atual) {
-        const { error: ajusteError } = await supabase.rpc('ajustar_estoque_produto', {
+      if (mexeuNoEstoque) {
+        // `_saldo_anterior` é o número que a pessoa viu: se o estoque mudou no
+        // meio do caminho, o banco recusa em vez de sobrescrever (migration
+        // 20260924164000). Vai numa variável porque o arquivo de tipos gerado
+        // ainda não conhece o parâmetro novo; depois de regerar os tipos, pode
+        // voltar a ser escrito direto na chamada.
+        const argsDoAjuste = {
           _produto_id: produto.id,
           _nova_quantidade: novoEstoque,
-        });
-        if (ajusteError) throw ajusteError;
+          _saldo_anterior: estoqueOriginal,
+        };
+        const { error: ajusteError } = await supabase.rpc('ajustar_estoque_produto', argsDoAjuste);
+        if (ajusteError) {
+          // O resto da ficha JÁ foi salvo; só o estoque ficou como estava.
+          // Dizer isso com todas as letras, e mostrar o número de verdade.
+          toast({
+            title: 'Ficha salva, mas o estoque NÃO foi alterado',
+            description: ajusteError.message,
+            variant: 'destructive',
+          });
+          await recarregarEstoque();
+          queryClient.invalidateQueries({ queryKey: ['produto-movimentos', id] });
+          return;
+        }
       }
 
       toast({ title: 'Produto atualizado!', variant: 'success' });
-      queryClient.invalidateQueries({ queryKey: ['produto-detalhe', id] });
+      await recarregarEstoque();
       queryClient.invalidateQueries({ queryKey: ['produto-movimentos', id] });
+      queryClient.invalidateQueries({ queryKey: ['estoque-critico'] });
     } catch (error) {
       toast({
         title: 'Erro ao salvar',
-        description: error instanceof Error ? error.message : 'Tente novamente.',
+        description: mensagemDoErro(error),
         variant: 'destructive',
       });
     } finally {
@@ -309,13 +395,17 @@ export default function EstoqueDetalhe() {
     } catch (error) {
       toast({
         title: 'Erro ao excluir',
-        description: error instanceof Error ? error.message : 'Tente novamente.',
+        description: mensagemDoErro(error),
         variant: 'destructive',
       });
     }
   };
 
-  if (isLoading || !formData) {
+  // Ordem importa (revisão de 24/09): o "não encontrado" vinha DEPOIS do
+  // "formulário ainda vazio", e o formulário só é preenchido quando o produto
+  // existe — então link antigo, id errado ou produto de outra loja ficavam
+  // girando para sempre, sem nunca dizer nada.
+  if (isLoading) {
     return (
       <div className="flex justify-center py-16">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -323,8 +413,25 @@ export default function EstoqueDetalhe() {
     );
   }
 
+  if (isError) {
+    return (
+      <Vazio
+        titulo="Não consegui abrir este produto"
+        descricao="O endereço pode estar errado, ou a conexão caiu. Volte ao Estoque e abra de novo."
+      />
+    );
+  }
+
   if (!produto) {
     return <Vazio titulo="Produto não encontrado" descricao="Ele pode ter sido excluído." />;
+  }
+
+  if (!formData) {
+    return (
+      <div className="flex justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
 
   const custoNum = parseFloat(formData.custo) || 0;
@@ -527,6 +634,8 @@ export default function EstoqueDetalhe() {
               <Input
                 id="estoque_atual"
                 type="number"
+                min={0}
+                step={1}
                 value={formData.estoqueAtual}
                 disabled={!podeEditar || !podeAjustarEstoque}
                 onChange={(e) => setFormData({ ...formData, estoqueAtual: e.target.value })}
@@ -542,16 +651,22 @@ export default function EstoqueDetalhe() {
               <Input
                 id="estoque_minimo"
                 type="number"
+                min={0}
                 value={formData.estoqueMinimo}
                 disabled={!podeEditar}
                 onChange={(e) => setFormData({ ...formData, estoqueMinimo: e.target.value })}
               />
+              <p className="text-xs text-muted-foreground">
+                Use 0 para peça única (seminovo, troca): depois de vendida, ela não fica
+                no Estoque Crítico.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="estoque_maximo">Estoque Máximo</Label>
               <Input
                 id="estoque_maximo"
                 type="number"
+                min={0}
                 value={formData.estoqueMaximo}
                 disabled={!podeEditar}
                 onChange={(e) => setFormData({ ...formData, estoqueMaximo: e.target.value })}

@@ -13,6 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { TaxaDeAnalise } from '@/components/configuracoes/TaxaDeAnalise';
+import { mensagemCrua } from '@/lib/mensagemDoErro';
 
 /**
  * Preferências do Sistema.
@@ -55,7 +56,7 @@ function EditorCategorias({ natureza }: { natureza: 'receita' | 'despesa' }) {
   });
 
   const aoFalhar = (error: unknown) => {
-    const msg = error instanceof Error ? error.message : 'Erro desconhecido';
+    const msg = mensagemCrua(error) || 'Erro desconhecido';
     toast({
       title: 'Não foi possível salvar',
       description: /row-level security|policy/i.test(msg)

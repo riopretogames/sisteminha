@@ -18,6 +18,7 @@ import {
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
+import { mensagemCrua } from '@/lib/mensagemDoErro';
 
 /**
  * Caixa — abertura, movimentação e fechamento.
@@ -26,6 +27,17 @@ import {
  * gaveta ANTES de ver o que o sistema calculou. Se o valor esperado aparecer
  * primeiro, a conferência deixa de ser conferência — vira transcrição, e
  * qualquer diferença passa batida.
+ *
+ * Por isso, desde a revisão de 24/09/2026:
+ * - o "Saldo esperado" NÃO aparece enquanto o caixa está aberto (antes ficava
+ *   num cartão da tela o tempo todo, e bastava ler antes de abrir a janela);
+ * - quem CALCULA o esperado é o banco, na hora de fechar, com o que está
+ *   gravado naquele instante (migration 20260924165000). Antes a conta era
+ *   feita aqui, com a lista carregada quando a tela abriu — venda feita em
+ *   outro computador depois disso ficava fora do esperado, e o fechamento
+ *   saía com sobra falsa para sempre;
+ * - o resultado (esperado, contado, diferença) aparece DEPOIS de fechar, em
+ *   "Fechamentos anteriores", que é onde o dono confere a semana.
  *
  * O banco garante um único caixa aberto por loja (índice único parcial em
  * `caixa_sessoes`). Dois caixas abertos ao mesmo tempo tornariam impossível
@@ -44,6 +56,31 @@ interface Sessao {
   observacoes: string | null;
 }
 
+/** Uma sessão já fechada, como o banco gravou (esperado calculado lá). */
+interface Fechamento {
+  id: string;
+  aberto_em: string;
+  fechado_em: string | null;
+  aberto_por: string;
+  fechado_por: string | null;
+  valor_abertura: number;
+  valor_informado: number | null;
+  valor_calculado: number | null;
+  diferenca: number | null;
+  observacoes: string | null;
+}
+
+/**
+ * O fechamento não mudou nenhuma linha: o caixa já tinha sido fechado por
+ * outra pessoa (ou em outra aba) entre abrir a tela e clicar. Antes a tela
+ * dizia "Caixa fechado — Sobrou R$ X" mesmo sem ter gravado nada.
+ */
+class CaixaJaFechado extends Error {
+  constructor() {
+    super('Este caixa já tinha sido fechado.');
+  }
+}
+
 interface Movimento {
   id: string;
   tipo: string;
@@ -54,9 +91,9 @@ interface Movimento {
 
 /**
  * Linha de `vw_caixa_resumo_formas` — resumo INFORMATIVO de quanto entrou em
- * cada forma de pagamento desde a abertura do caixa. Não entra na conferência
- * cega da gaveta (isso continua vindo só de `caixa_movimentos`, via
- * `saldoCalculado` acima) — é só uma visão geral do dia.
+ * cada forma de pagamento desde o fechamento do caixa anterior. Não entra na
+ * conferência cega da gaveta (essa é feita pelo banco, só com os movimentos
+ * do caixa) — é só uma visão geral do expediente.
  */
 interface ResumoForma {
   sessao_id: string;
@@ -94,6 +131,97 @@ const TIPO_LABEL: Record<string, string> = {
   // "Lançar movimento" (esse é sempre manual, este é sempre automático).
   devolucao: 'Devolução',
 };
+
+/** "Sobrou R$ 20,00 na gaveta." / "Faltou..." / "Conferência exata." */
+function textoDaDiferenca(diferenca: number): string {
+  if (diferenca === 0) return 'Conferência exata.';
+  return diferenca > 0
+    ? `Sobrou ${moeda(diferenca)} na gaveta.`
+    : `Faltou ${moeda(Math.abs(diferenca))} na gaveta.`;
+}
+
+/**
+ * Os últimos fechamentos: esperado (o que o banco calculou), contado (o que a
+ * pessoa digitou) e a diferença. Aparece com o caixa aberto e fechado — é o
+ * único lugar em que o dono vê, dias depois, que na terça faltou dinheiro.
+ */
+function FechamentosAnteriores({
+  fechamentos,
+  nomeDe,
+}: {
+  fechamentos: Fechamento[] | undefined;
+  nomeDe: (id: string | null) => string;
+}) {
+  return (
+    <section className="mt-8">
+      <h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        Fechamentos anteriores
+      </h2>
+      <p className="mb-3 text-xs text-muted-foreground">
+        O esperado é calculado pelo sistema na hora do fechamento, com tudo que
+        estava lançado no caixa naquele instante. Contado é o que a pessoa
+        digitou depois de contar a gaveta.
+      </p>
+      {(fechamentos?.length ?? 0) === 0 ? (
+        <Vazio titulo="Nenhum caixa fechado ainda" />
+      ) : (
+        <div className="rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Fechado em</TableHead>
+                <TableHead>Quem abriu / fechou</TableHead>
+                <TableHead className="text-right">Esperado</TableHead>
+                <TableHead className="text-right">Contado</TableHead>
+                <TableHead className="text-right">Diferença</TableHead>
+                <TableHead>Observações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(fechamentos ?? []).map((f) => {
+                const diferenca = Number(f.diferenca ?? 0);
+                return (
+                  <TableRow key={f.id}>
+                    <TableCell className="tabular-nums">{dataHora(f.fechado_em)}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {nomeDe(f.aberto_por)} / {nomeDe(f.fechado_por)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {moeda(Number(f.valor_calculado ?? 0))}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {moeda(Number(f.valor_informado ?? 0))}
+                    </TableCell>
+                    <TableCell
+                      className={`text-right font-medium tabular-nums ${
+                        diferenca === 0
+                          ? 'text-emerald-600'
+                          : diferenca > 0
+                            ? 'text-amber-600'
+                            : 'text-red-600'
+                      }`}
+                    >
+                      {diferenca === 0
+                        ? 'Exato'
+                        : diferenca > 0
+                          ? `Sobrou ${moeda(diferenca)}`
+                          : `Faltou ${moeda(Math.abs(diferenca))}`}
+                    </TableCell>
+                    <TableCell className="max-w-[240px] truncate text-muted-foreground">
+                      {f.observacoes?.startsWith('Aberto automaticamente')
+                        ? 'Aberto pelo sistema'
+                        : (f.observacoes ?? '—')}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </section>
+  );
+}
 
 export default function FinanceiroCaixa() {
   const { user } = useAuth();
@@ -150,11 +278,35 @@ export default function FinanceiroCaixa() {
     },
   });
 
-  const saldoCalculado = useMemo(() => {
-    const abertura = Number(sessao?.valor_abertura ?? 0);
-    const soma = (movimentos ?? []).reduce((acc, m) => acc + Number(m.valor), 0);
-    return abertura + soma;
-  }, [sessao, movimentos]);
+  // Os últimos fechamentos, com o que o BANCO calculou. É aqui que o
+  // resultado da conferência fica visível depois — antes ele só aparecia num
+  // aviso que some em segundos, e ninguém conseguia ver que na terça faltou
+  // R$ 40.
+  const { data: fechamentos } = useQuery({
+    queryKey: ['caixa-fechamentos'],
+    queryFn: async (): Promise<Fechamento[]> => {
+      const { data, error } = await supabase
+        .from('caixa_sessoes')
+        .select('id, aberto_em, fechado_em, aberto_por, fechado_por, valor_abertura, valor_informado, valor_calculado, diferenca, observacoes')
+        .eq('status', 'fechado')
+        .order('fechado_em', { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return (data ?? []) as Fechamento[];
+    },
+  });
+
+  // Nome de quem abriu e de quem fechou. Todo mundo que já passou pela loja,
+  // inclusive quem saiu: o fechamento antigo continua sendo dele.
+  const { data: nomes } = useQuery({
+    queryKey: ['caixa-nomes'],
+    queryFn: async (): Promise<Map<string, string>> => {
+      const { data, error } = await supabase.from('profiles').select('id, nome');
+      if (error) throw error;
+      return new Map(((data ?? []) as { id: string; nome: string }[]).map((p) => [p.id, p.nome]));
+    },
+  });
+  const nomeDe = (id: string | null) => (id ? (nomes?.get(id) ?? '—') : '—');
 
   // Esconde formas sem nenhum movimento no dia — deixa a lista limpa, mostra
   // só o que de fato entrou. Maior total primeiro.
@@ -167,7 +319,7 @@ export default function FinanceiroCaixa() {
   );
 
   const aoFalhar = (error: unknown) => {
-    const msg = error instanceof Error ? error.message : 'Erro desconhecido';
+    const msg = mensagemCrua(error) || 'Erro desconhecido';
     toast({
       title: 'Não foi possível concluir',
       description: /row-level security|policy/i.test(msg)
@@ -206,7 +358,7 @@ export default function FinanceiroCaixa() {
       toast({ title: 'Caixa aberto', variant: 'success' });
     },
     onError: (error: unknown) => {
-      const msg = error instanceof Error ? error.message : '';
+      const msg = mensagemCrua(error);
       // Caixa já aberto não é erro de quem clicou: desde 21/08 a primeira
       // venda do dia abre o caixa sozinha. Quem estava com esta tela aberta
       // antes disso continua vendo o formulário de abertura, que a partir
@@ -252,11 +404,22 @@ export default function FinanceiroCaixa() {
       setMovAberto(false);
       queryClient.invalidateQueries({ queryKey: ['caixa-movimentos'] });
     },
-    onError: aoFalhar,
+    onError: (error: unknown) => {
+      // Alguém fechou este caixa enquanto a janela estava aberta: o banco
+      // recusa lançar dentro de um caixa já conferido. Recarrega a tela para
+      // a pessoa ver o caixa como ele está agora.
+      const msg = mensagemCrua(error);
+      if (/acabou de ser fechado/i.test(msg)) {
+        setMovAberto(false);
+        queryClient.invalidateQueries({ queryKey: ['caixa-sessao'] });
+        queryClient.invalidateQueries({ queryKey: ['caixa-fechamentos'] });
+      }
+      aoFalhar(error);
+    },
   });
 
   const fechar = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<Fechamento> => {
       const informado = paraNumero(valorContado);
       // Mesmo cuidado do `abrir`: "-50,00" digitado por engano não é NaN,
       // mas dinheiro contado na gaveta nunca é negativo.
@@ -264,39 +427,57 @@ export default function FinanceiroCaixa() {
         throw new Error('Valor contado inválido — confira o que foi digitado.');
       }
 
-      const { error } = await supabase
+      // Manda SÓ o que a pessoa contou. O esperado, a diferença, quem fechou
+      // e quando são preenchidos pelo banco na hora de gravar — o que viesse
+      // daqui seria ignorado de qualquer jeito.
+      //
+      // `.eq('status', 'aberto')` + `.select()`: se outra pessoa fechou este
+      // caixa um segundo antes, nenhuma linha muda — e a tela precisa saber
+      // disso em vez de anunciar um resultado que não foi gravado.
+      const { data, error } = await supabase
         .from('caixa_sessoes')
         .update({
           status: 'fechado',
-          fechado_por: user?.id,
-          fechado_em: new Date().toISOString(),
           valor_informado: informado,
-          valor_calculado: saldoCalculado,
-          diferenca: informado - saldoCalculado,
           observacoes: obsFechamento.trim() || null,
         })
-        .eq('id', sessao!.id);
+        .eq('id', sessao!.id)
+        .eq('status', 'aberto')
+        .select('id, aberto_em, fechado_em, aberto_por, fechado_por, valor_abertura, valor_informado, valor_calculado, diferenca, observacoes');
       if (error) throw error;
 
-      return informado - saldoCalculado;
+      const gravado = (data ?? [])[0] as Fechamento | undefined;
+      if (!gravado) throw new CaixaJaFechado();
+      return gravado;
     },
-    onSuccess: (diferenca) => {
+    onSuccess: (gravado) => {
       setFecharAberto(false);
       setValorContado('');
       setObsFechamento('');
       queryClient.invalidateQueries({ queryKey: ['caixa-sessao'] });
+      queryClient.invalidateQueries({ queryKey: ['caixa-fechamentos'] });
+      const diferenca = Number(gravado.diferenca ?? 0);
       toast({
         title: 'Caixa fechado',
-        description:
-          diferenca === 0
-            ? 'Conferência exata.'
-            : diferenca > 0
-              ? `Sobrou ${moeda(diferenca)} na gaveta.`
-              : `Faltou ${moeda(Math.abs(diferenca))} na gaveta.`,
+        description: `Esperado ${moeda(Number(gravado.valor_calculado ?? 0))}, contado ${moeda(Number(gravado.valor_informado ?? 0))}. ${textoDaDiferenca(diferenca)}`,
         variant: diferenca === 0 ? 'success' : 'destructive',
       });
     },
-    onError: aoFalhar,
+    onError: (error: unknown) => {
+      if (error instanceof CaixaJaFechado) {
+        setFecharAberto(false);
+        queryClient.invalidateQueries({ queryKey: ['caixa-sessao'] });
+        queryClient.invalidateQueries({ queryKey: ['caixa-fechamentos'] });
+        toast({
+          title: 'Este caixa já tinha sido fechado',
+          description:
+            'Outra pessoa (ou outra aba) fechou este caixa antes. Nada foi gravado agora — atualizei a tela. O resultado está em "Fechamentos anteriores".',
+          variant: 'destructive',
+        });
+        return;
+      }
+      aoFalhar(error);
+    },
   });
 
   if (isLoading) {
@@ -310,38 +491,41 @@ export default function FinanceiroCaixa() {
   /* ── Caixa fechado: oferecer abertura ─────────────────────────────────── */
   if (!sessao) {
     return (
-      <div className="mx-auto max-w-lg">
-        <PageHeader
-          titulo="Caixa"
-          hint="Nenhum caixa aberto no momento. Abra o caixa no começo do expediente para registrar as movimentações do dia."
-        />
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <LockOpen className="h-5 w-5" />
-              Abrir caixa
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="abertura">Valor inicial na gaveta</Label>
-              <Input
-                id="abertura"
-                inputMode="decimal"
-                value={valorAbertura}
-                onChange={(e) => setValorAbertura(e.target.value)}
-                placeholder="0,00"
-              />
-              <p className="text-xs text-muted-foreground">
-                É o troco que já está na gaveta antes da primeira venda.
-              </p>
-            </div>
-            <Button className="w-full" onClick={() => abrir.mutate()} disabled={abrir.isPending}>
-              {abrir.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Abrir caixa
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="mx-auto max-w-5xl">
+        <div className="mx-auto max-w-lg">
+          <PageHeader
+            titulo="Caixa"
+            hint="Nenhum caixa aberto no momento. Abra o caixa no começo do expediente para registrar as movimentações do dia."
+          />
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <LockOpen className="h-5 w-5" />
+                Abrir caixa
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="abertura">Valor inicial na gaveta</Label>
+                <Input
+                  id="abertura"
+                  inputMode="decimal"
+                  value={valorAbertura}
+                  onChange={(e) => setValorAbertura(e.target.value)}
+                  placeholder="0,00"
+                />
+                <p className="text-xs text-muted-foreground">
+                  É o troco que já está na gaveta antes da primeira venda.
+                </p>
+              </div>
+              <Button className="w-full" onClick={() => abrir.mutate()} disabled={abrir.isPending}>
+                {abrir.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Abrir caixa
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+        <FechamentosAnteriores fechamentos={fechamentos} nomeDe={nomeDe} />
       </div>
     );
   }
@@ -509,10 +693,15 @@ export default function FinanceiroCaixa() {
           valor={String(movimentos?.length ?? 0)}
           detalhe="Lançamentos no expediente"
         />
+        {/* Fechamento às cegas: o esperado NÃO aparece com o caixa aberto.
+            Até 24/09 ele ficava aqui o tempo todo, e bastava copiar este
+            número na janela de fechamento para a conferência "bater" sem
+            ninguém contar a gaveta. Ele aparece depois, em "Fechamentos
+            anteriores", já calculado pelo banco. */}
         <Indicador
           rotulo="Saldo esperado"
-          valor={moeda(saldoCalculado)}
-          detalhe="Abertura + entradas − saídas"
+          valor="No fechamento"
+          detalhe="Conte a gaveta primeiro — o sistema mostra depois"
         />
       </div>
 
@@ -570,13 +759,14 @@ export default function FinanceiroCaixa() {
       )}
 
       <h2 className="mb-1 mt-8 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Resumo do dia por forma de pagamento
+        Resumo por forma de pagamento
       </h2>
       <p className="mb-3 text-xs text-muted-foreground">
-        Visão informativa de tudo que entrou hoje, em todas as formas de
-        pagamento (dinheiro, PIX, cartão etc.). Isso não faz parte da
-        conferência da gaveta — só o dinheiro físico (destacado abaixo) entra
-        no fechamento de caixa.
+        Visão informativa de tudo que entrou desde o fechamento do caixa
+        anterior, em todas as formas de pagamento (PIX, cartão etc.), das vendas
+        e das OS entregues. Isso não faz parte da conferência da gaveta. O
+        total em dinheiro físico só aparece no fechamento — é ele que a
+        contagem da gaveta confere.
       </p>
 
       {formasComMovimento.length === 0 ? (
@@ -591,7 +781,7 @@ export default function FinanceiroCaixa() {
               <TableRow>
                 <TableHead>Forma de pagamento</TableHead>
                 <TableHead>Conferência da gaveta</TableHead>
-                <TableHead className="text-right">Total do dia</TableHead>
+                <TableHead className="text-right">Total</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -608,7 +798,16 @@ export default function FinanceiroCaixa() {
                     )}
                   </TableCell>
                   <TableCell className="text-right font-medium tabular-nums">
-                    {moeda(Number(f.total))}
+                    {/* O total em dinheiro é, na prática, o esperado da
+                        gaveta — mostrá-lo aqui desfaria o fechamento às
+                        cegas. */}
+                    {f.entra_no_caixa ? (
+                      <span className="text-xs font-normal text-muted-foreground">
+                        Conferido no fechamento
+                      </span>
+                    ) : (
+                      moeda(Number(f.total))
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -616,6 +815,8 @@ export default function FinanceiroCaixa() {
           </Table>
         </div>
       )}
+
+      <FechamentosAnteriores fechamentos={fechamentos} nomeDe={nomeDe} />
     </div>
   );
 }

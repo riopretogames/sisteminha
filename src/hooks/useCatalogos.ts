@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { mensagemCrua } from '@/lib/mensagemDoErro';
 
 /**
  * Acesso aos catálogos (tabelas de apoio).
@@ -49,7 +50,7 @@ export function useCatalogo(tipo: string) {
   const invalidar = () => queryClient.invalidateQueries({ queryKey: chave });
 
   const aoFalhar = (error: unknown) => {
-    const msg = error instanceof Error ? error.message : 'Erro desconhecido';
+    const msg = mensagemCrua(error) || 'Erro desconhecido';
     toast({
       title: 'Não foi possível salvar',
       // Mensagem de RLS é críptica; traduz pro que de fato aconteceu.

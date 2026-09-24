@@ -232,6 +232,40 @@ describe('Tabela do quadro', () => {
     expect(onAbrirTarefa).toHaveBeenCalledWith('t3');
   });
 
+  it('tarefa que não é de hoje: a bolinha trava e o "Feito" some do status (achado de 24/09)', async () => {
+    // Hoje é quarta; a tarefa é de terça e quinta. Antes, o clique gravava um
+    // "feito de quarta" e a tarefa voltava pendente no dia certo.
+    const { acoes } = abrirTabela({
+      tarefas: [tarefa({ id: 't9', lista_id: 'l1', titulo: 'Lavar a vitrine', dias_semana: [2, 4] })],
+    });
+
+    const bolinha = within(linha('Lavar a vitrine')).getByRole('button', { name: /Hoje não é dia desta tarefa/ });
+    expect(bolinha).toBeDisabled();
+    fireEvent.click(bolinha);
+    expect(acoes.alternarFeito).not.toHaveBeenCalled();
+
+    fireEvent.click(within(linha('Lavar a vitrine')).getByRole('button', { name: 'Não iniciado' }));
+    expect(await screen.findByRole('option', { name: 'Fazendo' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Feito' })).not.toBeInTheDocument();
+    expect(screen.getByText(/O feito só se marca no dia dela/)).toBeInTheDocument();
+  });
+
+  it('chip de OUTRO dia: a bolinha trava até na tarefa que é de hoje; no chip de hoje, não', () => {
+    // Quarta, com o chip "Seg" ligado: a lista é a de segunda, mas a bolinha
+    // marcaria o feito de quarta.
+    const segunda = abrirTabela({ diaDoFiltro: 1 });
+    const bolinha = within(linha('Conferência do caixa')).getByRole('button', {
+      name: /Você está vendo as tarefas de segunda/,
+    });
+    expect(bolinha).toBeDisabled();
+    fireEvent.click(bolinha);
+    expect(segunda.acoes.alternarFeito).not.toHaveBeenCalled();
+    segunda.tela.unmount();
+
+    abrirTabela({ diaDoFiltro: 3 });
+    expect(within(linha('Conferência do caixa')).getByRole('button', { name: 'Marcar como feita hoje' })).toBeEnabled();
+  });
+
   it('a bolinha marca o feito de hoje sem abrir a ficha', () => {
     const { acoes, onAbrirTarefa } = abrirTabela();
 

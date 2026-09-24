@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { moeda, data as fmtData } from '@/lib/format';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
 import { Badge } from '@/components/ui/badge';
 import { Indicador } from '@/components/PageHeader';
 import { useOsStatuses } from '@/hooks/useOsStatuses';
@@ -110,18 +111,20 @@ export default function RelatorioOS() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['rel-os', periodo],
-    queryFn: async (): Promise<LinhaOS[]> => {
-      const { data, error } = await supabase
-        .from('service_orders')
-        .select(
-          'id, numero_os, created_at, data_finalizacao, status, marca, modelo, total_orcamento, valor_final_pago, laudo_aprovado, clientes(nome)',
-        )
-        .gte('created_at', periodo.de)
-        .lte('created_at', `${periodo.ate}T23:59:59`)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as unknown as LinhaOS[];
-    },
+    // Em páginas: o Supabase corta calado em 1.000 linhas por pedido, e a
+    // receita do período sairia somada sobre uma parte qualquer das OS.
+    queryFn: () =>
+      buscarEmPaginas<LinhaOS>(() =>
+        supabase
+          .from('service_orders')
+          .select(
+            'id, numero_os, created_at, data_finalizacao, status, marca, modelo, total_orcamento, valor_final_pago, laudo_aprovado, clientes(nome)',
+          )
+          .gte('created_at', periodo.de)
+          .lte('created_at', `${periodo.ate}T23:59:59`)
+          .order('created_at', { ascending: false })
+          .order('id'),
+      ),
   });
 
   const linhas = data ?? [];

@@ -41,6 +41,7 @@ import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
 import { PageHeader, Vazio } from '@/components/PageHeader';
 import { useAtalhosDeDialogo } from '@/hooks/useAtalhosDeDialogo';
+import { mensagemCrua } from '@/lib/mensagemDoErro';
 
 /**
  * Formas de Pagamento.
@@ -150,7 +151,7 @@ export default function FormasPagamento() {
 
   /** Mensagem de RLS é críptica; traduz pro que de fato aconteceu. */
   const mensagemErro = (error: unknown): string => {
-    const msg = error instanceof Error ? error.message : 'Tente novamente.';
+    const msg = mensagemCrua(error) || 'Tente novamente.';
     return /row-level security|policy/i.test(msg)
       ? 'Seu perfil de acesso não permite fazer isso.'
       : msg;

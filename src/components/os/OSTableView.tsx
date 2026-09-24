@@ -36,31 +36,34 @@ import {
 import { OS_PRIORITY } from '@/lib/constants';
 import type { ServiceOrder, StatusConfig } from '@/types/os';
 import { osAtrasada, diasDeAtraso } from '@/lib/ordenarOS';
-import { OS_ETAPAS, OS_CANCELADO } from '@/config/osStatus';
-import { passagemPedeDecisaoDoLaudo } from '@/lib/decisaoDoLaudo';
+import { bloqueioDaPassagem } from '@/lib/decisaoDoLaudo';
 
 interface OSTableViewProps {
-  orders: ServiceOrder[];
+  /** `laudo_eletronico` entra na regra de etapa: o serviço tabelado vai da
+   *  Entrada direto para a execução (lib/decisaoDoLaudo.ts). */
+  orders: (ServiceOrder & { laudo_eletronico?: boolean | null })[];
   statuses: StatusConfig[];
   loading: boolean;
   onStatusChange: (orderId: string, newStatus: string) => void;
-  /** Sem orders.approve, "Aprovado" some do seletor sempre (não importa a
-   *  etapa atual da OS) e "Cancelado" some quando a OS está aguardando
-   *  aprovação — aprovar/recusar orçamento não é decisão de quem só tem
-   *  orders.edit. Mesma regra de OSOrcamentos.tsx e TrocarEtapaOS.tsx.
-   *
-   *  Achado na revisão de 20/08: até então "Aprovado" só sumia quando a OS
-   *  JÁ estava em "Aguardando aprovação" — vindo de qualquer outra etapa
-   *  (ex.: "Aguardando análise"), o seletor desta grade oferecia "Aprovado"
-   *  como destino normal, e um clique bastava pra um técnico (orders.edit,
-   *  sem orders.approve) aprovar o orçamento num pulo só, sem passar pela
-   *  decisão. O gatilho do banco também não pegava esse caso (só confere
-   *  `OLD.status = 'aguardando_aprovacao'`). Agora "Aprovado" exige
-   *  orders.approve sempre. */
+  /** Quem pode aprovar orçamento (orders.approve). Sem ela, "Aprovado" some
+   *  enquanto o cliente não respondeu (numa OS com laudo), "Cancelado" some
+   *  em "Aguardando aprovação" (seria recusar) e voltar a OS recusada para a
+   *  análise também (seria desfazer a recusa). A regra inteira está em
+   *  lib/decisaoDoLaudo.ts — histórico: revisões de 20/08, 01/09 e 24/09. */
   podeAprovar: boolean;
+  /** Só quem pode abrir OS vê o atalho "Criar OS" da lista vazia — o técnico
+   *  não pode, e o atalho o levava para a tela de acesso negado. */
+  podeCriar?: boolean;
 }
 
-export function OSTableView({ orders, statuses, loading, onStatusChange, podeAprovar }: OSTableViewProps) {
+export function OSTableView({
+  orders,
+  statuses,
+  loading,
+  onStatusChange,
+  podeAprovar,
+  podeCriar = false,
+}: OSTableViewProps) {
   const navigate = useNavigate();
 
   const formatCurrency = (value: number) => {
@@ -112,10 +115,12 @@ export function OSTableView({ orders, statuses, loading, onStatusChange, podeApr
             <p className="text-muted-foreground">
               Cadastre sua primeira ordem de serviço
             </p>
-            <Button className="mt-4" onClick={() => navigate('/os/nova')}>
-              <Plus className="mr-2 h-4 w-4" />
-              Criar OS
-            </Button>
+            {podeCriar && (
+              <Button className="mt-4" onClick={() => navigate('/os/nova')}>
+                <Plus className="mr-2 h-4 w-4" />
+                Criar OS
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -145,39 +150,21 @@ export function OSTableView({ orders, statuses, loading, onStatusChange, podeApr
               const prioridadeConfig = OS_PRIORITY[order.prioridade];
               const atrasada = osAtrasada(order);
               const diasAtraso = diasDeAtraso(order);
-              const decisaoDeOrcamentoBloqueada =
-                order.status === OS_ETAPAS.AGUARDANDO_APROVACAO && !podeAprovar;
-              const opcoesDeStatus = statuses.filter((s) => {
-                if (!s.ativo) return false;
-                // "Aprovado" exige orders.approve sempre, não só saindo de
-                // aguardando_aprovacao — ver comentário de `podeAprovar` na
-                // interface acima.
-                // ...MAS só enquanto a aprovação ainda não aconteceu. Numa OS
-                // que o cliente JÁ aprovou, voltar para "Aprovado / Executar"
-                // não aprova nada — é retomar o trabalho depois do desvio de
-                // "Aguardando Peça". Sem esta segunda condição o técnico ficava
-                // preso lá: é ele quem põe a OS na espera da peça e não
-                // conseguia tirar. Mesma correção da ficha (TrocarEtapaOS), que
-                // em 01/09 ficou feita só lá — e uma trava consertada numa
-                // porta de três é uma trava não consertada.
-                if (
-                  s.key === OS_ETAPAS.APROVADO &&
-                  !podeAprovar &&
-                  order.laudo_aprovado !== true
-                ) {
-                  return false;
-                }
-                // "Cancelar" só é bloqueado nesta saída específica (recusar
-                // orçamento) — cancelar de outra etapa segue liberado, igual
-                // o banco permite.
-                if (s.key === OS_CANCELADO && decisaoDeOrcamentoBloqueada) return false;
-                // A resposta do cliente ao laudo tem porta própria (os botões
-                // da ficha, que registram motivo e taxa). Escolher "Aprovado"
-                // ou "Finalizado" aqui chegaria no mesmo lugar sem registro
-                // nenhum — ver lib/decisaoDoLaudo.ts.
-                if (passagemPedeDecisaoDoLaudo(order.status, s.key)) return false;
-                return true;
-              });
+              // O seletor oferece só o que esta pessoa pode fazer com esta OS.
+              // A regra é a mesma da ficha, do quadro e do banco, e mora em
+              // lib/decisaoDoLaudo.ts: aprovar e recusar orçamento, pular a
+              // resposta do cliente, desfazer a recusa, o serviço tabelado.
+              // Cancelado entra na lista quando a regra deixa.
+              const situacao = {
+                status: order.status,
+                laudoAprovado: order.laudo_aprovado,
+                laudoEletronico: order.laudo_eletronico,
+              };
+              const opcoesDeStatus = statuses.filter(
+                (s) =>
+                  s.ativo &&
+                  (s.key === order.status || !bloqueioDaPassagem(situacao, s.key, podeAprovar)),
+              );
               return (
                 <TableRow key={order.id} className={atrasada ? 'bg-red-500/5' : undefined}>
                   <TableCell>

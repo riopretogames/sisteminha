@@ -17,7 +17,7 @@ abrindo mão.
 
 ## O que já roda sozinho
 
-O sistema tem **382 testes automáticos** que rodam a cada mudança. Eles cobrem
+O sistema tem **1.120 testes automáticos** (105 arquivos, contados em 24/09/2026) que rodam a cada mudança. Eles cobrem
 as contas (faturamento, devolução, custo médio, ranking) e o comportamento das
 telas por perfil — inclusive o pior defeito que este sistema já teve, a tela de
 Estoque ficando branca para quem não vê custo.
@@ -34,12 +34,14 @@ número faz sentido com a realidade da sua loja).
 
 ## Antes de começar
 
-1. Abra o terminal na pasta do sisteminha e rode:
-   ```
-   npm run dev
-   ```
-2. Abra **http://localhost:8080** no navegador.
-3. Entre com o seu usuário de administrador.
+1. Abra **riopretogames.com.br/sisteminha** no navegador. É o jeito normal
+   desde 24/09: funciona no computador da loja e no celular, e é assim que a
+   equipe vai usar. (No computador de desenvolvimento dá também para rodar
+   `npm run dev` na pasta do sisteminha e abrir **http://localhost:8080**.)
+2. Entre com o seu usuário de administrador.
+3. Os **Blocos 20 a 23** são o roteiro de 24/09 (Tarefas, usuários novos, OS de
+   ponta a ponta e o resto da revisão). Comece por eles se o tempo for curto, e
+   pelo passo **21.1**: sem ele, os funcionários não conseguem entrar.
 
 **Tenha à mão:** papel e caneta — vários passos pedem para anotar um número
 antes e comparar depois.
@@ -98,8 +100,8 @@ não derrube os seguintes.
   *Por que importa: se o catálogo não gravar, cada edição apaga em silêncio o que alguém preencheu; e correção de contagem sem rastro é o jeito clássico de sumir mercadoria.*
 
 - [ ] **🔴 7. Estoque Crítico e reposição rápida**
-  **O que fazer:** Abra **Estoque > Estoque Crítico** e procure o `TESTE 21-08 Fone Bluetooth` (ficou com 3 de atual e 5 de mínimo). Clique em **Repor** na linha dele, troque a quantidade sugerida para `3` e clique em **Confirmar reposição**.
-  **Tem que acontecer:** Antes: aparece com Atual 3, Mínimo 5, Faltam 2 e triângulo amarelo de alerta; os quadrinhos do topo mostram "Produtos em alerta", "Zerados", "Peças faltando" e "Custo para repor tudo". Depois: aviso "Estoque reposto!" e o produto **sai da lista** (ficou com 6, acima do mínimo). Na ficha dele, um **Ajuste +3** em verde com motivo "Reposição de estoque".
+  **O que fazer:** Abra **Estoque > Estoque Crítico** e procure o `TESTE 21-08 Fone Bluetooth` (ficou com 3 de atual e 5 de mínimo). Clique em **Repor** na linha dele. Na janela **Nova entrada de mercadoria** que abre, escolha um **fornecedor** e clique em **Dar entrada**.
+  **Tem que acontecer:** Antes: aparece com Atual 3, Mínimo 5, Faltam 2 e triângulo amarelo de alerta; os quadrinhos do topo mostram "Produtos em alerta", "Zerados", "Peças faltando" e "Custo para repor tudo". O **Repor** abre a entrada **já preenchida**: o produto, a quantidade **2** (o que falta) e o custo atual. Depois de dar entrada: aviso **"Entrada registrada"**, o produto **sai da lista**, em Movimentações aparece a linha **"Entrada de mercadoria — <fornecedor>"** e em **Financeiro > Contas a Pagar** aparece um título **pago** com o valor da compra. Não aparece mais "Estoque reposto!" nem "Reposição de estoque" (revisão de 24/09: o Repor antigo mexia no estoque sem lançar a compra).
   *Por que importa: é essa lista que diz o que comprar; se ela mentir, a loja fica sem produto ou compra o que já tem.*
 
 - [ ] **🔴 8. Tirar um produto da venda (Apto à Venda desligado)**
@@ -123,7 +125,7 @@ não derrube os seguintes.
 
 - [ ] **🔴 11. Depois da primeira venda: o caixa abriu sozinho e a venda está no histórico** **[CORREÇÃO RECENTE]**
   **O que fazer:** Abra **Financeiro > Caixa**. Depois abra **Venda > Histórico de Vendas** e clique na primeira linha da lista.
-  **Tem que acontecer:** No Caixa, ele agora está **ABERTO sozinho**, com tarja amarela *"Este caixa foi aberto pelo sistema, não por uma pessoa"* explicando que abriu na primeira venda do dia. O quadro **Abertura** mostra R$ 0,00 com a observação "Automática — gaveta não contada", e em **Movimentos do expediente** existe uma linha verde "Venda VD-…" com o valor da venda. **Anote o "Saldo esperado".** No Histórico, a primeira linha traz o número, data/hora de agora, "Adriana Prado", seu nome como vendedor e etiqueta verde **pago**; clicando nela abre a janela "Venda V____" com o produto em *Produtos* e "Dinheiro" em *Pagamentos*.
+  **Tem que acontecer:** No Caixa, ele agora está **ABERTO sozinho**, com tarja amarela *"Este caixa foi aberto pelo sistema, não por uma pessoa"* explicando que abriu na primeira venda do dia. O quadro **Abertura** mostra R$ 0,00 com a observação "Automática — gaveta não contada", e em **Movimentos do expediente** existe uma linha verde "Venda VD-…" com o valor da venda (o cartão "Saldo esperado" diz **"No fechamento"** — o total só aparece depois de contar a gaveta, desde 24/09). No Histórico, a primeira linha traz o número, data/hora de agora, "Adriana Prado", seu nome como vendedor e etiqueta verde **pago**; clicando nela abre a janela "Venda V____" com o produto em *Produtos* e "Dinheiro" em *Pagamentos*.
   *Por que importa: antes, vender com o caixa fechado fazia o dinheiro sumir da conferência em silêncio — foram R$ 22 mil vendidos sem um único lançamento no caixa.*
 
 - [ ] **⚪ 12. Cliente bloqueado é recusado com aviso claro** **[CORREÇÃO RECENTE]**
@@ -142,8 +144,8 @@ não derrube os seguintes.
   *Por que importa: o atalho já apagou pagamento lançado à mão — a venda inteira ia registrada como cartão e o dinheiro da gaveta não batia no fim do dia.*
 
 - [ ] **🔴 15. Venda com desconto, paga em PIX — e o PIX não mexe na gaveta**
-  **O que fazer:** Coloque um produto no carrinho e anote o preço. No rodapé do carrinho, no campo **Desconto (R$)**, digite `100`. Finalize com **PIX Total** e **Confirmar Venda**. Depois olhe o valor no **Histórico de Vendas** e vá em **Financeiro > Caixa** olhar o "Saldo esperado" e a tabela **Resumo do dia por forma de pagamento**.
-  **Tem que acontecer:** Ao digitar o desconto, o carrinho mostra três linhas: **Subtotal** com o preço cheio, **Desconto** em vermelho ("-R$ 100,00") e **Total** já abatido. O "PIX Total" lança o valor **já com desconto**, e é esse valor que aparece no histórico. No Caixa, o **Saldo esperado NÃO mudou**; na tabela de baixo aparecem Dinheiro com etiqueta verde "Dinheiro físico" e PIX com o texto "Não entra".
+  **O que fazer:** Coloque um produto no carrinho e anote o preço. No rodapé do carrinho, no campo **Desconto (R$)**, digite `100`. Finalize com **PIX Total** e **Confirmar Venda**. Depois olhe o valor no **Histórico de Vendas** e vá em **Financeiro > Caixa** olhar os **Movimentos do expediente** e a tabela **Resumo por forma de pagamento**.
+  **Tem que acontecer:** Ao digitar o desconto, o carrinho mostra três linhas: **Subtotal** com o preço cheio, **Desconto** em vermelho ("-R$ 100,00") e **Total** já abatido. O "PIX Total" lança o valor **já com desconto**, e é esse valor que aparece no histórico. No Caixa, **nenhuma linha nova apareceu em Movimentos do expediente**; na tabela de baixo a linha Dinheiro tem a etiqueta verde "Dinheiro físico" e mostra **"Conferido no fechamento"** no lugar do valor, e o PIX aparece com o texto "Não entra".
   *Por que importa: desconto que não entra na conta cobra a mais do cliente; e PIX contado na gaveta faz todo fechamento acusar falta de dinheiro que nunca esteve lá.*
 
 - [ ] **⚪ 16. Não deixar vender mais do que tem — e achar produto pelos filtros**
@@ -167,8 +169,8 @@ não derrube os seguintes.
   *Por que importa: é o caminho mais comum do balcão; conta errada é dinheiro entregue a mais ou a menos na mão do cliente.*
 
 - [ ] **🔴 19. Depois da devolução: estoque, caixa e faturamento** **[CORREÇÃO RECENTE]**
-  **O que fazer:** Abra **Estoque > Produtos** e confira o Echo Dot contra o número que você anotou. Abra **Estoque > Movimentações** e olhe as linhas de hoje. Abra **Financeiro > Caixa** e olhe os movimentos e o Saldo esperado. Abra o **Dashboard de Vendas** e olhe o cartão "Vendas Hoje".
-  **Tem que acontecer:** O Echo Dot **voltou** ao número de antes da venda. Em Movimentações existem duas linhas dele: a da venda com etiqueta vermelha **Saída** e quantidade **-1 em VERMELHO** (nunca em verde com "+"), e a da devolução com etiqueta verde **Entrada**, **+1** em verde e motivo "Devolução de produto"; a coluna "Saldo depois" mostra o estoque cheio. No Caixa entrou uma linha **vermelha** "Devolução DV-… — cliente não gostou", valor **-R$ 349,00**, e o **Saldo esperado voltou** ao de antes da venda. No Dashboard, "Vendas Hoje" desconsidera essa venda. Em Histórico de Vendas a venda **continua** na lista (ela existiu de verdade) — o que não pode existir é o dinheiro dela na gaveta.
+  **O que fazer:** Abra **Estoque > Produtos** e confira o Echo Dot contra o número que você anotou. Abra **Estoque > Movimentações** e olhe as linhas de hoje. Abra **Financeiro > Caixa** e olhe os movimentos. Abra o **Dashboard de Vendas** e olhe o cartão "Vendas Hoje".
+  **Tem que acontecer:** O Echo Dot **voltou** ao número de antes da venda. Em Movimentações existem duas linhas dele: a da venda com etiqueta vermelha **Saída** e quantidade **-1 em VERMELHO** (nunca em verde com "+"), e a da devolução com etiqueta verde **Entrada**, **+1** em verde e motivo "Devolução de produto"; a coluna "Saldo depois" mostra o estoque cheio. No Caixa entrou uma linha **vermelha** "Devolução DV-… — cliente não gostou", valor **-R$ 349,00**, que anula a linha verde da venda. No Dashboard, "Vendas Hoje" desconsidera essa venda. Em Histórico de Vendas a venda **continua** na lista (ela existiu de verdade) — o que não pode existir é o dinheiro dela na gaveta.
   *Por que importa: produto devolvido que não volta ao estoque some da prateleira digital; e dinheiro que saiu da gaveta e continua contado como faturamento faz o painel mentir.*
 
 - [ ] **⚪ 20. Não deixa devolver a mesma coisa duas vezes**
@@ -178,7 +180,7 @@ não derrube os seguintes.
 
 - [ ] **🔴 21. Troca por produto MAIS BARATO: a loja devolve a diferença** **[CORREÇÃO RECENTE]**
   **O que fazer:** Anote antes o estoque do **Headset HyperX Cloud II** e do **Teclado Mecanico RGB**. Em **Venda > Troca / Devolução**, busque `Elaine` e clique na venda dela (a que mostra o headset no quadro 2). Digite `1` em **Devolver**. No quadro **3. Vai levar produto novo no lugar?**, busque `Teclado` e clique no **Teclado Mecanico RGB**. No quadro 4 escolha **Dinheiro** e **Confirmar devolução**. Depois confira Estoque > Produtos, Estoque > Movimentações e Financeiro > Caixa.
-  **Tem que acontecer:** No quadro 4: "Valor devolvido (itens que voltam) R$ 549,00", "Valor dos itens novos -R$ 279,90" e, em verde e negrito, **"Devolver ao cliente R$ 269,10"**. Depois: o headset **subiu 1** e o teclado **desceu 1**; em Movimentações o headset aparece como **Entrada +1** (motivo "Devolução de produto") e o teclado como **Saída -1 em VERMELHO** (nunca em verde com "+"); no Caixa entrou linha vermelha "Devolução DV-…" de **-R$ 269,10** e o Saldo esperado caiu exatamente isso.
+  **Tem que acontecer:** No quadro 4: "Valor devolvido (itens que voltam) R$ 549,00", "Valor dos itens novos -R$ 279,90" e, em verde e negrito, **"Devolver ao cliente R$ 269,10"**. Depois: o headset **subiu 1** e o teclado **desceu 1**; em Movimentações o headset aparece como **Entrada +1** (motivo "Devolução de produto") e o teclado como **Saída -1 em VERMELHO** (nunca em verde com "+"); no Caixa entrou linha vermelha "Devolução DV-…" de **-R$ 269,10**.
   *Por que importa: o teclado saiu da loja de verdade — se aparecer como entrada, o estoque conta a história ao contrário e ninguém confia mais na tela.*
 
 - [ ] **🔴 22. Troca por produto MAIS CARO: o cliente paga a diferença** **[CORREÇÃO RECENTE]**
@@ -238,13 +240,13 @@ não derrube os seguintes.
 ## Bloco 7 — Fechar o caixa no fim do dia
 
 - [ ] **⚪ 31. Sangria e suprimento (e movimento sem descrição não grava)**
-  **O que fazer:** Em **Financeiro > Caixa**, anote o **Saldo esperado**. Clique em **Lançar movimento**, deixe o tipo **Sangria**, descrição `Retirada para depósito`, valor `100,00`, **Lançar**. De novo em Lançar movimento, tipo **Suprimento**, descrição `Troco trazido do cofre`, valor `50,00`, **Lançar**. Uma terceira vez, deixe a **descrição em branco** de propósito e clique em **Lançar**.
-  **Tem que acontecer:** A sangria aparece com seta vermelha para cima e valor em vermelho com sinal de menos (−R$ 100,00), e o Saldo esperado **cai exatamente R$ 100,00**. O suprimento entra em verde com seta para baixo e o saldo **sobe R$ 50,00**. O contador "Movimentos" sobe a cada lançamento. A tentativa sem descrição **não grava nada**: aviso vermelho pedindo para preencher, e a janela continua aberta.
+  **O que fazer:** Em **Financeiro > Caixa**, clique em **Lançar movimento**, deixe o tipo **Sangria**, descrição `Retirada para depósito`, valor `100,00`, **Lançar**. De novo em Lançar movimento, tipo **Suprimento**, descrição `Troco trazido do cofre`, valor `50,00`, **Lançar**. Uma terceira vez, deixe a **descrição em branco** de propósito e clique em **Lançar**.
+  **Tem que acontecer:** A sangria aparece com seta vermelha para cima e valor em vermelho com sinal de menos (**−R$ 100,00**). O suprimento entra em verde com seta para baixo (**+R$ 50,00**). O contador "Movimentos" sobe a cada lançamento. A tentativa sem descrição **não grava nada**: aviso vermelho pedindo para preencher, e a janela continua aberta.
   *Por que importa: sangria com sinal trocado infla o caixa; movimento sem descrição vira linha órfã que ninguém explica no fechamento.*
 
 - [ ] **⚪ 32. Fechamento às cegas — e a diferença acusada**
-  **O que fazer:** **Anote no papel** o valor que está em "Saldo esperado". Clique em **Fechar caixa** e **leia a janela inteira antes de digitar**. Depois digite um valor **R$ 20 MAIOR** que o esperado anotado (ex.: esperado 1.234,00 → digite 1.254,00), escreva em Observações `teste de sobra` e clique em **Conferir e fechar**.
-  **Tem que acontecer:** A janela pergunta "Quanto tem na gaveta agora?" e **em nenhum lugar aparece o valor que o sistema calculou** — só o aviso de que o esperado é mostrado depois; o botão "Conferir e fechar" fica desabilitado enquanto o campo estiver vazio. Depois de confirmar: aviso **"Caixa fechado"** e **"Sobrou R$ 20,00 na gaveta"**, em vermelho. A tela volta sozinha para o cartão **Abrir caixa**.
+  **O que fazer:** O cartão "Saldo esperado" mostra **"No fechamento"** (o sistema não entrega a conta antes da contagem). Some à mão a **Abertura** com os **Movimentos do expediente** e anote no papel. Clique em **Fechar caixa** e **leia a janela inteira antes de digitar**. Depois digite um valor **R$ 20 MAIOR** que a sua soma (ex.: soma 1.234,00 → digite 1.254,00), escreva em Observações `teste de sobra` e clique em **Conferir e fechar**.
+  **Tem que acontecer:** A janela pergunta "Quanto tem na gaveta agora?" e **em nenhum lugar aparece o valor que o sistema calculou** — só o aviso de que o esperado é mostrado depois; o botão "Conferir e fechar" fica desabilitado enquanto o campo estiver vazio. Depois de confirmar: aviso **"Caixa fechado"** com o esperado e o contado, e **"Sobrou R$ 20,00 na gaveta"**. A tela volta sozinha para o cartão **Abrir caixa**, e embaixo, em **Fechamentos anteriores**, aparece a linha deste fechamento com esperado, contado, **"Sobrou R$ 20,00"** e a observação `teste de sobra`.
   *Por que importa: se o esperado aparece antes, ninguém conta a gaveta — só copia o número, e qualquer erro de troco ou furto passa batido para sempre.*
 
 - [ ] **🔴 33. Abrir o caixa na mão, com valor na casa dos milhares** **[CORREÇÃO RECENTE]**
@@ -732,13 +734,416 @@ que é onde você foi procurar.
 
 ---
 
+## Bloco 20 — Tarefas da equipe: o Trello e o Monday dentro do sistema (23 e 24/09)
+
+O módulo que substitui o Trello e o Monday. A máquina testou as contas e as
+telas, mas **ninguém usou logado ainda** — e só a equipe diz se ele serve no
+dia a dia. Faça junto com um funcionário.
+
+**Antes de começar os blocos 20 a 23:**
+
+- A atualização do banco de 24/09 tem que estar no ar (as migrations
+  `20260924161000` a `20260924167000` e a função `admin-usuarios` publicada —
+  ver o PLANO-DE-ACAO, seção "Revisão completa de 24/09/2026"). Sem ela, a tela
+  já mostra as regras novas, mas o banco ainda não as confere.
+- Faça primeiro o passo **21.1** (senha dos funcionários). Este bloco usa a
+  conta do **Gabriel** (vendedor), do **Thiago** (técnico), do **Leo** (gerente
+  técnico) e do **Richard** (gerente). Sem a pessoa por perto, use **Entrar
+  como** (passo 21.3) ou **Copiar link** numa janela anônima (passo 21.4).
+- Dê nome começando com `TESTE` a tudo o que criar para testar (tarefa,
+  cliente, OS). Fica fácil achar e arquivar depois.
+- O quadro **RIO PRETO GAMES - LOJA** já existe (você criou em 24/09). Os
+  passos usam ele: não crie outro "Loja".
+
+- [ ] **🔴 20.1 Ligar cada coluna à pessoa certa**
+  **O que fazer:** Menu **Tarefas > Quadros**, abra **RIO PRETO GAMES - LOJA**. Na coluna **Gabriel**, clique nos três pontinhos do cabeçalho > **Responsável da coluna** > **Gabriel do Valle**. Faça o mesmo na coluna **Felipe** (Felipe Bottaro); a do Richard já está ligada. Depois clique em **Adicionar tarefa** no pé da coluna do Gabriel, escreva `TESTE coluna do Gabriel`, aperte **Enter** e abra o cartão criado.
+  **Tem que acontecer:** A lista de pessoas traz **todos os cadastrados**, até quem ainda não tem tarefa. Escolhida a pessoa, a bolinha com a inicial dela aparece no cabeçalho da coluna. A tarefa nova já nasce com o **Gabriel em Pessoas**.
+  *Por que importa: é o responsável da coluna que leva as tarefas dela para "Minhas Tarefas" da pessoa. O nome escrito na coluna é só um nome — o sistema não adivinha que "Gabriel" é o Gabriel do Valle.*
+  > 🔎 **A coluna Pedro não tem a quem ligar:** não existe conta do Pedro no sistema. Se ele é da equipe, cadastre em **Cadastros > Usuários** e volte aqui; se não é, deixe como coluna de apoio.
+
+- [ ] **🔴 20.2 Criar o quadro da Assistência pelo modelo, com o nome das pessoas nas colunas**
+  **O que fazer:** Em **Tarefas > Quadros**, clique em **Criar quadro**. Clique no modelo **Loja** só para ver as colunas dele e depois em **Trocar de modelo**. Escolha **Assistência**. Troque os nomes das colunas pelos das pessoas: "Técnico" vira `Thiago`, "Gerente técnico" vira `Leo`. Use **Adicionar coluna** para `Pablo`, `Deivid` e `Henzo`. Apague o nome de uma coluna de propósito e olhe o botão. Escreva de novo e clique em **Criar quadro**. No quadro que abre, ligue cada coluna à pessoa, como no passo 20.1.
+  **Tem que acontecer:** O modelo Loja mostra Vendedor sênior, Vendedor júnior, Gerente, Dono e Anúncios OLX. O cartão da Assistência diz **6 colunas · 22 tarefas**. Com um nome em branco, o **Criar quadro fica apagado** e aparece o aviso amarelo "Dê um nome para cada coluna". Depois de criar, o quadro abre sozinho, com os nomes que você escreveu e as tarefas do Trello da assistência (ex.: "Preencher a ficha de serviço diária" na coluna do Leo). As colunas novas (Pablo, Deivid, Henzo) nascem vazias. Em **Quadros**, o cartão novo mostra quantas colunas e tarefas ele tem.
+  *Por que importa: é o jeito de a equipe trocar de ferramenta sem redigitar nada. E dois quadros iguais dividiriam a equipe — por isso só a Assistência é criada.*
+
+- [ ] **🔴 20.3 Arrastar cartões e colunas**
+  **O que fazer:** No quadro da loja, com o chip **Todas** ligado (visão Kanban), arraste um cartão para outra coluna. Arraste outro para cima de um vizinho, na mesma coluna. Pegue uma coluna pela alça à esquerda do nome e mude de lugar. Aperte **F5**. Por fim, dê dois cliques no nome de uma coluna.
+  **Tem que acontecer:** Cada cartão fica onde você soltou, na hora, e **continua lá depois do F5** — a ordem dentro da coluna e a ordem das colunas também. Os dois cliques no nome abrem a caixa para renomear.
+  *Por que importa: é o gesto do Trello que a equipe já sabe fazer. Se o cartão voltar para o lugar antigo depois do F5, ninguém confia no quadro.*
+  > 🔎 **No celular não arrasta** (o dedo rola a tela). Lá a tarefa muda de coluna pelo campo **Coluna** da ficha. É conhecido e está no plano.
+
+- [ ] **🔴 20.4 A bolinha de feito manda a tarefa para a Conferência**
+  **O que fazer:** Ainda em **Todas**, ache uma tarefa que é de hoje (ex.: uma de "Todos os dias"). Clique na **bolinha** do cartão e leia o aviso que aparece no canto. Clique em **Desfazer**. Marque de novo e olhe o botão **Conferência**, ao lado de Kanban e Tabela.
+  **Tem que acontecer:** Ao marcar, sai o aviso **"Enviada para a conferência"** e o cartão **some do quadro**. O **Desfazer** traz o cartão de volta, sem o feito. Marcando de novo, o botão **Conferência** ganha uma bolinha laranja com o número de tarefas esperando.
+  *Por que importa: é o pedido de 24/09 — o que foi feito vai para o gerente conferir, em vez de ficar misturado com o que falta.*
+
+- [ ] **🔴 20.5 A bolinha trava em dia que não é da tarefa**
+  **O que fazer:** Ache uma tarefa cuja frequência **não inclui hoje** (ex.: hoje é quinta e a tarefa é Seg, Qua e Sex). Pare o mouse em cima da bolinha dela. Abra a ficha e olhe o botão de feito e o campo **Status**. Feche, clique no chip de **outro dia** (ex.: **Seg**) e olhe as bolinhas. Volte para **Hoje**.
+  **Tem que acontecer:** A bolinha fica **cinza e travada**, e o mouse em cima mostra *"Hoje não é dia desta tarefa (…). O feito só se marca no dia dela."* Na ficha, o botão diz **"Hoje não é dia desta tarefa"** e a opção **Feito** do Status fica apagada. No chip de outro dia aparece uma **faixa azul** ("Mostrando as tarefas de segunda-feira… o feito só se marca no próprio dia") e as bolinhas das tarefas que se repetem travam. No chip **Hoje**, liberam.
+  *Por que importa: marcar "feito" num dia que não era da tarefa gravava o feito de hoje no lugar errado — e a conferência do gerente virava ficção.*
+
+- [ ] **🔴 20.6 "Todas" é o Kanban; "Hoje" e os dias viram a Tabela por pessoa**
+  **O que fazer:** Com **Todas** ligado, confira que está no **Kanban**. Clique em **Hoje**. Depois em **Ter**. Volte para **Todas**. Agora clique em **Hoje**, vá para **Minhas Tarefas** pelo menu e volte ao quadro. Por último, procure o chip de domingo.
+  **Tem que acontecer:** Em **Hoje** (e em Ter), a tela troca **sozinha para a Tabela**, com um bloco de linhas por coluna — ou seja, uma por pessoa, como no Monday. Voltando para **Todas**, volta o **Kanban**. Saindo e voltando, o quadro abre em **Todas, no Kanban**. **Não existe chip de domingo** (a tarefa de domingo continua aparecendo em Todas).
+  *Por que importa: são duas telas para duas pessoas — o Kanban para quem gerencia, a Tabela do dia para quem opera. Até 24/09 a troca automática ficava gravada e o quadro nunca mais abria no Kanban.*
+
+- [ ] **⚪ 20.7 Mexer pela Tabela**
+  **O que fazer:** Com **Hoje** ligado (Tabela), clique na célula de **Prioridade** de uma tarefa e escolha **Urgente**. Clique na célula de **Status** e escolha **Fazendo**. Use a linha **+ Adicionar tarefa** no fim de um bloco para criar `TESTE pela tabela`. Clique nas pílulas coloridas do resumo, acima da tabela.
+  **Tem que acontecer:** As células mudam de cor na hora e continuam assim depois do F5. A tarefa nova entra no bloco certo. Clicar numa pílula do resumo (ex.: **Fazendo**) mostra só aquelas; clicar de novo mostra todas.
+  *Por que importa: é a tela que o funcionário vai usar no lugar do Monday. Se a célula não grava, ele volta para a planilha.*
+
+- [ ] **⚪ 20.8 Os filtros do quadro**
+  **O que fazer:** Em **Todas**, digite parte do nome de uma tarefa em **Buscar tarefa...**. Limpe. Escolha uma pessoa em **Todas as pessoas**; depois uma prioridade, um status e uma etiqueta. Com um filtro ligado, crie uma tarefa numa coluna que ficou vazia pelo filtro.
+  **Tem que acontecer:** O quadro vai encurtando a cada filtro. A lista de pessoas traz **todos os cadastrados**, não só quem já tem tarefa. Coluna que o filtro esvaziou diz **"Nenhuma tarefa com esse filtro"**, com o link **Limpar filtros**. A tarefa criada com filtro ligado não some calada: aparece o aviso **"Tarefa criada, mas o filtro está escondendo ela"**, com o botão Limpar filtros.
+  *Por que importa: sem o aviso, a tarefa some da tela e a pessoa digita de novo — nascem duas iguais.*
+
+- [ ] **🔴 20.9 A ficha da tarefa: tudo o que dá para preencher**
+  **O que fazer:** Abra a `TESTE coluna do Gabriel`. Em **Frequência**, marque **Seg** e **Qua** (depois clique em **Todos os dias** e em **Limpar**, e marque de novo Seg e Qua). Escolha um **Horário** da lista e depois **Outro horário...** com `11:15`. Escolha um **Período**. Em **Pessoas**, ponha mais alguém. Em **Etiquetas**, escolha **Rotina**. Escreva uma **Descrição**. No **Checklist**, adicione três itens e marque um. Escreva um **comentário** e clique em **Comentar**. Feche a ficha e aperte **F5**.
+  **Tem que acontecer:** Tudo grava **na hora, sem botão de salvar** (a ficha diz isso no rodapé). Com os dias limpos, aparece "Nenhum dia marcado: tarefa avulsa, feita uma vez só" e surge o campo **Prazo**; com dias marcados, o Prazo some. O cartão no quadro mostra os chips dos dias, o horário, **1/3** do checklist, o ícone de comentário e as bolinhas das pessoas. Depois do F5, reabrindo, **está tudo lá**.
+  *Por que importa: é a ficha que substitui o cartão do Trello e a linha do Monday. Campo que não grava é trabalho perdido que ninguém percebe na hora.*
+
+- [ ] **🔴 20.10 Anexar foto e PDF na tarefa**
+  **O que fazer:** Na mesma ficha, em **Anexos**, clique em **Anexar arquivo** e escolha uma **foto**. Depois arraste um **PDF** para a área dos anexos. Clique em **Abrir** no PDF. Remova a foto. Se tiver à mão, tente um arquivo **maior que 20 MB** (um vídeo longo serve). Repita a foto pelo **celular**, tirando na hora.
+  **Tem que acontecer:** A foto aparece como **miniatura**; o PDF, como ícone com nome e tamanho. **Abrir** mostra o arquivo numa aba nova. Remover pede confirmação ("Remover este anexo?"). O arquivo grande é recusado com *"Arquivo grande demais: o limite é 20 MB"*. O cartão no quadro mostra o clipe com a quantidade de anexos.
+  *Por que importa: foi um dos três pedidos de 24/09 ("tem que anexar arquivos") — a prova do serviço feito mora aqui.*
+
+- [ ] **⚪ 20.11 Arquivar tarefa e coluna, com Desfazer**
+  **O que fazer:** Na ficha da `TESTE pela tabela`, clique em **Arquivar tarefa** e confirme. Clique em **Desfazer** no aviso. Arquive de novo e deixe passar. Anote o número de tarefas do cartão do quadro em **Quadros**. Volte ao quadro, crie uma coluna `TESTE coluna` (botão **Adicionar coluna**) com uma tarefa dentro e arquive a coluna (três pontinhos > **Arquivar coluna**). Volte em **Quadros**.
+  **Tem que acontecer:** O **Desfazer** traz a tarefa de volta para o mesmo lugar. Deixando passar, ela some do quadro e de Minhas Tarefas. Arquivando a coluna, **a contagem do cartão do quadro cai junto** (a tarefa da coluna arquivada não conta mais).
+  *Por que importa: arquivar por engano acontece; sem o Desfazer, a tarefa só volta pedindo para mim. E a contagem do cartão contava coluna arquivada até 24/09.*
+  > 🔎 **Ainda não existe tela de arquivados.** Passado o Desfazer, trazer de volta é comigo.
+
+- [ ] **🔴 20.12 Minhas Tarefas no celular do funcionário, com a conta dele**
+  **O que fazer:** No celular do **Gabriel**, abra **riopretogames.com.br/sisteminha** e entre com o e-mail e a senha dele (passo 21.1). Abra **Tarefas > Minhas Tarefas**. Toque na bolinha de uma tarefa de hoje. Toque no nome de outra tarefa.
+  **Tem que acontecer:** Aparece **"Bom dia, Gabriel."** (ou boa tarde/noite), com *"Você tem N tarefas hoje"* e a barra de quanto já foi feito. As tarefas são as da coluna dele (e as em que ele está em Pessoas), **separadas por período** do dia. A tarefa marcada **continua na lista**, com o selo **"Na conferência"**. Tocar no nome abre a ficha no quadro. Dá para ler e tocar em tudo **sem dar zoom**.
+  *Por que importa: é por esta tela que a equipe vai usar o sistema todo dia — o quadro inteiro é para quem gerencia. Se no celular não dá, a equipe não usa.*
+  > 🔎 **Atenção ao menu lateral:** na revisão de 24/09 o menu da esquerda não se escondia em tela pequena e ocupava boa parte do celular. Se as tarefas aparecerem espremidas num canto, anote com print — é defeito de tela, não do módulo.
+
+- [ ] **🔴 20.13 A Conferência completa: funcionário marca, gerente confere ou devolve**
+  **O que fazer:** Com o **Gabriel** marcando pelo celular (passo anterior), abra no computador o quadro da loja. Espere até 30 segundos (ou clique fora e volte para a aba). Entre como **Richard** (gerente) e abra **Tarefas > Conferência**. Numa tarefa do Gabriel, clique em **Conferido**. Peça ao Gabriel para marcar outra, e nessa clique em **Devolver** > **Devolver tarefa**. Olhe o quadro e o celular do Gabriel depois de cada clique.
+  **Tem que acontecer:** A tarefa marcada **sai do quadro** e aparece na Conferência com *"Gabriel do Valle marcou às HH:MM"*, a coluna e os dias. **Conferido**: ela volta ao quadro como feita, com o selo **"Conferida"**, e no celular do Gabriel aparece *"conferida pelo gerente"*. **Devolver**: a janela pergunta *"Devolver para Gabriel…?"*, e a tarefa volta **pendente** no quadro e em Minhas Tarefas.
+  *Por que importa: é o pedido de 24/09 — "meu gerente vai lá e vai conferir o que foi feito". Se o Devolver não devolve, a tarefa fica como feita sem ter sido.*
+
+- [ ] **🔴 20.14 Devolver o feito antigo de 24/09 (dado real)**
+  **O que fazer:** Como **Richard** (ou você), abra **Tarefas > Conferência** e procure *"4 anúncios na OLX e no Facebook (olha a bio)"*, da coluna **Pedro**, marcado em 24/09. Clique em **Devolver** > **Devolver tarefa**.
+  **Tem que acontecer:** Antes do clique, ele aparece no grupo do dia em que foi marcado ("Hoje", se ainda for 24/09; de 25/09 em diante, com a etiqueta **"Ficou sem conferir"**). Depois do Devolver, ele sai da lista.
+  *Por que importa: esse feito foi gravado numa quinta, numa tarefa de segunda, quarta e sexta — antes da trava do passo 20.5 existir. É o único feito gravado errado, e só o gerente desfaz.*
+
+- [ ] **🔴 20.15 O banco confere o feito e a conferência**
+  **O que fazer:** Marque e desmarque o feito de hoje de uma tarefa. Como **Richard**, aprove e devolva um feito na **Conferência**. Como **Gabriel**, abra na Conferência do quadro um feito de outra pessoa marcado **ontem** e procure como desmarcar.
+  **Tem que acontecer:** Marcar e desmarcar hoje funciona. O gerente aprova e devolve normalmente. O Gabriel **não tem como** mexer no feito de ontem de outra pessoa — nem aprovar, nem devolver.
+  *Por que importa: antes, qualquer um conseguia, por fora da tela, criar um feito "já conferido" ou apagar o de ontem. Agora é o banco que recusa, não só a tela que esconde.*
+
+- [ ] **🔴 20.16 Tarefa avulsa com prazo vencido fica atrasada**
+  **O que fazer:** Crie `TESTE avulsa atrasada` na coluna do Gabriel (sem dias marcados). Na ficha, em **Prazo**, escolha **ontem**. Olhe o cartão no Kanban, a linha na Tabela (chip **Hoje**) e o celular do Gabriel. Depois marque a bolinha dela.
+  **Tem que acontecer:** O cartão mostra **"Venceu dd/mm"** em vermelho e a ficha diz *"O prazo era …"*. Na Tabela, o status aparece como **Atrasada**, em vermelho. Em Minhas Tarefas, *"Venceu em dd/mm"*. Marcada, ela vai para a **Conferência** como qualquer outra, com *"Responsável: Gabriel do Valle · concluída às …"*.
+  *Por que importa: tarefa avulsa é a pendência que ninguém quer fazer — se o atraso não grita, ela fica para sempre.*
+
+- [ ] **🔴 20.17 A rotina zera sozinha no dia seguinte (teste em dois dias)**
+  **O que fazer:** **Dia 1:** o Gabriel marca duas tarefas de "Todos os dias". O Richard confere **uma** e deixa a outra sem conferir. **Dia 2:** abra o celular do Gabriel em **Minhas Tarefas** e, no computador, **Tarefas > Conferência**.
+  **Tem que acontecer:** No dia 2, as duas tarefas aparecem **pendentes de novo**, sem ninguém ter zerado nada. A que ficou sem conferir continua na Conferência, no grupo **"Ontem"**, com a etiqueta **"Ficou sem conferir"** — e continua dando para conferir ou devolver.
+  *Por que importa: é o motivo de o módulo existir — no Monday, alguém zerava o status à mão todo dia. E o que não foi conferido não pode sumir na virada do dia.*
+
+- [ ] **⚪ 20.18 Listas do Sistema › Tarefas da equipe**
+  **O que fazer:** Abra **Cadastros > Listas do Sistema**, aba **Tarefas da equipe**. Em **Horários**, cadastre `11:30`. Em **Etiquetas de tarefa**, cadastre `TESTE etiqueta`. Em **Períodos do dia**, cadastre `TESTE noite (19 às 21)`. Abra a ficha de uma tarefa e procure os três. Ponha o período novo nessa tarefa. Volte e **desligue** o período novo. Reabra a ficha.
+  **Tem que acontecer:** Os três aparecem na ficha **sem recarregar nada** (a etiqueta, também no filtro do quadro). Desligado, o período **continua na tarefa que já usava**, marcado *"(desativado)"*, mas não aparece mais para escolher nas outras.
+  *Por que importa: é a regra das listas editáveis — a loja muda os turnos dela sem programador, e desligar um turno não apaga em silêncio o que já estava escolhido.*
+
+- [ ] **🔴 20.19 Quem não edita o quadro só marca o andamento**
+  **O que fazer:** Em **Cadastros > Usuários > Gerenciar** do **Gabriel**, no grupo **Tarefas**, **desmarque** "Criar, editar, mover e arquivar tarefas e listas". Entre como Gabriel e abra o quadro da loja. Tente arrastar um cartão e procure o **Adicionar tarefa**. Abra uma tarefa **da coluna dele**: mude o **Status** para **Fazendo**, marque um item do checklist, anexe uma foto e tente mudar a prioridade. Abra uma tarefa **de outra coluna**. No fim, volte como você e **marque de novo** a caixinha do Gabriel.
+  **Tem que acontecer:** Sem a permissão, **não aparece** "Adicionar tarefa" e o cartão não arrasta. Na tarefa dele, a ficha diz *"Esta tarefa é sua: você marca o andamento e o checklist"*; Status, checklist, bolinha e anexo funcionam, e **o resto fica cinza**. Na tarefa de outra coluna: *"Você está só vendo esta tarefa"*, e a bolinha avisa que só quem edita o quadro ou é responsável pode marcar. Marcando de novo a caixinha, **não sobra exceção** na ficha do Gabriel.
+  *Por que importa: é o desenho para quando você quiser que só o gerente organize o quadro. A trava vale no banco, não só na tela — ninguém muda a tarefa dos outros por fora.*
+
+- [ ] **🔴 20.20 O técnico não vê a Conferência**
+  **O que fazer:** Entre como **Thiago** (técnico). Olhe o menu **Tarefas**. Abra o quadro da **Assistência** e clique no botão **Conferência** do quadro. Procure o **Criar quadro** em Quadros. Depois entre como **Leo** (gerente técnico) e abra a mesma Conferência.
+  **Tem que acontecer:** No menu do Thiago aparecem **Minhas Tarefas** e **Quadros**, **sem Conferência**. Dentro do quadro ele vê a lista, mas com o cadeado *"Só quem confere tarefas pode aprovar ou devolver"* e **sem os botões**. Não existe **Criar quadro** para ele. O **Leo** vê os botões **Conferido** e **Devolver**.
+  *Por que importa: conferir é função de gerente. Se o técnico conferir a própria tarefa, a conferência não confere nada.*
+
+- [ ] **🔴 20.21 Duas pessoas no mesmo computador: a lista de uma não aparece para a outra**
+  **O que fazer:** No computador do balcão, entre como **Gabriel** e abra **Minhas Tarefas**. Saia pelo **Sair** do menu. Na mesma aba, entre como **Thiago** e abra **Minhas Tarefas**. Olhe bem os primeiros segundos.
+  **Tem que acontecer:** As tarefas do Gabriel **não aparecem nem por um instante** para o Thiago. A saudação já vem com o nome do Thiago e as tarefas dele.
+  *Por que importa: no balcão várias pessoas usam a mesma aba. Até 24/09, a bolinha tocada nesse instante marcava a tarefa do Gabriel no nome do Thiago.*
+
+---
+
+## Bloco 21 — Usuários novos, senhas e Entrar como (24/09)
+
+Em 24/09 entraram seis contas novas e o botão **Entrar como**, que deixa você
+ver o sistema do jeito que cada funcionário vê, sem saber a senha dele. O
+passo 21.1 vem antes de tudo: sem ele, os funcionários não entram.
+
+- [ ] **🔴 21.1 Definir a senha dos seis funcionários novos**
+  **O que fazer:** Abra **Cadastros > Usuários**. Para cada um — **Gabriel do Valle, Leo Gonçalves, Thiago Nadotti, Pablo Lombardi, Deivid Vinicius e Henzo Caverzan** — clique em **Gerenciar**. No bloco **Senha de acesso**, clique em **Trocar**, depois em **Sortear** (ou digite uma senha de pelo menos 8 letras e números), confira pelo olhinho e clique em **Salvar senha**. Anote no papel e entregue na mão de cada um. Olhe também o perfil de cada um na lista.
+  **Tem que acontecer:** Aviso verde **"Senha trocada"** em cada um. Os perfis: Gabriel **Vendedor**; Leo **Gerente Técnico**; Thiago, Pablo, Deivid e Henzo **Técnico**. Ninguém aparece "Sem perfil".
+  *Por que importa: as contas foram criadas em 24/09 sem uma senha que alguém saiba — ninguém entra até você definir. E o sistema não mostra a senha depois de salva: quem esquecer, você troca de novo aqui.*
+
+- [ ] **🔴 21.2 Um funcionário entra pelo celular, com a conta dele**
+  **O que fazer:** No celular do **Thiago**, abra **riopretogames.com.br/sisteminha**, digite o **E-mail** e a **Senha** dele e toque em **Entrar**. Olhe a tela inicial (**Home**) e o menu. Depois toque em **Sair**, no pé do menu.
+  **Tem que acontecer:** Ele entra. O menu mostra só o que um técnico usa (Ordem de Serviço e Tarefas, por exemplo) — **sem Venda, sem Financeiro, sem Cadastros > Usuários**. Na Home aparece o cartão **"OS Abertas"**. Depois de Sair, volta para a tela de entrada.
+  *Por que importa: é o primeiro contato da equipe com o sistema. E perfil errado mostra o que a pessoa não deveria ver — o caixa, por exemplo.*
+  > 🔎 **Se o menu lateral ocupar metade da tela do celular**, anote com print: na revisão de 24/09 ele não se escondia em tela pequena.
+
+- [ ] **🔴 21.3 Entrar como Richard: a faixa amarela, em todas as abas, e a volta**
+  **O que fazer:** Como você, abra **duas abas** do sistema. Na aba A, vá em **Cadastros > Usuários > Gerenciar** do Richard, clique em **Entrar como** e confirme em **Entrar como Richard**. Olhe a aba B sem recarregar. Feche o navegador e abra **riopretogames.com.br/sisteminha** de novo. Na faixa, clique em **Sair e voltar para a minha conta** e entre com a sua senha. Depois repita tudo, mas saia pelo **Sair** do menu lateral.
+  **Tem que acontecer:** A aba B mostra a **faixa amarela sozinha**: *"Você está vendo o sistema como Richard Sanches"*. Reabrindo o navegador, continua como Richard, **com a faixa**. Depois de "Sair e voltar", a sua conta volta **sem faixa** — e o Richard **não foi deslogado** no computador e no celular dele. Saindo pelo menu, também não sobra faixa.
+  *Por que importa: sem a faixa, você esquece que está na conta de outra pessoa e faz venda ou marca tarefa no nome dela.*
+
+- [ ] **⚪ 21.4 Copiar link: entrar como alguém numa janela anônima**
+  **O que fazer:** Em **Gerenciar** do Richard, clique em **Copiar link**. (a) Abra uma **janela anônima** (Ctrl + Shift + N) e cole o link. (b) Cole o mesmo tipo de link (gere outro) numa **janela normal**, onde você já está logado.
+  **Tem que acontecer:** (a) Entra como Richard, com a faixa amarela e o botão **Sair desta conta** — e a sua conta, na janela normal, continua sua. (b) Aparece **"Já tem uma conta aberta neste navegador"** e a sua conta **não é trocada**.
+  *Por que importa: é o jeito de testar a tela do funcionário sem sair da sua conta. Até 24/09, o link colado na janela normal trocava a sua conta em silêncio.*
+
+- [ ] **⚪ 21.5 Os Logs contam quem entrou como quem**
+  **O que fazer:** Depois dos passos 21.3 e 21.4, abra **Configurações > Logs / Auditoria** e olhe as primeiras linhas.
+  **Tem que acontecer:** Existe uma linha **"Entrou como"** (do 21.3) e outra **"Gerou link de acesso"** (do 21.4, não "Entrou como"), as duas com **o seu nome** na coluna Quem e o Richard como alvo.
+  *Por que importa: entrar na conta de outra pessoa é poder grande. Tem que ficar escrito quem fez, e o quê: gerar um link não é o mesmo que usar.*
+
+- [ ] **🔴 21.6 Gerente com acesso a usuários não entra na conta do administrador**
+  **O que fazer:** Em **Gerenciar** do **Richard**, no grupo **Config**, **marque** "Criar, editar e desativar usuários" (fica como exceção só dele). Entre como Richard (pelo Copiar link, na janela anônima). Abra **Cadastros > Usuários**, clique em **Gerenciar** na sua ficha (Felipe) e tente (a) **Entrar como** e (b) **Trocar** a senha. Depois tente **Trocar** a senha do usuário **TESTE** (vendedor). Olhe as caixinhas de exceção. No fim, volte como você e **desmarque** a exceção do Richard.
+  **Tem que acontecer:** (a) e (b) são **recusados** com a frase *"Essa pessoa tem acessos que o seu perfil não tem (um administrador, por exemplo). Só quem tem a permissão 'Alterar perfis e permissões' pode…"*. A senha do **TESTE troca** normalmente. As caixinhas aparecem **travadas**, com o aviso de que mexer nelas exige "Alterar perfis e permissões". Depois de desmarcar, o Richard volta a não ver **Usuários** no menu.
+  *Por que importa: antes, quem cuidava de usuários conseguia trocar a senha do dono e entrar na conta dele. Agora quem decide é o banco, e ninguém mexe em quem tem mais poder.*
+
+- [ ] **⚪ 21.7 Conta desativada sai na hora, com o motivo certo**
+  **O que fazer:** Em **Gerenciar** do usuário **TESTE**, desligue **Ativo**. Numa janela anônima, tente entrar com o e-mail dele e a senha que você pôs no passo 21.6. Depois ligue **Ativo** de novo.
+  **Tem que acontecer:** A entrada é recusada com *"Sua conta está desativada. Fale com o administrador da loja para liberar o seu acesso."* — não "senha errada". Religado, ele entra.
+  *Por que importa: funcionário que sai da loja perde o acesso na hora; e a mensagem certa evita que alguém fique tentando senha.*
+
+- [ ] **⚪ 21.8 Perfis: mudança de permissão fica registrada, e as exceções repetidas do Richard**
+  **O que fazer:** (a) Em **Configurações > Perfis e Permissões**, desmarque e marque de novo uma caixinha do perfil Vendedor. Abra **Logs / Auditoria**. (b) Em **Gerenciar** do Richard, procure o aviso amarelo de exceções que repetem o perfil e clique em **Voltar a seguir o perfil**.
+  **Tem que acontecer:** (a) Nos Logs aparecem as linhas *"Perfil Vendedor perdeu: …"* e *"Perfil Vendedor ganhou: …"*, com o seu nome. (b) O aviso **some** e as etiquetas "repete o perfil" saem das caixinhas do Richard.
+  *Por que importa: (a) permissão que muda sem registro não tem como ser explicada depois. (b) As 17 exceções do Richard "congelam" ele: se você tirar uma permissão do perfil Gerente, ela continuaria valendo para ele.*
+
+- [ ] **🔴 21.9 Duas chaves no painel do Supabase (só você consegue)**
+  **O que fazer:** No painel do Supabase, em **Authentication**, desligue **"Allow new users to sign up"** e ligue a **proteção contra senha vazada**.
+  **Tem que acontecer:** As duas opções ficam salvas.
+  *Por que importa: é a trava de fora que combina com a de dentro — ninguém cria conta sozinho pela internet, agora que o sistema está no ar em riopretogames.com.br.*
+
+---
+
+## Bloco 22 — Ordem de serviço, de ponta a ponta, depois da revisão de 24/09
+
+O caminho inteiro de uma OS, do balcão até a entrega, com as pessoas certas em
+cada ponta: **Gabriel** no balcão (vendedor), **Thiago** na bancada (técnico) e
+você no caixa. Os Blocos 6, 17 e 18 testam cada peça sozinha; aqui é a OS
+andando inteira, com as correções de 24/09 no caminho.
+
+**Como fazer:** são quatro OS principais, todas do mesmo cliente
+`TESTE OS 24-09`. Anote o número de cada uma no papel:
+
+- **OS A** — com laudo, o cliente aprova, tem peça do estoque (passos 22.1 a 22.12).
+- **OS B** — com laudo, o cliente recusa (22.13 a 22.16).
+- **OS C** — serviço tabelado, preço combinado no balcão (22.17; é entregue no 22.11).
+- **OS D** — garantia (22.19).
+- O passo 22.18 usa mais duas OS rápidas, sem valor, e o 22.20 a 22.22 podem reaproveitar qualquer OS de teste.
+
+Tenha à mão: um produto do estoque com pelo menos **3 unidades** (anote o nome
+e a quantidade) e papel para anotar o caixa.
+
+> 🔎 **Dado real, não é defeito do teste:** a **OS-202608-0007** está parada
+> em "Aguardando Peça" sem a resposta do cliente registrada. Ela foi para lá
+> antes da trava de 24/09 existir. Decida com o Gabriel o que fazer com ela.
+
+- [ ] **🔴 22.1 Abrir a OS A com um cliente novo, cadastrado dentro da própria Nova OS**
+  **O que fazer:** Entre como **Gabriel**. Menu **Ordem de Serviço > Nova OS**. No bloco Cliente, clique em **Novo Cliente**, escreva `TESTE OS 24-09`, telefone `17900002409`, e clique em **Cadastrar**. Preencha o aparelho (Equipamento, Marca, IMEI / nº de série), o problema relatado, responda a pergunta da senha, deixe **"Vai ter laudo eletrônico?" ligado** e o **Tipo** em **Paga**. Clique em **Abrir OS**.
+  **Tem que acontecer:** Depois de cadastrar, o cliente **já fica escolhido** em "Dono do aparelho" — não precisa procurar. **Quem recebeu** já vem com o nome do Gabriel. A OS abre com número no formato **OS0000** e a tela vai para a ficha, na etapa **1 · Entrada / Análise**.
+  *Por que importa: é o começo de tudo. Se o cliente cadastrado ali não fica escolhido, o atendente cadastra de novo e nasce um cliente repetido.*
+
+- [ ] **🔴 22.2 Cliente que já existe, digitado de novo: "Usar este cadastro"**
+  **O que fazer:** Abra outra **Nova OS** (é a OS B — pode deixar aberta). Clique em **Novo Cliente**, escreva um nome qualquer e o telefone `17900002409` (o mesmo do passo anterior), e aperte **Tab**. Clique em **Usar este cadastro**. Depois repita com um cliente cadastrado **em outra aba** agora há pouco (abra **Cadastros > Clientes** numa segunda aba, cadastre `TESTE outra aba` com telefone `17900002410`, volte à Nova OS e faça o mesmo com esse telefone).
+  **Tem que acontecer:** Aparece a tarja **vermelha "Este cliente já está cadastrado"**, com o botão Cadastrar apagado. **Usar este cadastro** fecha a janela e deixa o **TESTE OS 24-09 escolhido**. Com o cliente da outra aba, **também fica escolhido** — antes, o botão não fazia nada.
+  *Por que importa: é a regra do cliente único no balcão. Se "Usar este cadastro" não seleciona, o atendente perde o check-in inteiro para recarregar a página.*
+  > 🔎 No fim, deixe a OS B com o cliente **TESTE OS 24-09**, laudo ligado, Tipo Paga, e abra. Ela é usada a partir do passo 22.13.
+
+- [ ] **🔴 22.3 O técnico inicia o diagnóstico; o vendedor só vê o registro**
+  **O que fazer:** Entre como **Thiago** e abra a OS A. Clique em **Iniciar diagnóstico** e confirme. Depois entre como **Gabriel** e abra a mesma OS.
+  **Tem que acontecer:** Depois de confirmar, o botão vira **"Diagnóstico iniciado em <data e hora> por Thiago Nadotti"**, e a OS **continua na etapa 1**. O Gabriel **vê o registro**, mas não tem o botão.
+  *Por que importa: é o marco de "o aparelho está na bancada". Sem ele, "faz três dias na análise" não diz se ninguém pegou ou se está aberto na mesa.*
+
+- [ ] **🔴 22.4 Peça do estoque na OS, o orçamento e o laudo enviado**
+  **O que fazer:** Ainda como **Thiago**, na OS A, abra o seletor de etapa (ao lado do botão de avançar) e veja as opções. No card **Peças e serviços**, clique em **Adicionar item** > **Peça do estoque**, escolha o produto que você anotou, quantidade **2**, **Adicionar**. Lance também um **Serviço** de `TESTE mão de obra`, R$ 100. Em **Valor do orçamento**, clique em **Usar soma dos itens** e **Salvar**. Confira o estoque do produto. Por fim clique em **Enviar laudo para aprovação** e confirme.
+  **Tem que acontecer:** Na Entrada, o seletor de uma OS **com laudo** oferece **só "Aguardando aprovação" ou Cancelar** — nada de Finalizado nem Entregue. A peça lançada **tira 2 do estoque na hora** ("Peça lançada! O estoque já foi descontado"). O orçamento fica igual à soma. A OS vai para **2a · Aguardando aprovação**.
+  *Por que importa: OS com laudo não pode pular a resposta do cliente — até 24/09 dava para ir da Entrada direto para Entregue e cobrar cheio sem ninguém ter dito sim.*
+
+- [ ] **🔴 22.5 Da "Aguardando aprovação" ninguém pula a resposta do cliente — nem você**
+  **O que fazer:** Como **Thiago**, abra a OS A e procure os botões de resposta. Depois, como **você** (administrador), abra o seletor de etapa da OS A. Por fim, no **Kanban de OS**, tente arrastar o cartão da OS A para **3 · Aprovado / Executar**.
+  **Tem que acontecer:** O técnico **não vê** "Laudo aprovado" nem "Cliente não aprovou" — vê a frase dizendo que quem registra é quem aprova orçamento. No seu seletor **não aparecem** Aguardando Peça, Aprovado nem Finalizado. O arrastar **não move**: aparece o aviso **"Use os botões da resposta do cliente"**.
+  *Por que importa: era a porta pela qual a OS andava sem o cliente ter dito sim — a loja consertava o que ninguém autorizou. A regra agora é uma só no botão, no seletor, no arrastar e no banco.*
+
+- [ ] **🔴 22.6 O cliente aprovou: "Laudo aprovado"**
+  **O que fazer:** Como **Gabriel**, abra a OS A e clique em **Laudo aprovado**. Leia a confirmação e confirme. Role até a **Linha do tempo**.
+  **Tem que acontecer:** A confirmação mostra **o valor do orçamento**. A OS vai para **3 · Aprovado / Executar** e a linha do tempo registra **"Cliente aprovou o laudo"**, com o nome do Gabriel e a hora.
+  *Por que importa: é a hora que responde "quando o cliente autorizou", se ele contestar o valor na retirada.*
+
+- [ ] **⚪ 22.7 Subir um valor que o cliente já aprovou pede confirmação**
+  **O que fazer:** Na OS A, em **Valor do orçamento**, digite R$ 50 a mais e clique em **Salvar**. Leia a pergunta e clique em **Cancelar**.
+  **Tem que acontecer:** Aparece *"O cliente aprovou R$ … O novo valor, R$ …, só vale com o OK dele… O cliente já concordou com o novo valor?"*. Cancelando, o valor **continua o aprovado**.
+  *Por que importa: a bancada descobre peça a mais e o valor sobe sem o cliente saber — e a discussão acontece na entrega.*
+  > 🟡 **Decisão sua pendente:** valor aprovado que sobe deve **exigir nova aprovação do cliente** (a OS volta para "Aguardando aprovação")? Hoje ela só pergunta.
+
+- [ ] **🔴 22.8 Aguardando peça: o técnico manda e traz de volta**
+  **O que fazer:** Como **Thiago**, pelo seletor de etapa, mande a OS A para **2b · Aguardando Peça**. Depois traga de volta para **3 · Aprovado / Executar** pelo botão da ficha.
+  **Tem que acontecer:** As duas mudanças funcionam **sem pedir gerente**, e a linha do tempo mostra as duas passagens com o nome do Thiago.
+  *Por que importa: é o técnico que sabe que falta peça, e é ele que precisa devolver o aparelho para a bancada quando ela chega.*
+
+- [ ] **🔴 22.9 Execução, reparo concluído e Aguardando Retirada**
+  **O que fazer:** Como **Thiago**, na OS A, clique em **Iniciar a execução** e confirme. Depois em **Reparo concluído**. Abra **Ordem de Serviço > Aguardando Retirada**.
+  **Tem que acontecer:** A execução mostra **"Execução iniciada em … por Thiago Nadotti"**. O Reparo concluído **não pergunta nada** (a execução foi iniciada) e leva a OS para **5 · Finalizado**. Em Aguardando Retirada, a OS A aparece com o cliente, o aparelho, **Pronto desde** hoje, o valor e a etiqueta **"No prazo"**.
+  *Por que importa: é a lista que o balcão usa para avisar o cliente. Aparelho pronto que ninguém lembra de avisar vira aparelho abandonado.*
+
+- [ ] **🔴 22.10 Entregar com o caixa FECHADO, em dinheiro, com troco**
+  **O que fazer:** Como **você**, abra **Financeiro > Caixa**. Se o caixa estiver aberto (hoje há um aberto desde 25/08), feche: **Fechar caixa**, digite o que tem de verdade na gaveta (pode ser 0 se for só teste) e **Conferir e fechar**. Agora, como **Gabriel**, abra a OS A e clique em **Entregar ao cliente**. Na janela, adicione um pagamento em **Dinheiro** de **R$ 50 a mais** que o valor. Clique em **Confirmar entrega**. Volte (como você) em **Financeiro > Caixa**, depois em **Financeiro > Contas a Receber** e em **Aguardando Retirada**.
+  **Tem que acontecer:** A janela mostra **Troco R$ 50,00** em verde. Aviso **"OS entregue!"**. O caixa **abriu sozinho**, com a tarja amarela de abertura pelo sistema, e em Movimentos existe a linha verde **"OS …"** com **o valor da OS — sem os R$ 50 do troco**. Em Contas a Receber há **um** título **pago**, no valor da OS, marcado **"Automático (OS)"**, **sem** os botões Reabrir e Cancelar. A OS **saiu** de Aguardando Retirada.
+  *Por que importa: é o único ponto em que o dinheiro do conserto entra no sistema. Troco contado como dinheiro recebido faz a gaveta "sobrar" no fechamento, todo dia.*
+
+- [ ] **🔴 22.11 Entregar com o caixa ABERTO, parte em PIX e parte em dinheiro**
+  **O que fazer:** Faça primeiro a OS C até o fim do passo 22.17 (ela fica em Finalizado valendo R$ 150). Como **Gabriel**, clique em **Entregar ao cliente** e lance **PIX R$ 100** e **Dinheiro R$ 50**. Confirme. Olhe o Caixa (como você): Movimentos e a tabela **Resumo por forma de pagamento**.
+  **Tem que acontecer:** Com um pagamento só de R$ 100, a janela mostra **"Falta R$ 50,00"** em vermelho e o botão apagado. Com os dois, confirma. No caixa entra **uma linha de R$ 50** (só o dinheiro). O PIX aparece no resumo com o texto **"Não entra"** (não mexe na gaveta).
+  *Por que importa: PIX contado na gaveta faz todo fechamento acusar falta de dinheiro que nunca esteve lá.*
+
+- [ ] **⚪ 22.12 Reabrir a OS entregue e entregar de novo: nada dobra**
+  **O que fazer:** Na OS A (entregue), use o seletor de etapa e escolha **Finalizado**. Leia a confirmação e clique em **OK**. Clique de novo em **Entregar ao cliente** e confirme sem lançar pagamento novo. Olhe o Caixa e Contas a Receber.
+  **Tem que acontecer:** A confirmação diz o valor que **já está no Financeiro** e que a cobrança continua lá. Na nova entrega, a janela mostra **"Já registrado em uma tentativa anterior"** com o valor pago, e **não falta nada**. No caixa a linha da OS **continua uma só, com o mesmo valor**. Em Contas a Receber, **continua um título só**.
+  *Por que importa: até 24/09, reentregar podia transformar R$ 50 em R$ 150 de dinheiro que não existe no caixa, ou cobrar o cliente duas vezes.*
+
+- [ ] **🔴 22.13 OS B: o cliente não aprovou — taxa de análise e peça de volta ao estoque**
+  **O que fazer:** Na OS B (do passo 22.2), como **Thiago**: **Iniciar diagnóstico**, lance **1 peça do estoque** (anote o estoque antes e depois), preencha o orçamento (ex.: R$ 450) e **Enviar laudo para aprovação**. Como **Gabriel**, clique em **Cliente não aprovou**, tente registrar sem motivo, depois escreva `TESTE achou caro` e clique em **Registrar recusa e cobrar R$ 80,00**. Confira o estoque e **Estoque > Movimentações**.
+  **Tem que acontecer:** Sem motivo, o botão **fica apagado**. Registrada a recusa: a OS vai para **3 · Aprovado / Executar** com o selo vermelho **"Cliente não aprovou"** e passa a valer **R$ 80,00** (os R$ 450 ficam guardados na ficha). A peça **volta ao estoque** e Movimentações mostra uma **Entrada** dela com o motivo *"Estorno de peça: cliente não aprovou o orçamento"*. A linha do tempo mostra **"Cliente NÃO aprovou — TESTE achou caro"**.
+  *Por que importa: a taxa de análise é o único dinheiro de um orçamento recusado — e a peça que não volta sai da prateleira digital para sempre.*
+
+- [ ] **🔴 22.14 Na OS recusada, o técnico não mexe no valor nem desfaz a recusa**
+  **O que fazer:** Como **Thiago**, abra a OS B. Olhe o campo **Valor do orçamento** e o seletor de etapa (procure **1 · Entrada / Análise**).
+  **Tem que acontecer:** O valor aparece **travado**, com o motivo da recusa ao lado. O seletor **não oferece** voltar para a Entrada.
+  *Por que importa: o técnico podia zerar a taxa (a OS saía de graça) ou apagar a recusa com um arrasto — e desfazer a recusa volta a cobrar o cliente, que é decisão de quem fala com ele.*
+
+- [ ] **🔴 22.15 Desfazer a recusa (o cliente voltou atrás), e recusar de novo**
+  **O que fazer:** Como **Gabriel**, na OS B, escolha **1 · Entrada / Análise** no seletor. Leia a confirmação e confirme. Olhe o valor, o estoque da peça e a linha do tempo. Depois mande o laudo de novo e registre outra vez **Cliente não aprovou** com o motivo `TESTE desistiu`.
+  **Tem que acontecer:** A confirmação diz **o valor que volta a ser cobrado** (os R$ 450), **o motivo** da recusa e **o que acontece com as peças** (saem do estoque de novo). Depois de confirmar, o valor volta a R$ 450, a peça **sai de novo** do estoque e a linha do tempo mostra a volta com o motivo antigo. A segunda recusa funciona como a primeira.
+  *Por que importa: o cliente que liga no dia seguinte dizendo "pode fazer" existe — e a volta tem que ficar escrita, com o porquê.*
+
+- [ ] **🔴 22.16 Técnico remonta, e a entrega cobra só a taxa**
+  **O que fazer:** Como **Thiago**, na OS B, clique em **Reparo concluído**. Como **Gabriel**, clique em **Entregar ao cliente**, pague **R$ 80** em dinheiro e confirme. Olhe Contas a Receber.
+  **Tem que acontecer:** O Reparo concluído **não pergunta** nada (na recusa, a execução nunca começa: o técnico só remonta) e leva a OS para **5 · Finalizado**. A entrega cobra **R$ 80,00**, não R$ 450. Em Contas a Receber, o título é de **R$ 80,00**.
+  *Por que importa: "pode buscar" com o aparelho em pedaços é pior que não avisar. E cobrar o conserto recusado é o cliente brigando no balcão.*
+
+- [ ] **🔴 22.17 OS C: serviço tabelado, com preço combinado, direto para a execução**
+  **O que fazer:** Como **Gabriel**, abra uma **Nova OS** para o TESTE OS 24-09, **desligue** "Vai ter laudo eletrônico?", Tipo **Paga**, e preencha **Preço combinado (R$)** com `150`. Abra. Como **Thiago**, na ficha, clique em **Ir para a execução** e confirme. Depois **Iniciar a execução** e **Reparo concluído**.
+  **Tem que acontecer:** Com o laudo desligado, o lembrete muda para o roteiro do serviço tabelado (preço e prazo da tabela, **sem taxa de análise**) e surge o campo **Preço combinado**. A OS nasce **valendo R$ 150,00**. O técnico vê **Ir para a execução**, que leva a OS da Entrada direto para **3 · Aprovado / Executar**, sem passar pela aprovação. No fim ela fica em **5 · Finalizado**. (Agora volte ao passo 22.11 para entregá-la.)
+  *Por que importa: serviço de preço fixo não espera resposta do cliente. E antes a OS tabelada nascia valendo R$ 0 — o preço ficava só na conversa do balcão.*
+
+- [ ] **🔴 22.18 OS paga sem valor não sai de graça por engano**
+  **O que fazer:** (a) Abra uma OS tabelada **sem** preencher o Preço combinado e leve até **Finalizado** (como no 22.17). Como **Thiago**, clique em **Entregar ao cliente**. Como **Gabriel**, faça o mesmo e leia a pergunta; clique em **Cancelar**. (b) Abra uma OS **com laudo**, sem valor no orçamento, mande para **Aguardando aprovação** e, como Gabriel, clique em **Laudo aprovado**.
+  **Tem que acontecer:** (a) O técnico **não consegue** entregar: aparece **"Esta OS está sem valor"**, explicando que é para preencher o valor ou pedir a um vendedor ou gerente. O Gabriel recebe a pergunta *"A OS … é PAGA, mas está com valor R$ 0,00 … Entregar SEM cobrança mesmo assim?"*. (b) O "Laudo aprovado" é **recusado** com *"Preencha o valor do orçamento antes"*.
+  *Por que importa: OS paga entregue de graça porque ninguém digitou o valor é dinheiro que some sem ninguém ver — e a peça lançada nela sai de graça junto.*
+
+- [ ] **⚪ 22.19 OS D: garantia não cobra nada**
+  **O que fazer:** Abra uma **Nova OS** com o **Tipo** em **Garantia**, laudo ligado. Leia o lembrete. Mande o laudo, registre **Cliente não aprovou** com um motivo e leia a janela. Leve até Finalizado e entregue. Olhe Contas a Receber e o Caixa.
+  **Tem que acontecer:** O lembrete diz que garantia **não cobra taxa de análise**. A janela da recusa **não promete cobrança** (o botão diz só **"Registrar recusa"**) e a OS fica valendo **R$ 0,00**. A entrega **não pede pagamento**. Não aparece título novo nem linha nova no caixa.
+  *Por que importa: garantia cobrada por engano é o cliente voltando bravo pela segunda vez pelo mesmo defeito.*
+
+- [ ] **🔴 22.20 O motivo do banco aparece inteiro, e "Confirmar" de novo não cobra em dobro**
+  **O que fazer:** Leve uma OS de teste paga até **Finalizado**. Em **Cadastros > Clientes**, bloqueie o `TESTE OS 24-09` para venda. Tente **entregar** essa OS registrando o pagamento. Clique em **Confirmar entrega** de novo. Depois desbloqueie o cliente e entregue.
+  **Tem que acontecer:** Aparece o motivo de verdade (*"… está bloqueado para venda…"*), **não "Tente novamente"**. Reabrindo a janela, o pagamento aparece como **"Já registrado em uma tentativa anterior"** — não entra outro igual. Desbloqueado, a entrega fecha sem pedir o pagamento de novo.
+  *Por que importa: até 24/09 quase toda tela escondia o motivo do banco atrás de "Tente novamente", e o vendedor, com o cliente na frente, não sabia o que fazer.*
+
+- [ ] **⚪ 22.21 Duas abas: a entrega cobra o valor novo**
+  **O que fazer:** Abra o **Kanban de OS** em duas abas. Numa OS de teste em Aguardando aprovação com R$ 300 de orçamento, registre a **recusa** na aba A. Na aba B, **sem recarregar**, tente entregar essa mesma OS (arraste o cartão para **6 · Entregue**).
+  **Tem que acontecer:** A janela cobra o **valor novo** (a taxa) e avisa que o valor **mudou desde que a tela foi aberta** — em vez de cobrar os R$ 300 que a aba B tinha na memória.
+  *Por que importa: com duas pessoas no balcão, a tela velha cobrava o valor errado.*
+
+- [ ] **⚪ 22.22 Renomear uma etapa aparece na hora**
+  **O que fazer:** No Kanban de OS, abra **Gerenciar Status** e renomeie uma etapa (ex.: acrescente ` TESTE` no fim). Abra uma OS que está nela. Depois desfaça o nome.
+  **Tem que acontecer:** O nome novo aparece na ficha **na hora**, sem recarregar a página.
+  *Por que importa: etapa com nome velho numa tela e novo na outra confunde a equipe sobre onde o aparelho está.*
+
+- [ ] **⚪ 22.23 O quadro, as Finalizadas e a Home do técnico**
+  **O que fazer:** No **Kanban de OS**, leia a frase logo abaixo dos cartões de contagem, acima da busca. Abra **OS Finalizadas** e olhe a ordem. Entre como **Thiago**: olhe a **Home** e a lista do Kanban de OS em modo tabela.
+  **Tem que acontecer:** O quadro diz que **entregues e canceladas aparecem ali por 30 dias** e que as antigas ficam em OS Finalizadas. Em OS Finalizadas, as OS de teste de hoje estão **no topo, na ordem da entrega**. O técnico vê o cartão **"OS Abertas"** na Home e **não vê o botão "Nova OS"** (ele não abre OS).
+  *Por que importa: sem o aviso, a pergunta "cadê a OS de março?" vira suspeita de dado perdido. E botão que dá erro ao clicar ensina a equipe a não confiar na tela.*
+
+- [ ] **⚪ 22.24 Impressão da OS (o que existe hoje)**
+  **O que fazer:** Na ficha da OS A, aperte **Ctrl + P**.
+  **Tem que acontecer:** A prévia de impressão sai **sem o menu lateral** e sem o cabeçalho, só com a ficha. **Não existe** botão "Imprimir OS" nem uma via própria para colar no aparelho ou entregar ao cliente.
+  *Por que importa: o processo da loja diz que o aparelho vai para a bancada "com a OS impressa colada nele". Se a impressão da tela não serve para isso, me diga o que a via precisa ter — é trabalho novo, não conserto.*
+
+---
+
+## Bloco 23 — O que mais a revisão de 24/09 mexeu
+
+Um passo por correção das outras áreas que só uma pessoa na tela confirma. Os
+que pedem **dois computadores** (ou duas abas) estão marcados.
+
+- [ ] **🔴 23.1 Venda com centavos, e a janela "Venda finalizada!"**
+  **O que fazer:** No PDV, venda dois itens de **R$ 9,90** e **R$ 69,90** e pague **R$ 79,80** no débito. Na janela que abre, clique em **Imprimir comprovante**. Faça outra venda paga com dinheiro a mais e olhe a mesma janela.
+  **Tem que acontecer:** A venda **fecha** (antes, a conta de centavos podia travar). A janela **"Venda finalizada!"** oferece **Imprimir comprovante** e **Nova venda**, e mostra o **troco** quando há. O comprovante sai com o troco escrito.
+  *Por que importa: conta de centavos errada trava a venda na frente do cliente.*
+
+- [ ] **🔴 23.2 A devolução paga o que o cliente PAGOU, não o preço de tabela**
+  **O que fazer:** Em **Venda > Troca / Devolução**, abra a **VD-202608-0003** e comece a devolução de tudo (não precisa confirmar). Depois simule uma troca **sem diferença** (valor devolvido igual ao dos produtos novos).
+  **Tem que acontecer:** A tela manda devolver **R$ 1.500** (o que o cliente pagou com desconto), não R$ 2.000. Na troca sem diferença, **não pede** forma de pagamento.
+  *Por que importa: devolver o preço cheio de uma venda com desconto é dar dinheiro a mais ao cliente.*
+
+- [ ] **⚪ 23.3 Achar venda antiga, e o dia certo no histórico**
+  **O que fazer:** Em **Troca / Devolução**, procure uma venda de julho pelo nome do cliente ou pelo IMEI. No **Histórico de Vendas**, filtre o dia **14/09**.
+  **Tem que acontecer:** A venda antiga aparece (a busca agora vai ao banco inteiro). No dia 14/09 aparecem a **OV0008** e a **OV0009** (venda feita depois das 21h caía no dia seguinte).
+  *Por que importa: venda dentro da garantia que "não existe" na tela é cliente sem atendimento.*
+
+- [ ] **⚪ 23.4 Cliente repetido: nome sem acento, telefone extra e planilha importada duas vezes**
+  **O que fazer:** Cadastre `Joao Silva` só com o nome quando já existe **João Silva**. Depois informe como **telefone extra** um número que já é de outro cliente. Por fim, importe a mesma planilha de clientes **duas vezes**.
+  **Tem que acontecer:** "Joao Silva" **trava** e oferece o cadastro que existe. O telefone extra mostra **Usar este cadastro**. A segunda importação **não duplica** ninguém.
+  *Por que importa: é a regra do cliente único — duas fichas da mesma pessoa espalham a garantia e o histórico.*
+
+- [ ] **⚪ 23.5 O "Já gastou" do cliente desconta a devolução**
+  **O que fazer:** Abra a ficha de um cliente que devolveu alguma coisa (ex.: a Adriana Prado, do passo 18) em **Cadastros > Clientes**.
+  **Tem que acontecer:** O indicador **"Já gastou"** mostra o que ele comprou **menos** o que devolveu.
+  *Por que importa: cliente que devolveu tudo aparecia como bom comprador — e é por esse número que se decide um desconto.*
+
+- [ ] **⚪ 23.6 Preço mudou com o PDV aberto (dois computadores)**
+  **O que fazer:** Com o PDV aberto no computador A e o produto no carrinho, mude o preço dele no computador B. Finalize no A.
+  **Tem que acontecer:** A venda é **recusada** com o aviso para **atualizar a página**.
+  *Por que importa: a tela velha vendia pelo preço antigo.*
+
+- [ ] **🔴 23.7 Entrada com centavos, e loja sem fornecedor**
+  **O que fazer:** Se ainda não houver fornecedor, abra **Estoque > Entrada de Mercadoria > Nova entrada** e leia o aviso. Depois cadastre um fornecedor e dê entrada de **3 unidades a R$ 12,50**.
+  **Tem que acontecer:** Sem fornecedor, aparece o aviso com o link para **Cadastros > Fornecedores**. Com ele, o total da compra é **R$ 37,50**, o título em **Contas a Pagar** também, e o custo do produto fica certo.
+  *Por que importa: custo errado estraga a margem de tudo o que vem depois.*
+
+- [ ] **🔴 23.8 Ficha do produto aberta durante uma venda (duas abas)**
+  **O que fazer:** Abra a ficha de um produto com **3** unidades. Em outra aba, venda **1**. Volte à ficha: (a) mude só o preço e salve; (b) sem recarregar, mude o estoque para **5** e salve.
+  **Tem que acontecer:** O campo passa a mostrar **2**. (a) O estoque continua 2 e **não** aparece "Ajuste manual" em Movimentações. (b) Aparece *"Ficha salva, mas o estoque NÃO foi alterado"* com o número real.
+  *Por que importa: a ficha velha desfazia a venda no estoque — o produto "voltava" para a prateleira sem existir.*
+
+- [ ] **⚪ 23.9 Mínimo 0 = não se repõe; troca aguardando revisão; link errado**
+  **O que fazer:** (a) Ponha mínimo **0** em "Ps5 slim" e "PS4 TESTE", salve e reabra. (b) No PDV, faça uma troca informando preço de revenda R$ 900 e olhe o Estoque. (c) Como **Gerente Técnico** (Leo), abra uma ficha de produto. (d) Abra o endereço `riopretogames.com.br/sisteminha/estoque/qualquer-coisa`.
+  **Tem que acontecer:** (a) Continua **0**, e os dois **somem** do Estoque Crítico e do aviso do topo. (b) Aparece o cartão azul **"Aguardando revisão"**, e o aparelho novo já nasce com mínimo 0. (c) O botão **Excluir** aparece. (d) Aparece **"Produto não encontrado"** (ou "Não consegui abrir este produto"), em vez de girar para sempre.
+  *Por que importa: a regra "mínimo 0 = não se repõe" é nova — confirme se é isso mesmo.*
+  > 🟡 **Decisão sua pendente:** mínimo 0 quer dizer "não se repõe"?
+
+- [ ] **🔴 23.10 Fechar o caixa com venda acontecendo em outro computador**
+  **O que fazer:** No computador A, abra **Financeiro > Caixa** (com o caixa aberto) e deixe parado. No B, faça uma venda de **R$ 50 em dinheiro**. No A, sem recarregar, feche o caixa digitando o valor da gaveta **já com os R$ 50**. Depois, com o caixa aberto nos dois: feche no A; no B, sem recarregar, tente (a) **Fechar caixa** e (b) **Lançar movimento** (uma sangria).
+  **Tem que acontecer:** Na primeira, **"Conferência exata"** (e não "Sobrou R$ 50"). Na segunda: (a) o B avisa *"Este caixa já tinha sido fechado… nada foi gravado"*; (b) aparece *"Este caixa acabou de ser fechado. Atualize a tela…"*, a janela fecha e a tela mostra o caixa como ele está agora.
+  *Por que importa: o esperado era calculado pela tela velha, e dois fechamentos se atropelavam. E até 24/09 o aviso (b) nunca aparecia — a tela escondia a frase do banco.*
+
+- [ ] **🔴 23.11 Devolução com caixa fechado, e o troco no painel**
+  **O que fazer:** (a) Com o caixa **fechado**, faça uma devolução em dinheiro. (b) Faça uma venda de **R$ 80** paga com **R$ 100** em dinheiro; olhe **Movimentos** e o **Dashboards > Venda**, quadro **Como o Cliente Paga**. (c) Em **Contas a Receber**, abra o título da **OS-202608-0010**.
+  **Tem que acontecer:** (a) O caixa **abre sozinho**, com a linha vermelha "Devolução DV-…". (b) Movimentos mostra **+R$ 80**, e o painel mostra **Dinheiro R$ 80,00**. (c) O título mostra **"Automático (OS)"**, sem os botões Reabrir e Cancelar.
+  *Por que importa: dinheiro que sai sem caixa aberto não aparece em conferência nenhuma.*
+
+- [ ] **⚪ 23.12 Os números do mês conferem entre as telas**
+  **O que fazer:** Abra **Fluxo de Caixa** de 01/08 a 31/08/2026 e **IE - Comercial** de agosto. Depois abra o **Fluxo de Caixa** e o **Relatório Financeiro**, os dois de 01/09 a 30/09. Numa quarta-feira, no **Dashboards > Venda**, escolha um grupo com "Esta semana".
+  **Tem que acontecer:** Fluxo de agosto: "Entrou" perto de **R$ 36 mil**, com a linha **"Vendas do balcão (PDV)"**. IE - Comercial de agosto: Receita **R$ 36.871,20**. Em setembro, o "Já pago" do Relatório é **igual** ao "Saiu" do Fluxo (em 24/09, antes dos testes, eram **R$ 11.111,00**; as compras que você lançar nos testes somam nos dois). O "vs semana anterior" compara segunda a quarta com segunda a quarta.
+  *Por que importa: três telas contando histórias diferentes do mesmo mês é o jeito mais rápido de ninguém confiar em nenhuma.*
+  > 🔎 **Sino:** hoje o banco tem um caixa aberto desde 25/08 — enquanto ele estiver aberto, o sino tem que avisar "Caixa aberto desde…". (Se você já fechou esse caixa no passo 22.10, o aviso some.)
+  > 🟡 **Decisões suas pendentes nesta área:** o banco criar um título por venda (em vez de a linha "Vendas do balcão" ser montada na tela)? O troco maior que o dinheiro recebido sai da gaveta? O produto devolvido volta direto para a venda?
+
+---
+
 ## Se algo falhar
 
 Não tente consertar nem investigar. Anote e siga para o próximo passo — o roteiro foi montado para que uma falha não derrube o resto.
 
 Para cada falha, anote quatro coisas:
 
-1. **Número e nome do passo** (ex.: "Passo 20 — Depois da devolução").
+1. **Número e nome do passo** (ex.: "Passo 22.10 — Entregar com o caixa FECHADO").
 2. **O que você fez** — o clique exato, o valor digitado, o cliente e o produto usados.
 3. **O que você esperava** que acontecesse (está escrito no passo).
 4. **O que aconteceu de verdade** — copie o texto do aviso na tela, palavra por palavra, se houver.

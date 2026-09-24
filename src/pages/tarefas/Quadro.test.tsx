@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { hojeISO } from '@/lib/format';
 import { montarCan, bancoFalso, silenciarConsole, type UsuarioDeTeste } from '@/test/apoio';
 
@@ -180,6 +180,113 @@ describe('Tela do quadro', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Todas' }));
     expect(screen.getByRole('radio', { name: /kanban/i })).toHaveAttribute('data-state', 'on');
+  });
+
+  it('"Todas" volta a abrir no Kanban mesmo depois de alguém usar "Hoje" e sair da tela', async () => {
+    // Achado da revisão de 24/09: a troca automática para a Tabela ficava
+    // gravada no navegador, e o quadro abria em "Todas" com a Tabela para
+    // todo mundo que usasse aquele computador (o balcão é compartilhado).
+    const primeira = await abrirQuadro('/tarefas/q-loja', QUADRO_COMPLETO);
+    await screen.findByRole('heading', { level: 1, name: /loja/i });
+    fireEvent.click(screen.getByRole('button', { name: 'Hoje' }));
+    expect(screen.getByRole('radio', { name: /tabela/i })).toHaveAttribute('data-state', 'on');
+    primeira.unmount();
+
+    await abrirQuadro('/tarefas/q-loja', QUADRO_COMPLETO);
+    await screen.findByRole('heading', { level: 1, name: /loja/i });
+    expect(screen.getByRole('button', { name: 'Todas' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('radio', { name: /kanban/i })).toHaveAttribute('data-state', 'on');
+  });
+
+  it('a Tabela escolhida à mão em "Todas" é lembrada; a escolha feita num dia vale só para o dia', async () => {
+    const primeira = await abrirQuadro('/tarefas/q-loja', QUADRO_COMPLETO);
+    await screen.findByRole('heading', { level: 1, name: /loja/i });
+    fireEvent.click(screen.getByRole('radio', { name: /tabela/i }));
+    primeira.unmount();
+
+    await abrirQuadro('/tarefas/q-loja', QUADRO_COMPLETO);
+    await screen.findByRole('heading', { level: 1, name: /loja/i });
+    expect(screen.getByRole('radio', { name: /tabela/i })).toHaveAttribute('data-state', 'on');
+
+    // Num dia, quem quiser vê o Kanban...
+    fireEvent.click(screen.getByRole('button', { name: 'Hoje' }));
+    fireEvent.click(screen.getByRole('radio', { name: /kanban/i }));
+    expect(screen.getByRole('radio', { name: /kanban/i })).toHaveAttribute('data-state', 'on');
+    // ...mas voltar para "Todas" devolve a escolha de "Todas" (a Tabela).
+    fireEvent.click(screen.getByRole('button', { name: 'Todas' }));
+    expect(screen.getByRole('radio', { name: /tabela/i })).toHaveAttribute('data-state', 'on');
+  });
+
+  it('trocar de quadro com um dia ligado volta para "Todas" e para a visão de "Todas"', async () => {
+    // A tela do quadro não é desmontada ao trocar de quadro (mesma rota, outro
+    // id): o filtro zera, e a visão tem que acompanhar.
+    function IrParaOutroQuadro() {
+      const navigate = useNavigate();
+      return (
+        <button type="button" onClick={() => navigate('/tarefas/q-oficina')}>
+          Ir para outro quadro
+        </button>
+      );
+    }
+    mockCan.mockImplementation(montarCan({ perfil: 'administrador' }));
+    mockSupabase.atual = bancoFalso(QUADRO_COMPLETO);
+    const cliente = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 }, mutations: { retry: false } },
+    });
+    const { default: Quadro } = await import('./Quadro');
+    render(
+      <QueryClientProvider client={cliente}>
+        <MemoryRouter initialEntries={['/tarefas/q-loja']}>
+          <Routes>
+            <Route
+              path="/tarefas/:id"
+              element={
+                <>
+                  <IrParaOutroQuadro />
+                  <Quadro />
+                </>
+              }
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await screen.findByRole('heading', { level: 1, name: /loja/i });
+    fireEvent.click(screen.getByRole('button', { name: 'Hoje' }));
+    expect(screen.getByRole('radio', { name: /tabela/i })).toHaveAttribute('data-state', 'on');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ir para outro quadro' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Todas' })).toHaveAttribute('aria-pressed', 'true'));
+    expect(screen.getByRole('radio', { name: /kanban/i })).toHaveAttribute('data-state', 'on');
+  });
+
+  it('a visão gravada pela versão antiga (que guardava a troca automática) não vale mais', async () => {
+    try {
+      localStorage.setItem('tarefas_view_mode', 'grid');
+    } catch {
+      // Sem armazenamento no ambiente: o teste continua valendo (abre no Kanban).
+    }
+    await abrirQuadro('/tarefas/q-loja', QUADRO_COMPLETO);
+    await screen.findByRole('heading', { level: 1, name: /loja/i });
+    expect(screen.getByRole('radio', { name: /kanban/i })).toHaveAttribute('data-state', 'on');
+  });
+
+  it('chip de outro dia avisa que a situação e a bolinha são as de hoje', async () => {
+    await abrirQuadro('/tarefas/q-loja', QUADRO_COMPLETO);
+    await screen.findByRole('heading', { level: 1, name: /loja/i });
+    expect(screen.queryByText(/Mostrando as tarefas de/)).not.toBeInTheDocument();
+
+    // Um chip que NÃO seja o de hoje (o teste roda em qualquer dia da semana).
+    const [chip, nome] = new Date().getDay() === 1 ? [/^Ter/, 'terça'] : [/^Seg/, 'segunda'];
+    fireEvent.click(screen.getByRole('button', { name: chip }));
+    expect(screen.getByText(/Mostrando as tarefas de/)).toHaveTextContent(`Mostrando as tarefas de ${nome}`);
+    // A bolinha da tarefa (que é de todos os dias) trava nesse chip.
+    const titulo = screen.getAllByText('Repor os copos')[0];
+    const linha = titulo.closest('tr') as HTMLElement;
+    expect(within(linha).getByRole('button', { name: /Você está vendo as tarefas de/ })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hoje' }));
+    expect(screen.queryByText(/Mostrando as tarefas de/)).not.toBeInTheDocument();
   });
 
   it('não existe chip de Domingo no quadro', async () => {

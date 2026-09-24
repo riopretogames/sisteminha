@@ -204,9 +204,14 @@ function LinhaDaTarefa({
   const conferida = tarefa.conferencia === 'conferida';
 
   return (
+    // No celular (abaixo de 640 px) a linha vira duas: bolinha e título em
+    // cima, os selos ("Na conferência", "Urgente", "Começar") embaixo do
+    // título. Numa linha só, a coluna dos selos não encolhe e, com três deles,
+    // espremia o título da tarefa até sumir. Do tablet para cima continua
+    // tudo numa linha, como antes.
     <li
       className={cn(
-        'group flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-muted/40',
+        'group grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 transition-colors hover:bg-muted/40 sm:flex sm:gap-4',
         feita && 'bg-emerald-50/50 dark:bg-emerald-500/5',
         status === 'atrasada' && 'border-l-4 border-l-red-500',
       )}
@@ -287,7 +292,9 @@ function LinhaDaTarefa({
         </div>
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+      {/* `empty:hidden` só no celular: tarefa feita sem selo não deixa uma
+          segunda linha vazia embaixo do título. */}
+      <div className="col-start-2 flex flex-wrap items-center gap-2 max-sm:empty:hidden sm:shrink-0 sm:justify-end">
         {aguardando && (
           <span
             title="O gerente ainda vai conferir. Se faltar alguma coisa, ele devolve e a tarefa volta pendente."
@@ -370,7 +377,7 @@ export default function MinhasTarefas() {
           {nome ? `, ${nome}` : ''}.
         </h1>
         {carregando ? (
-          <Skeleton className="mt-3 h-5 w-72" />
+          <Skeleton className="mt-3 h-5 w-72 max-w-full" />
         ) : (
           !erro && <p className="mt-2 text-base text-muted-foreground">{fraseDoDia(total, feitas)}</p>
         )}

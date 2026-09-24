@@ -24,6 +24,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAvisos } from '@/hooks/useAvisos';
 import { PERMISSIONS } from '@/config/permissions';
 import { flattenLinks } from '@/config/menu';
+import { MenuCelular } from '@/components/Sidebar';
 
 export function AppHeader() {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -61,16 +62,24 @@ export function AppHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6 print:hidden">
+      {/* Celular (abaixo de 1024 px): margem menor e o botão do menu na
+          esquerda, porque lá o menu lateral fica escondido numa gaveta. No
+          computador o botão some e o resto fica como sempre foi.
+          Os `min-w-0` e o `truncate` da busca existem por causa do celular:
+          sem eles, o texto "Buscar clientes, OS, produtos..." não encolhe,
+          empurra o sino para fora da tela e a página inteira passa a rolar
+          para o lado. */}
+      <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6 print:hidden">
         {/* Search */}
-        <div className="flex items-center gap-4 flex-1 max-w-xl">
+        <div className="flex min-w-0 flex-1 max-w-xl items-center gap-2">
+          <MenuCelular />
           <Button
             variant="outline"
-            className="relative w-full justify-start text-muted-foreground"
+            className="relative w-full min-w-0 justify-start text-muted-foreground"
             onClick={() => setSearchOpen(true)}
           >
             <Search className="mr-2 h-4 w-4" />
-            <span>Buscar clientes, OS, produtos...</span>
+            <span className="truncate">Buscar clientes, OS, produtos...</span>
             <kbd className="pointer-events-none absolute right-2 hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium sm:flex">
               <span className="text-xs">⌘</span>K
             </kbd>

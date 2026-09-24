@@ -27,23 +27,52 @@ interface LinhaQuadro {
   arquivado_em: string | null;
   created_at: string;
   updated_at: string;
-  tarefas_listas?: { count: number }[];
-  tarefas?: { count: number }[];
+  /** As colunas ATIVAS, cada uma com a contagem das tarefas ativas dela. */
+  tarefas_listas?: { id: string; tarefas?: { count: number }[] }[];
 }
 
 const COLUNAS_QUADRO = 'id, nome, descricao, cor, ordem, arquivado_em, created_at, updated_at';
 
+/**
+ * A consulta com a contagem ("6 colunas · 42 tarefas").
+ *
+ * As tarefas são contadas DENTRO de cada coluna ativa, e não direto no quadro
+ * (achado 24 da revisão de 24/09): arquivar uma coluna diz "ela saiu do quadro
+ * junto com as tarefas dela", mas a contagem direta continuava somando as
+ * tarefas da coluna arquivada, e o cartão mostrava um número que o quadro
+ * aberto não tinha. Contando pela coluna, o número bate com o quadro (lerQuadro,
+ * em useQuadro, também esconde a tarefa de coluna arquivada).
+ *
+ * Os filtros de "não arquivada" vão em lerQuadros, um para a coluna
+ * (`tarefas_listas.arquivada_em`) e outro para a tarefa dentro dela
+ * (`tarefas_listas.tarefas.arquivada_em`).
+ */
+export const SELECT_QUADRO_COM_CONTAGEM = `${COLUNAS_QUADRO}, tarefas_listas(id, tarefas(count))`;
+
+/** Colunas e tarefas ativas de um quadro, somadas coluna a coluna. Sem a contagem, fica sem número. */
+export function contagemDoQuadro(linha: Pick<LinhaQuadro, 'tarefas_listas'>): {
+  total_listas: number | undefined;
+  total_tarefas: number | undefined;
+} {
+  const listas = linha.tarefas_listas;
+  if (!Array.isArray(listas)) return { total_listas: undefined, total_tarefas: undefined };
+  return {
+    total_listas: listas.length,
+    total_tarefas: listas.reduce((soma, l) => soma + (l.tarefas?.[0]?.count ?? 0), 0),
+  };
+}
+
 async function lerQuadros(): Promise<Quadro[]> {
-  // A contagem ("6 listas · 42 tarefas") vem embutida na mesma consulta,
-  // contando só o que não foi arquivado. Se o servidor recusar esse formato,
+  // A contagem vem embutida na mesma consulta, contando só o que não foi
+  // arquivado (ver SELECT_QUADRO_COM_CONTAGEM). Se o servidor recusar esse formato,
   // a lista de quadros aparece sem os números em vez de não aparecer — os
   // números são enfeite, o quadro é o que a pessoa veio buscar.
   const comContagem = await supabase
     .from('tarefas_quadros')
-    .select(`${COLUNAS_QUADRO}, tarefas_listas(count), tarefas(count)`)
+    .select(SELECT_QUADRO_COM_CONTAGEM)
     .is('arquivado_em', null)
     .is('tarefas_listas.arquivada_em', null)
-    .is('tarefas.arquivada_em', null)
+    .is('tarefas_listas.tarefas.arquivada_em', null)
     .order('ordem')
     .order('nome');
 
@@ -70,8 +99,7 @@ async function lerQuadros(): Promise<Quadro[]> {
     arquivado_em: q.arquivado_em,
     created_at: q.created_at,
     updated_at: q.updated_at,
-    total_listas: q.tarefas_listas?.[0]?.count,
-    total_tarefas: q.tarefas?.[0]?.count,
+    ...contagemDoQuadro(q),
   }));
 }
 

@@ -44,9 +44,15 @@ const QUADRO_LOJA = {
   arquivado_em: null,
   created_at: '2026-09-23T10:00:00Z',
   updated_at: '2026-09-23T10:00:00Z',
-  // A contagem embutida que o useQuadros pede ao banco.
-  tarefas_listas: [{ count: 5 }],
-  tarefas: [{ count: 43 }],
+  // A contagem embutida que o useQuadros pede ao banco: as colunas ATIVAS,
+  // cada uma com as tarefas ativas dela (achado 24 da revisão de 24/09).
+  tarefas_listas: [
+    { id: 'l1', tarefas: [{ count: 10 }] },
+    { id: 'l2', tarefas: [{ count: 12 }] },
+    { id: 'l3', tarefas: [{ count: 9 }] },
+    { id: 'l4', tarefas: [{ count: 12 }] },
+    { id: 'l5', tarefas: [{ count: 0 }] },
+  ],
 };
 
 async function abrirQuadros(perfil: 'vendedor' | 'gerente', quadros: unknown[]) {
@@ -60,6 +66,26 @@ async function abrirQuadros(perfil: 'vendedor' | 'gerente', quadros: unknown[]) 
     </Routes>,
   );
 }
+
+describe('Contagem do cartão do quadro (achado 24)', () => {
+  it('conta as tarefas pelas colunas ativas: a da coluna arquivada não entra', async () => {
+    const { SELECT_QUADRO_COM_CONTAGEM, contagemDoQuadro } = await import('@/hooks/useQuadros');
+    // Contrato com o banco (o dublê ignora o texto do select): as tarefas vêm
+    // DENTRO das colunas, e não direto do quadro — contar direto somava as
+    // tarefas de coluna arquivada, que o quadro aberto não mostra.
+    expect(SELECT_QUADRO_COM_CONTAGEM).toContain('tarefas_listas(id, tarefas(count))');
+    expect(SELECT_QUADRO_COM_CONTAGEM.replace('tarefas_listas(id, tarefas(count))', '')).not.toContain(
+      'tarefas(count)',
+    );
+
+    expect(contagemDoQuadro({ tarefas_listas: [{ id: 'a', tarefas: [{ count: 3 }] }, { id: 'b', tarefas: [] }] })).toEqual({
+      total_listas: 2,
+      total_tarefas: 3,
+    });
+    // Sem a contagem (o servidor recusou o formato): sem número, em vez de "0".
+    expect(contagemDoQuadro({})).toEqual({ total_listas: undefined, total_tarefas: undefined });
+  });
+});
 
 describe('Quadros de tarefas', () => {
   beforeEach(() => {

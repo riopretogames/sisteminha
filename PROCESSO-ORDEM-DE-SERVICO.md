@@ -209,6 +209,22 @@ O vendedor entra três vezes no processo (cria a OS, registra a aprovação,
 avisa que ficou pronto) e o aparelho atravessa a passagem duas vezes (vai
 pela Etapa 1, volta pela Etapa 3).
 
+### Para onde a OS pode ir (regra de 24/09)
+
+A revisão de 24/09 achou a tela e o banco discordando sobre quem move a OS
+para onde — o técnico recebia "Tente novamente" numa opção que a tela
+oferecia, e o vendedor pulava a resposta do cliente sem registrar nada. Agora
+é uma regra só, igual no botão, no seletor da ficha, no seletor da lista, no
+arrastar do quadro e no banco:
+
+| Situação | O que acontece |
+|---|---|
+| OS **com laudo eletrônico**, cliente ainda não respondeu | Da Entrada ela só vai para "Aguardando aprovação" (ou é cancelada). De "Aguardando aprovação" só sai pelos botões **Laudo aprovado / Cliente não aprovou** — vale para todo mundo, inclusive quem aprova. Depois da resposta, vai para onde precisar (inclusive Aguardando Peça). |
+| **Serviço tabelado** (sem laudo) | Da Entrada vai direto para **Aprovado / Executar** — botão "Ir para a execução", que o técnico aperta (passo 9 acima). |
+| OS **recusada** | O técnico remonta e aperta Reparo concluído. Se apertou cedo demais, devolve para a bancada. **Voltar para a Entrada desfaz a recusa** (volta a cobrar o orçamento cheio e tira as peças do estoque de novo): só quem aprova orçamento faz, e confirma antes. O motivo da recusa fica na linha do tempo. |
+| Valor da OS **recusada** (a taxa) | Só quem aprova orçamento muda. |
+| OS **paga com valor R$ 0,00** indo para Entregue | Sairia sem cobrar nada: só quem aprova orçamento entrega, e confirma antes. "Laudo aprovado" numa OS paga sem valor é recusado — preencha o valor do laudo antes. Na abertura, o serviço tabelado pago já pede o **preço combinado**. |
+
 ---
 
 ## O que a auditoria encontrou

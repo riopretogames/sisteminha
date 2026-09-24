@@ -3,7 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { soDigitos, telefoneIdentifica } from '@/lib/documento';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
 import type { Database } from '@/integrations/supabase/types';
+import { mensagemCrua } from '@/lib/mensagemDoErro';
 
 /**
  * Acesso a clientes.
@@ -282,7 +284,7 @@ export async function buscarClientesSemelhantes(params: {
 
 /** Traduz a recusa do banco para o que de fato aconteceu na tela. */
 export function traduzirErroCliente(error: unknown): string {
-  const msg = error instanceof Error ? error.message : 'Tente novamente.';
+  const msg = mensagemCrua(error) || 'Tente novamente.';
 
   if (/clientes_documento_unico/i.test(msg)) {
     return 'Já existe um cliente cadastrado com este CPF/CNPJ. Use o cadastro que já existe.';
@@ -305,16 +307,20 @@ export function useClientes() {
 
   const query = useQuery({
     queryKey: chave,
-    queryFn: async (): Promise<Cliente[]> => {
-      const { data, error } = await supabase
-        .from('clientes')
-        .select(SELECT_CLIENTE)
-        .eq('ativo', true)
-        .order('nome');
-
-      if (error) throw error;
-      return data ?? [];
-    },
+    // Em páginas de mil (achado de 24/09): o Supabase corta calado no
+    // milésimo, e com a base do sistema antigo importada quem estava depois
+    // dele na ordem alfabética não aparecia — nem na busca, nem no contador
+    // "{n} de {total}". A ordem por `id` depois do nome impede uma linha de
+    // cair em duas páginas.
+    queryFn: (): Promise<Cliente[]> =>
+      buscarEmPaginas<Cliente>(() =>
+        supabase
+          .from('clientes')
+          .select(SELECT_CLIENTE)
+          .eq('ativo', true)
+          .order('nome')
+          .order('id'),
+      ),
   });
 
   const invalidar = () => queryClient.invalidateQueries({ queryKey: chave });

@@ -290,6 +290,12 @@ export interface PropsVisaoQuadro {
   filtroAtivo?: boolean;
   /** Desliga todos os filtros (botão "Limpar filtros" dos avisos de vazio). */
   onLimparFiltros?: () => void;
+  /**
+   * O chip de dia ligado na página. Com o chip de OUTRO dia (numa terça, o
+   * "Seg"), a bolinha das tarefas que se repetem trava: ela marcaria o feito
+   * de hoje, não o daquele dia (ver travaDoFeito em lib/tarefas).
+   */
+  diaDoFiltro?: DiaFiltro;
 }
 
 export interface PropsTarefaDialog {

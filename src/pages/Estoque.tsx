@@ -46,10 +46,12 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
-import { estoqueCritico } from '@/lib/estoque';
+import { estoqueCritico, aguardandoRevisao, inteiroOu } from '@/lib/estoque';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
 import { PRODUTO_CATEGORIAS, PRODUTO_LOCALIZACOES } from '@/lib/constants';
 import { FiltrosProdutos } from '@/components/produtos/FiltrosProdutos';
 import { FILTROS_PRODUTOS_VAZIO, aplicarFiltrosProdutos, type FiltrosProdutosValores } from '@/lib/filtrosProdutos';
+import { mensagemDoErro } from '@/lib/mensagemDoErro';
 
 type ProdutoCategoria = "celular" | "acessorio" | "peca" | "servico";
 type ProdutoLocalizacao = "vitrine" | "deposito" | "bancada" | "sucata";
@@ -110,6 +112,10 @@ export default function Estoque() {
   // o banco deixaria passar.
   const podeExcluir = can(PERMISSIONS.INVENTORY_EDIT);
   const [produtos, setProdutos] = useState<Produto[]>([]);
+  // Produtos que entraram por troca no PDV (têm linha em `entradas_produto`,
+  // que todo funcionário logado lê — exceção conhecida da regra de custo).
+  // `null` = não deu para ler; aí o aviso volta ao palpite do preço zero.
+  const [idsDeTroca, setIdsDeTroca] = useState<Set<string> | null>(null);
   const [loading, setLoading] = useState(true);
   // Padrão continua "Apto à Venda: Sim" — não muda o que todo mundo já está
   // acostumado a ver ao abrir a tela. FILTROS_PRODUTOS_VAZIO (o que "Limpar
@@ -144,13 +150,24 @@ export default function Estoque() {
       // Busca ativos e inativos numa chamada só — quem decide o que mostrar
       // é o filtro "Apto à Venda" no painel (mesmo padrão do CampoCatalogo
       // com itens desativados: não esconder de quem precisa achar).
-      const { data, error } = await supabase
-        .from('vw_produtos')
-        .select('*')
-        .order('nome');
+      //
+      // Em páginas: a API do banco corta calada em 1.000 linhas. Com o
+      // catálogo do sistema antigo importado, o produto depois do milésimo em
+      // ordem alfabética sumiria da busca sem aviso (lib/buscarEmPaginas.ts).
+      const [lista, trocas] = await Promise.all([
+        buscarEmPaginas<Produto>(() =>
+          supabase.from('vw_produtos').select('*').order('nome').order('id'),
+        ),
+        buscarEmPaginas<{ produto_id: string }>(() =>
+          supabase.from('entradas_produto').select('produto_id').order('id'),
+        ).catch((erro) => {
+          console.error('Não deu para ler as entradas por troca:', erro);
+          return null;
+        }),
+      ]);
 
-      if (error) throw error;
-      setProdutos(data || []);
+      setProdutos(lista);
+      setIdsDeTroca(trocas ? new Set(trocas.map((t) => t.produto_id)) : null);
     } catch (error) {
       console.error('Error fetching produtos:', error);
       toast({
@@ -212,7 +229,9 @@ export default function Estoque() {
         custo: parseFloat(formData.custo) || 0,
         preco: parseFloat(formData.preco) || 0,
         estoque_atual: parseInt(formData.estoque_atual) || 0,
-        estoque_minimo: parseInt(formData.estoque_minimo) || 1,
+        // Mínimo 0 é permitido de propósito: é o "não se repõe" da peça
+        // única (ver lib/estoque.ts). O antigo `|| 1` trocava o 0 por 1.
+        estoque_minimo: Math.max(0, inteiroOu(formData.estoque_minimo, 1)),
         localizacao: formData.localizacao,
         tenant_id: tenantId,
       });
@@ -231,7 +250,7 @@ export default function Estoque() {
       console.error('Error saving produto:', error);
       toast({
         title: 'Erro ao salvar',
-        description: error instanceof Error ? error.message : 'Tente novamente.',
+        description: mensagemDoErro(error),
         variant: 'destructive',
       });
     } finally {
@@ -260,7 +279,7 @@ export default function Estoque() {
     } catch (error) {
       toast({
         title: 'Erro ao excluir',
-        description: error instanceof Error ? error.message : 'Tente novamente.',
+        description: mensagemDoErro(error),
         variant: 'destructive',
       });
     }
@@ -276,10 +295,11 @@ export default function Estoque() {
   const filteredProdutos = aplicarFiltrosProdutos(produtos, filtros);
 
   const criticalStock = produtos.filter((p) => p.ativo && estoqueCritico(p)).length;
-  // Inativo + sem preço é a marca de quem entrou por troca no PDV e ainda não
-  // foi revisado. Inativo sozinho não basta: "Excluir" também zera `ativo`,
-  // e produto excluído de propósito não devia contar como "esperando alguém".
-  const aguardandoRevisao = produtos.filter(p => !p.ativo && p.preco === 0).length;
+  // Aparelho que entrou por troca no PDV e ainda não foi revisado. Inativo
+  // sozinho não basta: "Excluir" também zera `ativo`, e produto excluído de
+  // propósito não devia contar como "esperando alguém". A regra (e por que
+  // deixou de ser "preço zero") está em lib/estoque.ts.
+  const qtdAguardandoRevisao = produtos.filter((p) => aguardandoRevisao(p, idsDeTroca)).length;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -318,7 +338,7 @@ export default function Estoque() {
           não foi revisado/precificado — some da lista padrão de propósito,
           então precisa de um aviso que leve direto pra ele, senão fica
           "perdido" no banco sem ninguém saber onde procurar. */}
-      {aguardandoRevisao > 0 && filtros.aptoVenda !== 'nao' && (
+      {qtdAguardandoRevisao > 0 && filtros.aptoVenda !== 'nao' && (
         <Card
           className="border-primary/40 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors"
           onClick={() => setFiltros({ ...filtros, aptoVenda: 'nao' })}
@@ -328,7 +348,7 @@ export default function Estoque() {
             <div>
               <p className="font-medium text-primary">Aguardando revisão</p>
               <p className="text-sm text-muted-foreground">
-                {aguardandoRevisao} produto(s) inativo(s) — provavelmente recebido(s) em troca no PDV. Clique pra ver e definir o preço.
+                {qtdAguardandoRevisao} aparelho(s) recebido(s) em troca no PDV, ainda fora da venda. Clique para ver, conferir o preço e ligar "Apto à Venda" na ficha.
               </p>
             </div>
           </CardContent>
@@ -379,15 +399,16 @@ export default function Estoque() {
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="font-medium">{produto.nome}</p>
-                            {!produto.ativo && produto.preco === 0 && (
+                            {aguardandoRevisao(produto, idsDeTroca) ? (
                               <Badge variant="outline" className="text-[10px] text-primary border-primary/40">
                                 Aguardando revisão
                               </Badge>
-                            )}
-                            {!produto.ativo && produto.preco > 0 && (
-                              <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                                Inativo
-                              </Badge>
+                            ) : (
+                              !produto.ativo && (
+                                <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                  Inativo
+                                </Badge>
+                              )
                             )}
                           </div>
                           {(produto.marca || produto.modelo) && (
@@ -616,10 +637,14 @@ export default function Estoque() {
                 <Input
                   id="estoque_minimo"
                   type="number"
+                  min={0}
                   value={formData.estoque_minimo}
                   onChange={e => setFormData({ ...formData, estoque_minimo: e.target.value })}
                   placeholder="1"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Use 0 para peça única (seminovo): ela não entra no Estoque Crítico quando vender.
+                </p>
               </div>
             </div>
           </div>

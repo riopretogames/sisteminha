@@ -49,6 +49,8 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { OS_ETAPAS, OS_CANCELADO } from '@/config/osStatus';
+import { mensagemDoErro } from '@/lib/mensagemDoErro';
+import { textoDeSubirValorAprovado } from '@/lib/acaoDaEtapa';
 
 /**
  * Detalhe de uma OS.
@@ -102,6 +104,13 @@ interface HistoricoOS {
   status_anterior: string | null;
   status_novo: string;
   created_at: string;
+  /**
+   * O porquê da passagem, quando o banco sabe contar. Hoje é a recusa
+   * desfeita: "o cliente havia recusado o orçamento de R$ 450 — motivo: …".
+   * Até 24/09 o banco gravava este texto e nenhuma tela o lia — e como
+   * desfazer a recusa apaga o motivo da ficha, a história sumia de vez.
+   */
+  comentario: string | null;
 }
 
 interface ItemOS {
@@ -214,6 +223,7 @@ export default function OSDetalhe() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const podeEditar = can(PERMISSIONS.ORDERS_EDIT);
+  const podeAprovar = can(PERMISSIONS.ORDERS_APPROVE);
   const veCusto = can(PERMISSIONS.INVENTORY_COST_VIEW);
   const { getStatusConfig } = useOsStatuses();
 
@@ -505,14 +515,11 @@ export default function OSDetalhe() {
       setItemDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ['os-itens', id] });
     } catch (error) {
+      // "Estoque insuficiente", "Não é possível lançar item numa OS já
+      // entregue": o banco explica, e a explicação chega inteira (24/09).
       toast({
         title: 'Erro ao lançar item',
-        description:
-          error instanceof Error && /row-level security|policy/i.test(error.message)
-            ? 'Seu perfil de acesso não permite fazer isso.'
-            : error instanceof Error
-              ? error.message
-              : 'Tente novamente.',
+        description: mensagemDoErro(error),
         variant: 'destructive',
       });
     } finally {
@@ -529,7 +536,7 @@ export default function OSDetalhe() {
     } catch (error) {
       toast({
         title: 'Erro ao excluir',
-        description: error instanceof Error ? error.message : 'Tente novamente.',
+        description: mensagemDoErro(error),
         variant: 'destructive',
       });
     }
@@ -606,7 +613,7 @@ export default function OSDetalhe() {
     queryFn: async (): Promise<HistoricoOS[]> => {
       const { data, error } = await supabase
         .from('service_order_history')
-        .select('id, usuario_id, status_anterior, status_novo, created_at')
+        .select('id, usuario_id, status_anterior, status_novo, created_at, comentario')
         .eq('os_id', id!)
         .order('created_at', { ascending: true });
       if (error) throw error;
@@ -655,6 +662,7 @@ export default function OSDetalhe() {
           statusAnterior: null as string | null,
           statusNovo: null as string | null,
           descricao: 'OS aberta',
+          comentario: null as string | null,
         },
         // O início do reparo não é troca de etapa, então não está no
         // histórico de status — mas é justamente o evento que explica por que
@@ -667,6 +675,7 @@ export default function OSDetalhe() {
               statusAnterior: null as string | null,
               statusNovo: null as string | null,
               descricao: 'Diagnóstico iniciado na bancada',
+              comentario: null as string | null,
             }]
           : []),
         ...(os.laudo_decidido_em
@@ -679,6 +688,7 @@ export default function OSDetalhe() {
               descricao: os.laudo_aprovado
                 ? 'Cliente aprovou o laudo'
                 : `Cliente NÃO aprovou — ${os.laudo_motivo_recusa ?? 'sem motivo registrado'}`,
+              comentario: null as string | null,
             }]
           : []),
         ...(os.execucao_iniciada_em
@@ -689,6 +699,7 @@ export default function OSDetalhe() {
               statusAnterior: null as string | null,
               statusNovo: null as string | null,
               descricao: 'Execução iniciada',
+              comentario: null as string | null,
             }]
           : []),
         ...(historico ?? []).map((h) => ({
@@ -698,6 +709,7 @@ export default function OSDetalhe() {
           statusAnterior: h.status_anterior,
           statusNovo: h.status_novo,
           descricao: '',
+          comentario: h.comentario,
         })),
       ].sort((a, b) => a.created_at.localeCompare(b.created_at))
     : [];
@@ -719,6 +731,19 @@ export default function OSDetalhe() {
    */
   const laudoRecusado = os?.laudo_aprovado === false;
 
+  /**
+   * Na OS recusada, o valor É a taxa de análise — e mexer nele é decisão de
+   * quem aprova orçamento.
+   *
+   * Achado na revisão de 24/09: o botão "Usar soma dos itens" já sumia aqui
+   * (ele cobraria o conserto recusado), mas o campo continuava digitável para
+   * quem só edita OS. O técnico podia zerar a taxa (a OS saía de graça) ou
+   * digitar o valor do reparo que o cliente recusou. O banco passou a recusar
+   * as duas coisas para quem não aprova (migration 20260924161000); a tela
+   * trava o campo antes, dizendo por quê.
+   */
+  const valorTravadoPelaRecusa = laudoRecusado && !podeAprovar;
+
   const valorAtual = orcamento ?? (os ? String(os.total_orcamento) : '');
   const mudou = os && parseFloat(valorAtual || '0') !== Number(os.total_orcamento);
 
@@ -728,6 +753,13 @@ export default function OSDetalhe() {
     if (isNaN(valor) || valor < 0) {
       toast({ title: 'Valor inválido', variant: 'destructive' });
       return;
+    }
+
+    // Subir o valor que o cliente aprovou só vale com o OK dele. O banco
+    // deixa (baixar é que exige quem aprova); a tela faz a pessoa ler antes.
+    // Ver lib/acaoDaEtapa.ts — a regra de fundo é decisão do Felipe.
+    if (os.laudo_aprovado === true && valor > Number(os.total_orcamento)) {
+      if (!window.confirm(textoDeSubirValorAprovado(Number(os.total_orcamento), valor))) return;
     }
 
     setSalvando(true);
@@ -744,7 +776,7 @@ export default function OSDetalhe() {
     } catch (error: unknown) {
       toast({
         title: 'Erro ao salvar',
-        description: error instanceof Error ? error.message : 'Tente novamente.',
+        description: mensagemDoErro(error),
         variant: 'destructive',
       });
     } finally {
@@ -786,7 +818,7 @@ export default function OSDetalhe() {
     } catch (error) {
       toast({
         title: 'Erro ao salvar',
-        description: error instanceof Error ? error.message : 'Tente novamente.',
+        description: mensagemDoErro(error),
         variant: 'destructive',
       });
     } finally {
@@ -810,7 +842,7 @@ export default function OSDetalhe() {
     } catch (error) {
       toast({
         title: 'Erro ao atualizar',
-        description: error instanceof Error ? error.message : 'Tente novamente.',
+        description: mensagemDoErro(error),
         variant: 'destructive',
       });
     }
@@ -828,7 +860,7 @@ export default function OSDetalhe() {
     } catch (error) {
       toast({
         title: 'Erro ao atualizar',
-        description: error instanceof Error ? error.message : 'Tente novamente.',
+        description: mensagemDoErro(error),
         variant: 'destructive',
       });
     }
@@ -904,6 +936,9 @@ export default function OSDetalhe() {
               tipo={os.tipo}
               totalOrcamento={os.total_orcamento}
               laudoAprovado={os.laudo_aprovado}
+              laudoEletronico={os.laudo_eletronico}
+              valorOrcadoRecusado={os.valor_orcado_recusado}
+              motivoRecusa={os.laudo_motivo_recusa}
               execucaoIniciadaEm={os.execucao_iniciada_em}
               onMudou={() => {
                 queryClient.invalidateQueries({ queryKey: ['os-detalhe', id] });
@@ -1180,10 +1215,10 @@ export default function OSDetalhe() {
                   className="w-40"
                   value={valorAtual}
                   onChange={(e) => setOrcamento(e.target.value)}
-                  disabled={!podeEditar || osEncerrada}
+                  disabled={!podeEditar || osEncerrada || valorTravadoPelaRecusa}
                 />
               </div>
-              {podeEditar && !osEncerrada && (
+              {podeEditar && !osEncerrada && !valorTravadoPelaRecusa && (
                 <Button onClick={salvarOrcamento} disabled={salvando || !mudou}>
                   <Save className="mr-2 h-4 w-4" />
                   {salvando ? 'Salvando…' : 'Salvar'}
@@ -1238,6 +1273,12 @@ export default function OSDetalhe() {
                     {' '}
                     Motivo: <em>{os.laudo_motivo_recusa}</em>.
                   </>
+                )}
+                {valorTravadoPelaRecusa && !osEncerrada && (
+                  <span className="mt-1 block text-muted-foreground">
+                    Mudar este valor (dispensar a taxa, por exemplo) é decisão de quem aprova
+                    orçamento — peça a um vendedor ou gerente.
+                  </span>
                 )}
               </p>
             )}
@@ -1402,6 +1443,9 @@ export default function OSDetalhe() {
                         <span className="font-medium">{ev.descricao}</span>
                       )}
                       <span className="text-muted-foreground">— {nomeUsuario(ev.usuario_id)}</span>
+                      {ev.comentario && (
+                        <p className="w-full pl-5 text-xs text-muted-foreground">{ev.comentario}</p>
+                      )}
                     </div>
                   );
                 })}

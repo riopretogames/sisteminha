@@ -41,7 +41,7 @@ import {
   soDigitos,
 } from '@/lib/documento';
 import { useAtalhosDeDialogo } from '@/hooks/useAtalhosDeDialogo';
-import { podeGravarClienteNovo } from '@/lib/clienteDuplicado';
+import { juntarSemelhantes, podeGravarClienteNovo } from '@/lib/clienteDuplicado';
 import { faltandoNoCliente } from '@/lib/clienteObrigatorios';
 import { useCamposObrigatorios } from '@/hooks/useCamposObrigatorios';
 
@@ -160,12 +160,22 @@ export function ClienteFormDialog({
    * levar "já existe".
    */
   const procurarSemelhantes = async () => {
-    const achados = await buscarClientesSemelhantes({
-      documento: form.cpf_cnpj,
-      telefone: form.telefone,
-      nome: form.nome,
-      ignorarId: cliente?.id,
-    });
+    // O telefone extra entra na procura desde 24/09. O banco confere TODOS os
+    // telefones da ficha; procurando só o principal, um extra que já era de
+    // outro cliente só aparecia ao salvar, como erro — sem o "Usar este
+    // cadastro" que a regra de cliente único manda oferecer.
+    const [principais, peloExtra] = await Promise.all([
+      buscarClientesSemelhantes({
+        documento: form.cpf_cnpj,
+        telefone: form.telefone,
+        nome: form.nome,
+        ignorarId: cliente?.id,
+      }),
+      form.telefone_extra.trim()
+        ? buscarClientesSemelhantes({ telefone: form.telefone_extra, ignorarId: cliente?.id })
+        : Promise.resolve([]),
+    ]);
+    const achados = juntarSemelhantes(principais, peloExtra);
     setSemelhantes(achados);
     return achados;
   };
@@ -548,6 +558,7 @@ export function ClienteFormDialog({
                   id="telefone_extra"
                   value={form.telefone_extra}
                   onChange={(e) => alterar('telefone_extra', mascaraTelefone(e.target.value))}
+                  onBlur={procurarSemelhantes}
                   placeholder="Recado, trabalho, familiar"
                   inputMode="numeric"
                 />

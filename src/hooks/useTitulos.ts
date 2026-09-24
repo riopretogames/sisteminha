@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { hojeISO, diasAte } from '@/lib/format';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
+import { mensagemCrua } from '@/lib/mensagemDoErro';
 
 /**
  * Contas a pagar e a receber.
@@ -36,6 +38,14 @@ export interface Titulo {
    *  não dá pra responder "quanto o cliente X me deve". */
   fornecedor_id: string | null;
   cliente_id: string | null;
+  /**
+   * Preenchidos só no título que o PRÓPRIO SISTEMA cria: a entrega da OS
+   * (os_id) ou uma venda (venda_id). Esse título espelha o documento de
+   * origem, e o banco não deixa reabrir, cancelar nem mudar o valor dele
+   * (migration 20260924165000) — a correção passa pela OS.
+   */
+  os_id?: string | null;
+  venda_id?: string | null;
   categorias_financeiras?: { nome: string } | null;
   fornecedores?: { nome: string } | null;
   clientes?: { nome: string } | null;
@@ -99,15 +109,18 @@ export function useTitulos(natureza: NaturezaTitulo) {
 
   const query = useQuery({
     queryKey: chave,
-    queryFn: async (): Promise<Titulo[]> => {
-      const { data, error } = await supabase
-        .from('titulos_financeiros')
-        .select('*, categorias_financeiras(nome), fornecedores(nome), clientes(nome)')
-        .eq('natureza', natureza)
-        .order('vencimento', { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as Titulo[];
-    },
+    // Em páginas: o Supabase devolve no máximo 1.000 linhas por pedido e
+    // corta calado (lib/buscarEmPaginas.ts). Contas a pagar acumulam rápido —
+    // um ano de loja passa disso, e o "Em aberto" somaria só uma parte.
+    queryFn: () =>
+      buscarEmPaginas<Titulo>(() =>
+        supabase
+          .from('titulos_financeiros')
+          .select('*, categorias_financeiras(nome), fornecedores(nome), clientes(nome)')
+          .eq('natureza', natureza)
+          .order('vencimento', { ascending: true })
+          .order('id'),
+      ),
   });
 
   const invalidar = () => {
@@ -116,7 +129,7 @@ export function useTitulos(natureza: NaturezaTitulo) {
   };
 
   const aoFalhar = (error: unknown) => {
-    const msg = error instanceof Error ? error.message : 'Erro desconhecido';
+    const msg = mensagemCrua(error) || 'Erro desconhecido';
     toast({
       title: 'Não foi possível salvar',
       description: /row-level security|policy/i.test(msg)

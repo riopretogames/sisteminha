@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback, createContext, useContext, ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 import type { Permission, Role } from '@/config/permissions';
+import { lerEntrouComo, limparEntrouComo } from '@/lib/entrarComo';
 
 /**
  * Autenticação e autorização do RPG System.IO.
@@ -21,7 +23,22 @@ import type { Permission, Role } from '@/config/permissions';
  *
  * 3. Ausência de papel NÃO é privilégio. Usuário sem papel enxerga o mínimo,
  *    nunca o máximo. É o oposto exato do comportamento anterior.
+ *
+ * 4. Conta DESATIVADA não fica logada (achado 82 da revisão de 24/09). O banco
+ *    já não entregava nada a ela, mas a pessoa entrava e caía numa tela que
+ *    dizia "sua conta não tem perfil" — e o Felipe via o perfil preenchido e
+ *    não entendia. Agora ela sai na hora e a tela de entrada diz o motivo
+ *    certo. O caso comum é o "Trazer de volta" de Usuários, que devolve a
+ *    pessoa à lista INATIVA de propósito.
+ *
+ * 5. A marca do "Entrar como" (lib/entrarComo.ts) é limpa aqui quando a conta
+ *    sai, ou quando entra uma conta que não é a da marca — senão a faixa
+ *    amarela sobraria para a próxima pessoa que entrasse naquele navegador.
  */
+
+/** O aviso que a tela de entrada mostra quando a conta está desativada. */
+export const AVISO_CONTA_DESATIVADA =
+  'Sua conta está desativada. Fale com o administrador da loja para liberar o seu acesso.';
 
 interface Profile {
   id: string;
@@ -29,6 +46,8 @@ interface Profile {
   email: string | null;
   tenant_id: string | null;
   avatar_url: string | null;
+  ativo?: boolean | null;
+  arquivado_em?: string | null;
 }
 
 interface AuthUser extends User {
@@ -49,6 +68,11 @@ interface AuthContextType {
   canAny: (permissions: Permission[]) => boolean;
   /** Use só quando a pergunta for genuinamente sobre o papel. */
   hasRole: (role: Role) => boolean;
+  /**
+   * Por que a pessoa foi posta para fora (ex.: conta desativada). A tela de
+   * entrada mostra; `null` quando não há nada a dizer.
+   */
+  avisoDeEntrada: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -86,6 +110,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [avisoDeEntrada, setAvisoDeEntrada] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let ativo = true;
@@ -95,13 +121,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(currentSession);
 
       if (!currentSession?.user) {
+        // Saiu (por aqui ou por outra aba): a faixa de "Entrar como" morre junto.
+        limparEntrouComo();
+        // E tudo o que a tela guardou da pessoa que saiu vai embora junto
+        // (achado 21 da revisão de 24/09): no balcão o Pedro sai e o Gabriel
+        // entra na mesma aba, e nenhuma lista do Pedro pode aparecer para o
+        // Gabriel, nem por um instante, enquanto a do Gabriel carrega.
+        queryClient.clear();
         setUser(null);
         setLoading(false);
         return;
       }
 
+      // Entrou uma conta que não é a da marca de "Entrar como": a marca é de
+      // outra história e não pode acender faixa nesta.
+      const marca = lerEntrouComo();
+      if (marca && marca.alvoId !== currentSession.user.id) limparEntrouComo();
+
       const { profile, roles, permissions } = await fetchAuthorization(currentSession.user.id);
       if (!ativo) return;
+
+      // Conta desativada (ou arquivada, que desativa junto): sai na hora, com
+      // o motivo certo. Só com o cadastro LIDO e dizendo "inativo" — se a
+      // leitura falhou (sem internet), não se põe ninguém para fora por isso.
+      if (profile && profile.ativo === false) {
+        setAvisoDeEntrada(AVISO_CONTA_DESATIVADA);
+        setUser(null);
+        setLoading(false);
+        await supabase.auth.signOut();
+        return;
+      }
 
       setUser({ ...currentSession.user, profile, roles, permissions });
       setLoading(false);
@@ -121,9 +170,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ativo = false;
       subscription.unsubscribe();
     };
-  }, []);
+    // O queryClient é o mesmo a vida inteira do app (App.tsx); entrar nas
+    // dependências só serve para o linter, não refaz a inscrição.
+  }, [queryClient]);
 
   const signIn = useCallback(async (email: string, password: string) => {
+    // Tentativa nova, aviso velho some. Se a conta continuar desativada, o
+    // aviso volta assim que o cadastro for lido.
+    setAvisoDeEntrada(null);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error as Error | null };
   }, []);
@@ -148,7 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, session, loading, signIn, signOut, can, canAny, hasRole }}
+      value={{ user, session, loading, signIn, signOut, can, canAny, hasRole, avisoDeEntrada }}
     >
       {children}
     </AuthContext.Provider>

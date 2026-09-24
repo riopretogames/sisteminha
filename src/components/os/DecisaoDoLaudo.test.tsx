@@ -45,6 +45,7 @@ async function montar(opcoes: {
   status?: string;
   tipo?: 'paga' | 'garantia' | 'cortesia';
   laudoEletronico?: boolean | null;
+  totalOrcamento?: number;
 } = {}) {
   mockCan.mockImplementation(montarCan({ perfil: opcoes.perfil ?? 'vendedor' }));
   mockRpc.mockResolvedValue({ data: null, error: null });
@@ -59,7 +60,7 @@ async function montar(opcoes: {
       osId="os-1"
       status={opcoes.status ?? OS_ETAPAS.AGUARDANDO_APROVACAO}
       tipo={opcoes.tipo ?? 'paga'}
-      totalOrcamento={450}
+      totalOrcamento={opcoes.totalOrcamento ?? 450}
       laudoEletronico={opcoes.laudoEletronico ?? true}
       onMudou={() => {}}
     />,
@@ -95,6 +96,44 @@ describe('A resposta do cliente ao laudo', () => {
         _motivo: null,
       });
     });
+  });
+
+  it('OS paga SEM valor não se aprova: pede o valor do laudo antes (24/09)', async () => {
+    // Aprovar R$ 0 deixava a OS seguir até a entrega e sair sem cobrança. A
+    // fila de Orçamentos dizia "preencha antes de aprovar", mas não barrava.
+    await montar({ totalOrcamento: 0 });
+
+    fireEvent.click(screen.getByRole('button', { name: /laudo aprovado/i }));
+
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: expect.stringMatching(/preencha o valor/i) }),
+    );
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it('garantia em R$ 0 aprova normalmente — ali R$ 0 é o combinado', async () => {
+    await montar({ totalOrcamento: 0, tipo: 'garantia' });
+
+    fireEvent.click(screen.getByRole('button', { name: /laudo aprovado/i }));
+
+    await waitFor(() => expect(mockRpc).toHaveBeenCalled());
+  });
+
+  it('a recusa do banco aparece com o motivo, não "Tente novamente" (24/09)', async () => {
+    await montar();
+    // O Supabase devolve o erro como objeto comum — não como Error.
+    mockRpc.mockResolvedValue({
+      data: null,
+      error: { message: 'Esta OS não está aguardando a resposta do cliente.', code: 'P0001' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /laudo aprovado/i }));
+
+    await waitFor(() =>
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({ description: 'Esta OS não está aguardando a resposta do cliente.' }),
+      ),
+    );
   });
 
   it('desistir da confirmação não grava nada', async () => {

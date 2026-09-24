@@ -16,6 +16,7 @@ import {
   X,
   Repeat,
   AlertTriangle,
+  Printer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,7 +39,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ToastAction } from '@/components/ui/toast';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { supabase } from '@/integrations/supabase/client';
@@ -51,8 +51,23 @@ import type { Cliente as ClienteCompleto } from '@/hooks/useClientes';
 import { soDigitos } from '@/lib/documento';
 import { FORMAS_PAGAMENTO } from '@/lib/constants';
 import { moeda as formatCurrency } from '@/lib/format';
+import { arredondarReais, emCentavos, emReais, lerValorDigitado } from '@/lib/dinheiro';
+import { trocoAlemDoDinheiro } from '@/lib/valoresDaVenda';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
+import { mensagemDoErro } from '@/lib/mensagemDoErro';
 
 type FormaPagamento = keyof typeof FORMAS_PAGAMENTO;
+
+/**
+ * Quantos produtos e clientes a tela desenha de uma vez.
+ *
+ * A lista inteira vem do banco (em páginas de mil — o Supabase corta calado
+ * no milésimo, ver lib/buscarEmPaginas.ts), e a busca procura em todos. O que
+ * tem limite é só o DESENHO: mil cartões de produto na tela travam o
+ * navegador do balcão, e ninguém rola até o milésimo — digita.
+ */
+const PRODUTOS_NA_TELA = 200;
+const CLIENTES_NA_TELA = 100;
 
 interface Produto {
   id: string;
@@ -102,6 +117,9 @@ interface FormaPagamentoCadastro {
   max_parcelas: number;
   contem_taxa: boolean;
   taxa_percent: number;
+  /** Dinheiro físico, que cai na gaveta. É a mesma marcação que o caixa usa
+   *  para saber de onde sai o troco. */
+  entra_no_caixa?: boolean | null;
 }
 
 interface Pagamento {
@@ -109,7 +127,23 @@ interface Pagamento {
   descricao: string;
   forma: FormaPagamento;
   parcelas: number;
+  /** Em reais, já arredondado a 2 casas (ver lib/dinheiro.ts). */
   valor: number;
+  entraNoCaixa: boolean;
+}
+
+/** O que a janela de "venda finalizada" precisa mostrar depois do reset. */
+interface VendaFinalizada {
+  id: string;
+  numero: string | null;
+  trocoCentavos: number;
+  /** Produto recebido em troca, que entrou inativo esperando revisão. */
+  produtoDeTrocaId: string | null;
+}
+
+/** A forma é dinheiro de gaveta? Sem a marcação no cadastro, decide pelo tipo. */
+function ehDinheiroDeGaveta(f: Pick<FormaPagamentoCadastro, 'entra_no_caixa' | 'forma_enum'>): boolean {
+  return f.entra_no_caixa ?? f.forma_enum === 'dinheiro';
 }
 
 /**
@@ -209,6 +243,7 @@ export default function PDV() {
   const [showClienteDialog, setShowClienteDialog] = useState(false);
   const [showNovoClienteDialog, setShowNovoClienteDialog] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [vendaFinalizada, setVendaFinalizada] = useState<VendaFinalizada | null>(null);
   const [novoPagamento, setNovoPagamento] = useState<{ formaPagamentoId: string; parcelas: string; valor: string }>({
     formaPagamentoId: '',
     parcelas: '1',
@@ -284,39 +319,50 @@ export default function PDV() {
     });
   };
 
+  // Produtos e clientes vêm em páginas de mil: o Supabase corta calado no
+  // milésimo (lib/buscarEmPaginas.ts). Achado de 24/09 — com a base do sistema
+  // antigo importada, o cliente depois do milésimo na ordem alfabética não
+  // aparecia na busca do PDV, e o vendedor cadastrava de novo. A ordem por `id`
+  // depois do nome é o que impede uma linha de cair em duas páginas.
   const fetchProdutos = async () => {
-    const { data, error } = await supabase
-      .from('vw_produtos')
-      .select(
-        'id, nome, preco, estoque_atual, imei_serial, codigo_barra, grupo_produto_id, marca_id, cor_id, condicao_id, memoria_id'
-      )
-      .eq('ativo', true)
-      .gt('estoque_atual', 0)
-      .order('nome');
-    if (error) {
+    try {
+      const data = await buscarEmPaginas<Produto>(() =>
+        supabase
+          .from('vw_produtos')
+          .select(
+            'id, nome, preco, estoque_atual, imei_serial, codigo_barra, grupo_produto_id, marca_id, cor_id, condicao_id, memoria_id'
+          )
+          .eq('ativo', true)
+          .gt('estoque_atual', 0)
+          .order('nome')
+          .order('id'),
+      );
+      setProdutos(data);
+    } catch (error) {
       avisarFalhaDeBusca('os produtos', error);
-      return;
     }
-    setProdutos(data || []);
   };
 
   const fetchClientes = async () => {
-    const { data, error } = await supabase
-      .from('clientes')
-      .select('id, nome, telefones, liberado_venda')
-      .eq('ativo', true)
-      .order('nome');
-    if (error) {
+    try {
+      const data = await buscarEmPaginas<Cliente>(() =>
+        supabase
+          .from('clientes')
+          .select('id, nome, telefones, liberado_venda')
+          .eq('ativo', true)
+          .order('nome')
+          .order('id'),
+      );
+      setClientes(data);
+    } catch (error) {
       avisarFalhaDeBusca('os clientes', error);
-      return;
     }
-    setClientes(data || []);
   };
 
   const fetchFormasPagamento = async () => {
     const { data, error } = await supabase
       .from('formas_pagamento')
-      .select('id, descricao, forma_enum, max_parcelas, contem_taxa, taxa_percent')
+      .select('id, descricao, forma_enum, max_parcelas, contem_taxa, taxa_percent, entra_no_caixa')
       .eq('ativo', true)
       .order('ordem', { ascending: true })
       .order('descricao', { ascending: true });
@@ -469,26 +515,57 @@ export default function PDV() {
     );
   };
 
-  const subtotalBruto = cart.reduce(
-    (acc, item) => acc + item.produto.preco * item.quantidade,
+  /*
+   * TODA a conta do carrinho e do pagamento é em CENTAVOS INTEIROS (ver
+   * lib/dinheiro.ts). Achado de 24/09: somando reais quebrados, R$ 9,90 +
+   * R$ 69,90 dava 79.80000000000001; o vendedor digitava 79,80 e a tela
+   * travava com "Falta R$ 0,00" e o botão de confirmar desligado. O mesmo
+   * resíduo aparecia como "Troco R$ 0,00" e virava pagamento de R$ 0,00 no
+   * atalho. As variáveis em reais abaixo existem só para mostrar e gravar.
+   */
+  const subtotalCentavos = cart.reduce(
+    (acc, item) => acc + emCentavos(item.produto.preco) * item.quantidade,
     0
   );
 
   // Desconto é sempre em R$ (mesma unidade da coluna vendas.descontos), e
   // travado entre 0 e o subtotal — nunca deixa o total ficar negativo.
   // Quem não tem `sales.discount` nem vê o campo (a UI já esconde), então
-  // o valor digitado é sempre 0 pra esse perfil.
-  const descontoValor = podeDarDesconto
-    ? Math.min(subtotalBruto, Math.max(0, parseFloat(desconto) || 0))
+  // o valor digitado é sempre 0 pra esse perfil. Arredondado a centavos AQUI:
+  // um desconto digitado com 3 casas (10,555) ia inteiro para o banco, que
+  // arredondava cada coluna do seu jeito, e desconto + total ficava um
+  // centavo diferente do subtotal.
+  const descontoDigitado = emCentavos(desconto.trim() ? desconto : 0);
+  const descontoCentavos = podeDarDesconto
+    ? Math.min(subtotalCentavos, Math.max(0, Number.isFinite(descontoDigitado) ? descontoDigitado : 0))
     : 0;
-  const total = subtotalBruto - descontoValor;
+  const totalCentavos = subtotalCentavos - descontoCentavos;
 
-  const totalEntradaProdutos = entradasProduto.reduce((acc, e) => acc + e.valorEntrada, 0);
+  const entradaCentavos = entradasProduto.reduce((acc, e) => acc + emCentavos(e.valorEntrada), 0);
   // Produto recebido em troca conta como pagamento (mesma ideia do vale_troca
   // que a venda vai gravar) — por isso soma aqui, na mesma conta de "quanto já
   // foi pago", em vez de abater do total como se fosse desconto.
-  const totalPago = pagamentos.reduce((acc, p) => acc + p.valor, 0) + totalEntradaProdutos;
-  const troco = totalPago - total;
+  const pagoCentavos =
+    pagamentos.reduce((acc, p) => acc + emCentavos(p.valor), 0) + entradaCentavos;
+  const faltaCentavos = Math.max(0, totalCentavos - pagoCentavos);
+  const trocoCentavos = Math.max(0, pagoCentavos - totalCentavos);
+  const dinheiroCentavos = pagamentos
+    .filter((p) => p.entraNoCaixa)
+    .reduce((acc, p) => acc + emCentavos(p.valor), 0);
+  // Parte do troco que não entrou pela gaveta, mas vai sair dela — aparelho
+  // de troca que vale mais que a compra, ou cartão/PIX lançado a mais.
+  const trocoForaDoDinheiro = trocoAlemDoDinheiro({
+    trocoCentavos,
+    dinheiroRecebidoCentavos: dinheiroCentavos,
+  });
+
+  // Em reais, só para mostrar na tela e gravar no banco.
+  const subtotalBruto = emReais(subtotalCentavos);
+  const descontoValor = emReais(descontoCentavos);
+  const total = emReais(totalCentavos);
+  const totalEntradaProdutos = emReais(entradaCentavos);
+  const totalPago = emReais(pagoCentavos);
+  const troco = emReais(trocoCentavos);
 
   const selecionarFormaPagamento = (formaPagamentoId: string) => {
     const forma = formasPagamento.find((f) => f.id === formaPagamentoId);
@@ -502,8 +579,10 @@ export default function PDV() {
   };
 
   const addPagamento = () => {
-    const valor = parseFloat(novoPagamento.valor);
-    if (!valor || valor <= 0) return;
+    // Centavos já na leitura: "79.80" vira 7980 exatos, e "0.001" (que
+    // arredonda para zero) não vira um pagamento de R$ 0,00.
+    const centavos = lerValorDigitado(novoPagamento.valor);
+    if (centavos === null) return;
 
     const forma = formasPagamento.find((f) => f.id === novoPagamento.formaPagamentoId);
     if (!forma) {
@@ -515,7 +594,14 @@ export default function PDV() {
 
     setPagamentos([
       ...pagamentos,
-      { formaPagamentoId: forma.id, descricao: forma.descricao, forma: forma.forma_enum, parcelas, valor },
+      {
+        formaPagamentoId: forma.id,
+        descricao: forma.descricao,
+        forma: forma.forma_enum,
+        parcelas,
+        valor: emReais(centavos),
+        entraNoCaixa: ehDinheiroDeGaveta(forma),
+      },
     ]);
     setNovoPagamento({ formaPagamentoId: forma.id, parcelas: '1', valor: '' });
   };
@@ -537,11 +623,17 @@ export default function PDV() {
     // apagava o dinheiro já lançado e registrava a venda inteira como PIX).
     // Agora soma ao que já foi pago (dinheiro lançado + produto de entrada em
     // troca) e lança só o que falta, igual o botão manual "Adicionar" já faz.
-    const restante = total - totalPago;
-    if (restante <= 0) return;
+    if (faltaCentavos <= 0) return;
     setPagamentos([
       ...pagamentos,
-      { formaPagamentoId: forma.id, descricao: forma.descricao, forma: forma.forma_enum, parcelas: 1, valor: restante },
+      {
+        formaPagamentoId: forma.id,
+        descricao: forma.descricao,
+        forma: forma.forma_enum,
+        parcelas: 1,
+        valor: emReais(faltaCentavos),
+        entraNoCaixa: ehDinheiroDeGaveta(forma),
+      },
     ]);
   };
 
@@ -554,11 +646,12 @@ export default function PDV() {
       toast({ title: 'Descreva o produto recebido', variant: 'destructive' });
       return;
     }
-    const valor = parseFloat(novaEntrada.valorEntrada);
-    if (!valor || valor <= 0) {
+    const valorCentavos = lerValorDigitado(novaEntrada.valorEntrada);
+    if (valorCentavos === null) {
       toast({ title: 'Informe o valor de entrada', variant: 'destructive' });
       return;
     }
+    const valor = emReais(valorCentavos);
     // Preço de revenda é OPCIONAL: em branco vira 0 e o produto nasce sem
     // preço, para revisão depois. Obrigar travaria o balcão com fila quando o
     // vendedor não souber quanto vale o aparelho na hora.
@@ -573,7 +666,7 @@ export default function PDV() {
         ...novaEntrada,
         nome: novaEntrada.nome.trim(),
         valorEntrada: valor,
-        precoVenda: Number.isNaN(precoRevenda) ? 0 : precoRevenda,
+        precoVenda: Number.isNaN(precoRevenda) ? 0 : arredondarReais(precoRevenda),
       },
     ]);
     setNovaEntrada(ENTRADA_PRODUTO_VAZIA);
@@ -690,7 +783,7 @@ export default function PDV() {
       return;
     }
 
-    if (totalPago < total) {
+    if (faltaCentavos > 0) {
       toast({
         title: 'Pagamento insuficiente',
         description: 'O valor pago é menor que o total.',
@@ -720,6 +813,8 @@ export default function PDV() {
           cliente_id: selectedCliente?.id || null,
           vendedor_id: vendedorId,
           status: 'pago',
+          // Já em 2 casas, somados em centavos: o banco recebe exatamente o
+          // que a tela mostrou, e total = subtotal − desconto fecha no centavo.
           subtotal: subtotalBruto,
           descontos: descontoValor,
           total,
@@ -740,8 +835,8 @@ export default function PDV() {
           venda_id: venda.id,
           produto_id: item.produto.id,
           quantidade: item.quantidade,
-          preco_unitario: item.produto.preco,
-          total: item.produto.preco * item.quantidade,
+          preco_unitario: emReais(emCentavos(item.produto.preco)),
+          total: emReais(emCentavos(item.produto.preco) * item.quantidade),
           defeito_declarado: item.defeitoDeclarado,
         }));
 
@@ -829,21 +924,18 @@ export default function PDV() {
         throw innerError;
       }
 
-      toast({
-        title: 'Venda finalizada!',
-        description: `Venda ${venda.numero_venda} registrada com sucesso.`,
-        variant: 'success',
-        // Produto recebido em troca entra inativo, esperando alguém revisar
-        // e definir o preço — sem este atalho, o único jeito de achar era
-        // saber que existe o aviso "Aguardando revisão" em Estoque.
-        action: produtosDeTroca.length > 0 ? (
-          <ToastAction
-            altText="Revisar produto recebido em troca"
-            onClick={() => navigate(`/estoque/${produtosDeTroca[0]}`)}
-          >
-            Revisar produto
-          </ToastAction>
-        ) : undefined,
+      // A janela de "venda finalizada" (achado de 24/09): o aviso antigo só
+      // dizia "registrada com sucesso", e para imprimir o comprovante do
+      // cliente que está no balcão era preciso sair do PDV, abrir o Histórico,
+      // achar a venda e clicar na impressora — em toda venda, justo na fila.
+      // Agora o comprovante está a um Enter. O produto recebido em troca, que
+      // entra inativo esperando alguém revisar e pôr preço, tem o seu atalho
+      // na mesma janela (antes era a ação do aviso, que só cabia uma).
+      setVendaFinalizada({
+        id: venda.id,
+        numero: venda.numero_venda,
+        trocoCentavos,
+        produtoDeTrocaId: produtosDeTroca[0] ?? null,
       });
 
       // Reset — origemVendaId NÃO reseta pro vazio, e sim de volta pro padrão
@@ -862,7 +954,7 @@ export default function PDV() {
       fetchProdutos();
     } catch (error) {
       console.error('Error:', error);
-      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      const message = mensagemDoErro(error);
       toast({
         title: 'Erro ao finalizar venda',
         description: message,
@@ -880,7 +972,7 @@ export default function PDV() {
   // espaço/traço bate igual.
   const buscaLower = search.trim().toLowerCase();
   const buscaDigitos = soDigitos(search);
-  const filteredProdutos = produtos.filter((p) => {
+  const filteredProdutos: Produto[] = produtos.filter((p) => {
     const bateBusca =
       !buscaLower ||
       p.nome.toLowerCase().includes(buscaLower) ||
@@ -1013,8 +1105,14 @@ export default function PDV() {
         </div>
 
         <div className="flex-1 overflow-auto">
+          {filteredProdutos.length > PRODUTOS_NA_TELA && (
+            <p className="mb-3 rounded-md border border-dashed p-2 text-xs text-muted-foreground">
+              Mostrando {PRODUTOS_NA_TELA} de {filteredProdutos.length} produtos. Digite o nome, o
+              IMEI ou o código de barras, ou use os filtros, para achar o que procura.
+            </p>
+          )}
           <div className="grid grid-cols-3 gap-3">
-            {filteredProdutos.map(produto => (
+            {filteredProdutos.slice(0, PRODUTOS_NA_TELA).map(produto => (
               <Card
                 key={produto.id}
                 className="cursor-pointer hover:shadow-md transition-shadow"
@@ -1242,7 +1340,13 @@ export default function PDV() {
                   Sem cliente
                 </Button>
               )}
-              {filteredClientes.map(cliente => {
+              {filteredClientes.length > CLIENTES_NA_TELA && (
+                <p className="text-xs text-muted-foreground">
+                  Mostrando {CLIENTES_NA_TELA} de {filteredClientes.length} clientes. Digite o nome
+                  ou o telefone para achar o cliente.
+                </p>
+              )}
+              {filteredClientes.slice(0, CLIENTES_NA_TELA).map(cliente => {
                 const bloqueado = cliente.liberado_venda === false;
                 return (
                   <Button
@@ -1576,16 +1680,27 @@ export default function PDV() {
                 <span>Total pago</span>
                 <span className="font-medium">{formatCurrency(totalPago)}</span>
               </div>
-              {troco > 0 && (
+              {trocoCentavos > 0 && (
                 <div className="flex justify-between text-success">
                   <span>Troco</span>
                   <span className="font-bold">{formatCurrency(troco)}</span>
                 </div>
               )}
-              {totalPago < total && (
+              {/* O troco que não entrou pela gaveta, mas sai dela. Achado de
+                  24/09: um PS5 de R$ 2.000 na troca por um controle de R$ 430
+                  mostrava "Troco R$ 1.570" em verde, como se fosse troco
+                  comum — e o dinheiro saía da gaveta sem ninguém perceber que
+                  ele nunca tinha entrado ali. */}
+              {trocoForaDoDinheiro > 0 && (
+                <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-800">
+                  {formatCurrency(emReais(trocoForaDoDinheiro))} deste troco não entrou em dinheiro —
+                  veio do aparelho recebido na troca ou do cartão/PIX — e vai sair da gaveta.
+                </p>
+              )}
+              {faltaCentavos > 0 && (
                 <div className="flex justify-between text-destructive">
                   <span>Falta</span>
-                  <span className="font-bold">{formatCurrency(total - totalPago)}</span>
+                  <span className="font-bold">{formatCurrency(emReais(faltaCentavos))}</span>
                 </div>
               )}
             </div>
@@ -1596,7 +1711,7 @@ export default function PDV() {
             </Button>
             <Button
               onClick={handleCheckout}
-              disabled={processing || totalPago < total}
+              disabled={processing || faltaCentavos > 0}
             >
               {processing ? (
                 'Processando...'
@@ -1606,6 +1721,50 @@ export default function PDV() {
                   Confirmar Venda
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Venda fechada: o comprovante a um Enter de distância. Esc ou "Nova
+          venda" fecham e o PDV já está limpo para o próximo cliente. */}
+      <Dialog open={!!vendaFinalizada} onOpenChange={(aberto) => !aberto && setVendaFinalizada(null)}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>Venda finalizada!</DialogTitle>
+            <DialogDescription>
+              Venda {vendaFinalizada?.numero ?? ''} registrada com sucesso.
+            </DialogDescription>
+          </DialogHeader>
+          {vendaFinalizada && vendaFinalizada.trocoCentavos > 0 && (
+            <p className="text-lg font-bold text-success">
+              Troco: {formatCurrency(emReais(vendaFinalizada.trocoCentavos))}
+            </p>
+          )}
+          {vendaFinalizada?.produtoDeTrocaId && (
+            <p className="text-sm text-muted-foreground">
+              O produto recebido na troca entrou no estoque como inativo, esperando alguém revisar e
+              pôr o preço de revenda.
+            </p>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            {vendaFinalizada?.produtoDeTrocaId && (
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/estoque/${vendaFinalizada.produtoDeTrocaId}`)}
+              >
+                Revisar produto recebido
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setVendaFinalizada(null)}>
+              Nova venda
+            </Button>
+            <Button
+              autoFocus
+              onClick={() => vendaFinalizada && navigate(`/vendas/${vendaFinalizada.id}/comprovante`)}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Imprimir comprovante
             </Button>
           </DialogFooter>
         </DialogContent>

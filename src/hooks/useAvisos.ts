@@ -4,6 +4,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { estoqueCritico } from '@/lib/estoque';
 import { hojeISO } from '@/lib/format';
+import { paraISO } from '@/lib/periodo';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
 
 /**
  * Os avisos do sininho.
@@ -59,16 +61,30 @@ export function useAvisos() {
       const hoje = hojeISO();
       const avisos: Aviso[] = [];
 
-      const [produtos, ordens, titulos, caixas] = await Promise.all([
+      // Produtos e OS em páginas: o Supabase corta calado em 1.000 linhas por
+      // pedido, e com o catálogo da loja importado o "no fim do estoque"
+      // contaria só uma parte qualquer dos produtos (lib/buscarEmPaginas.ts).
+      type ProdutoAviso = { id: string; estoque_atual: number | null; estoque_minimo: number | null };
+      type OSAviso = { id: string; status: string; created_at: string };
+      const [produtosLista, ordensLista, titulos, caixas] = await Promise.all([
         veEstoque
-          ? supabase.from('vw_produtos').select('id, estoque_atual, estoque_minimo').eq('ativo', true)
-          : Promise.resolve({ data: [], error: null }),
+          ? buscarEmPaginas<ProdutoAviso>(() =>
+              supabase
+                .from('vw_produtos')
+                .select('id, estoque_atual, estoque_minimo')
+                .eq('ativo', true)
+                .order('id'),
+            )
+          : Promise.resolve([] as ProdutoAviso[]),
         veOS
-          ? supabase
-              .from('service_orders')
-              .select('id, status, created_at')
-              .not('status', 'in', '("entregue","cancelado")')
-          : Promise.resolve({ data: [], error: null }),
+          ? buscarEmPaginas<OSAviso>(() =>
+              supabase
+                .from('service_orders')
+                .select('id, status, created_at')
+                .not('status', 'in', '("entregue","cancelado")')
+                .order('id'),
+            )
+          : Promise.resolve([] as OSAviso[]),
         vePagar
           ? supabase
               .from('titulos_financeiros')
@@ -82,10 +98,11 @@ export function useAvisos() {
           : Promise.resolve({ data: [], error: null }),
       ]);
 
+      const produtos = { data: produtosLista };
+      const ordens = { data: ordensLista };
+
       // ── Estoque no fim ────────────────────────────────────────────────
-      const criticos = (produtos.data ?? []).filter((p) =>
-        estoqueCritico(p as { estoque_atual: number | null; estoque_minimo: number | null }),
-      );
+      const criticos = (produtos.data ?? []).filter((p) => estoqueCritico(p));
       if (criticos.length > 0) {
         const zerados = criticos.filter((p) => (p.estoque_atual ?? 0) <= 0).length;
         avisos.push({
@@ -143,7 +160,12 @@ export function useAvisos() {
       // Caixa aberto de ontem quase sempre é esquecimento, não turno virado.
       // O estrago é no fechamento: a conferência do dia seguinte mistura o
       // dinheiro dos dois dias e nunca mais bate.
-      const antigos = (caixas.data ?? []).filter((c) => diasDesde(c.aberto_em, agora) >= 1);
+      //
+      // Pela DATA, não por 24 horas (achado 67, revisão de 24/09/2026): um
+      // caixa aberto às 14h de ontem só avisava a partir das 14h de hoje — e
+      // é justamente a manhã em que as vendas caem na sessão de ontem.
+      // `paraISO` usa a data do relógio da loja, não a de Londres.
+      const antigos = (caixas.data ?? []).filter((c) => paraISO(new Date(c.aberto_em)) < hoje);
       if (antigos.length > 0) {
         avisos.push({
           id: 'caixa-aberto',

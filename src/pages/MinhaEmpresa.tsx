@@ -11,6 +11,7 @@ import { PageHeader, Vazio } from '@/components/PageHeader';
 import { supabase } from '@/integrations/supabase/client';
 import { mascaraCpfCnpj, mascaraTelefone, mascaraCep } from '@/lib/documento';
 import { UploadLogo } from '@/components/UploadLogo';
+import { mensagemCrua } from '@/lib/mensagemDoErro';
 
 /**
  * Minha Empresa — dados cadastrais do próprio tenant (uma linha por loja).
@@ -167,7 +168,7 @@ export default function MinhaEmpresa() {
       });
     } catch (error) {
       console.error('Erro ao salvar dados da loja:', error);
-      const msg = error instanceof Error ? error.message : 'Tente novamente.';
+      const msg = mensagemCrua(error) || 'Tente novamente.';
       toast({
         title: 'Erro ao salvar',
         // Mensagem de RLS é críptica; traduz pro que de fato aconteceu.

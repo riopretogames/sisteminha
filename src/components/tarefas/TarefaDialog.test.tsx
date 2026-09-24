@@ -237,6 +237,23 @@ describe('Ficha da tarefa', () => {
     expect(props.acoes.alternarFeito).toHaveBeenCalledWith('t1');
   });
 
+  it('hoje não é dia da tarefa: bolinha travada e "Feito" desligado no status (achado de 24/09)', async () => {
+    // Quarta; a tarefa é de terça e quinta. Antes a ficha só avisava no texto
+    // e deixava marcar — o feito ia para a quarta.
+    const props = abrirFicha({ tarefa: umaTarefa({ dias_semana: [2, 4] }) });
+    const ficha = await screen.findByRole('dialog');
+
+    expect(within(ficha).getByText('Hoje não é dia desta tarefa')).toBeInTheDocument();
+    const bolinha = within(ficha).getByRole('button', { name: /Hoje não é dia desta tarefa \(Ter e Qui\)/ });
+    expect(bolinha).toBeDisabled();
+    fireEvent.click(bolinha);
+    expect(props.acoes.alternarFeito).not.toHaveBeenCalled();
+
+    const opcoes = await abrirSeletor('Status');
+    expect(opcoes.find((o) => o.textContent === 'Feito hoje')).toHaveAttribute('aria-disabled', 'true');
+    expect(opcoes.find((o) => o.textContent === 'Fazendo')).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
   it('o título salva ao sair do campo; apagar tudo desfaz em vez de salvar vazio', async () => {
     const props = abrirFicha();
     await screen.findByRole('dialog');

@@ -125,6 +125,13 @@ export default function Clientes() {
     });
   }, [clientes, search]);
 
+  // A lista inteira vem do banco (em páginas de mil — ver useClientes) e a
+  // busca procura em todos; o limite é só do DESENHO. Com a base do sistema
+  // antigo importada, milhares de linhas de tabela travam o navegador, e
+  // ninguém rola até o milésimo cliente — digita o nome.
+  const LINHAS_NA_TELA = 200;
+  const naTela = filtrados.slice(0, LINHAS_NA_TELA);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
@@ -191,7 +198,7 @@ export default function Clientes() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtrados.map((cliente) => (
+                {naTela.map((cliente) => (
                   <TableRow
                     key={cliente.id}
                     className="cursor-pointer"
@@ -287,6 +294,12 @@ export default function Clientes() {
                 ))}
               </TableBody>
             </Table>
+          )}
+          {!carregando && filtrados.length > LINHAS_NA_TELA && (
+            <p className="border-t p-3 text-center text-sm text-muted-foreground">
+              Mostrando {LINHAS_NA_TELA} de {filtrados.length} clientes. Digite na busca para achar
+              quem você procura.
+            </p>
           )}
         </CardContent>
       </Card>

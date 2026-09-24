@@ -92,6 +92,7 @@ export function QuadroKanban({
   periodos,
   filtroAtivo = false,
   onLimparFiltros,
+  diaDoFiltro = 'todas',
 }: PropsVisaoQuadro) {
   const { user } = useAuth();
   const periodoPadraoId = periodos.find((p) => p.padrao)?.id ?? null;
@@ -372,6 +373,7 @@ export function QuadroKanban({
               periodoPadraoId={periodoPadraoId}
               filtroAtivo={filtroAtivo}
               onLimparFiltros={onLimparFiltros}
+              diaDoFiltro={diaDoFiltro}
             />
           ))}
         </SortableContext>

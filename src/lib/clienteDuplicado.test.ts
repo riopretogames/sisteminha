@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { podeGravarClienteNovo, temDadoQueDistingue } from './clienteDuplicado';
+import {
+  podeGravarClienteNovo,
+  temDadoQueDistingue,
+  normalizarNome,
+  juntarSemelhantes,
+  separarRepetidosPorNome,
+} from './clienteDuplicado';
 
 /**
  * A regra que o Felipe pediu em 23/08, depois de testar e achar a falha:
@@ -52,5 +58,57 @@ describe('cadastro de cliente com nome repetido', () => {
     expect(temDadoQueDistingue({ telefone: '', cpf_cnpj: null })).toBe(false);
     expect(temDadoQueDistingue({ telefone: '(  )      -    ' })).toBe(false);
     expect(temDadoQueDistingue({ telefone: '(17) 3234-5678' })).toBe(true);
+  });
+});
+
+
+/**
+ * Achados de 24/09 na regra de cliente único.
+ */
+describe('nome como a regra compara', () => {
+  it('"Joao Silva" e "João  Silva" são o mesmo nome', () => {
+    expect(normalizarNome('Joao Silva')).toBe(normalizarNome('João  Silva'));
+    expect(normalizarNome('  JOÃO SILVA ')).toBe('joao silva');
+  });
+
+  it('ç e acentos somem, o resto fica', () => {
+    expect(normalizarNome('Conceição Aparecida')).toBe('conceicao aparecida');
+  });
+});
+
+describe('juntar as procuras por telefone principal e extra', () => {
+  it('não repete o cliente e fica com o motivo mais forte', () => {
+    const r = juntarSemelhantes(
+      [{ id: 'c1', motivo: 'nome' }],
+      [{ id: 'c1', motivo: 'telefone' }, { id: 'c2', motivo: 'telefone' }],
+    );
+    expect(r).toHaveLength(2);
+    expect(r.find((c) => c.id === 'c1')!.motivo).toBe('telefone');
+  });
+});
+
+describe('importação respeita a regra do nome repetido', () => {
+  const linha = (nome: string, telefone = '', cpfCnpj = '') => ({ nome, telefone, cpfCnpj });
+
+  it('nome que já existe na base, sem telefone nem CPF, não é gravado', () => {
+    const r = separarRepetidosPorNome([linha('João Silva')], ['Joao Silva']);
+    expect(r.paraGravar).toHaveLength(0);
+    expect(r.repetidos.map((l) => l.nome)).toEqual(['João Silva']);
+  });
+
+  it('o mesmo nome duas vezes na planilha: o segundo é repetido', () => {
+    const r = separarRepetidosPorNome([linha('Maria Souza'), linha('maria  souza')], []);
+    expect(r.paraGravar.map((l) => l.nome)).toEqual(['Maria Souza']);
+    expect(r.repetidos).toHaveLength(1);
+  });
+
+  it('com telefone, o homônimo de verdade entra — o banco confere o telefone', () => {
+    const r = separarRepetidosPorNome([linha('João Silva', '(17) 99262-4169')], ['João Silva']);
+    expect(r.paraGravar).toHaveLength(1);
+  });
+
+  it('nome novo sem telefone entra normalmente', () => {
+    const r = separarRepetidosPorNome([linha('Cliente Novo')], ['Outro Cliente']);
+    expect(r.paraGravar).toHaveLength(1);
   });
 });

@@ -4,6 +4,7 @@ import {
   dataDoDiaNaSemana,
   dataLocalISO,
   descreverDias,
+  diaDaSemanaDe,
   ehImagem,
   ehRecorrente,
   estaFeita,
@@ -28,6 +29,7 @@ import {
   tamanhoLegivel,
   tarefaCaiNoDia,
   temFiltroAtivo,
+  travaDoFeito,
   type LinhaTarefaDoBanco,
 } from './tarefas';
 import {
@@ -195,6 +197,44 @@ describe('tarefaCaiNoDia', () => {
     const t = tarefa({ concluida_em: meioDia(HOJE) });
     expect(tarefaCaiNoDia(t, QUARTA, HOJE)).toBe(true);
     expect(tarefaCaiNoDia(t, 4, '2026-09-24')).toBe(false);
+  });
+});
+
+describe('travaDoFeito — o feito só se marca no dia da tarefa (achado de 24/09)', () => {
+  // O caso real do banco: tarefa de seg, qua e sex marcada numa QUINTA.
+  const QUINTA = '2026-09-24';
+
+  it('diaDaSemanaDe lê a data sem passar por fuso', () => {
+    expect(diaDaSemanaDe(HOJE)).toBe(QUARTA);
+    expect(diaDaSemanaDe(QUINTA)).toBe(4);
+    expect(diaDaSemanaDe('2026-09-27')).toBe(0);
+  });
+
+  it('recorrente em dia que não é dela: trava, dizendo os dias dela', () => {
+    const t = tarefa({ dias_semana: [1, 3, 5] });
+    expect(travaDoFeito(t, QUINTA)).toBe('Hoje não é dia desta tarefa (Seg, Qua e Sex). O feito só se marca no dia dela.');
+    expect(travaDoFeito(t, HOJE)).toBeNull();
+  });
+
+  it('chip de OUTRO dia trava até a tarefa de hoje (a bolinha marcaria o feito de hoje)', () => {
+    const t = tarefa({ dias_semana: [0, 1, 2, 3, 4, 5, 6] });
+    expect(travaDoFeito(t, HOJE, 1)).toBe(
+      'Você está vendo as tarefas de segunda. A bolinha marca o feito de hoje: para marcar, use o chip "Hoje".',
+    );
+    // O chip do próprio dia, "Hoje" e "Todas" não travam.
+    expect(travaDoFeito(t, HOJE, QUARTA)).toBeNull();
+    expect(travaDoFeito(t, HOJE, 'hoje')).toBeNull();
+    expect(travaDoFeito(t, HOJE, 'todas')).toBeNull();
+  });
+
+  it('já feita hoje: nunca trava (desmarcar é a saída de quem clicou sem querer)', () => {
+    const t = tarefa({ dias_semana: [1, 3, 5], feita_hoje: true });
+    expect(travaDoFeito(t, QUINTA)).toBeNull();
+    expect(travaDoFeito(t, QUINTA, 1)).toBeNull();
+  });
+
+  it('avulsa não trava: o feito dela não é de um dia', () => {
+    expect(travaDoFeito(tarefa(), QUINTA, 1)).toBeNull();
   });
 });
 

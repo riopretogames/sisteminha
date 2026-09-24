@@ -39,6 +39,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PERMISSIONS } from '@/config/permissions';
 import { moeda, data as formatarData, dataHora } from '@/lib/format';
 import { corDaEtiqueta } from '@/lib/cores';
+import { gastoDoCliente } from '@/lib/faturamento';
 
 /**
  * Ficha do cliente.
@@ -49,8 +50,13 @@ import { corDaEtiqueta } from '@/lib/cores';
  * dele, que é a pergunta que o balcão realmente faz ("esse aqui é bom
  * cliente?", "já trouxe esse aparelho antes?").
  *
- * O total gasto ignora venda cancelada de propósito — senão devolução viraria
- * faturamento na ficha.
+ * O total gasto ignora venda cancelada e desconta o que voltou para o bolso do
+ * cliente. Até 24/09 ele somava `vendas.total` puro: quem comprou R$ 4.000 e
+ * devolveu tudo aparecia como "Já gastou R$ 4.000", e quem trocou um aparelho
+ * por outro aparecia com os dois valores somados. Agora usa a mesma régua do
+ * Histórico de Vendas: o dinheiro novo de cada venda (na venda nova de uma
+ * troca, só a diferença paga) menos o dinheiro devolvido ao cliente — ver
+ * `gastoDoCliente` em lib/faturamento.ts.
  */
 
 interface VendaDoCliente {
@@ -58,8 +64,11 @@ interface VendaDoCliente {
   numero_venda: string | null;
   created_at: string | null;
   total: number | null;
+  valor_faturamento_real: number | null;
   status: string | null;
+  devolucoes: { valor_devolvido_cliente: number | null }[] | null;
 }
+
 
 interface OsDoCliente {
   id: string;
@@ -139,11 +148,13 @@ export default function ClienteFicha() {
     queryFn: async (): Promise<VendaDoCliente[]> => {
       const { data, error } = await supabase
         .from('vendas')
-        .select('id, numero_venda, created_at, total, status')
+        .select(
+          'id, numero_venda, created_at, total, valor_faturamento_real, status, devolucoes!venda_original_id(valor_devolvido_cliente)',
+        )
         .eq('cliente_id', id!)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as unknown as VendaDoCliente[];
     },
   });
 
@@ -189,7 +200,7 @@ export default function ClienteFicha() {
   }
 
   const vendasValidas = vendas.filter((v) => v.status !== 'cancelado');
-  const totalGasto = vendasValidas.reduce((soma, v) => soma + (v.total ?? 0), 0);
+  const totalGasto = gastoDoCliente(vendas);
   const ultimaCompra = vendasValidas[0]?.created_at ?? null;
 
   const endereco = [

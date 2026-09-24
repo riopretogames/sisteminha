@@ -184,6 +184,34 @@ describe('QuadroKanban', () => {
     expect(props.onAbrirTarefa).not.toHaveBeenCalled();
   });
 
+  it('tarefa de outro dia da semana: a bolinha do cartão trava e diz por quê (achado de 24/09)', () => {
+    // Quinta-feira, 24/09/2026: o caso real do banco — tarefa de seg, qua e
+    // sex marcada numa quinta, que gravou um feito de quinta.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-09-24T10:00:00'));
+    try {
+      const props = abrirQuadro({
+        tarefas: [
+          tarefa({ id: 't-vitrine', lista_id: 'l-pedro', titulo: 'Lavar a vitrine', dias_semana: [1, 3, 5] }),
+          tarefa({ id: 't-caixa', lista_id: 'l-pedro', titulo: 'Contar o caixa', dias_semana: [4], ordem: 2048 }),
+        ],
+      });
+
+      const vitrine = screen.getByRole('button', { name: 'Abrir a tarefa Lavar a vitrine' });
+      const travada = within(vitrine).getByRole('button', { name: /Hoje não é dia desta tarefa \(Seg, Qua e Sex\)/ });
+      expect(travada).toBeDisabled();
+      fireEvent.click(travada);
+      expect(props.acoes.alternarFeito).not.toHaveBeenCalled();
+
+      // A de quinta, na quinta, continua marcando.
+      const caixa = screen.getByRole('button', { name: 'Abrir a tarefa Contar o caixa' });
+      fireEvent.click(within(caixa).getByRole('button', { name: 'Marcar como feita hoje' }));
+      expect(props.acoes.alternarFeito).toHaveBeenCalledWith('t-caixa');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('com permissão de editar: "Adicionar tarefa" cria na coluna certa e continua aberto para a próxima', async () => {
     const props = abrirQuadro();
     fireEvent.click(within(coluna('Gabriel')).getByRole('button', { name: /Adicionar tarefa/ }));

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { nomeDaEtapa } from '@/lib/etapaDaOS';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -35,7 +35,119 @@ import type { ServiceOrder, StatusConfig, OsPrioridade } from '@/types/os';
 import { OS_ETAPAS, OS_ETAPAS_EM_ORDEM, OS_STATUS_INICIAL, OS_CANCELADO } from '@/config/osStatus';
 import { ordenarOS } from '@/lib/ordenarOS';
 import { confirmarReaberturaDeOSEntregue } from '@/lib/reabrirOS';
-import { passagemPedeDecisaoDoLaudo, AVISO_DECISAO_DO_LAUDO } from '@/lib/decisaoDoLaudo';
+import {
+  bloqueioDaPassagem,
+  passagemDesfazRecusa,
+  textoDeDesfazerRecusa,
+} from '@/lib/decisaoDoLaudo';
+import {
+  AVISO_ENTREGA_SEM_COBRANCA_SEM_PERMISSAO,
+  entregaSemCobranca,
+  textoDeEntregaSemCobranca,
+} from '@/lib/acaoDaEtapa';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
+import { mensagemDoErro } from '@/lib/mensagemDoErro';
+
+/**
+ * A OS como o quadro precisa dela: além do cartão, o que a regra de troca de
+ * etapa lê (lib/decisaoDoLaudo) — o laudo eletrônico (serviço tabelado vai
+ * direto para a execução) e, na OS recusada, o valor e o motivo, para a
+ * confirmação de "desfazer a recusa" dizer o que muda.
+ */
+export type OSDoQuadro = ServiceOrder & {
+  laudo_eletronico: boolean | null;
+  valor_orcado_recusado: number | null;
+  laudo_motivo_recusa: string | null;
+};
+
+/**
+ * Por quantos dias a OS entregue ou cancelada continua no quadro.
+ *
+ * Achado na revisão de 24/09: o quadro trazia TODAS as OS da história, e o
+ * Supabase corta calado em 1.000 linhas (lib/buscarEmPaginas.ts) — com a
+ * ordem da mais antiga para a mais nova, passando de mil OS as NOVAS sumiriam
+ * do quadro, da lista e dos contadores, sem erro nenhum, travando o balcão.
+ * Agora a busca é em páginas (nada é cortado) e o que já terminou há mais de
+ * 30 dias fica só em OS Finalizadas, que é o arquivo da assistência.
+ */
+const DIAS_DE_ENCERRADAS_NO_QUADRO = 30;
+
+/** Os campos que o quadro lê. `clientes(nome)` sem `!inner`: OS sem cliente
+ *  aparece como "Cliente", em vez de sumir do quadro. */
+const CAMPOS_DO_QUADRO = `
+  id,
+  numero_os,
+  cliente_id,
+  marca,
+  modelo,
+  numero_serie,
+  defeito_cliente,
+  status,
+  tipo,
+  prioridade,
+  laudo_aprovado,
+  laudo_eletronico,
+  valor_orcado_recusado,
+  laudo_motivo_recusa,
+  total_orcamento,
+  tecnico_id,
+  prazo_previsto,
+  created_at,
+  clientes(nome),
+  tecnico:profiles!service_orders_tecnico_id_fkey(nome)
+`;
+
+interface LinhaDoQuadro {
+  id: string;
+  numero_os: string;
+  cliente_id: string;
+  marca: string | null;
+  modelo: string | null;
+  numero_serie: string | null;
+  defeito_cliente: string;
+  status: string | null;
+  tipo: string | null;
+  prioridade: string | null;
+  laudo_aprovado: boolean | null;
+  laudo_eletronico: boolean | null;
+  valor_orcado_recusado: number | null;
+  laudo_motivo_recusa: string | null;
+  total_orcamento: number | null;
+  tecnico_id: string | null;
+  prazo_previsto: string | null;
+  created_at: string;
+  clientes: { nome?: string } | null;
+  tecnico: { nome?: string } | null;
+}
+
+function paraOSDoQuadro(order: LinhaDoQuadro): OSDoQuadro {
+  return {
+    id: order.id,
+    numero_os: order.numero_os,
+    cliente_id: order.cliente_id,
+    cliente_nome: order.clientes?.nome || 'Cliente',
+    marca: order.marca,
+    modelo: order.modelo,
+    numero_serie: order.numero_serie,
+    defeito_cliente: order.defeito_cliente,
+    status: order.status || OS_STATUS_INICIAL,
+    tipo: order.tipo as ServiceOrder['tipo'],
+    prioridade: (order.prioridade || 'normal') as OsPrioridade,
+    laudo_aprovado: order.laudo_aprovado,
+    laudo_eletronico: order.laudo_eletronico,
+    valor_orcado_recusado:
+      order.valor_orcado_recusado == null ? null : Number(order.valor_orcado_recusado),
+    laudo_motivo_recusa: order.laudo_motivo_recusa,
+    total_orcamento: Number(order.total_orcamento || 0),
+    tecnico_id: order.tecnico_id,
+    // O card mostra o NOME do técnico. Antes a consulta trazia só o id, e
+    // o campo do card ficava eternamente vazio — a opção "Técnico
+    // Responsável" na configuração do cartão não mostrava nada.
+    tecnico_nome: order.tecnico?.nome ?? null,
+    prazo_previsto: order.prazo_previsto,
+    created_at: order.created_at,
+  };
+}
 
 export default function OrdensServico() {
   const navigate = useNavigate();
@@ -53,7 +165,7 @@ export default function OrdensServico() {
   // claro, igual às outras duas telas.
   const podeAprovar = can(PERMISSIONS.ORDERS_APPROVE);
 
-  const [orders, setOrders] = useState<ServiceOrder[]>([]);
+  const [orders, setOrders] = useState<OSDoQuadro[]>([]);
   const [statuses, setStatuses] = useState<StatusConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -69,6 +181,25 @@ export default function OrdensServico() {
   useEffect(() => {
     fetchStatuses();
     fetchOrders();
+  }, []);
+
+  // O quadro fica aberto o dia inteiro no balcão, e outras pessoas mexem nas
+  // OS em outros computadores. Voltar para a janela recarrega a lista —
+  // antes, o quadro mostrava a etapa e o valor de quando foi aberto (achado de
+  // 24/09). A decisão de mover ainda relê a OS do banco (ver
+  // `handleStatusChange`), então isto é para os olhos, não para a regra.
+  useEffect(() => {
+    const aoVoltar = () => {
+      if (document.visibilityState === 'visible') fetchOrders();
+    };
+    window.addEventListener('focus', aoVoltar);
+    document.addEventListener('visibilitychange', aoVoltar);
+    return () => {
+      window.removeEventListener('focus', aoVoltar);
+      document.removeEventListener('visibilitychange', aoVoltar);
+    };
+    // fetchOrders é estável o bastante: só usa o `supabase` e o setState.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchStatuses = async () => {
@@ -87,66 +218,59 @@ export default function OrdensServico() {
 
   const fetchOrders = async () => {
     try {
-      const { data, error } = await supabase
-        .from('service_orders')
-        .select(`
-          id,
-          numero_os,
-          cliente_id,
-          marca,
-          modelo,
-          numero_serie,
-          defeito_cliente,
-          status,
-          tipo,
-          prioridade,
-          laudo_aprovado,
-          total_orcamento,
-          tecnico_id,
-          prazo_previsto,
-          created_at,
-          clientes!inner(nome),
-          tecnico:profiles!service_orders_tecnico_id_fkey(nome)
-        `)
-        .order('created_at', { ascending: true });
+      const desde = new Date(Date.now() - DIAS_DE_ENCERRADAS_NO_QUADRO * 86_400_000).toISOString();
+      // Em páginas, e em duas partes: a fila de verdade (tudo o que não
+      // terminou, sem recorte de data) e o que terminou há pouco. Ver
+      // DIAS_DE_ENCERRADAS_NO_QUADRO.
+      const [emAndamento, encerradasRecentes] = await Promise.all([
+        buscarEmPaginas<LinhaDoQuadro>(() =>
+          supabase
+            .from('service_orders')
+            .select(CAMPOS_DO_QUADRO)
+            .not('status', 'in', `("${OS_ETAPAS.ENTREGUE}","${OS_CANCELADO}")`)
+            .order('created_at')
+            .order('id'),
+        ),
+        buscarEmPaginas<LinhaDoQuadro>(() =>
+          supabase
+            .from('service_orders')
+            .select(CAMPOS_DO_QUADRO)
+            .in('status', [OS_ETAPAS.ENTREGUE, OS_CANCELADO])
+            .gte('updated_at', desde)
+            .order('created_at')
+            .order('id'),
+        ),
+      ]);
 
-      if (error) throw error;
-
-      setOrders(
-        data?.map((order) => ({
-          id: order.id,
-          numero_os: order.numero_os,
-          cliente_id: order.cliente_id,
-          cliente_nome: (order.clientes as { nome?: string } | null)?.nome || 'Cliente',
-          marca: order.marca,
-          modelo: order.modelo,
-          numero_serie: order.numero_serie,
-          defeito_cliente: order.defeito_cliente,
-          status: order.status || OS_STATUS_INICIAL,
-          tipo: order.tipo as ServiceOrder['tipo'],
-          prioridade: (order.prioridade || 'normal') as OsPrioridade,
-          laudo_aprovado: order.laudo_aprovado,
-          total_orcamento: order.total_orcamento || 0,
-          tecnico_id: order.tecnico_id,
-          // O card mostra o NOME do técnico. Antes a consulta trazia só o id, e
-          // o campo do card ficava eternamente vazio — a opção "Técnico
-          // Responsável" na configuração do cartão não mostrava nada.
-          tecnico_nome: (order.tecnico as { nome?: string } | null)?.nome ?? null,
-          prazo_previsto: order.prazo_previsto,
-          created_at: order.created_at,
-        })) || []
-      );
+      setOrders([...emAndamento, ...encerradasRecentes].map(paraOSDoQuadro));
     } catch (error) {
       console.error('Error fetching orders:', error);
       toast({
         title: 'Erro ao carregar OS',
-        description: 'Tente novamente mais tarde.',
+        description: mensagemDoErro(error),
         variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
   };
+
+  /**
+   * A OS como está NO BANCO agora. A decisão de mover um cartão não pode
+   * depender da lista que a tela carregou há horas: outra pessoa pode ter
+   * registrado a recusa, mudado o valor ou entregue a OS (achado de 24/09).
+   */
+  const relerOS = useCallback(async (orderId: string): Promise<OSDoQuadro | null> => {
+    const { data, error } = await supabase
+      .from('service_orders')
+      .select(CAMPOS_DO_QUADRO)
+      .eq('id', orderId)
+      .maybeSingle();
+    if (error || !data) return null;
+    const fresca = paraOSDoQuadro(data as unknown as LinhaDoQuadro);
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? fresca : o)));
+    return fresca;
+  }, []);
 
   const handleStatusChange = async (orderId: string, newStatus: string) => {
     // Confere ANTES de mexer na tela. Antes, quem não tinha permissão arrastava
@@ -161,87 +285,85 @@ export default function OrdensServico() {
       return;
     }
 
-    // "Aprovado" é decisão de orçamento (aprovar) — exige orders.approve, não
-    // importa de qual etapa a OS está saindo. Achado na revisão de 20/08: a
-    // trava aqui só disparava quando `ordemAtual.status` já era
-    // "aguardando_aprovacao", mas o Kanban deixa arrastar um card de
-    // QUALQUER coluna pra QUALQUER coluna (todas ficam visíveis lado a
-    // lado) e a grade oferece todas as etapas no seletor — então um cartão
-    // ainda em "Aguardando análise", arrastado direto pra "Aprovado", ou
-    // selecionado assim na grade, pulava a decisão inteira num passo só. O
-    // gatilho do banco (`validar_aprovacao_orcamento_os`, migration
-    // 20260817140000) só confere `OLD.status = 'aguardando_aprovacao'`, e
-    // por isso também deixava passar — um técnico com só `orders.edit`
-    // aprovava orçamento sem nunca ter `orders.approve`. Mesmo problema,
-    // mesma correção, em TrocarEtapaOS.tsx.
-    const ordemAtual = orders.find((o) => o.id === orderId);
-    // ...MAS só enquanto a aprovação ainda não aconteceu. Numa OS que o cliente
-    // JÁ aprovou, arrastar o cartão de volta para "Aprovado / Executar" não
-    // aprova nada — é retomar o trabalho depois do desvio de "Aguardando
-    // Peça". Sem esta segunda condição o técnico ficava preso lá: é ele quem
-    // põe a OS na espera da peça e não conseguia tirar. Mesma correção da
-    // ficha (TrocarEtapaOS), que em 01/09 ficou feita só lá — e uma trava
-    // consertada numa porta de três é uma trava não consertada.
-    const aprovarBloqueado =
-      newStatus === OS_ETAPAS.APROVADO &&
-      !podeAprovar &&
-      ordemAtual?.laudo_aprovado !== true;
-    // Recusar (cancelar vindo de "Aguardando aprovação") continua só nesse
-    // caminho específico — cancelar de outra etapa não é "recusar
-    // orçamento", e o banco nunca travou isso.
-    const recusarBloqueado =
-      ordemAtual?.status === OS_ETAPAS.AGUARDANDO_APROVACAO &&
-      newStatus === OS_CANCELADO &&
-      !podeAprovar;
+    // A OS como está no banco AGORA, não como estava quando o quadro abriu.
+    // Sem isto, o cartão arrastado para Entregue abria o pagamento com o valor
+    // velho (R$ 450 numa OS que já tinha virado R$ 80 de taxa), e a regra
+    // abaixo decidia sobre uma etapa que já não era a da OS. Se a releitura
+    // falhar, segue com o que a tela tem — o banco confere tudo de novo.
+    const ordemAtual = (await relerOS(orderId)) ?? orders.find((o) => o.id === orderId);
+    if (!ordemAtual) return;
+    if (ordemAtual.status === newStatus) return;
 
-    // A resposta do cliente ao laudo passa pelos botões da ficha, que gravam
-    // quem respondeu, quando, e o motivo da recusa — e, na recusa, trocam o
-    // valor da OS pela taxa de análise. Arrastar o cartão de "Aguardando
-    // aprovação" para "Aprovado" ou "Finalizado" chegava no mesmo lugar sem
-    // nada disso: OS aprovada que ninguém aprovou, ou recusada sem motivo
-    // cobrando na retirada o reparo que o cliente não quis. Ver
-    // lib/decisaoDoLaudo.ts.
-    if (ordemAtual && passagemPedeDecisaoDoLaudo(ordemAtual.status, newStatus)) {
-      toast({ ...AVISO_DECISAO_DO_LAUDO, variant: 'destructive' });
+    const situacao = {
+      status: ordemAtual.status,
+      laudoAprovado: ordemAtual.laudo_aprovado,
+      laudoEletronico: ordemAtual.laudo_eletronico,
+    };
+
+    // Quem pode levar esta OS para esta etapa: aprovar e recusar orçamento,
+    // pular a resposta do cliente, desfazer a recusa. A regra é UMA, em
+    // lib/decisaoDoLaudo.ts, igual à da ficha, da lista e do banco — cada tela
+    // com a sua cópia foi como uma trava ficou "consertada numa porta de
+    // três" em 01/09.
+    const barrado = bloqueioDaPassagem(situacao, newStatus, podeAprovar);
+    if (barrado) {
+      toast({ title: barrado.titulo, description: barrado.descricao, variant: 'destructive' });
       return;
     }
 
-    if (aprovarBloqueado || recusarBloqueado) {
-      toast({
-        title: 'Sem permissão',
-        description:
-          'Aprovar ou recusar orçamento é decisão de quem fala com o cliente — peça pra um vendedor ou gerente.',
-        variant: 'destructive',
-      });
-      return;
-    }
+    const destino = statuses.find((s) => s.key === newStatus)?.label ?? newStatus;
 
     // Tirar do "entregue" pelo card arrastado ou pelo seletor da grade tem
     // o mesmo risco do seletor da ficha: o título já lançado não é desfeito
     // e o orçamento volta a ficar editável. Mesma confirmação dos dois
     // lados — o porquê está em `lib/reabrirOS.ts`.
-    if (ordemAtual?.status === OS_ETAPAS.ENTREGUE && newStatus !== OS_ETAPAS.ENTREGUE) {
+    if (ordemAtual.status === OS_ETAPAS.ENTREGUE && newStatus !== OS_ETAPAS.ENTREGUE) {
       const seguir = confirmarReaberturaDeOSEntregue({
         numeroOs: ordemAtual.numero_os,
-        destino: statuses.find((s) => s.key === newStatus)?.label ?? newStatus,
+        destino,
         tipo: ordemAtual.tipo,
         totalOrcamento: ordemAtual.total_orcamento ?? 0,
       });
       if (!seguir) return;
     }
 
-    // OS paga com orçamento > 0 indo pra "entregue": abre o diálogo de
-    // pagamento em vez de atualizar o status direto — o gatilho do banco
-    // (conferir_pagamento_ao_entregar) recusaria o UPDATE sem os_pagamentos
-    // suficiente. Garantia/cortesia/orçamento zerado seguem direto pro
-    // update de sempre, abaixo.
-    if (
-      newStatus === OS_ETAPAS.ENTREGUE &&
-      ordemAtual?.tipo === 'paga' &&
-      (ordemAtual?.total_orcamento ?? 0) > 0
-    ) {
-      setEntregandoOsId(orderId);
-      return;
+    // Voltar uma OS recusada para a análise desfaz a recusa: a OS volta a
+    // valer o orçamento cheio e as peças saem do estoque de novo. Quem pode
+    // fazer isso confirma lendo o que muda.
+    if (passagemDesfazRecusa(situacao, newStatus)) {
+      const seguir = window.confirm(
+        textoDeDesfazerRecusa({
+          numeroOs: ordemAtual.numero_os,
+          destino,
+          valorRecusado: ordemAtual.valor_orcado_recusado,
+          valorAtual: ordemAtual.total_orcamento ?? 0,
+          motivo: ordemAtual.laudo_motivo_recusa,
+        }),
+      );
+      if (!seguir) return;
+    }
+
+    if (newStatus === OS_ETAPAS.ENTREGUE) {
+      // OS paga em R$ 0: sair sem cobrança é decisão de quem aprova
+      // orçamento, e mesmo essa pessoa confirma (lib/acaoDaEtapa.ts).
+      if (entregaSemCobranca(ordemAtual.tipo, ordemAtual.total_orcamento)) {
+        if (!podeAprovar) {
+          toast({
+            title: AVISO_ENTREGA_SEM_COBRANCA_SEM_PERMISSAO.titulo,
+            description: AVISO_ENTREGA_SEM_COBRANCA_SEM_PERMISSAO.descricao,
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (!window.confirm(textoDeEntregaSemCobranca(ordemAtual.numero_os))) return;
+      } else if (ordemAtual.tipo === 'paga') {
+        // OS paga com valor: abre o mesmo diálogo de pagamento da ficha em
+        // vez de atualizar o status direto — o gatilho do banco
+        // (conferir_pagamento_ao_entregar) recusaria sem os_pagamentos
+        // suficiente. Garantia e cortesia seguem para o update abaixo.
+        setEntregandoOsId(orderId);
+        return;
+      }
     }
 
     try {
@@ -252,24 +374,30 @@ export default function OrdensServico() {
 
       if (error) throw error;
 
-      // Optimistic update
+      // O cartão muda de coluna na hora; a releitura logo abaixo confirma.
       setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)),
       );
-
-      const statusLabel = statuses.find((s) => s.key === newStatus)?.label || newStatus;
       toast({
         title: 'Status atualizado',
-        description: `OS alterada para ${statusLabel}`,
+        description: `OS alterada para ${destino}`,
         variant: 'success',
       });
     } catch (error) {
+      // O motivo que o banco escreveu chega inteiro (achado de 24/09: antes,
+      // todo "não" do banco virava "Tente novamente").
       toast({
-        title: 'Erro ao atualizar',
-        description: error instanceof Error ? error.message : 'Tente novamente.',
+        title: 'Não foi possível mudar a etapa',
+        description: mensagemDoErro(error, {
+          semAcesso: 'Seu perfil de acesso não permite esta mudança.',
+        }),
         variant: 'destructive',
       });
-      // Revert on error
+    } finally {
+      // Recarrega depois de QUALQUER tentativa: a mudança de etapa dispara
+      // gatilhos que mexem em outras colunas (a recusa desfeita volta o
+      // valor, a entrega congela o valor pago) — trocar só o status na lista
+      // deixaria o cartão mentindo.
       fetchOrders();
     }
   };
@@ -367,10 +495,14 @@ export default function OrdensServico() {
             </Button>
           )}
 
-          <Button onClick={() => navigate('/os/nova')}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nova OS
-          </Button>
+          {/* Só para quem pode abrir OS — mesma régua do cabeçalho. O técnico
+              não tem essa permissão e caía na tela de acesso negado. */}
+          {can(PERMISSIONS.ORDERS_CREATE) && (
+            <Button onClick={() => navigate('/os/nova')}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nova OS
+            </Button>
+          )}
         </div>
       </div>
 
@@ -399,6 +531,12 @@ export default function OrdensServico() {
           );
         })}
       </div>
+        {/* O quadro mostra o que terminou há pouco, não a história inteira —
+            dizer isso evita a pergunta "cadê a OS de março?". */}
+        <p className="-mt-3 text-xs text-muted-foreground">
+          Entregues e canceladas aparecem aqui por {DIAS_DE_ENCERRADAS_NO_QUADRO} dias. As mais antigas
+          ficam em OS Finalizadas.
+        </p>
 
         {/* Search and Filters */}
         <div className="flex items-center gap-4 flex-wrap">
@@ -438,6 +576,7 @@ export default function OrdensServico() {
             loading={loading}
             onStatusChange={handleStatusChange}
             podeAprovar={podeAprovar}
+            podeCriar={can(PERMISSIONS.ORDERS_CREATE)}
           />
         ) : (
           <OSKanbanView

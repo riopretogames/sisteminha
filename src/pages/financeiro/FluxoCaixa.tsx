@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Loader2, TrendingUp, TrendingDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { moeda, mesCorrente, data as fmtData } from '@/lib/format';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
+import { buscarVendasDoBalcao, type VendasDoBalcao } from '@/lib/vendasDoBalcao';
 import { PageHeader, Indicador, Vazio } from '@/components/PageHeader';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +23,14 @@ import {
  * período) e REALIZADO (só o que foi efetivamente pago/recebido). Misturar os
  * dois é o erro mais comum em relatório de fluxo de caixa — dá a impressão de
  * saldo que ainda não existe.
+ *
+ * VENDAS DO BALCÃO (achado 57, revisão de 24/09/2026). A venda do PDV não
+ * cria título — só a entrega de OS e a entrada de mercadoria criam. Até aqui
+ * o Fluxo enxergava as saídas e a receita de OS, e nunca a venda, que é a
+ * maior entrada da loja: agosto teve R$ 36 mil vendidos e o Fluxo dizia
+ * "Entrou R$ 150". Agora as vendas do período entram numa linha própria,
+ * com a mesma conta do Relatório de Vendas (ver lib/vendasDoBalcao.ts). A
+ * venda é recebida na hora, então ela pesa igual no Realizado e no Previsto.
  */
 
 interface LinhaFluxo {
@@ -34,6 +44,9 @@ interface LinhaFluxo {
   categorias_financeiras?: { nome: string } | null;
 }
 
+/** Nome da linha das vendas do PDV na tabela por categoria. */
+const ROTULO_VENDAS = 'Vendas do balcão (PDV)';
+
 export default function FluxoCaixa() {
   const inicial = mesCorrente();
   const [de, setDe] = useState(inicial.inicio);
@@ -41,7 +54,11 @@ export default function FluxoCaixa() {
 
   const { data: dados, isLoading } = useQuery({
     queryKey: ['fluxo-caixa', de, ate],
-    queryFn: async (): Promise<{ previsto: LinhaFluxo[]; realizado: LinhaFluxo[] }> => {
+    queryFn: async (): Promise<{
+      previsto: LinhaFluxo[];
+      realizado: LinhaFluxo[];
+      vendas: VendasDoBalcao;
+    }> => {
       const colunas =
         'id, natureza, descricao, valor, vencimento, status, pago_em, categorias_financeiras(nome)';
 
@@ -56,30 +73,34 @@ export default function FluxoCaixa() {
       // período. Um título que venceu em janeiro e foi pago em março contava
       // como realizado de JANEIRO — mês em que nenhum dinheiro se moveu — e
       // sumia de março, onde o dinheiro de fato saiu.
-      const [previstoRes, realizadoRes] = await Promise.all([
-        supabase.from('titulos_financeiros').select(colunas)
-          .neq('status', 'cancelado')
-          .gte('vencimento', de).lte('vencimento', ate)
-          .order('vencimento'),
-        supabase.from('titulos_financeiros').select(colunas)
-          .eq('status', 'pago')
-          .gte('pago_em', de).lte('pago_em', ate)
-          .order('pago_em'),
+      //
+      // Em páginas: um período de ano inteiro passa das 1.000 linhas em que o
+      // Supabase corta calado (lib/buscarEmPaginas.ts).
+      const [previsto, realizado, vendas] = await Promise.all([
+        buscarEmPaginas<LinhaFluxo>(() =>
+          supabase.from('titulos_financeiros').select(colunas)
+            .neq('status', 'cancelado')
+            .gte('vencimento', de).lte('vencimento', ate)
+            .order('vencimento').order('id'),
+        ),
+        buscarEmPaginas<LinhaFluxo>(() =>
+          supabase.from('titulos_financeiros').select(colunas)
+            .eq('status', 'pago')
+            .gte('pago_em', de).lte('pago_em', ate)
+            .order('pago_em').order('id'),
+        ),
+        buscarVendasDoBalcao(de, ate),
       ]);
-      if (previstoRes.error) throw previstoRes.error;
-      if (realizadoRes.error) throw realizadoRes.error;
 
-      // O client sem tipos infere a relação embutida como array; em `maybeSingle`
-      // de relação 1:1 ela vem como objeto. Daí o passo por `unknown`.
-      return {
-        previsto: (previstoRes.data ?? []) as unknown as LinhaFluxo[],
-        realizado: (realizadoRes.data ?? []) as unknown as LinhaFluxo[],
-      };
+      return { previsto, realizado, vendas };
     },
   });
 
   const linhas = dados?.previsto;
-  const realizadas = dados?.realizado ?? [];
+  // Memorizado: um `?? []` solto cria uma lista nova a cada desenho da tela e
+  // faria o resumo abaixo ser recalculado toda vez.
+  const realizadas = useMemo(() => dados?.realizado ?? [], [dados]);
+  const vendas = dados?.vendas.liquido ?? 0;
 
   const resumo = useMemo(() => {
     const xs = linhas ?? [];
@@ -89,13 +110,16 @@ export default function FluxoCaixa() {
     const somaRealizado = (f: (l: LinhaFluxo) => boolean) =>
       realizadas.filter(f).reduce((acc, l) => acc + Number(l.valor), 0);
 
-    const entradasPrevistas = soma((l) => l.natureza === 'receber');
+    // A venda do balcão é recebida na hora: entra nos dois blocos.
+    const entradasPrevistas = soma((l) => l.natureza === 'receber') + vendas;
     const saidasPrevistas = soma((l) => l.natureza === 'pagar');
     // Realizado sai da OUTRA lista — a que foi filtrada por data de pagamento.
-    const entradasRealizadas = somaRealizado((l) => l.natureza === 'receber');
+    const recebidoDeTitulos = somaRealizado((l) => l.natureza === 'receber');
+    const entradasRealizadas = recebidoDeTitulos + vendas;
     const saidasRealizadas = somaRealizado((l) => l.natureza === 'pagar');
 
     return {
+      recebidoDeTitulos,
       entradasPrevistas,
       saidasPrevistas,
       saldoPrevisto: entradasPrevistas - saidasPrevistas,
@@ -103,10 +127,16 @@ export default function FluxoCaixa() {
       saidasRealizadas,
       saldoRealizado: entradasRealizadas - saidasRealizadas,
     };
-  }, [linhas, realizadas]);
+  }, [linhas, realizadas, vendas]);
 
   const porCategoria = useMemo(() => {
     const mapa = new Map<string, { nome: string; entrada: number; saida: number }>();
+
+    // As vendas do balcão como uma categoria própria — é a maior entrada da
+    // loja, e sem esta linha a tabela parecia só de gastos.
+    if (vendas !== 0) {
+      mapa.set(ROTULO_VENDAS, { nome: ROTULO_VENDAS, entrada: vendas, saida: 0 });
+    }
 
     for (const l of linhas ?? []) {
       const nome = l.categorias_financeiras?.nome ?? 'Sem categoria';
@@ -117,13 +147,13 @@ export default function FluxoCaixa() {
     }
 
     return [...mapa.values()].sort((a, b) => b.entrada + b.saida - (a.entrada + a.saida));
-  }, [linhas]);
+  }, [linhas, vendas]);
 
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
         titulo="Fluxo de Caixa"
-        hint="Quanto entra e quanto sai no período. Os dois blocos olham datas diferentes de propósito: Previsto conta o que VENCE no período, Realizado conta o que foi PAGO no período. Uma conta que venceu em janeiro e você pagou em março entra no previsto de janeiro e no realizado de março — que é onde o dinheiro saiu de verdade."
+        hint="Quanto entra e quanto sai no período. Os dois blocos olham datas diferentes de propósito: Previsto conta o que VENCE no período, Realizado conta o que foi PAGO no período. Uma conta que venceu em janeiro e você pagou em março entra no previsto de janeiro e no realizado de março — que é onde o dinheiro saiu de verdade. As vendas do balcão entram nos dois blocos, já sem o que foi devolvido a cliente — o mesmo número do Relatório de Vendas."
       />
 
       <div className="mb-6 flex flex-wrap items-end gap-3">
@@ -148,7 +178,12 @@ export default function FluxoCaixa() {
               Realizado — o dinheiro que se moveu neste período
             </h2>
             <div className="grid gap-3 sm:grid-cols-3">
-              <Indicador rotulo="Entrou" valor={moeda(resumo.entradasRealizadas)} tom="positivo" />
+              <Indicador
+                rotulo="Entrou"
+                valor={moeda(resumo.entradasRealizadas)}
+                detalhe={`${moeda(vendas)} em vendas do balcão + ${moeda(resumo.recebidoDeTitulos)} em contas recebidas`}
+                tom="positivo"
+              />
               <Indicador rotulo="Saiu" valor={moeda(resumo.saidasRealizadas)} tom="negativo" />
               <Indicador
                 rotulo="Saldo"
@@ -163,7 +198,11 @@ export default function FluxoCaixa() {
               Previsto — o que vence neste período
             </h2>
             <div className="grid gap-3 sm:grid-cols-3">
-              <Indicador rotulo="A receber" valor={moeda(resumo.entradasPrevistas)} />
+              <Indicador
+                rotulo="A receber"
+                valor={moeda(resumo.entradasPrevistas)}
+                detalhe="Contas que vencem no período + vendas do balcão"
+              />
               <Indicador rotulo="A pagar" valor={moeda(resumo.saidasPrevistas)} />
               <Indicador
                 rotulo="Saldo projetado"
@@ -224,6 +263,10 @@ export default function FluxoCaixa() {
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               Lançamentos que vencem no período
             </h2>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Só as contas a pagar e a receber. As vendas do balcão não são
+              listadas uma a uma aqui — elas estão no Relatório de Vendas.
+            </p>
             {(linhas?.length ?? 0) === 0 ? (
               <Vazio titulo="Nenhum lançamento" />
             ) : (

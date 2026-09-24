@@ -1,8 +1,8 @@
 import { AlignLeft, CheckCheck, Maximize2, MessageSquare, Paperclip } from 'lucide-react';
 import { BolinhaFeito } from '@/components/tarefas/BolinhaFeito';
-import { ehRecorrente, estaFeita, statusNoDia } from '@/lib/tarefas';
+import { ehRecorrente, estaFeita, statusNoDia, travaDoFeito } from '@/lib/tarefas';
 import { cn } from '@/lib/utils';
-import type { AcoesDoQuadro, Etiqueta, PeriodoOpcao, Pessoa, Tarefa } from '@/types/tarefas';
+import type { AcoesDoQuadro, DiaFiltro, Etiqueta, PeriodoOpcao, Pessoa, Tarefa } from '@/types/tarefas';
 import { CELULA, CELULA_FIXA } from './colunas';
 import type { EstiloDaLista } from './estiloDaLista';
 import { CelulaChecklist } from './celulas/CelulaChecklist';
@@ -14,9 +14,10 @@ import { CelulaPrazo } from './celulas/CelulaPrazo';
 import { CelulaPrioridade } from './celulas/CelulaPrioridade';
 import { CelulaStatus } from './celulas/CelulaStatus';
 
-function tituloDaBolinha(tarefa: Tarefa, feita: boolean, pode: boolean): string {
+function tituloDaBolinha(tarefa: Tarefa, feita: boolean, pode: boolean, trava: string | null): string {
   if (tarefa.conferencia === 'conferida') return 'Conferida pelo gerente. Só ele pode devolver.';
   if (!pode) return 'Só quem faz esta tarefa, ou quem pode editar o quadro, marca o feito.';
+  if (trava) return trava;
   if (ehRecorrente(tarefa)) return feita ? 'Desmarcar o feito de hoje' : 'Marcar como feita hoje';
   return feita ? 'Desmarcar concluída' : 'Marcar como concluída';
 }
@@ -29,6 +30,10 @@ function tituloDaBolinha(tarefa: Tarefa, feita: boolean, pode: boolean): string 
  * Duas permissões diferentes, de propósito: `podeEditar` (tasks.edit) muda
  * tudo; `podeMarcarAndamento` (editar OU ser o responsável) só a bolinha e o
  * status. É a mesma porta estreita que o banco dá ao responsável.
+ *
+ * E uma trava de dia (lib/tarefas, travaDoFeito): tarefa que se repete só é
+ * marcada como feita no dia dela, e não pelo chip de outro dia — a bolinha e
+ * o "Feito" da célula de status marcariam o feito de HOJE no lugar errado.
  */
 export function LinhaTarefa({
   tarefa,
@@ -41,6 +46,7 @@ export function LinhaTarefa({
   pessoas,
   periodos,
   etiquetas,
+  diaDoFiltro = 'todas',
 }: {
   tarefa: Tarefa;
   estilo: EstiloDaLista;
@@ -52,8 +58,11 @@ export function LinhaTarefa({
   pessoas: Pessoa[];
   periodos: PeriodoOpcao[];
   etiquetas: Etiqueta[];
+  /** O chip de dia ligado no quadro. */
+  diaDoFiltro?: DiaFiltro;
 }) {
   const feita = estaFeita(tarefa);
+  const trava = travaDoFeito(tarefa, hojeISO, diaDoFiltro);
   const pausada = statusNoDia(tarefa, hojeISO) === 'pausada';
   const abrir = () => onAbrir(tarefa.id);
 
@@ -65,8 +74,8 @@ export function LinhaTarefa({
             feita={feita}
             // Feito conferido pelo gerente (v2): desmarcar é só com ele, pela
             // conferência — o banco recusaria o clique de qualquer outro.
-            disabled={!podeMarcarAndamento || tarefa.conferencia === 'conferida'}
-            titulo={tituloDaBolinha(tarefa, feita, podeMarcarAndamento)}
+            disabled={!podeMarcarAndamento || tarefa.conferencia === 'conferida' || Boolean(trava)}
+            titulo={tituloDaBolinha(tarefa, feita, podeMarcarAndamento, trava)}
             onClick={() => acoes.alternarFeito(tarefa.id)}
           />
           <button
@@ -143,7 +152,13 @@ export function LinhaTarefa({
         <CelulaPrioridade tarefa={tarefa} podeEditar={podeEditar} acoes={acoes} />
       </td>
       <td className={CELULA}>
-        <CelulaStatus tarefa={tarefa} hojeISO={hojeISO} podeMarcarAndamento={podeMarcarAndamento} acoes={acoes} />
+        <CelulaStatus
+          tarefa={tarefa}
+          hojeISO={hojeISO}
+          podeMarcarAndamento={podeMarcarAndamento}
+          travaDoFeito={trava}
+          acoes={acoes}
+        />
       </td>
       <td className={CELULA}>
         <CelulaDias tarefa={tarefa} podeEditar={podeEditar} acoes={acoes} />

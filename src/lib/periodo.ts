@@ -258,6 +258,19 @@ export function periodoAnterior(selecao: SelecaoPeriodo, agora: Date = new Date(
   };
 
   switch (selecao.atalho) {
+    // "Esta semana" é período em andamento, como "este mês": segunda a quarta
+    // se compara com segunda a quarta da semana passada. Antes andava para
+    // trás o número de dias corridos, e numa quarta o anterior virava sexta,
+    // sábado e domingo — dias úteis contra fim de semana, e o "vs período
+    // anterior" enganava (achado 64, revisão de 24/09/2026).
+    case 'esta-semana':
+      return pedacoDaUnidadeAnterior(somarDias(atual.inicio, -7), 'semana anterior');
+
+    // Semana fechada compara com a semana anterior INTEIRA, de segunda a
+    // domingo.
+    case 'semana-passada':
+      return { inicio: somarDias(atual.inicio, -7), fim: atual.inicio, rotulo: 'semana anterior' };
+
     case 'este-mes':
       return pedacoDaUnidadeAnterior(
         new Date(atual.inicio.getFullYear(), atual.inicio.getMonth() - 1, 1),
@@ -299,7 +312,7 @@ export function periodoAnterior(selecao: SelecaoPeriodo, agora: Date = new Date(
 
     default: {
       // Todo o resto anda para trás o próprio tamanho: ontem compara com
-      // anteontem, esta semana com a semana passada, 30 dias com os 30 antes.
+      // anteontem, 7 dias com os 7 antes, 30 dias com os 30 antes.
       const dias = diasCorridos(atual);
       const inicio = somarDias(atual.inicio, -dias);
       return { inicio, fim: atual.inicio, rotulo: 'período anterior' };

@@ -72,6 +72,7 @@ import {
   ordenarPorOrdem,
   primeiroNome,
   statusNoDia,
+  travaDoFeito,
 } from '@/lib/tarefas';
 import { cn } from '@/lib/utils';
 import type {
@@ -175,6 +176,10 @@ function FichaDaTarefa({
   const feita = estaFeita(tarefa);
   const situacao = statusNoDia(tarefa, hoje);
   const hojeNaoEDia = recorrente && !tarefa.dias_semana.includes(new Date().getDay());
+  // Hoje não é dia da tarefa: a bolinha e o "Feito" do status travam (antes
+  // só o texto avisava, e o clique gravava um feito no dia errado). Sem chip
+  // de dia aqui: a ficha sempre fala de hoje. Ver travaDoFeito.
+  const trava = travaDoFeito(tarefa, hoje);
 
   // A coluna do Pedro é do Pedro: quem é dono da lista também é responsável
   // (mesma regra de `eh_responsavel_da_tarefa` no banco).
@@ -319,20 +324,22 @@ function FichaDaTarefa({
             tamanho="lg"
             // Conferida: desmarcar desfaria a conferência do gerente. O banco
             // recusa para quem não confere, e quem confere usa "Devolver".
-            disabled={!podeMarcar || conferida}
+            disabled={!podeMarcar || conferida || Boolean(trava)}
             onClick={() => void acoes.alternarFeito(tarefa.id)}
             titulo={
               conferida
                 ? podeConferir
                   ? 'Conferida. Para desfazer, use "Devolver".'
                   : 'Conferida pelo gerente. Só ele pode devolver.'
-                : recorrente
-                  ? feita
-                    ? 'Desmarcar "feita hoje"'
-                    : 'Marcar como feita hoje'
-                  : feita
-                    ? 'Desmarcar "concluída"'
-                    : 'Marcar como concluída'
+                : trava
+                  ? trava
+                  : recorrente
+                    ? feita
+                      ? 'Desmarcar "feita hoje"'
+                      : 'Marcar como feita hoje'
+                    : feita
+                      ? 'Desmarcar "concluída"'
+                      : 'Marcar como concluída'
             }
           />
           <div className="min-w-0 flex-1">
@@ -351,7 +358,9 @@ function FichaDaTarefa({
                   ? 'Feita hoje'
                   : 'Concluída'
                 : recorrente
-                  ? 'Marcar como feita hoje'
+                  ? hojeNaoEDia
+                    ? 'Hoje não é dia desta tarefa'
+                    : 'Marcar como feita hoje'
                   : 'Marcar como concluída'}
             </p>
             <p className="text-xs text-muted-foreground">
@@ -365,7 +374,7 @@ function FichaDaTarefa({
                     : 'Concluída e conferida pelo gerente.'
                   : recorrente
                     ? hojeNaoEDia
-                      ? `Hoje não é dia desta tarefa (${descreverDias(tarefa.dias_semana)}).`
+                      ? `Ela é de ${descreverDias(tarefa.dias_semana)}: o feito só se marca no dia dela.`
                       : feita
                         ? 'Amanhã ela volta a ficar pendente sozinha — ninguém precisa zerar.'
                         : 'Clique na bolinha quando terminar. Amanhã ela volta a ficar pendente sozinha.'
@@ -531,7 +540,9 @@ function FichaDaTarefa({
               </SelectTrigger>
               <SelectContent>
                 {STATUS_NA_ORDEM.map((s) => (
-                  <SelectItem key={s} value={s}>
+                  // "Feito" num dia que não é da tarefa gravaria o feito no dia
+                  // errado — a mesma trava da bolinha (travaDoFeito).
+                  <SelectItem key={s} value={s} disabled={s === 'feito' && Boolean(trava)}>
                     <span
                       className={cn(
                         'inline-flex rounded-md px-2 py-0.5 text-xs font-semibold',

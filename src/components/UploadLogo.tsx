@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { mensagemCrua } from '@/lib/mensagemDoErro';
 
 /**
  * Envio da logo da loja.
@@ -87,7 +88,7 @@ export function UploadLogo({ tenantId, valor, onChange, podeEditar }: Props) {
         description: 'Clique em Salvar para confirmar.',
       });
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Tente novamente.';
+      const msg = mensagemCrua(error) || 'Tente novamente.';
       toast({
         title: 'Não foi possível enviar',
         description: /policy|permission|unauthorized/i.test(msg)

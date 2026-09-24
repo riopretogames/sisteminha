@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { devolvidosPorProdutoNoPeriodo } from '@/lib/faturamento';
+import { buscarEmPaginas } from '@/lib/buscarEmPaginas';
 import { useAuth } from '@/hooks/useAuth';
 import { PERMISSIONS } from '@/config/permissions';
 import { moeda } from '@/lib/format';
@@ -52,32 +53,52 @@ export default function IeEstoque() {
     queryKey: ['ie-estoque', periodo.de, periodo.ate],
     queryFn: async (): Promise<LinhaProduto[]> => {
       const ate = `${periodo.ate}T23:59:59`;
-      const [vendasRes, produtosRes, devolvidos] = await Promise.all([
-        supabase
-          .from('vendas')
-          .select(
-            'id, created_at, status, itens_venda(quantidade, total, produtos:vw_produtos(id, nome, categoria, custo, estoque_atual))'
-          )
-          .gte('created_at', periodo.de)
-          .lte('created_at', ate)
-          .neq('status', 'cancelado'),
-        supabase
-          .from('vw_produtos')
-          .select('id, nome, categoria, custo, estoque_atual')
-          .eq('ativo', true),
+      // Em páginas: o Supabase corta calado em 1.000 linhas por pedido — com o
+      // catálogo da loja importado passa disso fácil, e o "parado" sairia
+      // calculado sobre uma parte qualquer dos produtos.
+      const [vendas, produtos, devolvidos] = await Promise.all([
+        buscarEmPaginas<{
+          itens_venda: Array<{
+            quantidade: number;
+            total: number;
+            produtos: { id: string; nome: string; categoria: string | null; custo: number; estoque_atual: number } | null;
+          }>;
+        }>(() =>
+          supabase
+            .from('vendas')
+            .select(
+              'id, created_at, status, itens_venda(quantidade, total, produtos:vw_produtos(id, nome, categoria, custo, estoque_atual))'
+            )
+            .gte('created_at', periodo.de)
+            .lte('created_at', ate)
+            .neq('status', 'cancelado')
+            .order('created_at')
+            .order('id'),
+        ),
+        buscarEmPaginas<{
+          id: string;
+          nome: string;
+          categoria: string | null;
+          custo: number | null;
+          estoque_atual: number | null;
+        }>(() =>
+          supabase
+            .from('vw_produtos')
+            .select('id, nome, categoria, custo, estoque_atual')
+            .eq('ativo', true)
+            .order('nome')
+            .order('id'),
+        ),
         // Produto devolvido inflava a quantidade vendida — e é a quantidade
         // vendida que decide se um produto está "parado" ou "girando". Um
         // produto vendido 5 e devolvido 5 girou zero, não cinco.
         devolvidosPorProdutoNoPeriodo(periodo.de, ate),
       ]);
 
-      if (vendasRes.error) throw vendasRes.error;
-      if (produtosRes.error) throw produtosRes.error;
-
       // Começa pela base de TODOS os produtos ativos — é o único jeito de
       // pegar quem tem estoque e não vendeu nada (não aparece em itens_venda).
       const porProduto = new Map<string, LinhaProduto>();
-      for (const produto of produtosRes.data ?? []) {
+      for (const produto of produtos) {
         porProduto.set(produto.id, {
           produtoId: produto.id,
           nome: produto.nome,
@@ -89,13 +110,7 @@ export default function IeEstoque() {
       }
 
       // Soma a quantidade vendida no período por cima da base de produtos.
-      for (const venda of (vendasRes.data ?? []) as unknown as Array<{
-        itens_venda: Array<{
-          quantidade: number;
-          total: number;
-          produtos: { id: string; nome: string; categoria: string | null; custo: number; estoque_atual: number } | null;
-        }>;
-      }>) {
+      for (const venda of vendas) {
         for (const item of venda.itens_venda ?? []) {
           const produto = item.produtos;
           if (!produto) continue; // item órfão (produto excluído) — ignora

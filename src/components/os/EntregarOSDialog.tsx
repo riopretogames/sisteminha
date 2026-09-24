@@ -22,6 +22,8 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { moeda as formatCurrency } from '@/lib/format';
 import { FORMAS_PAGAMENTO } from '@/lib/constants';
+import { OS_ETAPAS } from '@/config/osStatus';
+import { mensagemDoErro } from '@/lib/mensagemDoErro';
 
 type FormaPagamento = keyof typeof FORMAS_PAGAMENTO;
 
@@ -52,8 +54,19 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   osId: string;
   numeroOs: string;
+  /**
+   * O valor que a tela que abriu o diálogo conhecia. É só o ponto de partida:
+   * ao abrir, o diálogo relê o valor do BANCO e cobra o de lá — ver `atual`.
+   */
   totalOrcamento: number;
   onEntregue: () => void;
+}
+
+/** O que o diálogo relê da OS ao abrir. */
+interface OSNoBanco {
+  total_orcamento: number | null;
+  tipo: string | null;
+  status: string | null;
 }
 
 const NOVO_PAGAMENTO_VAZIO = { formaPagamentoId: '', parcelas: '1', valor: '' };
@@ -105,6 +118,19 @@ export function EntregarOSDialog({
   // lançando o pagamento em dobro. Ver o efeito logo abaixo que busca isso.
   const [jaPago, setJaPago] = useState(0);
   const [carregandoJaPago, setCarregandoJaPago] = useState(false);
+  /**
+   * A OS como está NO BANCO agora, relida toda vez que o diálogo abre.
+   *
+   * Achado na revisão de 24/09: o quadro de OS carrega a lista uma vez e não
+   * se atualiza sozinho. Com o quadro aberto no balcão, a OS de R$ 450 era
+   * recusada na ficha em outro computador e passava a valer R$ 80 (a taxa) —
+   * e arrastar o cartão para Entregue abria este diálogo cobrando R$ 450. O
+   * banco aceitava (só confere se o pago COBRE o valor), o título saía de R$ 80
+   * e os R$ 370 viravam "troco" que ninguém via. O cliente pagava R$ 450 no
+   * cartão por uma OS de R$ 80. Cobrar o valor do banco, e não o da tela, é o
+   * que fecha isso — em qualquer tela que abra este diálogo.
+   */
+  const [atual, setAtual] = useState<OSNoBanco | null>(null);
 
   // Busca as formas de pagamento ativas assim que o diálogo abre — mesmo
   // padrão de fetchFormasPagamento em PDV.tsx.
@@ -125,24 +151,41 @@ export function EntregarOSDialog({
   useEffect(() => {
     if (!open || !osId) {
       setJaPago(0);
+      setAtual(null);
       return;
     }
+    let cancelado = false;
     setCarregandoJaPago(true);
-    supabase
-      .from('os_pagamentos')
-      .select('valor')
-      .eq('os_id', osId)
-      .then(({ data, error }) => {
-        if (error) {
-          // Não trava o diálogo por isso — só assume 0 e deixa o gatilho do
-          // banco ser a rede de segurança final, como sempre foi.
-          console.error('Erro ao buscar pagamentos já registrados desta OS:', error);
-          setJaPago(0);
-        } else {
-          setJaPago((data ?? []).reduce((acc, p) => acc + Number(p.valor), 0));
-        }
-        setCarregandoJaPago(false);
-      });
+    Promise.all([
+      supabase.from('os_pagamentos').select('valor').eq('os_id', osId),
+      supabase
+        .from('service_orders')
+        .select('total_orcamento, tipo, status')
+        .eq('id', osId)
+        .maybeSingle(),
+    ]).then(([pagos, os]) => {
+      if (cancelado) return;
+      if (pagos.error) {
+        // Não trava o diálogo por isso — só assume 0 e deixa o gatilho do
+        // banco ser a rede de segurança final, como sempre foi.
+        console.error('Erro ao buscar pagamentos já registrados desta OS:', pagos.error);
+        setJaPago(0);
+      } else {
+        setJaPago((pagos.data ?? []).reduce((acc, p) => acc + Number(p.valor), 0));
+      }
+      if (os.error) {
+        // Sem a releitura, fica o valor da tela — o banco continua conferindo
+        // que o pagamento cobre o valor de verdade.
+        console.error('Erro ao reler a OS antes da entrega:', os.error);
+        setAtual(null);
+      } else {
+        setAtual((os.data as OSNoBanco | null) ?? null);
+      }
+      setCarregandoJaPago(false);
+    });
+    return () => {
+      cancelado = true;
+    };
   }, [open, osId]);
 
   // Pré-seleciona a primeira forma (por ordem) assim que a lista carrega, em
@@ -153,13 +196,25 @@ export function EntregarOSDialog({
     }
   }, [formasPagamento, novoPagamento.formaPagamentoId]);
 
+  // O valor a cobrar é o do banco (ver `atual`); o da tela só vale enquanto a
+  // releitura não chega, e aí o botão de confirmar fica travado.
+  const totalAtual = atual ? Number(atual.total_orcamento ?? 0) : totalOrcamento;
+  const valorMudou = atual !== null && Math.abs(totalAtual - totalOrcamento) >= 0.005;
+  const jaEntregue = atual?.status === OS_ETAPAS.ENTREGUE;
+  // Paga que ficou sem valor enquanto a tela estava aberta: não é mais uma
+  // entrega com pagamento — é "sair sem cobrança", que tem confirmação própria
+  // na ficha. Aqui só avisa e não deixa confirmar.
+  const ficouSemValor = atual !== null && atual.tipo === 'paga' && totalAtual <= 0;
+
   const totalPagoNesteDialogo = pagamentos.reduce((acc, p) => acc + p.valor, 0);
   // Inclui o que já estava gravado de uma tentativa anterior — é o que de
   // fato cobre (ou não) o orçamento, e é o que decide se falta mais alguma
   // coisa ou se já dá pra confirmar a entrega sem adicionar nada agora.
   const totalPago = jaPago + totalPagoNesteDialogo;
-  const falta = totalOrcamento - totalPago;
-  const troco = totalPago - totalOrcamento;
+  const falta = totalAtual - totalPago;
+  const troco = totalPago - totalAtual;
+  const podeConfirmar =
+    !confirmando && !carregandoJaPago && !jaEntregue && !ficouSemValor && totalPago >= totalAtual;
 
   const selecionarFormaPagamento = (formaPagamentoId: string) => {
     const forma = formasPagamento.find((f) => f.id === formaPagamentoId);
@@ -209,9 +264,12 @@ export function EntregarOSDialog({
   };
 
   const confirmarEntrega = async () => {
-    if (carregandoJaPago || totalPago < totalOrcamento) return;
+    if (!podeConfirmar) return;
 
     setConfirmando(true);
+    // Guarda se o passo 1 gravou algo NESTA tentativa, para o aviso de erro
+    // dizer a verdade sobre o dinheiro.
+    let gravouPagamentoAgora = 0;
     try {
       // 1) Insere as linhas NOVAS de os_pagamentos numa única chamada — igual
       // o PDV insere todos os pagamentos_venda de uma vez. Se `jaPago` já
@@ -229,6 +287,14 @@ export function EntregarOSDialog({
 
         const { error: pagamentoError } = await supabase.from('os_pagamentos').insert(linhas);
         if (pagamentoError) throw pagamentoError;
+
+        // Gravou: a partir daqui esses pagamentos são "já registrados", não
+        // "a lançar". Sem isto, se o passo 2 falhasse, eles continuavam na
+        // lista do diálogo — e apertar "Confirmar" de novo os gravava OUTRA
+        // VEZ (os_pagamentos não aceita apagar). Achado da revisão de 24/09.
+        gravouPagamentoAgora = totalPagoNesteDialogo;
+        setJaPago((j) => j + totalPagoNesteDialogo);
+        setPagamentos([]);
       }
 
       // 2) Só depois do pagamento gravado é que o status pode virar
@@ -247,14 +313,17 @@ export function EntregarOSDialog({
       onEntregue();
       limparEstado();
     } catch (error) {
-      // A mensagem do gatilho `conferir_pagamento_ao_entregar` ("Registre o
-      // pagamento...") já é clara o bastante pra mostrar direto — não
-      // deveria acontecer (o botão fica desabilitado até cobrir o total),
-      // mas se acontecer mesmo assim, o cliente não precisa de tradução.
-      const msg = error instanceof Error ? error.message : 'Tente novamente.';
+      // As mensagens dos gatilhos da entrega ("O cliente Fulano está
+      // bloqueado para venda…", "Registre o pagamento… falta R$ 50") já são
+      // escritas para o balcão e aparecem inteiras. Até 24/09 sumiam atrás de
+      // "Tente novamente" — ver mensagemDoErro.
+      const motivo = mensagemDoErro(error);
       toast({
         title: 'Não foi possível confirmar a entrega',
-        description: msg,
+        description:
+          gravouPagamentoAgora > 0
+            ? `${motivo} O pagamento de ${formatCurrency(gravouPagamentoAgora)} ficou registrado: ao tentar de novo, ele já conta como pago — não lance outra vez.`
+            : motivo,
         variant: 'destructive',
       });
     } finally {
@@ -268,9 +337,30 @@ export function EntregarOSDialog({
         <DialogHeader>
           <DialogTitle>Confirmar entrega — OS {numeroOs}</DialogTitle>
           <DialogDescription>
-            Total a receber: {formatCurrency(totalOrcamento)}
+            Total a receber: {formatCurrency(totalAtual)}
           </DialogDescription>
         </DialogHeader>
+
+        {/* O que mudou desde que a tela foi aberta — sem isto, o vendedor
+            cobraria o número que viu no quadro, não o que vale. */}
+        {valorMudou && !ficouSemValor && (
+          <p className="rounded-md border border-amber-500/50 bg-amber-500/10 p-2.5 text-sm text-amber-700 dark:text-amber-500">
+            O valor desta OS mudou desde que a tela foi aberta (alguém mexeu nela em outro lugar): era{' '}
+            {formatCurrency(totalOrcamento)}, agora é <strong>{formatCurrency(totalAtual)}</strong>. Cobre o
+            valor novo.
+          </p>
+        )}
+        {jaEntregue && (
+          <p className="rounded-md border border-border bg-muted/40 p-2.5 text-sm">
+            Esta OS já foi entregue por outra pessoa. Feche este aviso e atualize a tela.
+          </p>
+        )}
+        {ficouSemValor && !jaEntregue && (
+          <p className="rounded-md border border-destructive/50 bg-destructive/10 p-2.5 text-sm text-destructive">
+            Esta OS ficou sem valor (R$ 0,00) desde que a tela foi aberta. Feche este aviso e confira a
+            ficha da OS antes de entregar.
+          </p>
+        )}
 
         <div className="space-y-4">
           {/* Payment methods — vem do cadastro de Formas de Pagamento,
@@ -370,7 +460,7 @@ export function EntregarOSDialog({
           <div className="space-y-2">
             <div className="flex justify-between">
               <span>Total a receber</span>
-              <span className="font-medium">{formatCurrency(totalOrcamento)}</span>
+              <span className="font-medium">{formatCurrency(totalAtual)}</span>
             </div>
             <div className="flex justify-between">
               <span>Total pago</span>
@@ -397,7 +487,7 @@ export function EntregarOSDialog({
           </Button>
           <Button
             onClick={confirmarEntrega}
-            disabled={confirmando || carregandoJaPago || totalPago < totalOrcamento}
+            disabled={!podeConfirmar}
           >
             {confirmando ? (
               'Confirmando…'

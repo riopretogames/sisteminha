@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ROLES, ROLE_LABELS, PERMISSIONS, type Role, type Permission, rotuloDoPapel } from '@/config/permissions';
 import { useAuth } from '@/hooks/useAuth';
 import { useAtalhosDeDialogo } from '@/hooks/useAtalhosDeDialogo';
+import { useEntrarComo } from '@/hooks/useEntrarComo';
 import { PageHeader, Vazio } from '@/components/PageHeader';
 import {
   useUsuarios,
@@ -67,9 +68,10 @@ export default function Usuarios() {
     redefinirSenha,
     excluirUsuario,
     desarquivarUsuario,
-    entrarComo,
-    linkDeAcesso,
   } = useUsuarios(verArquivados);
+  // "Entrar como" mora num hook próprio desde a revisão de 24/09 (a marca da
+  // faixa precisa do id da pessoa; ver lib/entrarComo.ts).
+  const { entrarComo, linkDeAcesso } = useEntrarComo();
   const { can, user } = useAuth();
   const podeGerenciar = can(PERMISSIONS.USERS_MANAGE);
   const [busca, setBusca] = useState('');
@@ -531,7 +533,7 @@ function DialogNovoUsuario({
             </Select>
             {!podeTrocarPapel && (
               <p className="text-xs text-muted-foreground">
-                Definir perfil exige a permissão de gerenciar perfis de acesso. A conta
+                Definir perfil exige a permissão "Alterar perfis e permissões". A conta
                 será criada sem perfil, e quem tiver essa permissão define depois.
               </p>
             )}
@@ -603,7 +605,7 @@ function DialogUsuario({
   const [papel, setPapel] = useState<Role | null>(usuario.role);
   const [ativo, setAtivo] = useState(usuario.ativo);
 
-  const { data: excecoes, aplicar, definirMotivo } = useExcecoes(usuario.id);
+  const { data: excecoes, aplicar, definirMotivo, limparRepetidas } = useExcecoes(usuario.id);
 
   const { data: catalogo } = useQuery({
     queryKey: ['permissions-catalogo'],
@@ -647,6 +649,21 @@ function DialogUsuario({
 
   const totalExcecoes = excecoes?.length ?? 0;
   const ehAdministrador = papel === ROLES.ADMINISTRADOR;
+
+  // Exceção que dá EXATAMENTE o que o perfil já dá (achado 81 da revisão de
+  // 24/09). Não muda nada hoje, mas congela a pessoa: se o Felipe tirar a
+  // permissão do perfil em Perfis e Permissões, ela continua tendo, porque a
+  // exceção vence o perfil. Nasce quando o perfil muda DEPOIS da exceção — a
+  // tela só apaga exceção repetida no clique. O gerente tinha 17 assim.
+  const repetidas = useMemo(
+    () =>
+      papel && !ehAdministrador && doPerfil
+        ? (excecoes ?? [])
+            .filter((e) => e.concedida === concedidasPeloPerfil.has(e.permission_key))
+            .map((e) => e.permission_key as Permission)
+        : [],
+    [excecoes, concedidasPeloPerfil, papel, ehAdministrador, doPerfil],
+  );
 
   return (
     <Dialog open onOpenChange={onFechar}>
@@ -699,7 +716,7 @@ function DialogUsuario({
               {!podeTrocarPapel && (
                 <p className="text-xs text-muted-foreground">
                   Você pode ver e editar o cadastro, mas trocar o perfil exige a
-                  permissão "Gerenciar perfis de acesso".
+                  permissão "Alterar perfis e permissões".
                 </p>
               )}
             </div>
@@ -801,9 +818,11 @@ function DialogUsuario({
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Entrar como {usuario.nome}?</p>
                   <p className="text-xs text-muted-foreground">
-                    Você sai da sua conta neste navegador e passa a ver o sistema como{' '}
-                    {primeiroNomeDe(usuario.nome)}. Para voltar, use "Sair e voltar para a minha
-                    conta" na faixa amarela do topo e entre de novo com a sua senha.
+                    Você sai da sua conta neste navegador (em todas as abas) e passa a ver o
+                    sistema como {primeiroNomeDe(usuario.nome)}, com uma faixa amarela no topo
+                    lembrando disso. Para voltar, use "Sair e voltar para a minha conta" na faixa
+                    e entre de novo com a sua senha. Para testar sem sair da sua conta, use
+                    "Copiar link" e abra numa janela anônima.
                   </p>
                   <div className="flex justify-end gap-2">
                     <Button
@@ -887,6 +906,42 @@ function DialogUsuario({
                   cria uma exceção só para esta pessoa — o perfil dos colegas não muda.
                 </p>
 
+                {/* Achado 74 (24/09): quem só gerencia usuários via as caixas
+                    liberadas e cada clique voltava erro do banco — criar ou
+                    tirar exceção exige "Alterar perfis e permissões". Mesma
+                    regra do seletor de Perfil, acima. */}
+                {!podeTrocarPapel && (
+                  <p className="mb-3 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                    Você vê o que esta pessoa pode fazer, mas criar ou tirar uma exceção exige a
+                    permissão "Alterar perfis e permissões".
+                  </p>
+                )}
+
+                {repetidas.length > 0 && (
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+                    <p className="flex-1 text-xs text-amber-800 dark:text-amber-200">
+                      {repetidas.length === 1
+                        ? '1 exceção repete'
+                        : `${repetidas.length} exceções repetem`}{' '}
+                      o que o perfil já dá. Hoje não mudam nada, mas enquanto existirem, tirar
+                      essas permissões do perfil em Perfis e Permissões NÃO vale para esta pessoa.
+                    </p>
+                    {podeTrocarPapel && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={limparRepetidas.isPending}
+                        onClick={() => limparRepetidas.mutate(repetidas)}
+                      >
+                        {limparRepetidas.isPending && (
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        )}
+                        Voltar a seguir o perfil
+                      </Button>
+                    )}
+                  </div>
+                )}
+
                 <div className="space-y-4">
                   {porModulo.map(([modulo, itens]) => (
                     <div key={modulo}>
@@ -910,7 +965,7 @@ function DialogUsuario({
                             >
                               <Checkbox
                                 checked={efetivo}
-                                disabled={aplicar.isPending}
+                                disabled={aplicar.isPending || !podeTrocarPapel}
                                 onCheckedChange={(v) =>
                                   aplicar.mutate({
                                     permissao: p.key as Permission,
@@ -926,31 +981,43 @@ function DialogUsuario({
                                   <Badge
                                     variant="secondary"
                                     className="bg-amber-500/10 text-[10px] text-amber-600"
+                                    title={
+                                      excecao?.concedida === perfilConcede
+                                        ? 'Esta exceção repete o que o perfil já dá. Enquanto existir, mudar o perfil não vale para esta pessoa.'
+                                        : undefined
+                                    }
                                   >
-                                    {excecao?.concedida ? 'concedido à parte' : 'removido'}
+                                    {excecao?.concedida === perfilConcede
+                                      ? 'repete o perfil'
+                                      : excecao?.concedida
+                                        ? 'concedido à parte'
+                                        : 'removido'}
                                   </Badge>
                                   <MotivoExcecao
                                     motivoAtual={excecao?.motivo ?? null}
                                     salvando={definirMotivo.isPending}
+                                    podeEditar={podeTrocarPapel}
                                     onSalvar={(motivo) =>
                                       definirMotivo.mutate({ permissao: p.key as Permission, motivo })
                                     }
                                   />
-                                  <button
-                                    type="button"
-                                    title="Voltar ao que o perfil define"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      aplicar.mutate({
-                                        permissao: p.key as Permission,
-                                        desejado: perfilConcede,
-                                        perfilConcede,
-                                      });
-                                    }}
-                                    className="text-muted-foreground hover:text-foreground"
-                                  >
-                                    <RotateCcw className="h-3.5 w-3.5" />
-                                  </button>
+                                  {podeTrocarPapel && (
+                                    <button
+                                      type="button"
+                                      title="Voltar ao que o perfil define"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        aplicar.mutate({
+                                          permissao: p.key as Permission,
+                                          desejado: perfilConcede,
+                                          perfilConcede,
+                                        });
+                                      }}
+                                      className="text-muted-foreground hover:text-foreground"
+                                    >
+                                      <RotateCcw className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
                                 </span>
                               )}
                             </label>
@@ -980,10 +1047,14 @@ function DialogUsuario({
 function MotivoExcecao({
   motivoAtual,
   salvando,
+  podeEditar,
   onSalvar,
 }: {
   motivoAtual: string | null;
   salvando: boolean;
+  /** Sem "Alterar perfis e permissões" o motivo é só leitura: gravar daria
+   *  erro do banco (achado 74). */
+  podeEditar: boolean;
   onSalvar: (motivo: string) => void;
 }) {
   const [aberto, setAberto] = useState(false);
@@ -1028,23 +1099,26 @@ function MotivoExcecao({
         <Textarea
           rows={3}
           value={rascunho}
+          readOnly={!podeEditar}
           onChange={(e) => setRascunho(e.target.value)}
-          placeholder="Ex.: cobre férias do gerente até 30/09"
+          placeholder={podeEditar ? 'Ex.: cobre férias do gerente até 30/09' : 'Sem motivo registrado'}
           className="text-sm"
         />
-        <div className="flex justify-end">
-          <Button variant="sucesso"
-            size="sm"
-            disabled={salvando}
-            onClick={() => {
-              onSalvar(rascunho);
-              setAberto(false);
-            }}
-          >
-            {salvando && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
-            Salvar
-          </Button>
-        </div>
+        {podeEditar && (
+          <div className="flex justify-end">
+            <Button variant="sucesso"
+              size="sm"
+              disabled={salvando}
+              onClick={() => {
+                onSalvar(rascunho);
+                setAberto(false);
+              }}
+            >
+              {salvando && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
+              Salvar
+            </Button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select';
 import { PERMISSIONS } from '@/config/permissions';
 import { moeda } from '@/lib/format';
+import { mensagemCrua } from '@/lib/mensagemDoErro';
 
 /**
  * As peças que um serviço consome — a ficha técnica dele.
@@ -127,7 +128,7 @@ export function PecasDoServico({ servicoId }: Props) {
       setQuantidade('1');
       queryClient.invalidateQueries({ queryKey: chave });
     } catch (erro: unknown) {
-      const msg = erro instanceof Error ? erro.message : 'Tente novamente.';
+      const msg = mensagemCrua(erro) || 'Tente novamente.';
       toast({
         title: 'Não foi possível adicionar a peça',
         description: /duplicate|unique/i.test(msg)
