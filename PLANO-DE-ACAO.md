@@ -1547,6 +1547,35 @@ possíveis em todos os lugares possíveis"*. Os quatro painéis eram fixos em
 - [ ] Limite conhecido: campanhas sem data de início (a régua atual vale para
   qualquer mês). Documentado no LEIA-ME do robô.
 
+#### Segunda rodada da revisão (23/09 à noite) — 6 achados, todos corrigidos
+
+- [x] ✅ **🔴 View nova nascia gravável de novo.** A migration `20260923160000`
+  fechou as views que existiam; uma view criada depois voltaria a aceitar
+  gravação. Migration `20260923180000` pôs um gatilho no banco
+  (`travar_escrita_de_view`) que fecha a escrita de toda view nova sozinho,
+  com conferência que cria uma view de teste e prova que ela nasce fechada.
+- [x] ✅ **A correção da troca na campanha tirava o valor duas vezes.** O
+  rateio usava o "faturamento real" da venda nova (só a diferença paga) E a
+  devolução tirava a peça que voltou: um jogo de R$ 429,90 levado numa troca
+  contava R$ 80,90. O rateio passou a usar o total da venda (só o desconto).
+  Três testes novos: cliente paga a diferença, cliente recebe dinheiro de
+  volta, troca entre grupos — e os três falham com a conta antiga.
+- [x] ✅ **Consulta em erro apagava o filtro de quem saiu da loja** (Venda,
+  Assistência, Estoque). A correção do filtro órfão agora só roda com os
+  dados carregados de verdade; o painel de Vendas ganhou aviso de erro.
+- [x] ✅ **Virada do ano.** A planilha de 2026 seguiria reenviando às 6h em
+  2027 e o sucesso dela esconderia falhas da de 2027. O robô não reenvia
+  planilha de ano passado sozinho (editar continua enviando), as falhas
+  levam o ano, e Cadastros › Metas olha só o ano corrente — com o aviso "A
+  planilha de 2027 ainda não chegou". Passo a passo no LEIA-ME.
+- [x] ✅ **Suspender todas as campanhas travava o envio.** Título com SUSPENSO
+  agora vai como aviso (`campanhas_suspensas`) e o banco aceita a lista
+  vazia só com ele; sem o aviso, continua recusando (leitura quebrada).
+- [x] ✅ **"—" ou #N/A na coluna "Ano passado" travava o envio inteiro** — a
+  coluna é só referência e agora vira vazio.
+- ⚠️ O robô mudou: o código colado na planilha precisa ser **trocado pelo
+  novo** (Extensões › Apps Script › apagar tudo › colar).
+
 ---
 
 ## Relatórios

@@ -164,7 +164,7 @@ export default function DashboardAssistencia() {
     };
   }, [filtros.periodo]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isSuccess } = useQuery({
     queryKey: ['dashboard-assistencia', desdeISO, periodo.fim.toISOString()],
     queryFn: async (): Promise<{ doPeriodo: OSRow[]; emAberto: OSRow[] }> => {
       // Em páginas: a bancada recebe mais de cem aparelhos por semana, e
@@ -235,7 +235,8 @@ export default function DashboardAssistencia() {
     filtros,
     setFiltros,
     { pessoas: tecnicos, categorias: equipamentos },
-    !isLoading && pessoasCadastradas !== undefined && tiposDeAparelho !== undefined,
+    // isSuccess: com a consulta em erro, o filtro não pode ser apagado à toa.
+    isSuccess && pessoasCadastradas !== undefined && tiposDeAparelho !== undefined,
   );
 
   /** Filtros de técnico e de equipamento, aplicados a qualquer lista de OS. */

@@ -90,16 +90,54 @@ O que o robô recusa na leitura, antes de mandar:
 - **Número de vendedores** que não seja inteiro ("2+1", "—").
 - **Aba CAMPANHAS sumida** ou sem nenhum bloco reconhecível.
 
+A coluna **Ano passado** é só referência e nunca trava o envio: um "—" ou um
+#N/A ali vira vazio.
+
 O que o sisteminha recusa, e por quê:
 
 - **Faltar mês** (tem que vir os 12) — pedido com menos meses é sinal de
   leitura quebrada, e aplicar pela metade apagaria meses bons.
 - **Lista de campanhas vazia** — quase sempre é leitura quebrada, e aplicar
-  apagaria todas as campanhas.
+  apagaria todas as campanhas. A exceção é quando a planilha diz que as
+  campanhas estão **suspensas** (ver abaixo): aí é decisão, e o sistema aceita.
 - **Faixa fora de ordem** (Prata menor que Bronze) — quase sempre é dedo
   escorregado, e vira prêmio errado.
 - **Valor negativo**, **número de vendedores** fora de 0 a 50, **apuração**
   que não seja "Quinzenal" nem "4 períodos".
+
+## Suspender uma campanha
+
+Escreva **SUSPENSO** no título do bloco, na aba CAMPANHAS — do jeito que já está
+o do Gerente. Por exemplo: `🎧 ACESSÓRIOS — SUSPENSO desde 01/11/2026`. No
+próximo envio a campanha sai do sistema e do Dashboard de Metas. Para voltar,
+apague o SUSPENSO do título.
+
+Pode suspender todas de uma vez: o robô avisa o sistema de que foi de
+propósito, e ele aceita a lista vazia. O que o sistema não aceita é a lista
+vazia **sem** o aviso — aí é leitura quebrada (bloco apagado, cabeçalho
+renomeado) e ele segura as campanhas que já tinha.
+
+## Virada do ano
+
+A planilha é de um ano só (**Metas RPG 2026**). Para 2027:
+
+1. No Drive, **Arquivo › Fazer uma cópia** da planilha de 2026 e dê o nome
+   **Metas RPG 2027**.
+2. Na cópia, troque o ano no **título da aba METAS DA LOJA** e preencha as
+   metas novas. O robô confere que o nome do arquivo e o título dizem o mesmo
+   ano — se um dos dois ficar com 2026, ele recusa em vez de gravar 2027 por
+   cima de 2026.
+3. Na cópia, rode **Sisteminha › Configurar conexão** e cole o código de acesso.
+   A cópia leva o robô junto, mas o Google **não** copia os gatilhos (o envio
+   ao editar e o das 6h): sem este passo, a planilha de 2027 não manda nada.
+
+A planilha de 2026 para de mandar sozinha às 6h a partir de 1º de janeiro — de
+propósito, para não esconder uma falha da de 2027. Se precisar corrigir
+dezembro, é só editar a de 2026: a edição continua sendo enviada.
+
+Em **Cadastros › Metas**, a situação mostrada é sempre a da planilha do ano
+corrente. Em janeiro, enquanto a de 2027 não chegar, a tela avisa "A planilha
+de 2027 ainda não chegou".
 
 ## Instalar pela conta certa
 

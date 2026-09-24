@@ -89,6 +89,7 @@ interface CampanhaRow {
 
 interface SincronizacaoRow {
   recebido_em: string;
+  ano: number | null;
   sucesso: boolean;
   erro: string | null;
   planilha_nome: string | null;
@@ -130,7 +131,7 @@ export default function MetasDaLoja() {
           .order('chave'),
         supabase
           .from('metas_sincronizacoes')
-          .select('recebido_em, sucesso, erro, planilha_nome, planilha_url, enviado_por, resumo')
+          .select('recebido_em, ano, sucesso, erro, planilha_nome, planilha_url, enviado_por, resumo')
           .order('recebido_em', { ascending: false })
           .limit(20),
       ]);
@@ -199,8 +200,18 @@ export default function MetasDaLoja() {
     return [...porChave.values()];
   }, [data]);
 
-  const ultimaTentativa = data?.sincronizacoes[0] ?? null;
-  const ultimoSucesso = data?.sincronizacoes.find((s) => s.sucesso) ?? null;
+  /**
+   * A situação da planilha é olhada só no ANO CORRENTE (e nas falhas sem ano,
+   * de quando o robô nem conseguiu ler o ano). Na virada do ano a planilha de
+   * 2026 ainda pode chegar — corrigindo dezembro, por exemplo — e um sucesso
+   * dela não pode esconder que a de 2027 está falhando (segunda rodada da
+   * revisão, 23/09).
+   */
+  const doAnoCorrente = (data?.sincronizacoes ?? []).filter((s) => s.ano === anoAtual || s.ano == null);
+  const ultimaTentativa = doAnoCorrente[0] ?? null;
+  const ultimoSucesso = doAnoCorrente.find((s) => s.sucesso) ?? null;
+  const ultimaDeOutroAno =
+    !ultimoSucesso ? (data?.sincronizacoes ?? []).find((s) => s.sucesso && s.ano !== anoAtual) ?? null : null;
 
   /**
    * A planilha parou de chegar? O robô reenvia tudo todo dia às 6h; se o
@@ -213,7 +224,9 @@ export default function MetasDaLoja() {
     ? (Date.now() - new Date(ultimoSucesso.recebido_em).getTime()) / 3_600_000
     : null;
   const planilhaParada = horasSemAtualizar !== null && horasSemAtualizar > 26;
-  const urlPlanilha = linkDaPlanilha(ultimoSucesso?.planilha_url ?? ultimaTentativa?.planilha_url);
+  const urlPlanilha = linkDaPlanilha(
+    ultimoSucesso?.planilha_url ?? ultimaTentativa?.planilha_url ?? ultimaDeOutroAno?.planilha_url,
+  );
   const verAnoPassado = mesesDoAno.some((m) => m.faturamento_ano_passado != null);
 
   return (
@@ -245,6 +258,16 @@ export default function MetasDaLoja() {
         <CardContent className="space-y-3 p-4">
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Carregando…</p>
+          ) : !ultimaTentativa && ultimaDeOutroAno ? (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>A planilha de {anoAtual} ainda não chegou</AlertTitle>
+              <AlertDescription>
+                A última que chegou foi a de {ultimaDeOutroAno.ano}, em {dataHora(ultimaDeOutroAno.recebido_em)}.
+                Crie a planilha de {anoAtual} (uma cópia da anterior, com o ano trocado no nome e no
+                título) e rode nela o menu Sisteminha › Configurar conexão.
+              </AlertDescription>
+            </Alert>
           ) : !ultimaTentativa ? (
             <p className="text-sm text-muted-foreground">
               A planilha ainda não enviou nada para o sistema. Assim que o robô dela for

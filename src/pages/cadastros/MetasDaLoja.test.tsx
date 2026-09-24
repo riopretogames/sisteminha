@@ -149,6 +149,47 @@ describe('Cadastros > Metas', () => {
     expect(screen.getByText(/nada foi gravado pela metade/)).toBeInTheDocument();
   });
 
+  it('na virada do ano, avisa que a planilha do ano novo ainda não chegou', async () => {
+    // Segunda rodada da revisão (23/09): em janeiro, o sucesso da planilha de
+    // 2026 não pode passar por "está tudo em dia".
+    vi.setSystemTime(new Date('2027-01-05T10:00:00'));
+    await abrir({
+      vw_metas_mes: [SETEMBRO],
+      metas_faturamento: FAIXAS_SETEMBRO,
+      metas_sincronizacoes: [{ ...SYNC_OK, ano: 2026, recebido_em: '2027-01-04T09:00:00Z' }],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('A planilha de 2027 ainda não chegou')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/A última que chegou foi a de 2026/)).toBeInTheDocument();
+    expect(screen.queryByText(/Última atualização da planilha/)).not.toBeInTheDocument();
+  });
+
+  it('a falha da planilha do ano novo aparece mesmo com a do ano velho chegando depois', async () => {
+    vi.setSystemTime(new Date('2027-01-05T10:00:00'));
+    await abrir({
+      vw_metas_mes: [SETEMBRO],
+      metas_faturamento: FAIXAS_SETEMBRO,
+      metas_sincronizacoes: [
+        // A de 2026 foi editada à mão (corrigindo dezembro) DEPOIS da falha da de 2027.
+        { ...SYNC_OK, ano: 2026, recebido_em: '2027-01-05T09:00:00Z' },
+        {
+          ...SYNC_OK,
+          ano: 2027,
+          recebido_em: '2027-01-05T08:00:00Z',
+          sucesso: false,
+          erro: 'Em janeiro, a faixa Ouro está vazia.',
+        },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/A última tentativa de atualização falhou/)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Em janeiro, a faixa Ouro está vazia/)).toBeInTheDocument();
+  });
+
   it('mês de 4 períodos mostra que a quinzena não se aplica', async () => {
     await abrir({
       vw_metas_mes: [MARCO],

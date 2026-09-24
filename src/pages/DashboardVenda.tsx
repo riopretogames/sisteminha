@@ -122,7 +122,7 @@ export default function DashboardVenda() {
     return { periodo, anterior, desdeISO: desde.toISOString() };
   }, [filtros.periodo]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isSuccess, error } = useQuery({
     queryKey: ['dashboard-venda', desdeISO, periodo.fim.toISOString()],
     queryFn: async (): Promise<{ vendas: VendaRow[]; devolucoes: DevolucaoComVendedor[] }> => {
       // Em páginas: "Ano passado" busca dois anos de venda para comparar, e o
@@ -193,7 +193,10 @@ export default function DashboardVenda() {
     filtros,
     setFiltros,
     { pessoas: vendedores, categorias },
-    !isLoading && pessoasCadastradas !== undefined && gruposCadastrados !== undefined,
+    // isSuccess, e não "!isLoading": com a consulta em ERRO o isLoading também
+    // fica falso, as listas ficam sem quem vem do movimento, e o filtro de uma
+    // pessoa que saiu seria apagado à toa (segunda rodada da revisão, 23/09).
+    isSuccess && pessoasCadastradas !== undefined && gruposCadastrados !== undefined,
   );
 
   /** Itens de uma venda que interessam ao filtro de categoria. */
@@ -396,6 +399,16 @@ export default function DashboardVenda() {
         categorias={categorias}
         rotuloCategoria="Grupo de produto"
       />
+
+      {error && (
+        <Alert variant="destructive">
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            Não foi possível carregar as vendas deste período: {String((error as Error).message)}. Os
+            números abaixo não valem até carregar de novo.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {porCategoria && (
         <Alert>

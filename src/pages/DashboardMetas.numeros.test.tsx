@@ -263,7 +263,7 @@ describe('Dashboard de Metas', () => {
         {
           created_at: '2026-09-21T10:00:00',
           valor_devolvido_cliente: 1000,
-          venda_original: { vendedor_id: 'ana', total: 1000, valor_faturamento_real: null, itens_venda: [{ total: 1000 }] },
+          venda_original: { vendedor_id: 'ana', total: 1000, itens_venda: [{ total: 1000 }] },
           devolucao_itens: [],
         },
       ],
@@ -316,7 +316,7 @@ describe('Dashboard de Metas', () => {
         {
           created_at: '2026-09-21T10:00:00',
           valor_devolvido_cliente: 1000,
-          venda_original: { vendedor_id: 'ana', total: 3200, valor_faturamento_real: null, itens_venda: [{ total: 3200 }] },
+          venda_original: { vendedor_id: 'ana', total: 3200, itens_venda: [{ total: 3200 }] },
           devolucao_itens: [{ quantidade: 1, preco_unitario: 1000, produtos: { grupo_produto_id: 'g-acess' } }],
         },
       ],
@@ -330,6 +330,124 @@ describe('Dashboard de Metas', () => {
     await waitFor(() => {
       expect(screen.getAllByText('R$ 2.200,00').length).toBeGreaterThan(0);
     });
+  });
+
+  /**
+   * Trocas (segunda rodada da revisão, 23/09). No PDV, a troca vira duas
+   * coisas: a DEVOLUÇÃO da peça que voltou (com o dinheiro devolvido, se
+   * houver) e uma VENDA nova da peça levada, com os itens a preço cheio e o
+   * "faturamento real" só com o dinheiro novo. A campanha tira a peça que
+   * voltou pela devolução e soma a levada pela venda — então a venda nova tem
+   * que entrar pelo valor dela, não só pela diferença paga.
+   */
+  const TROCA_JOGOS = [
+    { chave: 'jogos', nome: 'Jogos', grupo_produto_id: 'g-jogos', periodicidade: 'mensal', faixa: 'bronze', meta: 400, premio: 30 },
+    { chave: 'jogos', nome: 'Jogos', grupo_produto_id: 'g-jogos', periodicidade: 'mensal', faixa: 'prata', meta: 500, premio: 50 },
+  ];
+
+  it('troca em que o cliente paga a diferença: a campanha conta a peça levada inteira', async () => {
+    // Vendeu um jogo de 349; o cliente trocou por um de 429,90 e pagou 80,90.
+    await abrir({
+      metas_faturamento: BRONZE_10_MIL,
+      metas_campanha: TROCA_JOGOS,
+      vendas: [
+        venda({ id: 'v-jogo', total: 349, itens_venda: [{ total: 349, produtos: { grupo_produto_id: 'g-jogos' } }] }),
+        venda({
+          id: 'v-troca',
+          total: 429.9,
+          valor_faturamento_real: 80.9,
+          itens_venda: [{ total: 429.9, produtos: { grupo_produto_id: 'g-jogos' } }],
+        }),
+      ],
+      devolucoes: [
+        {
+          created_at: '2026-09-21T10:00:00',
+          valor_devolvido_cliente: 0,
+          venda_original: { vendedor_id: 'ana', total: 349, itens_venda: [{ total: 349 }] },
+          devolucao_itens: [{ quantidade: 1, preco_unitario: 349, produtos: { grupo_produto_id: 'g-jogos' } }],
+        },
+      ],
+    });
+
+    // Campanha: 349 + 429,90 − 349 = 429,90 — o jogo que ficou com o cliente.
+    // (Antes contava só os 80,90 da diferença.) Bronze de 400 batido.
+    await waitFor(() => {
+      expect(screen.getByText(/R\$\s*70,10 p\/ Prata/)).toBeInTheDocument();
+    });
+    // A meta individual chega no mesmo número: 349 + 80,90 de dinheiro novo.
+    expect(screen.getAllByText(/Faltam R\$\s*4\.570,10 para Bronze/).length).toBeGreaterThan(0);
+    expect(screen.queryByText('R$ 80,90')).not.toBeInTheDocument();
+  });
+
+  it('troca com dinheiro de volta: conta só a peça que ficou', async () => {
+    // Vendeu por 1.000; o cliente trocou por uma de 600 e recebeu 400 de volta.
+    await abrir({
+      metas_faturamento: BRONZE_10_MIL,
+      metas_campanha: [
+        { chave: 'jogos', nome: 'Jogos', grupo_produto_id: 'g-jogos', periodicidade: 'mensal', faixa: 'bronze', meta: 500, premio: 30 },
+        { chave: 'jogos', nome: 'Jogos', grupo_produto_id: 'g-jogos', periodicidade: 'mensal', faixa: 'prata', meta: 700, premio: 50 },
+      ],
+      vendas: [
+        venda({ id: 'v-cara', total: 1000, itens_venda: [{ total: 1000, produtos: { grupo_produto_id: 'g-jogos' } }] }),
+        venda({
+          id: 'v-troca',
+          total: 600,
+          valor_faturamento_real: 0,
+          itens_venda: [{ total: 600, produtos: { grupo_produto_id: 'g-jogos' } }],
+        }),
+      ],
+      devolucoes: [
+        {
+          created_at: '2026-09-21T10:00:00',
+          valor_devolvido_cliente: 400,
+          venda_original: { vendedor_id: 'ana', total: 1000, itens_venda: [{ total: 1000 }] },
+          devolucao_itens: [{ quantidade: 1, preco_unitario: 1000, produtos: { grupo_produto_id: 'g-jogos' } }],
+        },
+      ],
+    });
+
+    // Campanha: 1.000 − 1.000 + 600 = 600 → Bronze batido, faltam 100 p/ Prata.
+    await waitFor(() => {
+      expect(screen.getByText(/R\$\s*100,00 p\/ Prata/)).toBeInTheDocument();
+    });
+    // Individual: 1.000 + 0 − 400 = 600, contra a régua de 5.000.
+    expect(screen.getAllByText(/Faltam R\$\s*4\.400,00 para Bronze/).length).toBeGreaterThan(0);
+  });
+
+  it('troca entre grupos: sai da campanha da peça que voltou e entra na da peça levada', async () => {
+    // Vendeu um acessório de 500; o cliente trocou por um console de 800 e pagou 300.
+    await abrir({
+      metas_faturamento: BRONZE_10_MIL,
+      metas_campanha: [
+        { chave: 'consoles', nome: 'Consoles', grupo_produto_id: 'g-console', periodicidade: 'mensal', faixa: 'bronze', meta: 700, premio: 30 },
+        { chave: 'consoles', nome: 'Consoles', grupo_produto_id: 'g-console', periodicidade: 'mensal', faixa: 'prata', meta: 1000, premio: 50 },
+      ],
+      vendas: [
+        venda({ id: 'v-acess', total: 500, itens_venda: [{ total: 500, produtos: { grupo_produto_id: 'g-acess' } }] }),
+        venda({
+          id: 'v-troca',
+          total: 800,
+          valor_faturamento_real: 300,
+          itens_venda: [{ total: 800, produtos: { grupo_produto_id: 'g-console' } }],
+        }),
+      ],
+      devolucoes: [
+        {
+          created_at: '2026-09-21T10:00:00',
+          valor_devolvido_cliente: 0,
+          venda_original: { vendedor_id: 'ana', total: 500, itens_venda: [{ total: 500 }] },
+          devolucao_itens: [{ quantidade: 1, preco_unitario: 500, produtos: { grupo_produto_id: 'g-acess' } }],
+        },
+      ],
+    });
+
+    // Consoles: o console inteiro, 800 → Bronze batido, faltam 200 p/ Prata.
+    // (Antes contava só os 300 pagos e dizia que faltavam 400 p/ Bronze.)
+    await waitFor(() => {
+      expect(screen.getByText(/R\$\s*200,00 p\/ Prata/)).toBeInTheDocument();
+    });
+    // Individual: 500 + 300 = 800.
+    expect(screen.getAllByText(/Faltam R\$\s*4\.200,00 para Bronze/).length).toBeGreaterThan(0);
   });
 
   it('a quinzena que ainda não começou não aparece como "encerrada"', async () => {

@@ -124,9 +124,14 @@ Deno.serve(async (req) => {
   if (payload.tipo === 'falha') {
     const planilha = (payload.planilha ?? {}) as Record<string, unknown>;
     const mensagem = recorte(payload.mensagem, 1900) ?? 'Falha sem descrição.';
+    // O ano (quando o robô conseguiu ler) separa a falha da planilha de 2027
+    // do sucesso diário da de 2026 na virada do ano — senão um esconde o outro
+    // em Cadastros > Metas.
+    const anoDaFalha = Number(payload.ano);
     await admin.from('metas_sincronizacoes').insert({
       tenant_id: LOJA,
       sucesso: false,
+      ano: Number.isInteger(anoDaFalha) && anoDaFalha >= 2020 && anoDaFalha <= 2100 ? anoDaFalha : null,
       erro: `O robô da planilha não conseguiu enviar: ${mensagem}`,
       planilha_id: recorte(planilha.id, 200),
       planilha_nome: recorte(planilha.nome, 200),

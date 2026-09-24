@@ -89,7 +89,7 @@ export default function DashboardEstoque() {
     return { periodo, anterior, desdeISO: desde.toISOString() };
   }, [filtros.periodo]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isSuccess } = useQuery({
     queryKey: ['dashboard-estoque', desdeISO, periodo.fim.toISOString()],
     queryFn: async (): Promise<{ produtos: ProdutoEstoque[]; movimentos: MovimentoRow[] }> => {
       // Produto e movimento passam pelas views `vw_*` — regra de custo
@@ -145,7 +145,8 @@ export default function DashboardEstoque() {
     [gruposCadastrados, produtosSemGrupo],
   );
 
-  useCorrigirFiltroOrfao(filtros, setFiltros, { categorias }, !isLoading && gruposCadastrados !== undefined);
+  // isSuccess: com a consulta em erro, o filtro não pode ser apagado à toa.
+  useCorrigirFiltroOrfao(filtros, setFiltros, { categorias }, isSuccess && gruposCadastrados !== undefined);
 
   const produtos = useMemo(() => {
     if (!filtros.categoria) return todosProdutos;

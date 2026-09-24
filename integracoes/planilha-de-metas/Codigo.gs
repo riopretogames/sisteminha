@@ -160,6 +160,18 @@ function aoEditar(e) {
 }
 
 function envioDiario() {
+  // Na virada do ano a planilha é copiada para "Metas RPG 2027", e copiar não
+  // leva os gatilhos junto: a de 2026 continuaria reenviando todo dia e o
+  // sucesso dela esconderia, no sistema, qualquer falha da planilha nova. Então
+  // planilha de ano que já passou não manda nada sozinha — editar ela à mão
+  // (para corrigir dezembro, por exemplo) continua enviando normalmente.
+  try {
+    var anoDaPlanilha = anoDestaPlanilha_();
+    var anoDeHoje = Number(Utilities.formatDate(new Date(), FUSO, 'yyyy'));
+    if (anoDaPlanilha && anoDaPlanilha < anoDeHoje) return;
+  } catch (erroIgnorado) {
+    // Se não deu para saber o ano, segue: o envio vai dizer o que está errado.
+  }
   var resultado = enviar_('envio diário');
   // Falhar de verdade (lançar o erro) é o que faz o Google mandar o e-mail
   // automático "falha no gatilho" para quem instalou o robô. Se o envio diário
@@ -239,12 +251,20 @@ function relatarFalha_(codigo, mensagem) {
       payload: JSON.stringify({
         tipo: 'falha',
         mensagem: mensagem,
+        ano: (function () { try { return anoDestaPlanilha_(); } catch (e) { return null; } })(),
         planilha: { id: planilha.getId(), nome: planilha.getName(), url: planilha.getUrl() },
         enviado_por: quemEnviou_()
       }),
       muteHttpExceptions: true
     });
   } catch (erroIgnorado) {}
+}
+
+/** O ano desta planilha (título da aba conferido com o nome do arquivo). */
+function anoDestaPlanilha_() {
+  var planilha = SpreadsheetApp.getActive();
+  var aba = planilha.getSheetByName(ABA_LOJA);
+  return acharAno_(aba ? aba.getDataRange().getValues() : [], planilha.getName());
 }
 
 function registrar_(ok, mensagem, motivo) {
@@ -283,7 +303,10 @@ function montarPedido_() {
     };
     FAIXAS.forEach(function (f) { mes[f] = dinheiro_(linha[cab.col[f]], nomeMes, f); });
     if (cab.col.anoPassado !== undefined) {
-      mes.ano_passado = dinheiro_(linha[cab.col.anoPassado], nomeMes, 'ano passado');
+      // "Ano passado" é só referência (a própria planilha diz que não entra em
+      // conta nenhuma). Um "—" ou um #N/A ali vira vazio, em vez de travar o
+      // envio de todas as metas por causa de uma coluna que não decide nada.
+      mes.ano_passado = dinheiroOuVazio_(linha[cab.col.anoPassado]);
     }
     meses.push(mes);
   }
@@ -294,16 +317,19 @@ function montarPedido_() {
   // não decisão de acabar com as campanhas.
   var abaCampanhas = planilha.getSheetByName(ABA_CAMPANHAS);
   if (!abaCampanhas) throw new Error('não achei a aba "' + ABA_CAMPANHAS + '".');
-  var campanhas = lerCampanhas_(abaCampanhas.getDataRange().getValues());
-  if (!campanhas.length) {
+  var lidas = lerCampanhas_(abaCampanhas.getDataRange().getValues());
+  // Nenhum bloco ativo E nenhum suspenso = leitura quebrada. Todos suspensos
+  // (título com "SUSPENSO", como o do Gerente) = decisão, e vai com o aviso.
+  if (!lidas.ativas.length && !lidas.suspensas.length) {
     throw new Error('não achei nenhuma campanha na aba "' + ABA_CAMPANHAS + '" (cada bloco precisa do ' +
-                    'cabeçalho Faixa / Meta… / Prêmio).');
+                    'cabeçalho Faixa / Meta… / Prêmio; para suspender uma campanha, escreva SUSPENSO no título).');
   }
 
   return {
     ano: ano,
     meses: meses,
-    campanhas: campanhas,
+    campanhas: lidas.ativas,
+    campanhas_suspensas: lidas.suspensas,
     planilha: { id: planilha.getId(), nome: planilha.getName(), url: planilha.getUrl() },
     enviado_por: quemEnviou_()
   };
@@ -386,6 +412,7 @@ function acharCabecalhoDaLoja_(dados) {
  */
 function lerCampanhas_(dados) {
   var campanhas = [];
+  var suspensas = [];
   for (var i = 0; i < dados.length; i++) {
     var cab = dados[i].map(normalizar_);
     var colFaixa = cab.indexOf('faixa');
@@ -403,7 +430,12 @@ function lerCampanhas_(dados) {
       if (texto) { titulo = texto; break; }
     }
     var tituloNorm = normalizar_(titulo);
-    if (!titulo || tituloNorm.indexOf('suspenso') >= 0) continue;
+    if (!titulo) continue;
+    if (tituloNorm.indexOf('suspenso') >= 0) {
+      // "🎧 ACESSÓRIOS — SUSPENSO desde 01/11/2026" → "Acessórios"
+      suspensas.push(nomeDaCampanha_(titulo.split(/[—–-]/)[0]));
+      continue;
+    }
 
     var nome = nomeDaCampanha_(titulo);
     var faixas = [];
@@ -428,7 +460,7 @@ function lerCampanhas_(dados) {
       faixas: faixas
     });
   }
-  return campanhas;
+  return { ativas: campanhas, suspensas: suspensas };
 }
 
 /** "🎧 ACESSÓRIOS (por quinzena, por vendedor)" → "Acessórios". */
@@ -483,6 +515,15 @@ function dinheiro_(valor, onde, oque) {
                     'Digite como número, ou no formato 1.500,00.');
   }
   return Math.round(Number(semMoeda.replace(/\./g, '').replace(',', '.')) * 100) / 100;
+}
+
+/** Como dinheiro_, mas o que não der para ler vira vazio em vez de erro. */
+function dinheiroOuVazio_(valor) {
+  try {
+    return dinheiro_(valor, '', '');
+  } catch (erroIgnorado) {
+    return null;
+  }
 }
 
 /** Número de vendedores: inteiro de verdade. "2+1", "—" ou "#REF!" são recusados. */

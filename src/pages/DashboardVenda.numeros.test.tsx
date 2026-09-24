@@ -403,4 +403,22 @@ describe('Dashboard de Vendas — os números', () => {
     // explicar o vazio, senao um deles parece quebrado.
     expect(screen.getAllByText(/Nenhuma venda com vendedor registrado/).length).toBeGreaterThan(0);
   });
+
+  it('se as vendas não carregam, avisa — e não apaga o filtro de quem já saiu da loja', async () => {
+    // Segunda rodada da revisão (23/09). Quem saiu da loja só entra na lista
+    // do filtro pelas vendas que fez; com a consulta em erro, a lista vinha
+    // sem essa pessoa e o filtro escolhido era apagado à toa.
+    filtrar({ atalho: 'este-mes' }, { pessoaId: 'saiu-da-loja' });
+    mockSupabase.atual = bancoFalso(
+      { profiles: [{ id: 'ana', nome: 'Ana' }], catalogos: GRUPOS },
+      { falham: ['vendas'] },
+    );
+    const { default: DashboardVenda } = await import('./DashboardVenda');
+    renderizarTela(<DashboardVenda />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Não foi possível carregar as vendas deste período/)).toBeInTheDocument();
+    });
+    expect(JSON.parse(localStorage.getItem('sisteminha:filtros:venda') ?? '{}').pessoaId).toBe('saiu-da-loja');
+  });
 });

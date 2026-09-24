@@ -111,7 +111,6 @@ interface DevolucaoRow {
   venda_original: {
     vendedor_id: string | null;
     total: number | null;
-    valor_faturamento_real: number | null;
     itens_venda: { total: number | null }[] | null;
   } | null;
   devolucao_itens: {
@@ -151,22 +150,24 @@ const faturamentoDa = (v: { total: number | null; valor_faturamento_real: number
   Number(v.valor_faturamento_real ?? v.total ?? 0);
 
 /**
- * Quanto de cada real dos itens virou dinheiro de verdade na venda.
+ * Quanto de cada real dos itens a loja cobrou de verdade na venda — o
+ * desconto da venda rateado entre os itens.
  *
- * No PDV o desconto é dado na venda inteira, mas cada item guarda o preço
- * cheio. Sem este rateio, a campanha creditava R$ 2.000 numa venda que a loja
- * recebeu R$ 1.500 (revisão de 23/09, venda VD-202608-0003). E na troca, a
- * venda nova grava os itens a preço cheio mas o dinheiro novo é só a
- * diferença — o mesmo fator impede a mercadoria de contar duas vezes.
+ * No PDV o desconto é dado na venda inteira (`total` = itens − desconto), mas
+ * cada item guarda o preço cheio. Sem este rateio, a campanha creditava
+ * R$ 2.000 numa venda que a loja recebeu R$ 1.500 (revisão de 23/09, venda
+ * VD-202608-0003).
+ *
+ * Usa `total`, e NÃO `valor_faturamento_real`, de propósito (segunda rodada da
+ * revisão, 23/09): na troca, o dinheiro novo já é descontado pela DEVOLUÇÃO da
+ * peça que voltou, item a item (ver `vendidoDoGrupo`). Usar o faturamento real
+ * aqui tirava o valor da troca duas vezes — um jogo de R$ 429,90 levado numa
+ * troca aparecia como R$ 80,90 na campanha.
  */
-function fatorDaVenda(v: {
-  total: number | null;
-  valor_faturamento_real: number | null;
-  itens_venda: { total: number | null }[] | null;
-}): number {
+function fatorDaVenda(v: { total: number | null; itens_venda: { total: number | null }[] | null }): number {
   const somaDosItens = (v.itens_venda ?? []).reduce((s, i) => s + Number(i.total ?? 0), 0);
   if (somaDosItens <= 0) return 0;
-  return Math.max(0, faturamentoDa(v) / somaDosItens);
+  return Math.max(0, Number(v.total ?? 0) / somaDosItens);
 }
 
 export default function DashboardMetas() {
@@ -224,7 +225,7 @@ export default function DashboardMetas() {
           buscarEmPaginas<DevolucaoRow>(() =>
             supabase
               .from('devolucoes')
-              .select('created_at, valor_devolvido_cliente, venda_original:vendas!devolucoes_venda_original_id_fkey(vendedor_id, total, valor_faturamento_real, itens_venda(total)), devolucao_itens(quantidade, preco_unitario, produtos:vw_produtos(grupo_produto_id))')
+              .select('created_at, valor_devolvido_cliente, venda_original:vendas!devolucoes_venda_original_id_fkey(vendedor_id, total, itens_venda(total)), devolucao_itens(quantidade, preco_unitario, produtos:vw_produtos(grupo_produto_id))')
               .gte('created_at', de)
               .lt('created_at', ate)
               .order('created_at')
@@ -369,6 +370,10 @@ export default function DashboardMetas() {
    * Quanto um vendedor fez de um Grupo de Produto no recorte: os itens do
    * grupo, com o desconto da venda rateado, MENOS o que voltou em devolução
    * de venda dele (com o mesmo rateio da venda original).
+   *
+   * Na troca, a peça que voltou sai pela devolução e a que foi levada entra
+   * pela venda nova, cada uma pelo seu valor — e o resultado bate com a meta
+   * individual (que soma o dinheiro novo e tira o dinheiro devolvido).
    */
   const vendidoDoGrupo = (grupoId: string, pessoaId: string) => {
     const vendido = vendas
