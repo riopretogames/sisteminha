@@ -5,8 +5,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { gravarPlanoDeStatus, lerFeitasHoje, SELECT_TAREFA } from '@/hooks/useQuadro';
 import { hojeISO } from '@/lib/format';
-import { montarTarefa, tarefaCaiNoDia, type LinhaTarefaDoBanco } from '@/lib/tarefas';
+import { montarTarefa, ordenarPorHorario, tarefaCaiNoDia, type LinhaTarefaDoBanco } from '@/lib/tarefas';
 import {
+  aplicarCamposDoFeito,
   mensagemLeiga,
   planoDeAlternarFeito,
   planoDeStatus,
@@ -26,6 +27,14 @@ import type { TarefaMinha, TarefaStatus } from '@/types/tarefas';
  *
  * Pausada ("não fazer por enquanto") não entra: é justamente o que a pessoa
  * NÃO deve fazer hoje.
+ *
+ * Feita e esperando o gerente ("aguardando conferência") CONTINUA aqui, ao
+ * contrário do quadro: a pessoa precisa ver o que já fez hoje, com o selo
+ * "Enviada para conferência" — senão acharia que a tarefa sumiu.
+ *
+ * Vem em ordem de horário (as com hora marcada primeiro, da mais cedo para a
+ * mais tarde; depois as sem hora, na ordem do quadro). A tela agrupa por
+ * período sem mexer nessa ordem, então dentro de cada período ela vale.
  *
  * A chave leva a data de hoje: na virada do dia a lista se refaz sozinha, e
  * as recorrentes voltam a aparecer pendentes sem ninguém zerar nada.
@@ -76,7 +85,7 @@ async function lerMinhasTarefas(userId: string, hoje: string): Promise<TarefaMin
   }
 
   const diaSemana = new Date().getDay();
-  return [...unicas.values()]
+  const minhas = [...unicas.values()]
     // Quadro ou coluna arquivados: a tarefa saiu de circulação junto.
     .filter((l) => !l.quadro?.arquivado_em && !l.lista?.arquivada_em)
     .map((l) => ({
@@ -85,6 +94,7 @@ async function lerMinhasTarefas(userId: string, hoje: string): Promise<TarefaMin
       lista_nome: l.lista?.nome ?? '',
     }))
     .filter((t) => t.status !== 'pausada' && tarefaCaiNoDia(t, diaSemana, hoje));
+  return ordenarPorHorario(minhas);
 }
 
 export function useMinhasTarefas() {
@@ -111,7 +121,7 @@ export function useMinhasTarefas() {
       if (lista) {
         qc.setQueryData<TarefaMinha[]>(
           chave,
-          lista.map((t) => (t.id === d.id ? { ...t, ...d.plano.otimista } : t)),
+          lista.map((t) => (t.id === d.id ? aplicarCamposDoFeito(t, d.plano.otimista) : t)),
         );
       }
       // Guarda só a tarefa mexida: voltar a lista inteira desfaria na tela
@@ -132,6 +142,7 @@ export function useMinhasTarefas() {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['minhas-tarefas'] });
       qc.invalidateQueries({ queryKey: ['tarefas-quadro'] });
+      qc.invalidateQueries({ queryKey: ['conferencia'] });
     },
   });
 

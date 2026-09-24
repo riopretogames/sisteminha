@@ -50,6 +50,9 @@ export const PERMISSIONS = {
   TASKS_VIEW: 'tasks.view',
   TASKS_EDIT: 'tasks.edit',
   TASKS_MANAGE: 'tasks.manage',
+  // Conferir o que a equipe marcou como feito (v2, 24/09): aprovar ou
+  // devolver. De fábrica: administrador, gerente e gerente técnico.
+  TASKS_REVIEW: 'tasks.review',
 
   FINANCE_VIEW: 'finance.view',
   FINANCE_PAYABLE_MANAGE: 'finance.payable.manage',

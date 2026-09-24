@@ -62,6 +62,9 @@ export const PERMISSOES_POR_PERFIL: Record<string, string[]> = {
     'tasks.view',
     'tasks.edit',
     'tasks.manage',
+    // Conferência do gerente (migration 20260924100000). Vendedor e técnico
+    // NÃO têm: quem faz a tarefa não confere a própria.
+    'tasks.review',
   ],
   // As listas abaixo são cópia do que está NO BANCO (migrations
   // 20260801000002, 20260809150000, 20260809160000 e 20260823120000).
@@ -184,7 +187,17 @@ export function bancoFalso(
       getUser: () => Promise.resolve({ data: { user: { id: 'user-teste' } }, error: null }),
     },
     functions: { invoke: () => Promise.resolve({ data: null, error: null }) },
-    storage: { from: () => ({ getPublicUrl: () => ({ data: { publicUrl: '' } }) }) },
+    // Anexos de tarefa (v2): subir, apagar e o link assinado respondem "deu
+    // certo" — a tela de anexos testa o que faz depois, sem rede.
+    storage: {
+      from: () => ({
+        getPublicUrl: () => ({ data: { publicUrl: '' } }),
+        upload: (caminho: string) => Promise.resolve({ data: { path: caminho }, error: null }),
+        remove: () => Promise.resolve({ data: [], error: null }),
+        createSignedUrl: (caminho: string) =>
+          Promise.resolve({ data: { signedUrl: `https://arquivo.falso/${caminho}` }, error: null }),
+      }),
+    },
   };
 }
 

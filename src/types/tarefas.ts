@@ -15,6 +15,18 @@ export type TarefaStatus = keyof typeof TAREFA_STATUS;
 /** O que a tela mostra num dia: o status gravado, ou o derivado "atrasada". */
 export type StatusNoDia = TarefaStatus | 'atrasada';
 
+/**
+ * Onde a tarefa está na conferência do gerente (v2, pedido do Felipe em 24/09:
+ * "quando eu marcasse concluído, ela fosse para uma aba de conferência").
+ *
+ * - `nenhuma`: não está feita (hoje, se recorrente) — nada a conferir;
+ * - `aguardando`: feita e ainda não conferida — sai do quadro e aparece na aba
+ *   Conferência; em Minhas Tarefas a pessoa continua vendo, com selo;
+ * - `conferida`: o gerente aprovou — volta ao quadro como feita, e só ele
+ *   pode desfazer.
+ */
+export type EstadoConferencia = 'nenhuma' | 'aguardando' | 'conferida';
+
 export interface Pessoa {
   id: string;
   nome: string;
@@ -81,6 +93,72 @@ export interface Tarefa {
   comentarios_total: number;
   /** Só faz sentido em tarefa recorrente: existe conclusão para hoje. */
   feita_hoje: boolean;
+  /**
+   * Hora marcada, "HH:MM" (o banco devolve "HH:MM:SS"; montarTarefa corta).
+   * O catálogo `tarefa_horario` só sugere: aqui fica a hora de verdade.
+   */
+  horario: string | null;
+  /** Recorrente: do feito de HOJE. Avulsa: da conclusão dela. */
+  conferencia: EstadoConferencia;
+  /** Quantos arquivos anexados (o clipe do cartão). */
+  anexos_total: number;
+}
+
+/** Arquivo anexado a uma tarefa. O binário fica no bucket `tarefas-anexos`. */
+export interface Anexo {
+  id: string;
+  tarefa_id: string;
+  /** Nome que a pessoa vê ("foto-da-vitrine.jpg"). */
+  nome: string;
+  /** Caminho no bucket: <tenant_id>/<tarefa_id>/<uuid>-<nome-limpo>. */
+  caminho: string;
+  /** Tipo do arquivo ("image/jpeg", "application/pdf"); pode faltar. */
+  tipo: string | null;
+  /** Em bytes. */
+  tamanho: number;
+  /** Id da CONTA de acesso (auth.users) — o nome vem de usePessoasDaLoja. */
+  enviado_por: string;
+  created_at: string;
+}
+
+/**
+ * Uma linha da aba Conferência: um feito que espera o gerente.
+ *
+ * Recorrente gera um item por DIA feito (o feito de segunda e o de terça são
+ * conferidos separados); avulsa gera um item só, com `dia` nulo.
+ */
+export interface ItemDeConferencia {
+  tarefa_id: string;
+  /** 'YYYY-MM-DD' do feito (recorrente); null = tarefa avulsa. */
+  dia: string | null;
+  titulo: string;
+  prioridade: TarefaPrioridade;
+  dias_semana: number[];
+  horario: string | null;
+  quadro_id: string;
+  quadro_nome: string;
+  lista_id: string;
+  lista_nome: string;
+  lista_cor: string | null;
+  /**
+   * Recorrente: id da conta (auth) de quem marcou o feito do dia.
+   * Avulsa: o banco guarda QUANDO ela foi concluída, mas não quem clicou —
+   * então vai aqui o RESPONSÁVEL por ela (o primeiro da tarefa ou, sem
+   * nenhum, o dono da coluna), e a tela diz "Responsável: Pedro" em vez de
+   * "Pedro marcou". Null = ninguém responde por ela.
+   */
+  feita_por: string | null;
+  /** ISO de quando foi marcada como feita. */
+  feita_em: string;
+}
+
+/** Um horário do catálogo `tarefa_horario`, como a ficha o oferece. */
+export interface HorarioOpcao {
+  id: string;
+  descricao: string;
+  ativo: boolean;
+  /** "HH:MM"; null quando a descrição não parece uma hora ("Depois do almoço"). */
+  valor: string | null;
 }
 
 export interface ItemChecklist {
@@ -151,7 +229,7 @@ export interface AcoesDoQuadro {
   }) => Promise<boolean>;
   atualizarTarefa: (
     d: { id: string } & Partial<
-      Pick<Tarefa, 'titulo' | 'descricao' | 'prioridade' | 'dias_semana' | 'periodo_id' | 'prazo'>
+      Pick<Tarefa, 'titulo' | 'descricao' | 'prioridade' | 'dias_semana' | 'periodo_id' | 'prazo' | 'horario'>
     >,
   ) => Promise<void>;
   /** Move para outra lista e/ou posição. `ordem` já calculada com ordemEntre(). */
@@ -224,6 +302,17 @@ export interface PropsTarefaDialog {
   pessoas: Pessoa[];
   periodos: PeriodoOpcao[];
   etiquetas: Etiqueta[];
+  /** Sugestões do catálogo `tarefa_horario` (ativas). A ficha aceita outra hora digitada. */
+  horarios: HorarioOpcao[];
+  /** Tem `tasks.review`: a ficha mostra "Conferir" / "Devolver" quando a tarefa aguarda. */
+  podeConferir: boolean;
+  /**
+   * 'YYYY-MM-DD' do feito que o gerente clicou na aba Conferência (`?dia=`).
+   * Recorrente com um dia que não é hoje: a ficha mostra uma faixa com esse
+   * feito e o "Conferir"/"Devolver" dele — o bloco de cima continua sendo o
+   * de hoje. Ausente (ou hoje) = só o de hoje, como sempre.
+   */
+  diaDaConferencia?: string | null;
   onClose: () => void;
 }
 

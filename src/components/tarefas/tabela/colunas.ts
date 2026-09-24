@@ -17,14 +17,15 @@ export const COLUNAS_DA_TABELA = [
   // Mais larga que prioridade: "Não fazer por enquanto" precisa caber.
   { chave: 'status', titulo: 'Status', largura: 'w-[164px]' },
   { chave: 'frequencia', titulo: 'Frequência', largura: 'w-[156px]' },
-  { chave: 'periodo', titulo: 'Período', largura: 'w-[156px]' },
+  // Um pouco mais larga desde a v2: cabe "10:00 · Manhã" (a hora antes do turno).
+  { chave: 'periodo', titulo: 'Período', largura: 'w-[176px]' },
   { chave: 'etiquetas', titulo: 'Etiquetas', largura: 'w-[164px]' },
   { chave: 'prazo', titulo: 'Prazo', largura: 'w-[140px]' },
   { chave: 'checklist', titulo: 'Checklist', largura: 'w-[112px]' },
 ] as const;
 
 /** Largura mínima do quadro: soma das fixas + um título legível. */
-export const LARGURA_MINIMA_DA_TABELA = 'min-w-[1420px]';
+export const LARGURA_MINIMA_DA_TABELA = 'min-w-[1440px]';
 
 /**
  * Classes das células. Toda célula tem fundo de cartão: a tabela é uma folha

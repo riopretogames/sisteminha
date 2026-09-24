@@ -237,7 +237,7 @@ async function criarConteudoDoQuadro(quadroId: string, dados: DadosNovoQuadro) {
   );
   // Tarefa do modelo sem turno ganha o turno padrão da loja ("Livre", de
   // fábrica) — o mesmo que o "+ Adicionar tarefa" usa. Sem isso, as tarefas
-  // do modelo cairiam em "Sem horário definido" em Minhas Tarefas e as
+  // do modelo cairiam em "Sem período definido" em Minhas Tarefas e as
   // criadas à mão em "Livre", dois grupos para a mesma coisa.
   const periodoPadrao = (periodos ?? []).find((p) => p.padrao && p.ativo)?.id ?? null;
 

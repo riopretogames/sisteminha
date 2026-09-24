@@ -1,5 +1,14 @@
 import { forwardRef, type HTMLAttributes } from 'react';
-import { AlignLeft, CalendarDays, Clock, MessageSquare, SquareCheckBig } from 'lucide-react';
+import {
+  AlignLeft,
+  CalendarDays,
+  CheckCheck,
+  Clock,
+  Hourglass,
+  MessageSquare,
+  Paperclip,
+  SquareCheckBig,
+} from 'lucide-react';
 import { AvataresPessoas } from '@/components/tarefas/AvataresPessoas';
 import { BadgePrioridade } from '@/components/tarefas/BadgePrioridade';
 import { BadgeStatus } from '@/components/tarefas/BadgeStatus';
@@ -54,6 +63,11 @@ function diaEMes(dataISO: string): string {
  * - **não fazer por enquanto**: cinza, com a pílula dizendo por quê;
  * - **atrasada**: faixa vermelha na esquerda e o prazo em vermelho.
  *
+ * E, desde a v2 (24/09), a conferência do gerente: o cartão feito e ainda não
+ * conferido sai do quadro (a página o manda para a aba Conferência); quando o
+ * gerente aprova, ele volta feito e com o selo verde "Conferida" — e a
+ * bolinha trava, porque desfazer é só com o gerente.
+ *
  * O cartão é só desenho: quem o torna arrastável é a coluna (ListaKanban), que
  * passa as propriedades do arrasto por aqui (`...resto`). Assim a mesma peça
  * serve para a cópia que segue o mouse, que não pode ser arrastável.
@@ -81,7 +95,9 @@ export const CartaoTarefa = forwardRef<HTMLDivElement, PropsCartaoTarefa & HTMLA
     const recorrente = ehRecorrente(tarefa);
     const pausada = situacao === 'pausada';
     const atrasada = situacao === 'atrasada';
-    const marcar = (podeMarcar ?? podeEditar) && !flutuando;
+    const conferida = tarefa.conferencia === 'conferida';
+    const aguardando = tarefa.conferencia === 'aguardando';
+    const marcar = (podeMarcar ?? podeEditar) && !flutuando && !conferida;
 
     const venceHoje = !feita && tarefa.prazo === hojeISO;
     const textoDoPrazo = tarefa.prazo
@@ -101,24 +117,28 @@ export const CartaoTarefa = forwardRef<HTMLDivElement, PropsCartaoTarefa & HTMLA
     // turno "Livre" virava duas vezes a mesma palavra com sentidos diferentes.
     const mostraPrioridade = tarefa.prioridade !== 'normal' && tarefa.prioridade !== 'livre';
     const periodoVisivel = tarefa.periodo && tarefa.periodo.id !== periodoPadraoId ? tarefa.periodo : null;
-    const temLinhaDeChips = recorrente || mostraAndamento || mostraPrioridade;
+    const temQuando = Boolean(tarefa.horario) || Boolean(periodoVisivel);
+    const temLinhaDeChips = recorrente || mostraAndamento || mostraPrioridade || conferida || aguardando;
     const temRodape =
-      Boolean(periodoVisivel) ||
+      temQuando ||
       Boolean(textoDoPrazo) ||
       Boolean(tarefa.descricao) ||
       tarefa.checklist_total > 0 ||
       tarefa.comentarios_total > 0 ||
+      tarefa.anexos_total > 0 ||
       tarefa.responsaveis.length > 0;
 
-    const tituloDaBolinha = !marcar
-      ? 'Só quem edita o quadro ou é responsável por esta tarefa pode marcar'
-      : recorrente
-        ? feita
-          ? 'Desmarcar o feito de hoje'
-          : 'Marcar como feita hoje'
-        : feita
-          ? 'Reabrir a tarefa'
-          : 'Marcar como concluída';
+    const tituloDaBolinha = conferida
+      ? 'Conferida pelo gerente. Só ele pode devolver.'
+      : !marcar
+        ? 'Só quem edita o quadro ou é responsável por esta tarefa pode marcar'
+        : recorrente
+          ? feita
+            ? 'Desmarcar o feito de hoje'
+            : 'Marcar como feita hoje'
+          : feita
+            ? 'Reabrir a tarefa'
+            : 'Marcar como concluída';
 
     return (
       <div
@@ -180,15 +200,45 @@ export const CartaoTarefa = forwardRef<HTMLDivElement, PropsCartaoTarefa & HTMLA
             <ChipDia dias={tarefa.dias_semana} compacto />
             {mostraAndamento && <BadgeStatus status={situacao} className="px-1.5 py-0 text-[10px]" />}
             {mostraPrioridade && <BadgePrioridade prioridade={tarefa.prioridade} className="px-1.5 py-0 text-[10px]" />}
+            {conferida && (
+              <span
+                title="O gerente conferiu e aprovou"
+                className="inline-flex items-center gap-0.5 rounded bg-emerald-500/15 px-1.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300"
+              >
+                <CheckCheck className="h-3 w-3" />
+                Conferida
+              </span>
+            )}
+            {/* A página tira do quadro o que aguarda conferência. Se um cartão
+                assim chegar aqui mesmo assim, ele diz onde está, em vez de
+                parecer um feito comum. */}
+            {aguardando && (
+              <span
+                title="Feita, esperando a conferência do gerente"
+                className="inline-flex items-center gap-0.5 rounded bg-amber-500/15 px-1.5 text-[10px] font-bold text-amber-700 dark:text-amber-300"
+              >
+                <Hourglass className="h-3 w-3" />
+                Na conferência
+              </span>
+            )}
           </div>
         )}
 
         {temRodape && (
           <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
-            {periodoVisivel && (
-              <span className="inline-flex max-w-[9rem] items-center gap-1" title="Período do dia">
+            {/* "10:00 · Manhã": a hora vem antes e em destaque, porque é ela
+                que diz quando fazer; o turno só situa. */}
+            {temQuando && (
+              <span
+                className="inline-flex max-w-[11rem] items-center gap-1"
+                title={[tarefa.horario && `Às ${tarefa.horario}`, periodoVisivel?.descricao].filter(Boolean).join(' · ')}
+              >
                 <Clock className="h-3 w-3 shrink-0" />
-                <span className="truncate">{periodoVisivel.descricao}</span>
+                {tarefa.horario && (
+                  <span className="font-semibold tabular-nums text-foreground/80">{tarefa.horario}</span>
+                )}
+                {tarefa.horario && periodoVisivel && <span aria-hidden>·</span>}
+                {periodoVisivel && <span className="truncate">{periodoVisivel.descricao}</span>}
               </span>
             )}
             {textoDoPrazo && (
@@ -228,6 +278,15 @@ export const CartaoTarefa = forwardRef<HTMLDivElement, PropsCartaoTarefa & HTMLA
               >
                 <MessageSquare className="h-3 w-3 shrink-0" />
                 {tarefa.comentarios_total}
+              </span>
+            )}
+            {tarefa.anexos_total > 0 && (
+              <span
+                title={tarefa.anexos_total === 1 ? '1 anexo' : `${tarefa.anexos_total} anexos`}
+                className="inline-flex items-center gap-1 tabular-nums"
+              >
+                <Paperclip className="h-3 w-3 shrink-0" />
+                {tarefa.anexos_total}
               </span>
             )}
             {tarefa.responsaveis.length > 0 && (

@@ -22,6 +22,8 @@ import {
   ListChecks,
   Clock,
   Tag,
+  ClipboardCheck,
+  Paperclip,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -59,6 +61,8 @@ export const ICONS = {
   check: ListChecks,
   clock: Clock,
   tag: Tag,
+  review: ClipboardCheck,
+  paperclip: Paperclip,
 } as const;
 
 export type IconName = keyof typeof ICONS;

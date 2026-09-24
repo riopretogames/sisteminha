@@ -2054,6 +2054,37 @@ Anexos e vídeos, cursos, projetos, coisas pessoais. Notificação e integraçã
 com o WhatsApp/Telegram ficam para depois — o primeiro passo é a equipe
 trocar o Trello por isto e o Felipe parar de pagar o Monday.
 
+### v2 (24/09): conferência do gerente, anexos e horário
+
+Depois de testar, o Felipe aprovou ("ficou muito bom") e pediu três coisas:
+
+1. **Conferência.** *"Quando eu marcasse concluído, ela fosse para uma aba de
+   conferência, que meu gerente vai lá e vai conferir o que foi feito. Depois
+   que meu gerente desmarcasse, ele voltava para a função original dele."*
+   Virou: feito e ainda não conferido = "aguardando conferência" — some do
+   quadro (Kanban e Tabela) e aparece na aba **Conferência** do quadro e na
+   página Conferência do menu (todos os quadros). O gerente **aprova** (a
+   tarefa volta ao quadro como feita, com o selo "Conferida") ou **devolve**
+   (o feito é desfeito e a tarefa volta pendente para a pessoa). Em Minhas
+   Tarefas a pessoa continua vendo o que marcou, com o selo "Enviada para
+   conferência". Permissão nova `tasks.review` (administrador, gerente,
+   gerente técnico). A única porta para conferir é a função `conferir_tarefa`;
+   quem não confere não consegue se auto-conferir nem desmarcar um feito já
+   conferido (gatilhos).
+2. **Horários pré-definidos.** *"Deixe que eu escolha os horários."* Catálogo
+   `tarefa_horario` em Listas do Sistema (nasce com 07:30 … 18:00) e o campo
+   Horário na ficha, que sugere os do catálogo e aceita outro digitado. A
+   tarefa guarda a hora de verdade (`tarefas.horario`), e Minhas Tarefas
+   ordena por ela dentro do período.
+3. **Anexos.** *"Tem que anexar arquivos."* Tabela `tarefas_anexos` + bucket
+   privado `tarefas-anexos` (20 MB por arquivo, qualquer tipo, lido por link
+   assinado). Foto vira miniatura; PDF e o resto, ícone com nome e tamanho.
+   O responsável anexa mesmo sem `tasks.edit`; remove quem enviou ou quem edita.
+
+Migration `20260924100000_conferencia_anexos_e_horario.sql`, aplicada em
+24/09. Ela também tirou o nome de tabela das mensagens dos gatilhos
+(pendência da v1).
+
 ### Decisões tomadas na construção (23/09, à noite) — o Felipe pode reverter
 
 - **"Fazendo" de tarefa recorrente não fica para sempre.** Marcar o feito de

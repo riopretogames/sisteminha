@@ -11,7 +11,11 @@ import { renderizarTela, montarCan, bancoFalso, silenciarConsole } from '@/test/
  *     `tarefas_conclusoes` e não no status — é o que faz a tarefa de todo dia
  *     voltar pendente amanhã sem ninguém zerar nada;
  *   - a feita aparece riscada e vai para o fim, a pendente não;
- *   - o agrupamento segue o turno, e "sem horário" fica por último;
+ *   - o agrupamento segue o turno, e "sem período" fica por último;
+ *   - dentro do turno, a hora marcada manda (v2): a das 07:30 antes da das
+ *     14:00, e a sem hora depois;
+ *   - o feito que espera o gerente continua na lista, com selo; o conferido
+ *     trava a bolinha (v2);
  *   - sem nada para hoje, a tela diz isso e aponta o caminho.
  */
 
@@ -141,7 +145,7 @@ describe('Minhas Tarefas', () => {
     expect(screen.getByRole('button', { name: 'Marcar como feita' })).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('agrupa por turno, com "sem horário" por último', async () => {
+  it('agrupa por turno, com "sem período" por último', async () => {
     await abrirMinhasTarefas({
       tarefas_responsaveis: [{ tarefa_id: 't1' }, { tarefa_id: 't2' }],
       tarefas: [
@@ -152,8 +156,8 @@ describe('Minhas Tarefas', () => {
     });
 
     const manha = await screen.findByRole('heading', { name: 'Manhã (7 às 11)' });
-    const semHorario = screen.getByRole('heading', { name: 'Sem horário definido' });
-    expect(manha.compareDocumentPosition(semHorario) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const semPeriodo = screen.getByRole('heading', { name: 'Sem período definido' });
+    expect(manha.compareDocumentPosition(semPeriodo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText('Você tem 2 tarefas hoje. Nenhuma feita ainda.')).toBeInTheDocument();
   });
 
@@ -166,6 +170,59 @@ describe('Minhas Tarefas', () => {
 
     expect(await screen.findByText('Venceu em 20/09')).toBeInTheDocument();
     expect(screen.getByText('Atrasada')).toBeInTheDocument();
+  });
+
+  it('dentro do turno, ordena pela hora marcada; a sem hora vai para o fim', async () => {
+    await abrirMinhasTarefas({
+      tarefas_responsaveis: [{ tarefa_id: 't1' }, { tarefa_id: 't2' }, { tarefa_id: 't3' }],
+      // Na ordem do quadro, a sem hora vem primeiro — a tela tem que reordenar.
+      tarefas: [
+        linhaDeTarefa('t1', 'Repor os copos', { ordem: 1024 }),
+        linhaDeTarefa('t2', 'Conferir a vitrine', { ordem: 2048, horario: '14:00:00' }),
+        linhaDeTarefa('t3', 'Ligar os telefones da loja', { ordem: 3072, horario: '07:30:00' }),
+      ],
+      tarefas_conclusoes: [],
+    });
+
+    const telefones = await screen.findByRole('button', { name: 'Ligar os telefones da loja' });
+    const vitrine = screen.getByRole('button', { name: 'Conferir a vitrine' });
+    const copos = screen.getByRole('button', { name: 'Repor os copos' });
+    expect(telefones.compareDocumentPosition(vitrine) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(vitrine.compareDocumentPosition(copos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // A hora aparece na linha, do jeito que se fala ("07:30", não "07:30:00").
+    expect(screen.getByText('07:30')).toBeInTheDocument();
+    expect(screen.getByText('14:00')).toBeInTheDocument();
+  });
+
+  it('feita esperando o gerente: continua na lista, riscada e com o selo "Enviada para conferência"', async () => {
+    await abrirMinhasTarefas({
+      tarefas_responsaveis: [{ tarefa_id: 't1' }, { tarefa_id: 't2' }],
+      tarefas: [linhaDeTarefa('t1', 'Repor os copos'), linhaDeTarefa('t2', 'Ligar os telefones da loja')],
+      // Feito de hoje sem conferida_em = aguardando o gerente.
+      tarefas_conclusoes: [{ tarefa_id: 't1', conferida_em: null }],
+    });
+
+    expect(await screen.findByRole('button', { name: 'Repor os copos' })).toHaveClass('line-through');
+    expect(screen.getByText('Enviada para conferência')).toBeInTheDocument();
+    expect(screen.getByText('1 esperando a conferência')).toBeInTheDocument();
+    // Ainda dá para desfazer um clique errado enquanto o gerente não conferiu.
+    expect(screen.getByRole('button', { name: 'Desmarcar: ainda não terminei' })).toBeEnabled();
+    // Conta como feita no cabeçalho: para quem fez, está feito.
+    expect(screen.getByText('Você tem 2 tarefas hoje. 1 já feita.')).toBeInTheDocument();
+  });
+
+  it('conferida pelo gerente: selo "Conferida" e a bolinha trava (só ele devolve)', async () => {
+    await abrirMinhasTarefas({
+      tarefas_responsaveis: [{ tarefa_id: 't1' }],
+      tarefas: [linhaDeTarefa('t1', 'Repor os copos')],
+      tarefas_conclusoes: [{ tarefa_id: 't1', conferida_em: '2026-09-23T09:10:00Z' }],
+    });
+
+    expect(await screen.findByText('Conferida')).toBeInTheDocument();
+    expect(screen.queryByText('Enviada para conferência')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Conferida pelo gerente. Só ele pode devolver.' })).toBeDisabled();
+    expect(screen.getByText('1 conferida pelo gerente')).toBeInTheDocument();
   });
 
   it('sem nada para hoje, diz isso e aponta os quadros', async () => {

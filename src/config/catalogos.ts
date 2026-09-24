@@ -67,7 +67,7 @@ export const CATALOGO_GRUPOS: Record<CatalogoGrupo, { label: string; hint: strin
   },
   tarefas: {
     label: 'Tarefas da equipe',
-    hint: 'Listas usadas nos quadros de tarefas: turnos do dia e etiquetas.',
+    hint: 'Listas usadas nos quadros de tarefas: turnos do dia, horários e etiquetas.',
   },
 };
 
@@ -328,6 +328,22 @@ export const CATALOGOS: CatalogoDef[] = [
     icon: 'tag',
     hint: 'As etiquetas coloridas dos cartões, como as do Trello. Servem para bater o olho e filtrar.',
     exemplo: 'Atenção, Prioridade, Rotina, Conteúdo',
+  },
+  /*
+   * Horários pré-definidos (v2, 24/09 — "deixe que eu escolha os horários").
+   * O catálogo só SUGERE: a tarefa guarda a hora de verdade (tarefas.horario),
+   * e a ficha ainda aceita uma hora digitada. Item que não parece hora
+   * ("Depois do almoço") aparece desativado na ficha, com o motivo.
+   */
+  {
+    tipo: 'tarefa_horario',
+    label: 'Horários',
+    singular: 'Horário',
+    genero: 'm',
+    grupo: 'tarefas',
+    icon: 'clock',
+    hint: 'Horários que aparecem como sugestão na ficha da tarefa. Na ficha ainda dá para digitar outro.',
+    exemplo: '07:30, 10:00, 15:00',
   },
 ];
 

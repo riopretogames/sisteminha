@@ -95,6 +95,28 @@ export function planoDeAlternarFeito(t: TarefaDoPlano, agoraISO: string): PlanoD
 }
 
 /**
+ * Aplica na tela, antes de o banco responder, o que uma ação mudou — e acerta
+ * junto o selo da conferência.
+ *
+ * O plano (acima) não fala de conferência: quem confere é o gerente, pela
+ * função `conferir_tarefa`. Mas a conferência DEPENDE do feito, e a tela
+ * precisa acompanhar na hora: marcou feito → "aguardando" (o cartão vai para
+ * a aba Conferência); desmarcou → "nenhuma" (o banco apaga a conferência junto
+ * com o feito). Sem isto, a pessoa marcaria a bolinha e o cartão ficaria no
+ * quadro até a próxima recarga, parecendo que não foi.
+ */
+export function aplicarCamposDoFeito<
+  T extends Pick<Tarefa, 'dias_semana' | 'feita_hoje' | 'concluida_em' | 'conferencia'>,
+>(t: T, campos: Partial<Tarefa>): T {
+  const depois = { ...t, ...campos } as T;
+  const feitaAntes = estaFeita(t);
+  const feitaDepois = estaFeita(depois);
+  if (!feitaDepois) return { ...depois, conferencia: 'nenhuma' };
+  if (!feitaAntes) return { ...depois, conferencia: 'aguardando' };
+  return depois;
+}
+
+/**
  * Campos que precisam mudar junto quando a frequência muda.
  *
  * Uma avulsa concluída (status 'feito') que vira recorrente seria recusada

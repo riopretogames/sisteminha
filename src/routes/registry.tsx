@@ -45,6 +45,7 @@ export const PAGES: Record<string, Page> = {
   /* ── Tarefas da equipe ──────────────────────────────────────────────────── */
   TarefasQuadros: lazy(() => import('@/pages/tarefas/Quadros')),
   MinhasTarefas: lazy(() => import('@/pages/tarefas/MinhasTarefas')),
+  TarefasConferencia: lazy(() => import('@/pages/tarefas/Conferencia')),
 
   /* ── Cadastros ──────────────────────────────────────────────────────────── */
   CadastrosHub: lazy(() => import('@/pages/cadastros/CadastrosHub')),

@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   AlertTriangle,
   ArrowLeft,
+  ClipboardCheck,
   Columns3,
   Loader2,
   Pencil,
@@ -19,6 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { ConferenciaView } from '@/components/tarefas/conferencia/ConferenciaView';
 import { QuadroKanban } from '@/components/tarefas/kanban/QuadroKanban';
 import { QuadroTabela } from '@/components/tarefas/tabela/QuadroTabela';
 import { TarefaDialog } from '@/components/tarefas/TarefaDialog';
@@ -27,13 +29,23 @@ import { PERMISSIONS } from '@/config/permissions';
 import { STATUS_ATRASADA, TAREFA_STATUS } from '@/config/tarefas';
 import { useAuth } from '@/hooks/useAuth';
 import { useCatalogo } from '@/hooks/useCatalogos';
+import { useConferencia } from '@/hooks/useConferencia';
 import { usePessoasDaLoja } from '@/hooks/usePessoasDaLoja';
 import { chaveDoQuadro, useQuadro } from '@/hooks/useQuadro';
 import { useQuadros } from '@/hooks/useQuadros';
 import { useViewMode, type ViewMode } from '@/hooks/useViewMode';
 import { CORES_ETIQUETA, corDaEtiqueta } from '@/lib/cores';
 import { hojeISO } from '@/lib/format';
-import { filtrarTarefas, novaTarefaApareceNoFiltro, resumoDeStatus, statusNoDia, temFiltroAtivo } from '@/lib/tarefas';
+import {
+  estaFeita,
+  filtrarTarefas,
+  horariosDoCatalogo,
+  novaTarefaApareceNoFiltro,
+  resumoDeStatus,
+  semAguardandoConferencia,
+  statusNoDia,
+  temFiltroAtivo,
+} from '@/lib/tarefas';
 import { ehEnderecoInvalido, mensagemLeiga } from '@/lib/tarefasMutacoes';
 import { cn } from '@/lib/utils';
 import {
@@ -44,6 +56,7 @@ import {
   type PeriodoOpcao,
   type PropsVisaoQuadro,
   type StatusNoDia,
+  type Tarefa,
 } from '@/types/tarefas';
 
 /**
@@ -58,7 +71,16 @@ import {
  * A ficha da tarefa abre pelo endereço (`?tarefa=<id>`): dá para mandar o
  * link de uma tarefa no WhatsApp da equipe, e Minhas Tarefas abre a ficha
  * direto no quadro certo.
+ *
+ * v2 (24/09): a terceira aba, **Conferência** (`?aba=conferencia`). Frase do
+ * Felipe: marcou concluído, "ela fosse para uma aba de conferência, que meu
+ * gerente vai lá e vai conferir o que foi feito". Então o feito que espera o
+ * gerente SAI do Kanban e da Tabela e aparece só nessa aba; aprovado, volta
+ * ao quadro como feito; devolvido, volta pendente.
  */
+
+/** A aba Conferência vive no endereço, não no navegador: o link dela abre direto nela. */
+const ABA_CONFERENCIA = 'conferencia';
 
 /** A ordem das pílulas do resumo: a mesma do filtro de status (o que falta, o que atrasou, o que acabou). */
 const ORDEM_DO_RESUMO: StatusNoDia[] = ['nao_iniciado', 'fazendo', 'atrasada', 'feito', 'pausada'];
@@ -305,21 +327,61 @@ export default function Quadro() {
   const { can } = useAuth();
   const podeEditar = can(PERMISSIONS.TASKS_EDIT);
   const podeGerenciar = can(PERMISSIONS.TASKS_MANAGE);
+  const podeConferir = can(PERMISSIONS.TASKS_REVIEW);
 
   const { quadro, listas, tarefas, carregando, erro, acoes } = useQuadro(id);
   const { renomearQuadro } = useQuadros();
+  // Só para o contador da aba. A lista em si é da ConferenciaView, que usa a
+  // mesma consulta (mesma chave): o banco é lido uma vez para as duas.
+  const { itens: itensAConferir } = useConferencia(id);
   // Pessoas e as duas listas da loja carregadas AQUI, na mesma tela das
   // visões: as ações do quadro leem esses dados já em memória para mostrar
   // nome, cor e turno na hora, antes de o banco responder.
-  const pessoas = usePessoasDaLoja().data ?? [];
+  const pessoasDaLoja = usePessoasDaLoja().data;
+  // Lista estável enquanto o cadastro não muda: um `?? []` solto criaria uma
+  // lista nova a cada desenho e refaria as ações das visões à toa.
+  const pessoas = useMemo(() => pessoasDaLoja ?? [], [pessoasDaLoja]);
   const catalogoPeriodos = useCatalogo('tarefa_periodo').data;
   const catalogoEtiquetas = useCatalogo('tarefa_etiqueta').data;
+  const catalogoHorarios = useCatalogo('tarefa_horario').data;
 
   const { viewMode, setViewMode } = useViewMode('kanban', 'tarefas_view_mode');
   const [filtros, setFiltros] = useState<FiltrosTarefasValores>(FILTROS_TAREFAS_VAZIO);
   const [novaListaAberta, setNovaListaAberta] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const tarefaId = searchParams.get('tarefa');
+  const naConferencia = searchParams.get('aba') === ABA_CONFERENCIA;
+  // O dia do feito clicado na aba Conferência (`&dia=`): a ficha mostra o
+  // feito DAQUELE dia, não só o de hoje. Só aceita data bem formada — link
+  // cortado no WhatsApp vira "sem dia", que é o comportamento de sempre.
+  const diaDoLink = (() => {
+    const d = searchParams.get('dia');
+    return d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+  })();
+
+  /**
+   * Troca entre Kanban, Tabela e Conferência. Kanban e Tabela continuam
+   * lembrados no navegador (useViewMode, o mesmo alternador da OS — por isso
+   * a Conferência não entra no tipo dele); a Conferência fica no endereço, e
+   * é assim que a página Conferência do menu abre um quadro direto nela.
+   * `replace`, como a ficha: trocar de aba não enche o "voltar" do navegador.
+   */
+  const trocarAba = useCallback(
+    (aba: string) => {
+      if (!aba) return;
+      setSearchParams(
+        (atual) => {
+          const novo = new URLSearchParams(atual);
+          if (aba === ABA_CONFERENCIA) novo.set('aba', ABA_CONFERENCIA);
+          else novo.delete('aba');
+          return novo;
+        },
+        { replace: true },
+      );
+      if (aba !== ABA_CONFERENCIA) setViewMode(aba as ViewMode);
+    },
+    [setSearchParams, setViewMode],
+  );
 
   // Filtro é do quadro que está aberto: ao trocar de quadro, começa limpo.
   useEffect(() => {
@@ -344,6 +406,13 @@ export default function Quadro() {
     return lista;
   }, [catalogoPeriodos, tarefas]);
 
+  // Sugestões de horário da ficha (v2). Só as ativas: a tarefa guarda a hora,
+  // não o item do catálogo, então desativar um horário não apaga nada.
+  const horarios = useMemo(
+    () => horariosDoCatalogo((catalogoHorarios ?? []).filter((h) => h.ativo)),
+    [catalogoHorarios],
+  );
+
   const etiquetas = useMemo<Etiqueta[]>(
     () =>
       (catalogoEtiquetas ?? [])
@@ -358,12 +427,18 @@ export default function Quadro() {
   const hoje = hojeISO();
   const diaDaSemana = new Date().getDay();
 
+  // O que o quadro mostra: tudo, menos o feito que espera o gerente — esse
+  // "foi para a aba de conferência". O que já foi conferido fica, como feito.
+  // É daqui que saem as visões, o resumo e a contagem do filtro, para as três
+  // contarem as mesmas tarefas. A ficha NÃO usa este corte (ver tarefaAberta).
+  const tarefasDoQuadro = useMemo(() => semAguardandoConferencia(tarefas), [tarefas]);
+
   // O resumo colorido conta com todos os filtros MENOS o de status: senão,
   // clicar em "Fazendo" zeraria as outras pílulas e ninguém conseguiria
   // trocar de uma para outra.
   const semFiltroDeStatus = useMemo(
-    () => filtrarTarefas(tarefas, { ...filtros, status: '' }, { iso: hoje, diaSemana: diaDaSemana }),
-    [tarefas, filtros, hoje, diaDaSemana],
+    () => filtrarTarefas(tarefasDoQuadro, { ...filtros, status: '' }, { iso: hoje, diaSemana: diaDaSemana }),
+    [tarefasDoQuadro, filtros, hoje, diaDaSemana],
   );
   const filtradas = useMemo(
     () =>
@@ -377,15 +452,61 @@ export default function Quadro() {
   const limparFiltros = useCallback(() => setFiltros(FILTROS_TAREFAS_VAZIO), []);
 
   /**
-   * As ações que as visões recebem: as do quadro, com um cuidado a mais no
-   * "+ Adicionar tarefa". Com filtro ligado, a tarefa recém-criada pode não
-   * passar no filtro e sumir na hora — a caixa limpa como se nada tivesse
-   * acontecido e a pessoa digita de novo, criando repetida. Então, quando o
-   * filtro esconde a nova, um aviso diz isso e oferece limpar os filtros.
+   * Marcar feito pelo cartão (a bolinha, ou "Feito" na célula de status da
+   * Tabela) tira o cartão do quadro: ele vai esperar o gerente. Sem aviso, o
+   * cartão some do nada e a pessoa acha que perdeu a tarefa. O aviso sai no
+   * clique, junto com o cartão sumindo (a tela é otimista); se o banco
+   * recusar, o aviso de erro toma o lugar deste e o cartão volta.
+   *
+   * A ação do aviso é "Desfazer": quem clicou sem querer (e não é gerente)
+   * não teria outro jeito de trazer o cartão de volta sem ir até a aba e
+   * abrir a ficha. O banco deixa, porque o feito ainda não foi conferido.
+   * Volta ao status de ANTES do clique (quem estava "Fazendo" continua
+   * "Fazendo"), pela ação crua do quadro — a embrulhada daria outro aviso.
+   */
+  const avisarQueFoiParaConferencia = useCallback(
+    (t: Tarefa) =>
+      toast({
+        title: 'Enviada para a conferência',
+        description: `"${t.titulo}" está na aba Conferência e volta ao quadro quando o gerente conferir.`,
+        action: (
+          <ToastAction
+            altText="Desfazer: a tarefa volta ao quadro como não feita"
+            onClick={() =>
+              void (t.status === 'feito'
+                ? acoes.alternarFeito(t.id)
+                : acoes.definirStatus({ id: t.id, status: t.status }))
+            }
+          >
+            Desfazer
+          </ToastAction>
+        ),
+      }),
+    [toast, acoes],
+  );
+
+  /**
+   * As ações que as visões recebem: as do quadro, com dois cuidados a mais.
+   *
+   * 1. "+ Adicionar tarefa": com filtro ligado, a tarefa recém-criada pode não
+   *    passar no filtro e sumir na hora — a caixa limpa como se nada tivesse
+   *    acontecido e a pessoa digita de novo, criando repetida. Então, quando o
+   *    filtro esconde a nova, um aviso diz isso e oferece limpar os filtros.
+   * 2. Marcar feito avisa que a tarefa foi para a conferência (ver acima).
    */
   const acoesDasVisoes = useMemo<AcoesDoQuadro>(
     () => ({
       ...acoes,
+      alternarFeito: async (tid) => {
+        const t = tarefas.find((x) => x.id === tid);
+        if (t && !estaFeita(t)) avisarQueFoiParaConferencia(t);
+        await acoes.alternarFeito(tid);
+      },
+      definirStatus: async (d) => {
+        const t = tarefas.find((x) => x.id === d.id);
+        if (t && d.status === 'feito' && !estaFeita(t)) avisarQueFoiParaConferencia(t);
+        await acoes.definirStatus(d);
+      },
       criarTarefa: async (d) => {
         const gravou = await acoes.criarTarefa(d);
         if (!gravou || !temFiltroAtivo(filtros)) return gravou;
@@ -415,19 +536,23 @@ export default function Quadro() {
         return gravou;
       },
     }),
-    [acoes, filtros, listas, pessoas, hoje, diaDaSemana, toast, limparFiltros],
+    [acoes, tarefas, filtros, listas, pessoas, hoje, diaDaSemana, toast, limparFiltros, avisarQueFoiParaConferencia],
   );
 
   /* ── Ficha da tarefa pelo endereço ──────────────────────────────────────── */
 
   // `replace`: abrir e fechar a ficha não enche o histórico — o "voltar" do
   // navegador leva para a lista de quadros, não para a ficha fechada há pouco.
+  // `dia` só vem da aba Conferência (o feito daquele dia); abrir pelo cartão
+  // limpa o dia que tenha sobrado de antes.
   const abrirTarefa = useCallback(
-    (tid: string) =>
+    (tid: string, dia?: string | null) =>
       setSearchParams(
         (atual) => {
           const novo = new URLSearchParams(atual);
           novo.set('tarefa', tid);
+          if (dia) novo.set('dia', dia);
+          else novo.delete('dia');
           return novo;
         },
         { replace: true },
@@ -441,6 +566,7 @@ export default function Quadro() {
         (atual) => {
           const novo = new URLSearchParams(atual);
           novo.delete('tarefa');
+          novo.delete('dia');
           return novo;
         },
         { replace: true },
@@ -448,6 +574,8 @@ export default function Quadro() {
     [setSearchParams],
   );
 
+  // Procura na lista INTEIRA, não na do quadro: a tarefa que espera o gerente
+  // não está no Kanban, mas a ficha dela abre pela aba Conferência.
   const tarefaAberta = tarefaId ? tarefas.find((t) => t.id === tarefaId) ?? null : null;
 
   // A tarefa do link foi arquivada (por aqui ou por outra pessoa), ou é de
@@ -539,7 +667,7 @@ export default function Quadro() {
     acoes: acoesDasVisoes,
     filtroAtivo,
     onLimparFiltros: limparFiltros,
-    onAbrirTarefa: abrirTarefa,
+    onAbrirTarefa: (tid) => abrirTarefa(tid),
     pessoas,
     periodos,
     etiquetas,
@@ -575,9 +703,11 @@ export default function Quadro() {
                 e muda com a permissão: quem não pode mover cartão não deve
                 ler "arraste". */}
             <p className="mt-0.5 max-w-2xl text-xs text-muted-foreground/80">
-              {podeEditar
-                ? 'Arraste os cartões entre as colunas, marque a bolinha quando terminar e clique num cartão para abrir.'
-                : 'Marque a bolinha das suas tarefas quando terminar e clique num cartão para ver os detalhes.'}
+              {naConferencia
+                ? 'O que a equipe marcou como feito neste quadro, esperando alguém conferir.'
+                : podeEditar
+                  ? 'Arraste os cartões entre as colunas, marque a bolinha quando terminar (a tarefa vai para a Conferência) e clique num cartão para abrir.'
+                  : 'Marque a bolinha das suas tarefas quando terminar (ela vai para a Conferência) e clique num cartão para ver os detalhes.'}
             </p>
           </div>
         </div>
@@ -585,8 +715,8 @@ export default function Quadro() {
         <div className="flex flex-wrap items-center gap-2">
           <ToggleGroup
             type="single"
-            value={viewMode}
-            onValueChange={(v) => v && setViewMode(v as ViewMode)}
+            value={naConferencia ? ABA_CONFERENCIA : viewMode}
+            onValueChange={trocarAba}
             aria-label="Forma de ver o quadro"
             className="rounded-lg bg-muted p-1"
           >
@@ -608,9 +738,26 @@ export default function Quadro() {
               <Table2 className="h-4 w-4" />
               Tabela
             </ToggleGroupItem>
+            <ToggleGroupItem
+              value={ABA_CONFERENCIA}
+              size="sm"
+              title="Ver o que a equipe marcou como feito e espera alguém conferir"
+              aria-label={
+                itensAConferir.length > 0 ? `Conferência: ${itensAConferir.length} aguardando` : 'Conferência'
+              }
+              className="gap-1.5 px-3 data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm"
+            >
+              <ClipboardCheck className="h-4 w-4" />
+              Conferência
+              {itensAConferir.length > 0 && (
+                <span className="min-w-5 rounded-full bg-amber-500 px-1.5 text-center text-[11px] font-bold leading-5 text-white tabular-nums shadow-sm">
+                  {itensAConferir.length > 99 ? '99+' : itensAConferir.length}
+                </span>
+              )}
+            </ToggleGroupItem>
           </ToggleGroup>
 
-          {podeEditar && listas.length > 0 && (
+          {podeEditar && listas.length > 0 && !naConferencia && (
             <Popover open={novaListaAberta} onOpenChange={setNovaListaAberta}>
               <PopoverTrigger asChild>
                 <Button>
@@ -634,7 +781,19 @@ export default function Quadro() {
         </div>
       )}
 
-      {listas.length === 0 ? (
+      {naConferencia ? (
+        // Sem filtros nem resumo: a conferência é uma lista curta, do que
+        // espera o gerente, e os filtros do quadro (dia, status) não fazem
+        // sentido para ela.
+        <div className="max-w-4xl">
+          <ConferenciaView
+            quadroId={quadro.id}
+            pessoas={pessoas}
+            podeConferir={podeConferir}
+            onAbrirTarefa={(item) => abrirTarefa(item.tarefa_id, item.dia)}
+          />
+        </div>
+      ) : listas.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-muted/20 px-6 py-12 text-center">
           <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Columns3 className="h-7 w-7" />
@@ -684,6 +843,9 @@ export default function Quadro() {
         pessoas={pessoas}
         periodos={periodos}
         etiquetas={etiquetas}
+        horarios={horarios}
+        podeConferir={podeConferir}
+        diaDaConferencia={diaDoLink}
         onClose={fecharTarefa}
       />
     </div>

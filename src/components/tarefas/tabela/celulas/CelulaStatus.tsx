@@ -15,6 +15,10 @@ const OPCOES: OpcaoPintada<TarefaStatus>[] = (
  *
  * Quem é responsável pela tarefa muda o status mesmo sem permissão de editar:
  * é o "marcar o andamento da própria tarefa" que o banco deixa passar.
+ *
+ * Feito conferido pelo gerente (v2) trava a célula, como a bolinha: tirar o
+ * "Feito" desfaria a conferência, e o banco só deixa quem confere fazer isso
+ * (pela aba Conferência ou pelo "Devolver" da ficha).
  */
 export function CelulaStatus({
   tarefa,
@@ -28,6 +32,7 @@ export function CelulaStatus({
   acoes: Pick<AcoesDoQuadro, 'definirStatus'>;
 }) {
   const noDia = statusNoDia(tarefa, hojeISO);
+  const conferida = tarefa.conferencia === 'conferida';
   const def = noDia === 'atrasada' ? STATUS_ATRASADA : TAREFA_STATUS[noDia] ?? TAREFA_STATUS.nao_iniciado;
 
   let explicacao: string | undefined;
@@ -44,10 +49,14 @@ export function CelulaStatus({
       cor={def.cor}
       opcoes={OPCOES}
       atual={noDia === 'atrasada' ? null : noDia}
-      podeMudar={podeMarcarAndamento}
+      podeMudar={podeMarcarAndamento && !conferida}
       onEscolher={(status) => acoes.definirStatus({ id: tarefa.id, status })}
       explicacao={explicacao}
-      motivoSemPermissao="Só quem faz esta tarefa, ou quem pode editar o quadro, muda o status."
+      motivoSemPermissao={
+        conferida
+          ? 'Conferida pelo gerente. Só quem confere pode devolver, pela ficha da tarefa.'
+          : 'Só quem faz esta tarefa, ou quem pode editar o quadro, muda o status.'
+      }
     />
   );
 }

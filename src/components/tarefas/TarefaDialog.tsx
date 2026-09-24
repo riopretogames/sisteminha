@@ -1,21 +1,27 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  AlarmClock,
   AlignLeft,
   Archive,
   CalendarClock,
+  Check,
+  CheckCheck,
   CircleDot,
   Clock,
   Columns3,
   Eye,
   Flag,
+  Hourglass,
   ListChecks,
   Loader2,
   MessageSquare,
+  Paperclip,
   Plus,
   Repeat,
   Tag,
   Trash2,
+  Undo2,
   Users,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -33,16 +39,26 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Anexos } from '@/components/tarefas/Anexos';
 import { AvataresPessoas } from '@/components/tarefas/AvataresPessoas';
 import { BolinhaFeito } from '@/components/tarefas/BolinhaFeito';
 import { ChipDia } from '@/components/tarefas/ChipDia';
 import { SeletorDias } from '@/components/tarefas/SeletorDias';
 import { SeletorEtiquetas } from '@/components/tarefas/SeletorEtiquetas';
 import { SeletorPessoas } from '@/components/tarefas/SeletorPessoas';
+import { horaDoFeito, rotuloDoDia, textoDoDevolver } from '@/components/tarefas/conferencia/gruposDaConferencia';
 import { STATUS_ATRASADA, TAREFA_PRIORIDADES, TAREFA_STATUS } from '@/config/tarefas';
 import { useAuth } from '@/hooks/useAuth';
+import { mesmoItem, useConferencia } from '@/hooks/useConferencia';
 import { chaveDoQuadro, useTarefaDetalhe, type DadosDoQuadro } from '@/hooks/useQuadro';
 import { corDaEtiqueta } from '@/lib/cores';
 import { data as formatarData, dataHora, hojeISO } from '@/lib/format';
@@ -51,14 +67,18 @@ import {
   descreverDias,
   ehRecorrente,
   estaFeita,
+  normalizarHorario,
   ordemEntre,
   ordenarPorOrdem,
+  primeiroNome,
   statusNoDia,
 } from '@/lib/tarefas';
 import { cn } from '@/lib/utils';
 import type {
   Comentario,
+  HorarioOpcao,
   ItemChecklist,
+  ItemDeConferencia,
   Pessoa,
   PeriodoOpcao,
   PropsTarefaDialog,
@@ -84,6 +104,11 @@ import type {
  *   `travas_das_tarefas` recusa o resto, então a tela nem oferece.
  * - Qualquer um que vê: comenta. Apaga o próprio comentário; `tasks.manage`
  *   (podeGerenciar) apaga o de qualquer um.
+ * - Anexar é andamento (v2): quem marca o feito também anexa a foto do que
+ *   fez. Remove o anexo quem enviou, ou quem edita o quadro.
+ * - `tasks.review` (podeConferir, v2): confere ou devolve o feito pela própria
+ *   ficha. Feito já conferido fica travado para os outros — o gatilho
+ *   `trava_conclusao_conferida` recusaria desmarcar, então a tela nem oferece.
  */
 export function TarefaDialog(props: PropsTarefaDialog) {
   const { tarefa, onClose } = props;
@@ -103,6 +128,10 @@ export function TarefaDialog(props: PropsTarefaDialog) {
 
 /** Valor do seletor de período que quer dizer "nenhum" (Radix não aceita vazio). */
 const SEM_PERIODO = '__sem_periodo';
+/** Idem, para o horário. */
+const SEM_HORARIO = '__sem_horario';
+/** O item "Outro horário..." do seletor: abre o campo de digitar a hora. */
+const OUTRO_HORARIO = '__outro_horario';
 
 const STATUS_NA_ORDEM = Object.keys(TAREFA_STATUS) as TarefaStatus[];
 
@@ -125,6 +154,9 @@ function FichaDaTarefa({
   pessoas,
   periodos,
   etiquetas,
+  horarios,
+  podeConferir,
+  diaDaConferencia,
   onClose,
 }: PropsTarefaDialog & { tarefa: Tarefa }) {
   const { user } = useAuth();
@@ -150,6 +182,15 @@ function FichaDaTarefa({
     Boolean(meuId) &&
     (tarefa.responsaveis.some((p) => p.id === meuId) || lista?.responsavel_id === meuId);
   const podeMarcar = podeEditar || ehResponsavel;
+
+  // Conferência do gerente (v2). Aguardando = feita, fora do quadro, na aba
+  // Conferência. Conferida = o gerente aprovou; desfazer é só com ele.
+  const aguardando = tarefa.conferencia === 'aguardando';
+  const conferida = tarefa.conferencia === 'conferida';
+  // O feito de OUTRO dia que o gerente clicou na aba (`?dia=`). O de hoje é
+  // o bloco de cima; este ganha uma faixa própria logo abaixo.
+  const diaDeOutroFeito =
+    recorrente && diaDaConferencia && diaDaConferencia !== hoje ? diaDaConferencia : null;
 
   const [confirmandoArquivar, setConfirmandoArquivar] = useState(false);
   const [comentarioParaApagar, setComentarioParaApagar] = useState<Comentario | null>(null);
@@ -202,7 +243,18 @@ function FichaDaTarefa({
   const comentariosRecentesPrimeiro = [...detalhe.comentarios].reverse();
 
   return (
-    <DialogContent className="max-h-[92vh] gap-0 overflow-y-auto p-0 sm:max-w-3xl">
+    <DialogContent
+      className="max-h-[92vh] gap-0 overflow-y-auto p-0 sm:max-w-3xl"
+      // Arquivo solto FORA da área de anexos: sem isto o navegador abriria o
+      // arquivo no lugar do sistema, e a pessoa perderia a tela. A área de
+      // anexos cuida do dela antes de chegar aqui.
+      onDragOver={(e) => {
+        if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'none';
+      }}
+      onDrop={(e) => e.preventDefault()}
+    >
       {/* Faixa na cor da coluna: bate o olho e sabe de onde a tarefa é. */}
       <div aria-hidden className={cn('h-2 w-full shrink-0 sm:rounded-t-lg', corDaLista)} />
 
@@ -214,13 +266,27 @@ function FichaDaTarefa({
             <Columns3 className="h-3.5 w-3.5" />
             {lista?.nome ?? 'Coluna'}
           </span>
-          {tarefa.periodo && (
+          {(tarefa.horario || tarefa.periodo) && (
             <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 font-medium text-muted-foreground">
               <Clock className="h-3.5 w-3.5" />
-              {tarefa.periodo.descricao}
+              {tarefa.horario && <span className="font-bold tabular-nums text-foreground">{tarefa.horario}</span>}
+              {tarefa.horario && tarefa.periodo && <span aria-hidden>·</span>}
+              {tarefa.periodo && <span>{tarefa.periodo.descricao}</span>}
             </span>
           )}
           <ChipDia dias={tarefa.dias_semana} />
+          {aguardando && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 font-semibold text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
+              <Hourglass className="h-3.5 w-3.5" />
+              Aguardando conferência
+            </span>
+          )}
+          {conferida && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300">
+              <CheckCheck className="h-3.5 w-3.5" />
+              Conferida pelo gerente
+            </span>
+          )}
         </div>
 
         {podeEditar ? (
@@ -240,31 +306,46 @@ function FichaDaTarefa({
 
         <div
           className={cn(
-            'flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors',
-            feita
-              ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40'
-              : 'bg-muted/30',
+            'flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 transition-colors',
+            aguardando
+              ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40'
+              : feita
+                ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40'
+                : 'bg-muted/30',
           )}
         >
           <BolinhaFeito
             feita={feita}
             tamanho="lg"
-            disabled={!podeMarcar}
+            // Conferida: desmarcar desfaria a conferência do gerente. O banco
+            // recusa para quem não confere, e quem confere usa "Devolver".
+            disabled={!podeMarcar || conferida}
             onClick={() => void acoes.alternarFeito(tarefa.id)}
             titulo={
-              recorrente
-                ? feita
-                  ? 'Desmarcar "feita hoje"'
-                  : 'Marcar como feita hoje'
-                : feita
-                  ? 'Desmarcar "concluída"'
-                  : 'Marcar como concluída'
+              conferida
+                ? podeConferir
+                  ? 'Conferida. Para desfazer, use "Devolver".'
+                  : 'Conferida pelo gerente. Só ele pode devolver.'
+                : recorrente
+                  ? feita
+                    ? 'Desmarcar "feita hoje"'
+                    : 'Marcar como feita hoje'
+                  : feita
+                    ? 'Desmarcar "concluída"'
+                    : 'Marcar como concluída'
             }
           />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             {/* O texto diz a situação de AGORA, não o nome do botão: um "Feita
                 hoje" fixo ao lado de uma bolinha vazia se lia como "já foi feita". */}
-            <p className={cn('text-sm font-semibold', feita && 'text-emerald-700 dark:text-emerald-300')}>
+            <p
+              className={cn(
+                'text-sm font-semibold',
+                aguardando
+                  ? 'text-amber-800 dark:text-amber-300'
+                  : feita && 'text-emerald-700 dark:text-emerald-300',
+              )}
+            >
               {feita
                 ? recorrente
                   ? 'Feita hoje'
@@ -274,18 +355,33 @@ function FichaDaTarefa({
                   : 'Marcar como concluída'}
             </p>
             <p className="text-xs text-muted-foreground">
-              {recorrente
-                ? hojeNaoEDia
-                  ? `Hoje não é dia desta tarefa (${descreverDias(tarefa.dias_semana)}).`
-                  : feita
-                    ? 'Amanhã ela volta a ficar pendente sozinha — ninguém precisa zerar.'
-                    : 'Clique na bolinha quando terminar. Amanhã ela volta a ficar pendente sozinha.'
-                : feita && tarefa.concluida_em
-                  ? `Concluída ${comPreposicao(quandoFoi(tarefa.concluida_em))}.`
-                  : 'Clique na bolinha quando terminar de vez.'}
+              {aguardando
+                ? recorrente
+                  ? 'Enviada para a conferência do gerente. Até ele conferir, ela sai do quadro e fica na aba Conferência.'
+                  : `Concluída ${comPreposicao(quandoFoi(tarefa.concluida_em ?? tarefa.updated_at))} e enviada para a conferência do gerente.`
+                : conferida
+                  ? recorrente
+                    ? 'Conferida pelo gerente. Amanhã ela volta a ficar pendente sozinha.'
+                    : 'Concluída e conferida pelo gerente.'
+                  : recorrente
+                    ? hojeNaoEDia
+                      ? `Hoje não é dia desta tarefa (${descreverDias(tarefa.dias_semana)}).`
+                      : feita
+                        ? 'Amanhã ela volta a ficar pendente sozinha — ninguém precisa zerar.'
+                        : 'Clique na bolinha quando terminar. Amanhã ela volta a ficar pendente sozinha.'
+                    : feita && tarefa.concluida_em
+                      ? `Concluída ${comPreposicao(quandoFoi(tarefa.concluida_em))}.`
+                      : 'Clique na bolinha quando terminar de vez.'}
             </p>
           </div>
+          {podeConferir && (aguardando || conferida) && (
+            <ConferenciaNaFicha tarefa={tarefa} recorrente={recorrente} pessoas={pessoas} />
+          )}
         </div>
+
+        {diaDeOutroFeito && (
+          <FeitoDeOutroDia tarefa={tarefa} dia={diaDeOutroFeito} pessoas={pessoas} podeConferir={podeConferir} />
+        )}
 
         {!podeEditar && (
           <p className="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
@@ -348,6 +444,20 @@ function FichaDaTarefa({
           </Secao>
 
           <Secao
+            icone={Paperclip}
+            cor="bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300"
+            titulo="Anexos"
+            extra={tarefa.anexos_total > 0 ? String(tarefa.anexos_total) : undefined}
+          >
+            <Anexos
+              tarefaId={tarefa.id}
+              podeAnexar={podeMarcar}
+              podeRemoverQualquer={podeEditar}
+              euId={meuId ?? ''}
+            />
+          </Secao>
+
+          <Secao
             icone={MessageSquare}
             cor="bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
             titulo="Comentários"
@@ -400,10 +510,21 @@ function FichaDaTarefa({
             <Select
               value={valorDoStatus}
               onValueChange={(v) => void acoes.definirStatus({ id: tarefa.id, status: v as TarefaStatus })}
-              disabled={!podeMarcar}
+              // Conferida trava para TODOS, gerente inclusive: trocar o status
+              // apagaria o feito e a conferência sem pergunta nenhuma. Para
+              // desfazer, o gerente usa "Devolver", que confirma antes (e é o
+              // que a célula de status da Tabela já faz).
+              disabled={!podeMarcar || conferida}
             >
               <SelectTrigger
                 aria-label="Status"
+                title={
+                  conferida
+                    ? podeConferir
+                      ? 'Conferida. Para desfazer, use "Devolver".'
+                      : 'Conferida pelo gerente. Só ele pode devolver.'
+                    : undefined
+                }
                 className={cn('h-9 border-0 font-semibold shadow-sm', pinturaDoStatus.cor)}
               >
                 <SelectValue>{situacao === 'atrasada' ? STATUS_ATRASADA.label : rotuloDoStatus(valorDoStatus)}</SelectValue>
@@ -461,6 +582,17 @@ function FichaDaTarefa({
             </Select>
           </CampoDoPainel>
 
+          <CampoDoPainel rotulo="Horário" icone={AlarmClock}>
+            <CampoHorario
+              valor={tarefa.horario}
+              horarios={horarios}
+              podeEditar={podeEditar}
+              onSalvar={(horario) => void acoes.atualizarTarefa({ id: tarefa.id, horario })}
+            />
+          </CampoDoPainel>
+
+          {/* "Sem período", e não "sem horário": desde a v2 a tarefa tem hora
+              marcada, e as duas coisas podem andar separadas (10:00, sem turno). */}
           <CampoDoPainel rotulo="Período" icone={Clock}>
             <Select
               value={tarefa.periodo_id ?? SEM_PERIODO}
@@ -470,10 +602,10 @@ function FichaDaTarefa({
               disabled={!podeEditar}
             >
               <SelectTrigger aria-label="Período" className="h-9 bg-background">
-                <SelectValue placeholder="Sem horário definido" />
+                <SelectValue placeholder="Sem período" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={SEM_PERIODO}>Sem horário definido</SelectItem>
+                <SelectItem value={SEM_PERIODO}>Sem período</SelectItem>
                 {opcoesDePeriodo.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.descricao}
@@ -661,6 +793,385 @@ function Carregando() {
       <Loader2 className="h-4 w-4 animate-spin" />
       Carregando...
     </p>
+  );
+}
+
+/**
+ * A decisão do gerente dentro da ficha: a mesma porta da aba Conferência
+ * (`useConferencia`, que chama a função `conferir_tarefa` do banco).
+ *
+ * Só monta quando há o que conferir: a leitura da aba Conferência é a mesma
+ * que a página do quadro já faz (mesma chave), então abrir a ficha não
+ * dispara consulta nova.
+ */
+function useDecisaoNaFicha(quadroId: string) {
+  const qc = useQueryClient();
+  const { itens, aprovar, devolver } = useConferencia(quadroId);
+  const [decidindo, setDecidindo] = useState<'aprovar' | 'devolver' | null>(null);
+
+  const decidir = async (item: ItemDeConferencia, aprovada: boolean) => {
+    setDecidindo(aprovada ? 'aprovar' : 'devolver');
+    await (aprovada ? aprovar(item) : devolver(item));
+    // Os botões só voltam depois de o quadro reler a tarefa: sem esperar,
+    // eles reapareceriam por um instante com a situação velha e o gerente
+    // clicaria de novo.
+    await qc.invalidateQueries({ queryKey: chaveDoQuadro(quadroId) });
+    setDecidindo(null);
+  };
+
+  return { itens, decidindo, decidir };
+}
+
+/** "Conferir" (some quando já conferida) e "Devolver", que pergunta antes. */
+function BotoesDeConferir({
+  conferida,
+  decidindo,
+  onAprovar,
+  onDevolver,
+  pergunta,
+}: {
+  conferida: boolean;
+  decidindo: 'aprovar' | 'devolver' | null;
+  onAprovar: () => void;
+  onDevolver: () => void;
+  pergunta: { titulo: string; descricao: string };
+}) {
+  const [confirmandoDevolver, setConfirmandoDevolver] = useState(false);
+
+  return (
+    <>
+      {!conferida && (
+        <Button type="button" size="sm" variant="sucesso" disabled={decidindo !== null} onClick={onAprovar}>
+          {decidindo === 'aprovar' ? <Loader2 className="animate-spin" /> : <Check />}
+          Conferir
+        </Button>
+      )}
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="bg-background"
+        disabled={decidindo !== null}
+        onClick={() => setConfirmandoDevolver(true)}
+        title={conferida ? 'Desfazer a conferência e devolver a tarefa pendente' : undefined}
+      >
+        {decidindo === 'devolver' ? <Loader2 className="animate-spin" /> : <Undo2 />}
+        Devolver
+      </Button>
+
+      <AlertDialog open={confirmandoDevolver} onOpenChange={setConfirmandoDevolver}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{pergunta.titulo}</AlertDialogTitle>
+            <AlertDialogDescription>{pergunta.descricao}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction onClick={onDevolver}>Devolver tarefa</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+/**
+ * "Conferir" e "Devolver" no bloco de cima da ficha, para quem tem
+ * `tasks.review` — o gerente abre a tarefa pela aba Conferência, olha o
+ * checklist e as fotos, e decide ali mesmo, sem voltar para a lista.
+ *
+ * O feito deste bloco é o de HOJE na tarefa que se repete — é o que o bloco
+ * mostra —, e o da própria tarefa na avulsa. O feito de outro dia, clicado na
+ * aba, tem a faixa dele (FeitoDeOutroDia).
+ */
+function ConferenciaNaFicha({
+  tarefa,
+  recorrente,
+  pessoas,
+}: {
+  tarefa: Tarefa;
+  recorrente: boolean;
+  pessoas: Pessoa[];
+}) {
+  const { itens, decidindo, decidir } = useDecisaoNaFicha(tarefa.quadro_id);
+
+  const conferida = tarefa.conferencia === 'conferida';
+  const dia = recorrente ? hojeISO() : null;
+  const daAba = itens.find((i) => mesmoItem(i, { tarefa_id: tarefa.id, dia }));
+  const quemFez = daAba?.feita_por ? pessoas.find((p) => p.id === daAba.feita_por)?.nome ?? null : null;
+
+  // O item da aba quando ela já carregou (traz quem fez e quando); senão,
+  // montado da tarefa — o banco só precisa da tarefa e do dia.
+  const item: ItemDeConferencia = daAba ?? {
+    tarefa_id: tarefa.id,
+    dia,
+    titulo: tarefa.titulo,
+    prioridade: tarefa.prioridade,
+    dias_semana: tarefa.dias_semana,
+    horario: tarefa.horario,
+    quadro_id: tarefa.quadro_id,
+    quadro_nome: '',
+    lista_id: tarefa.lista_id,
+    lista_nome: '',
+    lista_cor: null,
+    feita_por: null,
+    feita_em: tarefa.concluida_em ?? tarefa.updated_at,
+  };
+
+  const desfeito = recorrente
+    ? `O feito de hoje é desfeito${conferida ? ', junto com a conferência,' : ''} e a tarefa volta a aparecer pendente para ${quemFez ?? 'quem faz'} hoje, no quadro e em Minhas Tarefas.`
+    : `A conclusão é desfeita${conferida ? ', junto com a conferência,' : ''} e a tarefa volta pendente, no quadro e em Minhas Tarefas.`;
+
+  return (
+    <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
+      {quemFez && !conferida && (
+        <span className="w-full text-[11px] text-amber-800 sm:text-right dark:text-amber-300">
+          {/* Avulsa: o banco não guarda quem clicou, só de quem ela é. */}
+          {recorrente ? (
+            <>
+              Marcada por <strong>{quemFez}</strong> {quandoFoi(item.feita_em)}
+            </>
+          ) : (
+            <>
+              Responsável: <strong>{quemFez}</strong>
+            </>
+          )}
+        </span>
+      )}
+      <BotoesDeConferir
+        conferida={conferida}
+        decidindo={decidindo}
+        onAprovar={() => void decidir(item, true)}
+        onDevolver={() => void decidir(item, false)}
+        pergunta={{
+          titulo: quemFez ? `Devolver para ${quemFez}?` : 'Devolver esta tarefa?',
+          descricao: `${desfeito} Vale deixar um comentário dizendo o que faltou.`,
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * O feito de um dia que NÃO é hoje, aberto pela aba Conferência (`?dia=`).
+ *
+ * Sem esta faixa, clicar num feito de "Ontem" abria uma ficha que dizia
+ * "Marcar como feita hoje", sem Conferir nem Devolver — e, se hoje também
+ * houvesse feito esperando, o "Conferir" do bloco de cima aprovava o de hoje,
+ * não o que o gerente clicou. Aqui os botões usam o feito daquele dia, vindo
+ * da própria aba.
+ *
+ * Aparece só enquanto o feito espera conferência: conferido ou devolvido, ele
+ * sai da aba e a faixa some junto. Quem não confere vê a faixa sem botões.
+ */
+function FeitoDeOutroDia({
+  tarefa,
+  dia,
+  pessoas,
+  podeConferir,
+}: {
+  tarefa: Tarefa;
+  dia: string;
+  pessoas: Pessoa[];
+  podeConferir: boolean;
+}) {
+  const { itens, decidindo, decidir } = useDecisaoNaFicha(tarefa.quadro_id);
+  const item = itens.find((i) => mesmoItem(i, { tarefa_id: tarefa.id, dia }));
+  if (!item) return null;
+
+  const hoje = hojeISO();
+  const rotulo = rotuloDoDia(dia, hoje);
+  const doDia = rotulo === 'Ontem' ? 'ontem' : rotulo;
+  const quem = item.feita_por ? pessoas.find((p) => p.id === item.feita_por) ?? null : null;
+
+  return (
+    <div
+      role="region"
+      aria-label={`Feito de ${doDia}`}
+      className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/40"
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500 text-white shadow-sm">
+        <Hourglass className="h-4 w-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+          Feito de {doDia} aguardando conferência
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {quem ? (
+            <>
+              Marcada por <strong className="text-foreground">{quem.nome}</strong> às {horaDoFeito(item.feita_em)}.
+            </>
+          ) : (
+            <>Marcada às {horaDoFeito(item.feita_em)}.</>
+          )}{' '}
+          O bloco de cima é o de hoje; {podeConferir ? 'os botões daqui mexem' : 'esta faixa fala'} só do feito de{' '}
+          {doDia}.
+        </p>
+      </div>
+      {podeConferir && (
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+          <BotoesDeConferir
+            conferida={false}
+            decidindo={decidindo}
+            onAprovar={() => void decidir(item, true)}
+            onDevolver={() => void decidir(item, false)}
+            pergunta={textoDoDevolver(item, quem ? primeiroNome(quem.nome) : null, hoje)}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Hora marcada da tarefa (v2, pedido do Felipe em 24/09: "coloque a
+ * possibilidade de ter alguns horários pré-definidos. Deixe que eu escolha os
+ * horários").
+ *
+ * As sugestões vêm de Listas do Sistema (catálogo `tarefa_horario`): o Felipe
+ * cadastra, aparece aqui sozinho. Item que não parece hora ("Depois do
+ * almoço") continua na lista, desativado e dizendo por quê — sumir sem
+ * explicação faria o Felipe achar que o cadastro quebrou. "Outro horário..."
+ * abre um campo de hora para quando nenhuma sugestão serve.
+ *
+ * A hora já escolhida aparece mesmo que não esteja (ou não esteja mais) nas
+ * sugestões: senão o campo viria vazio e pareceria que a tarefa não tem hora.
+ */
+function CampoHorario({
+  valor,
+  horarios,
+  podeEditar,
+  onSalvar,
+}: {
+  valor: string | null;
+  horarios: HorarioOpcao[];
+  podeEditar: boolean;
+  onSalvar: (horario: string | null) => void;
+}) {
+  const [digitando, setDigitando] = useState(false);
+  const [rascunho, setRascunho] = useState(valor ?? '');
+  const campo = useRef<HTMLInputElement>(null);
+  const focarAoFechar = useRef(false);
+
+  // Duas grafias da mesma hora no catálogo ("07:30" e "7h30") viram uma só.
+  const { validas, invalidas } = useMemo(() => {
+    const ok: string[] = [];
+    const ruins: HorarioOpcao[] = [];
+    for (const h of horarios) {
+      if (!h.valor) ruins.push(h);
+      else if (!ok.includes(h.valor)) ok.push(h.valor);
+    }
+    return { validas: ok, invalidas: ruins };
+  }, [horarios]);
+  const foraDasSugestoes = valor !== null && !validas.includes(valor);
+
+  // Hora pela metade ("10:--") não fecha o campo nem apaga a que já existe:
+  // quem digitou metade ainda está digitando.
+  const salvarDigitado = () => {
+    const hora = normalizarHorario(rascunho);
+    if (!hora) return;
+    setDigitando(false);
+    if (hora !== valor) onSalvar(hora);
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <Select
+        value={valor ?? SEM_HORARIO}
+        disabled={!podeEditar}
+        onValueChange={(v) => {
+          if (v === OUTRO_HORARIO) {
+            setRascunho(valor ?? '');
+            setDigitando(true);
+            focarAoFechar.current = true;
+            return;
+          }
+          setDigitando(false);
+          const novo = v === SEM_HORARIO ? null : v;
+          if (novo !== valor) onSalvar(novo);
+        }}
+      >
+        <SelectTrigger aria-label="Horário" className="h-9 bg-background">
+          <SelectValue>
+            {valor ? (
+              <span className="flex items-center gap-1.5 font-semibold tabular-nums">
+                <AlarmClock className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+                {valor}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">Sem horário</span>
+            )}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent
+          // Ao escolher "Outro horário...", o foco vai para o campo de hora
+          // (o seletor, ao fechar, devolveria o foco para ele mesmo).
+          onCloseAutoFocus={(e) => {
+            if (!focarAoFechar.current) return;
+            focarAoFechar.current = false;
+            e.preventDefault();
+            campo.current?.focus();
+          }}
+        >
+          <SelectItem value={SEM_HORARIO}>
+            <span className="text-muted-foreground">Sem horário</span>
+          </SelectItem>
+          {validas.map((h) => (
+            <SelectItem key={h} value={h}>
+              <span className="tabular-nums">{h}</span>
+            </SelectItem>
+          ))}
+          {foraDasSugestoes && valor && (
+            <SelectItem value={valor}>
+              <span className="tabular-nums">{valor}</span>
+              <span className="ml-1 text-muted-foreground">(digitado)</span>
+            </SelectItem>
+          )}
+          {invalidas.map((h) => (
+            <SelectItem key={h.id} value={`__invalido_${h.id}`} disabled title="Não parece um horário">
+              {h.descricao}
+              <span className="ml-1 text-[11px]">— não parece um horário</span>
+            </SelectItem>
+          ))}
+          <SelectSeparator />
+          <SelectItem value={OUTRO_HORARIO}>Outro horário...</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {digitando && (
+        <div className="space-y-1 rounded-lg border bg-background p-2 shadow-sm">
+          <div className="flex items-center gap-2">
+            <Input
+              ref={campo}
+              type="time"
+              aria-label="Outro horário"
+              value={rascunho}
+              onChange={(e) => setRascunho(e.target.value)}
+              onBlur={salvarDigitado}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  salvarDigitado();
+                }
+              }}
+              className="h-8 tabular-nums"
+            />
+            <button
+              type="button"
+              // Sem isto, o clique tiraria o foco do campo antes, e a hora
+              // digitada seria salva justamente por quem quis cancelar.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setDigitando(false)}
+              className="shrink-0 text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              Cancelar
+            </button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">Digite a hora e aperte Enter (ou saia do campo).</p>
+        </div>
+      )}
+    </div>
   );
 }
 

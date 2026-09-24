@@ -1,4 +1,4 @@
-import { AlignLeft, Maximize2, MessageSquare } from 'lucide-react';
+import { AlignLeft, CheckCheck, Maximize2, MessageSquare, Paperclip } from 'lucide-react';
 import { BolinhaFeito } from '@/components/tarefas/BolinhaFeito';
 import { ehRecorrente, estaFeita, statusNoDia } from '@/lib/tarefas';
 import { cn } from '@/lib/utils';
@@ -15,6 +15,7 @@ import { CelulaPrioridade } from './celulas/CelulaPrioridade';
 import { CelulaStatus } from './celulas/CelulaStatus';
 
 function tituloDaBolinha(tarefa: Tarefa, feita: boolean, pode: boolean): string {
+  if (tarefa.conferencia === 'conferida') return 'Conferida pelo gerente. Só ele pode devolver.';
   if (!pode) return 'Só quem faz esta tarefa, ou quem pode editar o quadro, marca o feito.';
   if (ehRecorrente(tarefa)) return feita ? 'Desmarcar o feito de hoje' : 'Marcar como feita hoje';
   return feita ? 'Desmarcar concluída' : 'Marcar como concluída';
@@ -62,7 +63,9 @@ export function LinhaTarefa({
         <div className="flex h-10 items-center gap-2.5 pl-3 pr-2 transition-colors group-hover/linha:bg-muted/50">
           <BolinhaFeito
             feita={feita}
-            disabled={!podeMarcarAndamento}
+            // Feito conferido pelo gerente (v2): desmarcar é só com ele, pela
+            // conferência — o banco recusaria o clique de qualquer outro.
+            disabled={!podeMarcarAndamento || tarefa.conferencia === 'conferida'}
             titulo={tituloDaBolinha(tarefa, feita, podeMarcarAndamento)}
             onClick={() => acoes.alternarFeito(tarefa.id)}
           />
@@ -79,8 +82,29 @@ export function LinhaTarefa({
           >
             {tarefa.titulo}
           </button>
-          {(tarefa.descricao || tarefa.comentarios_total > 0) && (
+          {/* Os mesmos sinais do cartão do Kanban (v2): o selo de conferida e o
+              clipe com a contagem de anexos, para a Tabela não esconder o que
+              o Kanban mostra. */}
+          {tarefa.conferencia === 'conferida' && (
+            <span
+              className="inline-flex shrink-0 items-center gap-0.5 rounded bg-emerald-500/15 px-1.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300"
+              title="Conferida pelo gerente"
+            >
+              <CheckCheck className="h-3 w-3" />
+              Conferida
+            </span>
+          )}
+          {(tarefa.descricao || tarefa.comentarios_total > 0 || tarefa.anexos_total > 0) && (
             <span className="flex shrink-0 items-center gap-2 text-muted-foreground/70">
+              {tarefa.anexos_total > 0 && (
+                <span
+                  className="flex items-center gap-0.5 text-[11px] font-medium tabular-nums"
+                  title={tarefa.anexos_total === 1 ? '1 anexo' : `${tarefa.anexos_total} anexos`}
+                >
+                  <Paperclip className="h-3.5 w-3.5" />
+                  {tarefa.anexos_total}
+                </span>
+              )}
               {tarefa.descricao && (
                 <span title="Tem descrição">
                   <AlignLeft className="h-3.5 w-3.5" />

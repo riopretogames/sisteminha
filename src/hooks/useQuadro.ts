@@ -8,13 +8,16 @@ import type { CatalogoItem } from '@/hooks/useCatalogos';
 import { hojeISO } from '@/lib/format';
 import {
   montarTarefa,
+  normalizarHorario,
   ordemEntre,
   ordenarPorOrdem,
   precisaRenumerar,
   renumerar,
+  type FeitasHoje,
   type LinhaTarefaDoBanco,
 } from '@/lib/tarefas';
 import {
+  aplicarCamposDoFeito,
   camposAoMudarFrequencia,
   mensagemLeiga,
   planoDeAlternarFeito,
@@ -61,15 +64,20 @@ export { montarTarefa };
  * a consulta inteira (erro PGRST201), e nenhum quadro abre. O teste de
  * contrato em lib/tarefas.test.ts prende isso, porque o dublê de teste ignora
  * o texto do select e não pegaria de novo.
+ *
+ * `conferida_por` vai como id puro, sem embutir o cadastro: ele aponta para a
+ * conta de acesso (auth.users), não para `profiles`, e o banco recusaria o
+ * embed. O nome de quem conferiu vem de usePessoasDaLoja.
  */
 export const SELECT_TAREFA =
   'id, quadro_id, lista_id, titulo, descricao, prioridade, status, dias_semana, periodo_id, prazo, ' +
-  'concluida_em, ordem, arquivada_em, criado_por, created_at, updated_at, ' +
+  'horario, concluida_em, conferida_em, conferida_por, ordem, arquivada_em, criado_por, created_at, updated_at, ' +
   'periodo:catalogos!tarefas_periodo_id_fkey(id, descricao), ' +
   'tarefas_responsaveis(user_id, profiles(id, nome, avatar_url)), ' +
   'tarefas_etiquetas(catalogo_id, catalogos(id, descricao, cor)), ' +
   'tarefas_checklist(feito), ' +
-  'tarefas_comentarios(id)';
+  'tarefas_comentarios(id), ' +
+  'tarefas_anexos(id)';
 
 export interface DadosDoQuadro {
   quadro: Quadro | null;
@@ -79,14 +87,22 @@ export interface DadosDoQuadro {
 
 export const chaveDoQuadro = (quadroId: string | undefined) => ['tarefas-quadro', quadroId] as const;
 
-/** Ids das tarefas com o feito de hoje gravado. */
-export async function lerFeitasHoje(): Promise<Set<string>> {
+/**
+ * O feito de hoje de cada tarefa recorrente, e se o gerente já conferiu.
+ * Tarefa sem linha aqui não foi feita hoje.
+ */
+export async function lerFeitasHoje(): Promise<FeitasHoje> {
   const { data, error } = await supabase
     .from('tarefas_conclusoes')
-    .select('tarefa_id')
+    .select('tarefa_id, conferida_em')
     .eq('dia', hojeISO());
   if (error) throw error;
-  return new Set((data ?? []).map((c) => c.tarefa_id));
+  return new Map(
+    ((data ?? []) as { tarefa_id: string; conferida_em?: string | null }[]).map((c) => [
+      c.tarefa_id,
+      { conferida: Boolean(c.conferida_em) },
+    ]),
+  );
 }
 
 async function lerQuadro(quadroId: string): Promise<DadosDoQuadro> {
@@ -253,9 +269,11 @@ function useAcaoDoQuadro<V>(
     onSuccess: (_r, v) => cfg.aoConcluir?.(v),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: chave });
-      // Minhas Tarefas e a contagem da lista de quadros mostram o mesmo dado.
+      // Minhas Tarefas, a contagem da lista de quadros e a aba Conferência
+      // (marcar feito manda para lá) mostram o mesmo dado.
       qc.invalidateQueries({ queryKey: ['minhas-tarefas'] });
       qc.invalidateQueries({ queryKey: ['tarefas-quadros'] });
+      qc.invalidateQueries({ queryKey: ['conferencia'] });
     },
   });
 
@@ -390,18 +408,30 @@ export function useQuadro(quadroId: string | undefined) {
               return item ? { id: item.id, descricao: item.descricao } : null;
             })()
           : undefined;
-      return trocarTarefa(dados, id, (t) => ({
-        ...t,
-        ...campos,
-        ...(extras ?? {}),
-        ...(periodo !== undefined ? { periodo } : {}),
-        ...(campos.dias_semana ? { dias_semana: [...campos.dias_semana].sort((a, b) => a - b) } : {}),
-      }));
+      return trocarTarefa(dados, id, (t) =>
+        // aplicarCamposDoFeito: mudar a frequência pode desfazer um feito
+        // (camposAoMudarFrequencia), e aí a conferência some junto.
+        aplicarCamposDoFeito(t, {
+          ...campos,
+          ...(extras ?? {}),
+          ...(periodo !== undefined ? { periodo } : {}),
+          ...(campos.dias_semana ? { dias_semana: [...campos.dias_semana].sort((a, b) => a - b) } : {}),
+          ...('horario' in campos ? { horario: normalizarHorario(campos.horario) } : {}),
+        }),
+      );
     },
     executar: async (d) => {
       const { id, extras, ...campos } = d;
       const linha = { ...campos, ...(extras ?? {}) };
       if (typeof linha.titulo === 'string') linha.titulo = linha.titulo.trim();
+      // Grava "HH:MM" (o tipo TIME do banco aceita). Hora que não se entende
+      // é recusada aqui, com frase de gente, em vez de virar "sem horário"
+      // calado ou um erro em inglês do banco.
+      if ('horario' in linha && linha.horario) {
+        const hora = normalizarHorario(linha.horario);
+        if (!hora) throw new Error('Horário inválido. Use o formato 10:00.');
+        linha.horario = hora;
+      }
       const { error } = await supabase.from('tarefas').update(linha).eq('id', id);
       if (error) throw error;
     },
@@ -429,7 +459,7 @@ export function useQuadro(quadroId: string | undefined) {
   const aplicarPlano = useAcaoDoQuadro(chave, {
     tituloDoErro: 'Não foi possível marcar o andamento',
     otimista: (dados, d: { id: string; plano: PlanoDeStatus }) =>
-      trocarTarefa(dados, d.id, (t) => ({ ...t, ...d.plano.otimista })),
+      trocarTarefa(dados, d.id, (t) => aplicarCamposDoFeito(t, d.plano.otimista)),
     executar: (d) => gravarPlanoDeStatus(d.id, d.plano),
   });
 

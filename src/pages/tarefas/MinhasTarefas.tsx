@@ -1,12 +1,16 @@
 import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
+  AlarmClock,
   CalendarDays,
+  CheckCheck,
   CheckCircle2,
   ChevronRight,
   Clock,
+  Hourglass,
   ListChecks,
   Moon,
+  Paperclip,
   PartyPopper,
   Play,
   RefreshCw,
@@ -44,10 +48,17 @@ import type { TarefaMinha, TarefaStatus } from '@/types/tarefas';
  *
  * Agrupada pelo turno (os períodos que a loja cadastra em Listas do Sistema,
  * na ordem de lá), porque é assim que o dia da loja anda: primeiro o que se
- * faz ao abrir, por último o que se faz ao fechar.
+ * faz ao abrir, por último o que se faz ao fechar. Dentro do turno, a hora
+ * marcada manda (v2): "07:30 Ligar os telefones" vem antes de "10:00 Responder
+ * a OLX".
+ *
+ * Feito que espera o gerente (v2) continua aqui, riscado e com o selo
+ * "Enviada para conferência": no quadro ele some (foi para a aba Conferência),
+ * mas a pessoa precisa ver que o dela já foi. Quando o gerente confere, o selo
+ * vira "Conferida" e a bolinha trava — desfazer, só com ele.
  */
 
-const SEM_HORARIO = 'sem-horario';
+const SEM_PERIODO = 'sem-periodo';
 
 interface GrupoDoQuadro {
   id: string;
@@ -64,13 +75,24 @@ interface GrupoDoTurno {
   quadros: GrupoDoQuadro[];
 }
 
+/** "10:00" => 600. Sem hora = depois de qualquer hora do dia. */
+function minutosDoDia(horario: string | null): number {
+  if (!horario) return Number.MAX_SAFE_INTEGER;
+  const [h, m] = horario.split(':').map(Number);
+  return h * 60 + m;
+}
+
 /**
- * Pendentes primeiro (atrasada no topo, depois a mais urgente), feitas no
- * fim e riscadas — a pessoa vê o que falta sem perder de vista o que já fez.
+ * Pendentes primeiro, feitas no fim e riscadas — a pessoa vê o que falta sem
+ * perder de vista o que já fez. Entre as pendentes (e entre as feitas), a
+ * hora marcada manda: da mais cedo para a mais tarde, e as sem hora depois.
+ * Entre as sem hora vale o de antes: atrasada no topo, depois a mais urgente,
+ * depois a ordem do quadro.
  */
 function ordenarNoGrupo(tarefas: TarefaMinha[], hoje: string): TarefaMinha[] {
   const chave = (t: TarefaMinha) => [
     estaFeita(t) ? 1 : 0,
+    minutosDoDia(t.horario),
     statusNoDia(t, hoje) === 'atrasada' ? 0 : 1,
     -TAREFA_PRIORIDADES[t.prioridade].ordem,
     t.ordem,
@@ -93,13 +115,16 @@ function agruparPorTurno(
   const turnos = new Map<string, { titulo: string; posicao: number; tarefas: TarefaMinha[] }>();
 
   for (const t of tarefas) {
-    const chave = t.periodo_id ?? SEM_HORARIO;
+    const chave = t.periodo_id ?? SEM_PERIODO;
     let turno = turnos.get(chave);
     if (!turno) {
       turno = {
-        titulo: t.periodo?.descricao ?? 'Sem horário definido',
+        // "Sem período", e não "sem horário": desde a v2 a tarefa pode ter
+        // hora marcada (10:00) sem ter turno, e "sem horário" em cima de uma
+        // tarefa das 10:00 seria mentira.
+        titulo: t.periodo?.descricao ?? 'Sem período definido',
         // Turno que saiu do catálogo vem depois dos cadastrados; "sem
-        // horário" fecha a lista — é o que dá para encaixar em qualquer hora.
+        // período" fecha a lista — é o que dá para encaixar em qualquer hora.
         posicao: t.periodo_id
           ? posicaoNoCatalogo.get(t.periodo_id) ?? catalogo.length
           : Number.MAX_SAFE_INTEGER,
@@ -175,6 +200,8 @@ function LinhaDaTarefa({
   const status = statusNoDia(tarefa, hoje);
   const avulsa = tarefa.dias_semana.length === 0;
   const importante = tarefa.prioridade === 'alta' || tarefa.prioridade === 'urgente';
+  const aguardando = tarefa.conferencia === 'aguardando';
+  const conferida = tarefa.conferencia === 'conferida';
 
   return (
     <li
@@ -188,7 +215,16 @@ function LinhaDaTarefa({
         feita={feita}
         tamanho="lg"
         onClick={onAlternarFeito}
-        titulo={feita ? 'Desmarcar: ainda não terminei' : 'Marcar como feita'}
+        // Conferida: o banco não deixa desmarcar (só o gerente devolve), então
+        // a bolinha nem oferece. Aguardando ainda dá para desfazer um engano.
+        disabled={conferida}
+        titulo={
+          conferida
+            ? 'Conferida pelo gerente. Só ele pode devolver.'
+            : feita
+              ? 'Desmarcar: ainda não terminei'
+              : 'Marcar como feita'
+        }
       />
 
       <div className="min-w-0 flex-1">
@@ -204,6 +240,18 @@ function LinhaDaTarefa({
           {tarefa.titulo}
         </button>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          {tarefa.horario && (
+            <span
+              title={`Às ${tarefa.horario}`}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-semibold tabular-nums',
+                feita ? 'bg-muted text-muted-foreground' : 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
+              )}
+            >
+              <AlarmClock className="h-3.5 w-3.5" />
+              {tarefa.horario}
+            </span>
+          )}
           <ChipDia dias={tarefa.dias_semana} compacto />
           <span className="inline-flex items-center gap-0.5">
             {tarefa.quadro_nome}
@@ -227,10 +275,38 @@ function LinhaDaTarefa({
               {tarefa.checklist_feitos}/{tarefa.checklist_total}
             </span>
           )}
+          {tarefa.anexos_total > 0 && (
+            <span
+              className="inline-flex items-center gap-1"
+              title={tarefa.anexos_total === 1 ? '1 anexo' : `${tarefa.anexos_total} anexos`}
+            >
+              <Paperclip className="h-3.5 w-3.5" />
+              {tarefa.anexos_total}
+            </span>
+          )}
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        {aguardando && (
+          <span
+            title="O gerente ainda vai conferir. Se faltar alguma coisa, ele devolve e a tarefa volta pendente."
+            className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-500/20 dark:text-amber-300"
+          >
+            <Hourglass className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Enviada para conferência</span>
+            <span className="sm:hidden">Na conferência</span>
+          </span>
+        )}
+        {conferida && (
+          <span
+            title="O gerente conferiu e aprovou"
+            className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300"
+          >
+            <CheckCheck className="h-3.5 w-3.5" />
+            Conferida
+          </span>
+        )}
         {importante && !feita && <BadgePrioridade prioridade={tarefa.prioridade} />}
         {!feita && (status === 'fazendo' || status === 'atrasada') && <BadgeStatus status={status} />}
         {!feita && tarefa.status === 'nao_iniciado' && (
@@ -278,6 +354,8 @@ export default function MinhasTarefas() {
 
   const total = tarefas.length;
   const feitas = tarefas.filter(estaFeita).length;
+  const naConferencia = tarefas.filter((t) => t.conferencia === 'aguardando').length;
+  const conferidas = tarefas.filter((t) => t.conferencia === 'conferida').length;
   const porcentagem = total > 0 ? Math.round((feitas / total) * 100) : 0;
 
   const abrirNoQuadro = (t: TarefaMinha) => navigate(`/tarefas/${t.quadro_id}?tarefa=${t.id}`);
@@ -306,9 +384,25 @@ export default function MinhasTarefas() {
             <span className="w-12 shrink-0 text-right text-sm font-bold tabular-nums">{porcentagem}%</span>
           </div>
         )}
+        {!carregando && !erro && (naConferencia > 0 || conferidas > 0) && (
+          <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+            {naConferencia > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
+                <Hourglass className="h-3.5 w-3.5" />
+                {naConferencia} esperando a conferência
+              </span>
+            )}
+            {conferidas > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300">
+                <CheckCheck className="h-3.5 w-3.5" />
+                {plural(conferidas, 'conferida pelo gerente', 'conferidas pelo gerente')}
+              </span>
+            )}
+          </div>
+        )}
         <p className="mt-4 max-w-xl text-xs text-muted-foreground">
-          Marque a bolinha quando terminar. As tarefas de todo dia voltam sozinhas amanhã, sem ninguém precisar
-          zerar nada.
+          Marque a bolinha quando terminar: o gerente confere o que foi feito. As tarefas de todo dia voltam
+          sozinhas amanhã, sem ninguém precisar zerar nada.
         </p>
       </section>
 
@@ -361,7 +455,7 @@ export default function MinhasTarefas() {
                       completo ? 'bg-emerald-500/15 text-emerald-600' : 'bg-primary/10 text-primary',
                     )}
                   >
-                    {turno.chave === SEM_HORARIO ? <CalendarDays className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                    {turno.chave === SEM_PERIODO ? <CalendarDays className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
                   </span>
                   <h2 className="text-base font-semibold">{turno.titulo}</h2>
                   <span

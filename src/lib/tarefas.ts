@@ -1,7 +1,9 @@
 import { DIAS_SEMANA, TAREFA_PRIORIDADES, TAREFA_STATUS } from '@/config/tarefas';
 import type {
+  EstadoConferencia,
   Etiqueta,
   FiltrosTarefasValores,
+  HorarioOpcao,
   Pessoa,
   StatusNoDia,
   Tarefa,
@@ -81,6 +83,9 @@ export function estaFeita(t: Pick<Tarefa, 'dias_semana' | 'feita_hoje' | 'conclu
  *   de hoje => 'atrasada'.
  */
 export function statusNoDia(t: Tarefa, hojeISO: string): StatusNoDia {
+  // Aguardando o gerente ou já conferida: para quem fez, está feita. A
+  // conferência é um passo a mais do gerente, não um "ainda não terminou".
+  if (t.conferencia === 'aguardando' || t.conferencia === 'conferida') return 'feito';
   if (ehRecorrente(t)) return t.feita_hoje ? 'feito' : t.status;
   if (t.concluida_em) return 'feito';
   if (t.status === 'pausada') return 'pausada';
@@ -103,6 +108,146 @@ export function tarefaCaiNoDia(t: Tarefa, dia: number, dataISO: string): boolean
   if (ehRecorrente(t)) return t.dias_semana.includes(dia);
   if (t.concluida_em) return dataLocalISO(new Date(t.concluida_em)) === dataISO;
   return t.prazo ? t.prazo <= dataISO : true;
+}
+
+/* ── Conferência do gerente (v2, 24/09) ────────────────────────────────────── */
+
+/**
+ * Em que pé está a conferência da tarefa.
+ *
+ * - Recorrente: olha o feito de HOJE (`hoje`, vindo de tarefas_conclusoes).
+ *   O feito de ontem que ninguém conferiu continua na aba Conferência, mas não
+ *   muda a tarefa de hoje, que começa pendente como sempre.
+ * - Avulsa: olha a própria linha (`concluida_em` e `conferida_em`).
+ */
+export function estadoDeConferencia(
+  t: { dias_semana: number[] | null; concluida_em: string | null; conferida_em?: string | null },
+  hoje: { feita: boolean; conferida: boolean } | undefined,
+): EstadoConferencia {
+  if ((t.dias_semana ?? []).length > 0) {
+    if (!hoje?.feita) return 'nenhuma';
+    return hoje.conferida ? 'conferida' : 'aguardando';
+  }
+  if (!t.concluida_em) return 'nenhuma';
+  return t.conferida_em ? 'conferida' : 'aguardando';
+}
+
+/**
+ * O que o quadro (Kanban e Tabela) mostra: tudo, menos o que está esperando o
+ * gerente. Frase do Felipe: marcou concluído, "ela fosse para uma aba de
+ * conferência" — o cartão sai do quadro e volta quando o gerente aprova
+ * (feito, com o selo) ou devolve (pendente de novo).
+ */
+export function semAguardandoConferencia<T extends Pick<Tarefa, 'conferencia'>>(tarefas: T[]): T[] {
+  return tarefas.filter((t) => t.conferencia !== 'aguardando');
+}
+
+/* ── Horário ───────────────────────────────────────────────────────────────── */
+
+/**
+ * Lê uma hora do jeito que ela aparece no balcão e devolve "HH:MM".
+ *
+ * Aceita "07:30", "7:30", "07:30:00" (como o banco devolve o tipo TIME),
+ * "7h30", "7h" e "10h". O que não parece hora ("abc", "Depois do almoço",
+ * "25:00") vira null — o catálogo é texto livre em Listas do Sistema, e a
+ * ficha precisa saber qual item dá para gravar como hora.
+ */
+export function normalizarHorario(texto: string | null | undefined): string | null {
+  const limpo = (texto ?? '').trim().toLowerCase();
+  const m =
+    /^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/.exec(limpo) ?? /^(\d{1,2})\s*h\s*(\d{2})?$/.exec(limpo);
+  if (!m) return null;
+  const hora = Number(m[1]);
+  const minuto = Number(m[2] ?? '0');
+  if (hora > 23 || minuto > 59) return null;
+  return `${String(hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')}`;
+}
+
+/**
+ * Os itens do catálogo `tarefa_horario` como a ficha os oferece, na ordem do
+ * catálogo. Item que não parece hora continua na lista (com `valor` nulo) para
+ * a tela mostrá-lo desativado com o motivo, em vez de sumir sem explicação.
+ */
+export function horariosDoCatalogo(
+  itens: { id: string; descricao: string; ativo: boolean }[],
+): HorarioOpcao[] {
+  return itens.map((i) => ({
+    id: i.id,
+    descricao: i.descricao,
+    ativo: i.ativo,
+    valor: normalizarHorario(i.descricao),
+  }));
+}
+
+/**
+ * Com hora marcada primeiro, da mais cedo para a mais tarde; sem hora depois,
+ * na ordem do quadro. Minhas Tarefas usa dentro de cada período: quem tem
+ * "10:00" precisa ver essa antes da "14:00", e a sem hora não passa na frente.
+ */
+export function ordenarPorHorario<T extends { horario: string | null; ordem: number }>(xs: T[]): T[] {
+  return [...xs].sort((a, b) => {
+    if (a.horario && b.horario && a.horario !== b.horario) return a.horario < b.horario ? -1 : 1;
+    if (a.horario && !b.horario) return -1;
+    if (!a.horario && b.horario) return 1;
+    return a.ordem - b.ordem;
+  });
+}
+
+/* ── Anexos ────────────────────────────────────────────────────────────────── */
+
+/** 20 MB — o mesmo limite do bucket `tarefas-anexos` no banco. */
+export const LIMITE_DO_ANEXO = 20 * 1024 * 1024;
+
+/**
+ * "820 KB", "1,2 MB", "20 MB". Do jeito que aparece no celular da pessoa, com
+ * vírgula, para ela reconhecer o arquivo que mandou.
+ */
+export function tamanhoLegivel(bytes: number): string {
+  const b = Math.max(0, Number.isFinite(bytes) ? Math.round(bytes) : 0);
+  const umaCasa = (n: number) => (Math.round(n * 10) / 10).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  if (b < 1024) return `${b} bytes`;
+  if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`;
+  if (b < 1024 * 1024 * 1024) return `${umaCasa(b / (1024 * 1024))} MB`;
+  return `${umaCasa(b / (1024 * 1024 * 1024))} GB`;
+}
+
+const EXTENSOES_DE_IMAGEM = /\.(jpe?g|png|gif|webp|bmp|avif)$/i;
+/** Foto que o navegador não sabe desenhar (HEIC do iPhone, TIFF): vira ícone, não miniatura quebrada. */
+const IMAGEM_QUE_O_NAVEGADOR_NAO_MOSTRA = /^image\/(heic|heif|tiff)$/i;
+
+/**
+ * O anexo dá para mostrar como miniatura? Pelo tipo quando ele veio; pelo nome
+ * quando o celular mandou sem tipo (acontece com arquivo vindo do WhatsApp).
+ */
+export function ehImagem(tipo: string | null | undefined, nome: string): boolean {
+  const t = (tipo ?? '').trim().toLowerCase();
+  if (t && t !== 'application/octet-stream') {
+    return t.startsWith('image/') && !IMAGEM_QUE_O_NAVEGADOR_NAO_MOSTRA.test(t);
+  }
+  return EXTENSOES_DE_IMAGEM.test(nome ?? '');
+}
+
+/**
+ * Nome do arquivo como pode ir no caminho do bucket: sem acento, sem espaço,
+ * só letras, números, ponto, hífen e sublinhado. "Foto da vitrine (1).JPG" →
+ * "Foto-da-vitrine-1.JPG". O nome original, com acento e tudo, continua
+ * guardado em `tarefas_anexos.nome` — é esse que a pessoa vê.
+ */
+export function nomeDeArquivoSeguro(nome: string): string {
+  const limpo = (nome ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/[^a-zA-Z0-9._-]/g, '')
+    .replace(/-{2,}/g, '-')
+    .replace(/^[-.]+/, '');
+  // Nome enorme estouraria o caminho; corta preservando a extensão.
+  if (limpo.length > 100) {
+    const ponto = limpo.lastIndexOf('.');
+    const ext = ponto > 0 && limpo.length - ponto <= 10 ? limpo.slice(ponto) : '';
+    return limpo.slice(0, 100 - ext.length) + ext;
+  }
+  return limpo || 'arquivo';
 }
 
 /** Texto sem acento e em minúsculas: "Conferência" acha "conferencia". */
@@ -191,6 +336,9 @@ export function novaTarefaApareceNoFiltro(
     checklist_feitos: 0,
     comentarios_total: 0,
     feita_hoje: false,
+    horario: null,
+    conferencia: 'nenhuma',
+    anexos_total: 0,
   };
   return filtrarTarefas([t], f, hoje).length === 1;
 }
@@ -297,12 +445,32 @@ export interface LinhaTarefaDoBanco {
   criado_por: string | null;
   created_at: string;
   updated_at: string;
+  /** "HH:MM:SS" (tipo TIME). Opcional: dublê de teste e dado anterior à v2. */
+  horario?: string | null;
+  /** Conferência da tarefa AVULSA (a da recorrente mora em tarefas_conclusoes). */
+  conferida_em?: string | null;
+  conferida_por?: string | null;
   periodo?: { id: string; descricao: string } | null;
   tarefas_responsaveis?: { user_id: string; profiles: Pessoa | null }[] | null;
   tarefas_etiquetas?: { catalogo_id: string; catalogos: Etiqueta | null }[] | null;
   tarefas_checklist?: { feito: boolean }[] | null;
   /** Ids (consulta de useQuadro) ou contagem ([{ count }]). */
   tarefas_comentarios?: ({ id: string } | { count: number })[] | null;
+  /** Idem: só para contar o clipe do cartão. */
+  tarefas_anexos?: ({ id: string } | { count: number })[] | null;
+}
+
+/**
+ * O feito de hoje de cada tarefa recorrente: id da tarefa → já conferido?
+ * Era um Set de ids até a v2; virou mapa porque "feita hoje" agora tem dois
+ * estados (esperando o gerente ou conferida).
+ */
+export type FeitasHoje = Map<string, { conferida: boolean }>;
+
+/** Contagem de um embed que pode vir como ids ou como [{ count }]. */
+function contar(xs: ({ id: string } | { count: number })[] | null | undefined): number {
+  const lista = xs ?? [];
+  return lista.length === 1 && 'count' in lista[0] ? lista[0].count : lista.length;
 }
 
 /**
@@ -319,7 +487,7 @@ export interface LinhaTarefaDoBanco {
  */
 export function montarTarefa(
   linha: LinhaTarefaDoBanco,
-  feitasHoje: Set<string>,
+  feitasHoje: FeitasHoje,
   hojeISO: string = dataLocalISO(new Date()),
 ): Tarefa {
   const prioridade = (linha.prioridade in TAREFA_PRIORIDADES ? linha.prioridade : 'normal') as TarefaPrioridade;
@@ -330,11 +498,7 @@ export function montarTarefa(
     dataLocalISO(new Date(linha.updated_at)) !== hojeISO;
   const status: TarefaStatus = fazendoDeOutroDia ? 'nao_iniciado' : gravado;
   const checklist = linha.tarefas_checklist ?? [];
-  const comentarios = linha.tarefas_comentarios ?? [];
-  const comentariosTotal =
-    comentarios.length === 1 && 'count' in comentarios[0]
-      ? comentarios[0].count
-      : comentarios.length;
+  const feitoDeHoje = feitasHoje.get(linha.id);
 
   return {
     id: linha.id,
@@ -363,8 +527,14 @@ export function montarTarefa(
       .filter((e): e is Etiqueta => Boolean(e)),
     checklist_total: checklist.length,
     checklist_feitos: checklist.filter((i) => i.feito).length,
-    comentarios_total: comentariosTotal,
-    feita_hoje: feitasHoje.has(linha.id),
+    comentarios_total: contar(linha.tarefas_comentarios),
+    feita_hoje: Boolean(feitoDeHoje),
+    horario: normalizarHorario(linha.horario),
+    conferencia: estadoDeConferencia(
+      linha,
+      feitoDeHoje ? { feita: true, conferida: feitoDeHoje.conferida } : undefined,
+    ),
+    anexos_total: contar(linha.tarefas_anexos),
   };
 }
 

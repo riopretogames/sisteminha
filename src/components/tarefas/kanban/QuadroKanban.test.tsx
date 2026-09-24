@@ -65,6 +65,9 @@ function tarefa(p: Partial<Tarefa> & Pick<Tarefa, 'id' | 'lista_id' | 'titulo'>)
     checklist_feitos: 0,
     comentarios_total: 0,
     feita_hoje: false,
+    horario: null,
+    conferencia: 'nenhuma',
+    anexos_total: 0,
     ...p,
   };
 }
@@ -250,6 +253,50 @@ describe('QuadroKanban', () => {
     const atrasada = screen.getByRole('button', { name: 'Abrir a tarefa Pedido das sacolas' });
     expect(within(atrasada).getByText('Venceu 02/01')).toBeInTheDocument();
     expect(atrasada).toHaveClass('border-l-red-500');
+  });
+
+  it('v2: a hora vem antes do turno, o clipe conta os anexos, e a conferida ganha selo e trava a bolinha', () => {
+    abrirQuadro({
+      periodos: [
+        { id: 'p-manha', descricao: 'Manhã', ativo: true },
+        { id: 'p-livre', descricao: 'Livre', ativo: true, padrao: true },
+      ],
+      tarefas: [
+        tarefa({
+          id: 't-tel',
+          lista_id: 'l-pedro',
+          titulo: 'Ligar os telefones',
+          horario: '07:30',
+          periodo_id: 'p-manha',
+          periodo: { id: 'p-manha', descricao: 'Manhã' },
+          anexos_total: 2,
+        }),
+        tarefa({
+          id: 't-caixa',
+          lista_id: 'l-gabriel',
+          titulo: 'Conferir o caixa',
+          dias_semana: [...TODOS_OS_DIAS_LISTA],
+          feita_hoje: true,
+          conferencia: 'conferida',
+          horario: '18:00',
+          periodo_id: 'p-livre',
+          periodo: { id: 'p-livre', descricao: 'Livre' },
+        }),
+      ],
+    });
+
+    const telefones = screen.getByRole('button', { name: 'Abrir a tarefa Ligar os telefones' });
+    expect(within(telefones).getByTitle('Às 07:30 · Manhã')).toHaveTextContent('07:30·Manhã');
+    expect(within(telefones).getByTitle('2 anexos')).toHaveTextContent('2');
+    expect(within(telefones).queryByText('Conferida')).not.toBeInTheDocument();
+
+    const caixa = screen.getByRole('button', { name: 'Abrir a tarefa Conferir o caixa' });
+    expect(within(caixa).getByText('Conferida')).toBeInTheDocument();
+    // O turno padrão ("Livre") continua fora do cartão; a hora aparece sozinha.
+    expect(within(caixa).getByTitle('Às 18:00')).toHaveTextContent('18:00');
+    expect(within(caixa).queryByText('Livre')).not.toBeInTheDocument();
+    // Desfazer um feito conferido é só com o gerente (o banco recusaria).
+    expect(within(caixa).getByRole('button', { name: 'Conferida pelo gerente. Só ele pode devolver.' })).toBeDisabled();
   });
 
   it('coluna vazia avisa que não tem tarefa, em vez de sumir', () => {

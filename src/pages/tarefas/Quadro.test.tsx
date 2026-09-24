@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { hojeISO } from '@/lib/format';
 import { montarCan, bancoFalso, silenciarConsole, type UsuarioDeTeste } from '@/test/apoio';
 
 /**
@@ -12,9 +13,14 @@ import { montarCan, bancoFalso, silenciarConsole, type UsuarioDeTeste } from '@/
  * pelo resumo colorido, abrir a ficha pelo endereço (`?tarefa=`) — que é o
  * que Minhas Tarefas e um link mandado no WhatsApp usam — e esconder
  * "Adicionar coluna" de quem não pode editar.
+ *
+ * v2: o corte da conferência também é da página. O feito que espera o
+ * gerente sai do Kanban e da Tabela e aparece só na aba Conferência (com o
+ * contador no botão da aba); o conferido continua no quadro como feito.
  */
 
-vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }), toast: vi.fn() }));
+const mockToast = vi.fn();
+vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: mockToast }), toast: vi.fn() }));
 
 const mockCan = vi.fn();
 vi.mock('@/hooks/useAuth', () => ({
@@ -196,5 +202,177 @@ describe('Tela do quadro', () => {
 
     await screen.findByRole('heading', { level: 1, name: /loja/i });
     expect(screen.getByRole('button', { name: /adicionar coluna/i })).toBeInTheDocument();
+  });
+});
+
+/* ── Conferência do gerente (v2) ─────────────────────────────────────────── */
+
+const AGORA = new Date().toISOString();
+const HOJE = hojeISO();
+
+/** O endereço (quadro › coluna) que a aba Conferência embute em cada tarefa. */
+const ENDERECO = {
+  quadro: { nome: 'Loja', arquivado_em: null },
+  lista: { nome: 'Vendedor sênior', cor: 'bg-red-500 text-white', arquivada_em: null },
+};
+
+/** O feito de hoje de uma tarefa que se repete, como tarefas_conclusoes devolve. */
+function feitoDeHoje(tarefa: ReturnType<typeof linhaDeTarefa>, extra: Record<string, unknown> = {}) {
+  return {
+    tarefa_id: tarefa.id,
+    dia: HOJE,
+    concluida_em: AGORA,
+    concluida_por: 'u-pedro',
+    conferida_em: null,
+    tarefa: { ...tarefa, ...ENDERECO },
+    ...extra,
+  };
+}
+
+const VARRER = linhaDeTarefa('t3', 'Varrer a loja', { ordem: 3072 });
+const CAIXA = linhaDeTarefa('t5', 'Conferir o caixa', { ordem: 4096 });
+const SACOLAS = linhaDeTarefa('t4', 'Fazer o pedido das sacolas', {
+  dias_semana: [],
+  concluida_em: AGORA,
+  conferida_em: null,
+  ordem: 5120,
+  ...ENDERECO,
+});
+
+/**
+ * Quatro situações num quadro só: "Repor os copos" e "Ligar os telefones"
+ * por fazer; "Varrer a loja" (se repete) e "Fazer o pedido das sacolas"
+ * (avulsa) feitas e esperando o gerente; "Conferir o caixa" feita e já
+ * conferida.
+ */
+const COM_CONFERENCIA = {
+  tarefas_quadros: [QUADRO],
+  tarefas_listas: [LISTA],
+  tarefas: [...TAREFAS, VARRER, CAIXA, SACOLAS],
+  tarefas_conclusoes: [feitoDeHoje(VARRER), feitoDeHoje(CAIXA, { conferida_em: AGORA })],
+};
+
+describe('Conferência no quadro (v2)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    silenciarConsole();
+    try {
+      localStorage.clear();
+    } catch {
+      // Sem armazenamento no ambiente: cada teste já começa no Kanban.
+    }
+  });
+
+  it('o feito que espera o gerente sai do Kanban e da Tabela; o conferido fica, como feito', async () => {
+    await abrirQuadro('/tarefas/q-loja', COM_CONFERENCIA);
+
+    await screen.findByRole('heading', { level: 1, name: /loja/i });
+    expect(screen.getAllByText('Repor os copos').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Conferir o caixa').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Varrer a loja')).not.toBeInTheDocument();
+    expect(screen.queryByText('Fazer o pedido das sacolas')).not.toBeInTheDocument();
+    // O resumo conta o que está no quadro: "Feito" é só o já conferido.
+    expect(screen.getByRole('button', { name: 'Feito: 1 tarefa' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: /tabela/i }));
+    expect(screen.getAllByText('Conferir o caixa').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Varrer a loja')).not.toBeInTheDocument();
+    expect(screen.queryByText('Fazer o pedido das sacolas')).not.toBeInTheDocument();
+  });
+
+  it('o botão da aba conta o que espera; a aba lista os feitos, sem os filtros do quadro', async () => {
+    await abrirQuadro('/tarefas/q-loja', COM_CONFERENCIA);
+
+    const aba = await screen.findByRole('radio', { name: 'Conferência: 2 aguardando' });
+    expect(screen.getByLabelText('Buscar tarefa')).toBeInTheDocument();
+
+    fireEvent.click(aba);
+    expect(aba).toHaveAttribute('data-state', 'on');
+    expect(await screen.findByRole('heading', { name: '2 feitas aguardando conferência' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Varrer a loja' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fazer o pedido das sacolas' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Buscar tarefa')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /adicionar coluna/i })).not.toBeInTheDocument();
+
+    // Voltar ao Kanban traz os filtros de volta.
+    fireEvent.click(screen.getByRole('radio', { name: /kanban/i }));
+    expect(screen.getByLabelText('Buscar tarefa')).toBeInTheDocument();
+  });
+
+  it('o endereço com ?aba=conferencia abre direto na aba', async () => {
+    await abrirQuadro('/tarefas/q-loja?aba=conferencia', COM_CONFERENCIA);
+
+    expect(await screen.findByRole('heading', { name: '2 feitas aguardando conferência' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /conferência/i })).toHaveAttribute('data-state', 'on');
+  });
+
+  it('sem nada esperando, a aba diz que está tudo conferido e o botão fica sem contador', async () => {
+    await abrirQuadro('/tarefas/q-loja?aba=conferencia', QUADRO_COMPLETO);
+
+    expect(await screen.findByText('Nada para conferir.')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Conferência' })).toBeInTheDocument();
+  });
+
+  it('"Conferido" na aba confere o feito de hoje pela função do banco', async () => {
+    await abrirQuadro('/tarefas/q-loja?aba=conferencia', COM_CONFERENCIA);
+    const rpc = vi.spyOn(mockSupabase.atual as { rpc: (...a: unknown[]) => unknown }, 'rpc');
+
+    const linha = (await screen.findByRole('button', { name: 'Varrer a loja' })).closest('li')!;
+    fireEvent.click(within(linha).getByRole('button', { name: /conferido/i }));
+
+    await waitFor(() =>
+      expect(rpc).toHaveBeenCalledWith('conferir_tarefa', { _tarefa_id: 't3', _dia: HOJE, _aprovada: true }),
+    );
+  });
+
+  it('na aba, clicar na tarefa abre a ficha dela, mesmo ela estando fora do Kanban', async () => {
+    await abrirQuadro('/tarefas/q-loja?aba=conferencia', COM_CONFERENCIA);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Varrer a loja' }));
+    const ficha = await screen.findByRole('dialog');
+    expect(within(ficha).getByDisplayValue('Varrer a loja')).toBeInTheDocument();
+  });
+
+  it('quem não confere vê a aba, mas sem os botões', async () => {
+    await abrirQuadro('/tarefas/q-loja?aba=conferencia', COM_CONFERENCIA, { perfil: 'vendedor' });
+
+    expect(await screen.findByRole('button', { name: 'Varrer a loja' })).toBeInTheDocument();
+    expect(screen.getByText('Só quem confere tarefas pode aprovar ou devolver.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /conferido/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /devolver/i })).not.toBeInTheDocument();
+  });
+
+  it('marcar a bolinha no cartão avisa que a tarefa foi para a conferência', async () => {
+    await abrirQuadro('/tarefas/q-loja', QUADRO_COMPLETO);
+
+    const titulo = await screen.findByText('Repor os copos');
+    const bolinha = titulo.parentElement?.querySelector<HTMLButtonElement>('button[aria-pressed]');
+    expect(bolinha).toBeTruthy();
+    fireEvent.click(bolinha!);
+
+    await waitFor(() =>
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Enviada para a conferência' })),
+    );
+  });
+
+  it('o aviso de "enviada para a conferência" oferece Desfazer (quem clicou sem querer não é gerente)', async () => {
+    await abrirQuadro('/tarefas/q-loja', QUADRO_COMPLETO);
+
+    const titulo = await screen.findByText('Repor os copos');
+    fireEvent.click(titulo.parentElement!.querySelector<HTMLButtonElement>('button[aria-pressed]')!);
+    await waitFor(() =>
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Enviada para a conferência' })),
+    );
+
+    // (O banco de teste não guarda gravação, então aqui se confere o botão e
+    // que ele roda sem erro; a volta do status é da ação do quadro, testada
+    // em useQuadro.)
+    const aviso = mockToast.mock.calls.find(([t]) => t.title === 'Enviada para a conferência')![0];
+    const acao = aviso.action as { props: { children: unknown; onClick: () => void } };
+    expect(acao.props.children).toBe('Desfazer');
+
+    act(() => acao.props.onClick());
+    expect(await screen.findByText('Repor os copos')).toBeInTheDocument();
   });
 });

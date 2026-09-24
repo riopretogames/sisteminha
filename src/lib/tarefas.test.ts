@@ -4,24 +4,34 @@ import {
   dataDoDiaNaSemana,
   dataLocalISO,
   descreverDias,
+  ehImagem,
   ehRecorrente,
   estaFeita,
+  estadoDeConferencia,
   filtrarTarefas,
+  horariosDoCatalogo,
+  LIMITE_DO_ANEXO,
   montarTarefa,
+  nomeDeArquivoSeguro,
+  normalizarHorario,
   novaTarefaApareceNoFiltro,
   ordemEntre,
+  ordenarPorHorario,
   ordenarPorOrdem,
   precisaRenumerar,
   primeiroNome,
   renumerar,
   resumoDeStatus,
   saudacao,
+  semAguardandoConferencia,
   statusNoDia,
+  tamanhoLegivel,
   tarefaCaiNoDia,
   temFiltroAtivo,
   type LinhaTarefaDoBanco,
 } from './tarefas';
 import {
+  aplicarCamposDoFeito,
   camposAoMudarFrequencia,
   ehEnderecoInvalido,
   mensagemLeiga,
@@ -30,6 +40,11 @@ import {
 } from './tarefasMutacoes';
 import { FILTROS_TAREFAS_VAZIO, type Tarefa } from '@/types/tarefas';
 import { desfazerSo, SELECT_TAREFA, type DadosDoQuadro } from '@/hooks/useQuadro';
+import {
+  montarItensDeConferencia,
+  SELECT_AVULSA_PENDENTE,
+  SELECT_CONCLUSAO_PENDENTE,
+} from '@/hooks/useConferencia';
 
 /**
  * As regras do quadro de tarefas. É aqui que mora o que substitui o "zerar o
@@ -66,6 +81,9 @@ function tarefa(campos: Partial<Tarefa> = {}): Tarefa {
     checklist_feitos: 0,
     comentarios_total: 0,
     feita_hoje: false,
+    horario: null,
+    conferencia: 'nenhuma',
+    anexos_total: 0,
     ...campos,
   };
 }
@@ -384,7 +402,7 @@ describe('montarTarefa', () => {
   };
 
   it('monta contadores, pessoas em ordem de nome e o feito de hoje', () => {
-    const t = montarTarefa(linha, new Set(['t9']));
+    const t = montarTarefa(linha, new Map([['t9', { conferida: false }]]));
     expect(t.checklist_total).toBe(3);
     expect(t.checklist_feitos).toBe(2);
     expect(t.comentarios_total).toBe(2);
@@ -397,7 +415,7 @@ describe('montarTarefa', () => {
 
   it('sem embeds (dublê de teste) não quebra', () => {
     const { periodo, tarefas_responsaveis, tarefas_etiquetas, tarefas_checklist, tarefas_comentarios, ...seca } = linha;
-    const t = montarTarefa(seca, new Set());
+    const t = montarTarefa(seca, new Map());
     expect(t.responsaveis).toEqual([]);
     expect(t.checklist_total).toBe(0);
     expect(t.periodo).toBeNull();
@@ -405,24 +423,24 @@ describe('montarTarefa', () => {
   });
 
   it('aceita contagem de comentários no formato [{ count }]', () => {
-    expect(montarTarefa({ ...linha, tarefas_comentarios: [{ count: 7 }] }, new Set()).comentarios_total).toBe(7);
+    expect(montarTarefa({ ...linha, tarefas_comentarios: [{ count: 7 }] }, new Map()).comentarios_total).toBe(7);
   });
 
   it('"fazendo" de tarefa que se repete vale só no dia em que foi marcado', () => {
     // Pedro clicou "Começar" ontem e não terminou: a de hoje é outra tarefa.
     const ontem = { ...linha, status: 'fazendo', updated_at: '2026-09-22T14:00:00' };
-    expect(montarTarefa(ontem, new Set(), HOJE).status).toBe('nao_iniciado');
+    expect(montarTarefa(ontem, new Map(), HOJE).status).toBe('nao_iniciado');
     // Começou hoje: continua "fazendo".
     const hoje = { ...linha, status: 'fazendo', updated_at: '2026-09-23T09:00:00' };
-    expect(montarTarefa(hoje, new Set(), HOJE).status).toBe('fazendo');
+    expect(montarTarefa(hoje, new Map(), HOJE).status).toBe('fazendo');
     // Pausada não é andamento do dia: fica como está.
-    expect(montarTarefa({ ...ontem, status: 'pausada' }, new Set(), HOJE).status).toBe('pausada');
+    expect(montarTarefa({ ...ontem, status: 'pausada' }, new Map(), HOJE).status).toBe('pausada');
     // Avulsa "fazendo" desde ontem continua fazendo: ela não recomeça todo dia.
-    expect(montarTarefa({ ...ontem, dias_semana: [] }, new Set(), HOJE).status).toBe('fazendo');
+    expect(montarTarefa({ ...ontem, dias_semana: [] }, new Map(), HOJE).status).toBe('fazendo');
   });
 
   it('valor desconhecido de prioridade/status cai no padrão em vez de quebrar a tela', () => {
-    const t = montarTarefa({ ...linha, prioridade: 'altissima', status: 'sei_la' }, new Set());
+    const t = montarTarefa({ ...linha, prioridade: 'altissima', status: 'sei_la' }, new Map());
     expect(t.prioridade).toBe('normal');
     expect(t.status).toBe('nao_iniciado');
   });
@@ -644,5 +662,376 @@ describe('desfazerSo — o erro desfaz só o que a ação mexeu', () => {
     const semA: DadosDoQuadro = { ...base, tarefas: [B] };
     const tela = desfazerSo(semA, base, semA);
     expect(tela.tarefas.map((t) => t.id)).toEqual(['a', 'b']);
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/*  v2 (24/09): conferência do gerente, horário e anexos                      */
+/* ══════════════════════════════════════════════════════════════════════════ */
+
+describe('estadoDeConferencia', () => {
+  const AGORA = '2026-09-23T15:00:00.000Z';
+
+  it('recorrente: olha só o feito de HOJE', () => {
+    const rec = { dias_semana: [1, 3], concluida_em: null, conferida_em: null };
+    expect(estadoDeConferencia(rec, undefined)).toBe('nenhuma');
+    expect(estadoDeConferencia(rec, { feita: false, conferida: false })).toBe('nenhuma');
+    expect(estadoDeConferencia(rec, { feita: true, conferida: false })).toBe('aguardando');
+    expect(estadoDeConferencia(rec, { feita: true, conferida: true })).toBe('conferida');
+  });
+
+  it('recorrente ignora conferida_em da linha (a conferência dela mora no feito do dia)', () => {
+    const rec = { dias_semana: [3], concluida_em: AGORA, conferida_em: AGORA };
+    expect(estadoDeConferencia(rec, undefined)).toBe('nenhuma');
+  });
+
+  it('avulsa: pela própria linha', () => {
+    expect(estadoDeConferencia({ dias_semana: [], concluida_em: null, conferida_em: null }, undefined)).toBe('nenhuma');
+    expect(estadoDeConferencia({ dias_semana: [], concluida_em: AGORA, conferida_em: null }, undefined)).toBe(
+      'aguardando',
+    );
+    expect(estadoDeConferencia({ dias_semana: [], concluida_em: AGORA, conferida_em: AGORA }, undefined)).toBe(
+      'conferida',
+    );
+    // Linha sem a coluna (consulta antiga / dublê): concluída = aguardando.
+    expect(estadoDeConferencia({ dias_semana: null, concluida_em: AGORA }, undefined)).toBe('aguardando');
+  });
+});
+
+describe('semAguardandoConferencia — o cartão "vai para a aba"', () => {
+  it('tira só o que espera o gerente; conferida continua no quadro como feita', () => {
+    const lista = [
+      tarefa({ id: 'a', conferencia: 'nenhuma' }),
+      tarefa({ id: 'b', conferencia: 'aguardando' }),
+      tarefa({ id: 'c', conferencia: 'conferida' }),
+    ];
+    expect(semAguardandoConferencia(lista).map((t) => t.id)).toEqual(['a', 'c']);
+    expect(semAguardandoConferencia([])).toEqual([]);
+  });
+});
+
+describe('statusNoDia com a conferência', () => {
+  it('aguardando e conferida contam como feita no dia', () => {
+    expect(statusNoDia(tarefa({ dias_semana: [3], feita_hoje: true, conferencia: 'aguardando' }), HOJE)).toBe('feito');
+    expect(statusNoDia(tarefa({ dias_semana: [3], feita_hoje: true, conferencia: 'conferida' }), HOJE)).toBe('feito');
+    // Avulsa vencida mas já feita e conferida não é "atrasada".
+    expect(
+      statusNoDia(
+        tarefa({ prazo: '2026-09-01', concluida_em: meioDia(HOJE), status: 'feito', conferencia: 'conferida' }),
+        HOJE,
+      ),
+    ).toBe('feito');
+  });
+});
+
+describe('normalizarHorario', () => {
+  it('lê os jeitos de escrever hora do balcão', () => {
+    expect(normalizarHorario('07:30')).toBe('07:30');
+    expect(normalizarHorario('7:30')).toBe('07:30');
+    expect(normalizarHorario('07:30:00')).toBe('07:30'); // como o banco devolve o TIME
+    expect(normalizarHorario('7h30')).toBe('07:30');
+    expect(normalizarHorario('7h')).toBe('07:00');
+    expect(normalizarHorario('10h')).toBe('10:00');
+    expect(normalizarHorario(' 18H00 ')).toBe('18:00');
+    expect(normalizarHorario('00:00')).toBe('00:00');
+  });
+
+  it('o que não parece hora vira null', () => {
+    expect(normalizarHorario('abc')).toBeNull();
+    expect(normalizarHorario('Depois do almoço')).toBeNull();
+    expect(normalizarHorario('25:00')).toBeNull();
+    expect(normalizarHorario('10:60')).toBeNull();
+    expect(normalizarHorario('7')).toBeNull();
+    expect(normalizarHorario('')).toBeNull();
+    expect(normalizarHorario(null)).toBeNull();
+    expect(normalizarHorario(undefined)).toBeNull();
+  });
+});
+
+describe('horariosDoCatalogo', () => {
+  it('mantém a ordem do catálogo e marca o que não dá para gravar como hora', () => {
+    const opcoes = horariosDoCatalogo([
+      { id: 'h1', descricao: '7h30', ativo: true },
+      { id: 'h2', descricao: 'Depois do almoço', ativo: true },
+      { id: 'h3', descricao: '18:00', ativo: false },
+    ]);
+    expect(opcoes).toEqual([
+      { id: 'h1', descricao: '7h30', ativo: true, valor: '07:30' },
+      { id: 'h2', descricao: 'Depois do almoço', ativo: true, valor: null },
+      { id: 'h3', descricao: '18:00', ativo: false, valor: '18:00' },
+    ]);
+    expect(horariosDoCatalogo([])).toEqual([]);
+  });
+});
+
+describe('ordenarPorHorario', () => {
+  it('com hora primeiro (mais cedo antes), sem hora no fim na ordem do quadro', () => {
+    const xs = [
+      { id: 'sem-2', horario: null, ordem: 2048 },
+      { id: '14h', horario: '14:00', ordem: 1 },
+      { id: 'sem-1', horario: null, ordem: 1024 },
+      { id: '07h30', horario: '07:30', ordem: 9999 },
+      { id: '10h-b', horario: '10:00', ordem: 20 },
+      { id: '10h-a', horario: '10:00', ordem: 10 },
+    ];
+    expect(ordenarPorHorario(xs).map((x) => x.id)).toEqual(['07h30', '10h-a', '10h-b', '14h', 'sem-1', 'sem-2']);
+  });
+
+  it('não mexe na lista recebida e aguenta lista vazia', () => {
+    const xs = [
+      { horario: null, ordem: 2 },
+      { horario: '08:00', ordem: 1 },
+    ];
+    const copia = [...xs];
+    ordenarPorHorario(xs);
+    expect(xs).toEqual(copia);
+    expect(ordenarPorHorario([])).toEqual([]);
+  });
+});
+
+describe('tamanhoLegivel', () => {
+  it('do jeito que aparece no celular, com vírgula', () => {
+    expect(tamanhoLegivel(0)).toBe('0 bytes');
+    expect(tamanhoLegivel(512)).toBe('512 bytes');
+    expect(tamanhoLegivel(820 * 1024)).toBe('820 KB');
+    expect(tamanhoLegivel(1.2 * 1024 * 1024)).toBe('1,2 MB');
+    expect(tamanhoLegivel(LIMITE_DO_ANEXO)).toBe('20 MB');
+    expect(tamanhoLegivel(3 * 1024 * 1024 * 1024)).toBe('3 GB');
+  });
+
+  it('valor estranho não quebra', () => {
+    expect(tamanhoLegivel(-5)).toBe('0 bytes');
+    expect(tamanhoLegivel(Number.NaN)).toBe('0 bytes');
+  });
+});
+
+describe('ehImagem', () => {
+  it('pelo tipo, quando ele veio', () => {
+    expect(ehImagem('image/jpeg', 'x')).toBe(true);
+    expect(ehImagem('image/png', 'x.pdf')).toBe(true);
+    expect(ehImagem('application/pdf', 'foto.jpg')).toBe(false);
+    // Foto do iPhone que o navegador não desenha: ícone, não miniatura quebrada.
+    expect(ehImagem('image/heic', 'IMG_0001.HEIC')).toBe(false);
+  });
+
+  it('pelo nome, quando o arquivo chegou sem tipo', () => {
+    expect(ehImagem(null, 'vitrine.JPG')).toBe(true);
+    expect(ehImagem('', 'vitrine.webp')).toBe(true);
+    expect(ehImagem('application/octet-stream', 'vitrine.jpeg')).toBe(true);
+    expect(ehImagem(null, 'orcamento.pdf')).toBe(false);
+    expect(ehImagem(null, 'sem-extensao')).toBe(false);
+  });
+});
+
+describe('nomeDeArquivoSeguro — o nome que vai no caminho do bucket', () => {
+  it('sem acento, sem espaço, só o que o caminho aceita', () => {
+    expect(nomeDeArquivoSeguro('Foto da vitrine (1).JPG')).toBe('Foto-da-vitrine-1.JPG');
+    expect(nomeDeArquivoSeguro('Orçamento ção.pdf')).toBe('Orcamento-cao.pdf');
+    expect(nomeDeArquivoSeguro('../../segredo.txt')).toBe('segredo.txt');
+  });
+
+  it('nome vazio ou só de símbolo vira "arquivo"', () => {
+    expect(nomeDeArquivoSeguro('')).toBe('arquivo');
+    expect(nomeDeArquivoSeguro('###')).toBe('arquivo');
+  });
+
+  it('nome enorme é cortado mantendo a extensão', () => {
+    const nome = nomeDeArquivoSeguro(`${'a'.repeat(300)}.pdf`);
+    expect(nome.length).toBe(100);
+    expect(nome.endsWith('.pdf')).toBe(true);
+  });
+});
+
+describe('montarTarefa — v2', () => {
+  const base: LinhaTarefaDoBanco = {
+    id: 't1',
+    quadro_id: 'q1',
+    lista_id: 'l1',
+    titulo: 'Abrir a loja',
+    descricao: null,
+    prioridade: 'normal',
+    status: 'nao_iniciado',
+    dias_semana: [3],
+    periodo_id: null,
+    prazo: null,
+    concluida_em: null,
+    ordem: 1024,
+    arquivada_em: null,
+    criado_por: null,
+    created_at: '2026-09-01T10:00:00Z',
+    updated_at: '2026-09-01T10:00:00Z',
+  };
+
+  it('horário do banco ("HH:MM:SS") vira "HH:MM"; sem horário, null', () => {
+    expect(montarTarefa({ ...base, horario: '10:00:00' }, new Map()).horario).toBe('10:00');
+    expect(montarTarefa(base, new Map()).horario).toBeNull();
+  });
+
+  it('recorrente: o feito de hoje diz a conferência', () => {
+    expect(montarTarefa(base, new Map()).conferencia).toBe('nenhuma');
+    const aguardando = montarTarefa(base, new Map([['t1', { conferida: false }]]));
+    expect(aguardando.feita_hoje).toBe(true);
+    expect(aguardando.conferencia).toBe('aguardando');
+    expect(montarTarefa(base, new Map([['t1', { conferida: true }]])).conferencia).toBe('conferida');
+  });
+
+  it('avulsa: pela linha', () => {
+    const avulsa = { ...base, dias_semana: [], status: 'feito', concluida_em: '2026-09-23T12:00:00Z' };
+    expect(montarTarefa(avulsa, new Map()).conferencia).toBe('aguardando');
+    expect(montarTarefa({ ...avulsa, conferida_em: '2026-09-23T13:00:00Z' }, new Map()).conferencia).toBe(
+      'conferida',
+    );
+  });
+
+  it('conta os anexos (ids ou [{ count }]); sem o embed, zero', () => {
+    expect(montarTarefa({ ...base, tarefas_anexos: [{ id: 'a1' }, { id: 'a2' }] }, new Map()).anexos_total).toBe(2);
+    expect(montarTarefa({ ...base, tarefas_anexos: [{ count: 5 }] }, new Map()).anexos_total).toBe(5);
+    expect(montarTarefa(base, new Map()).anexos_total).toBe(0);
+  });
+});
+
+describe('aplicarCamposDoFeito — o selo acompanha a bolinha na hora', () => {
+  const AGORA = '2026-09-23T15:00:00.000Z';
+
+  it('marcou feito: vai para "aguardando" (o cartão sai do quadro na hora)', () => {
+    const t = tarefa({ dias_semana: [3] });
+    const depois = aplicarCamposDoFeito(t, planoDeAlternarFeito(t, AGORA).otimista);
+    expect(depois.feita_hoje).toBe(true);
+    expect(depois.conferencia).toBe('aguardando');
+
+    const avulsa = tarefa();
+    expect(aplicarCamposDoFeito(avulsa, planoDeAlternarFeito(avulsa, AGORA).otimista).conferencia).toBe('aguardando');
+  });
+
+  it('desmarcou: a conferência some junto (o banco apaga também)', () => {
+    const t = tarefa({ dias_semana: [3], feita_hoje: true, conferencia: 'aguardando' });
+    expect(aplicarCamposDoFeito(t, planoDeAlternarFeito(t, AGORA).otimista).conferencia).toBe('nenhuma');
+  });
+
+  it('continua feita: não mexe no selo (conferida segue conferida)', () => {
+    const t = tarefa({ dias_semana: [3], feita_hoje: true, conferencia: 'conferida' });
+    expect(aplicarCamposDoFeito(t, { titulo: 'Outro' }).conferencia).toBe('conferida');
+  });
+
+  it('não altera a tarefa recebida', () => {
+    const t = tarefa({ dias_semana: [3] });
+    aplicarCamposDoFeito(t, { feita_hoje: true });
+    expect(t.feita_hoje).toBe(false);
+    expect(t.conferencia).toBe('nenhuma');
+  });
+});
+
+describe('montarItensDeConferencia — o que entra na aba', () => {
+  const endereco = {
+    quadro: { nome: 'Loja', arquivado_em: null },
+    lista: { nome: 'Pedro', cor: 'bg-red-500 text-white', arquivada_em: null },
+  };
+  const tarefaRec = {
+    id: 't-rec',
+    titulo: 'Repor os copos',
+    prioridade: 'alta',
+    dias_semana: [5, 1],
+    horario: '10:00:00',
+    arquivada_em: null,
+    quadro_id: 'q1',
+    lista_id: 'l-pedro',
+    ...endereco,
+  };
+  const conclusao = (dia: string, extra: object = {}) => ({
+    tarefa_id: 't-rec',
+    dia,
+    concluida_em: `${dia}T13:00:00Z`,
+    concluida_por: 'u-pedro',
+    conferida_em: null,
+    tarefa: tarefaRec,
+    ...extra,
+  });
+  const avulsa = (extra: object = {}) => ({
+    id: 't-av',
+    titulo: 'Fazer o pedido das sacolas',
+    prioridade: 'sei_la',
+    dias_semana: [],
+    horario: null,
+    concluida_em: '2026-09-23T14:00:00Z',
+    conferida_em: null,
+    arquivada_em: null,
+    quadro_id: 'q2',
+    lista_id: 'l-gerente',
+    quadro: { nome: 'Assistência', arquivado_em: null },
+    lista: { nome: 'Gerente', cor: null, arquivada_em: null },
+    ...extra,
+  });
+
+  it('une os feitos do dia e as avulsas, o mais recente primeiro', () => {
+    const itens = montarItensDeConferencia([conclusao('2026-09-22'), conclusao('2026-09-23')], [avulsa()]);
+    expect(itens.map((i) => [i.tarefa_id, i.dia])).toEqual([
+      ['t-av', null],
+      ['t-rec', '2026-09-23'],
+      ['t-rec', '2026-09-22'],
+    ]);
+    const rec = itens[1];
+    expect(rec).toMatchObject({
+      titulo: 'Repor os copos',
+      prioridade: 'alta',
+      dias_semana: [1, 5],
+      horario: '10:00',
+      quadro_nome: 'Loja',
+      lista_nome: 'Pedro',
+      lista_cor: 'bg-red-500 text-white',
+      feita_por: 'u-pedro',
+      feita_em: '2026-09-23T13:00:00Z',
+    });
+    // Avulsa: o banco não guarda quem clicou; prioridade desconhecida cai no padrão.
+    expect(itens[0].feita_por).toBeNull();
+    expect(itens[0].prioridade).toBe('normal');
+  });
+
+  it('deixa de fora o já conferido e o que saiu de circulação', () => {
+    const itens = montarItensDeConferencia(
+      [
+        conclusao('2026-09-21', { conferida_em: '2026-09-21T18:00:00Z' }),
+        conclusao('2026-09-22', { tarefa: { ...tarefaRec, arquivada_em: '2026-09-22T20:00:00Z' } }),
+        conclusao('2026-09-23', { tarefa: { ...tarefaRec, lista: { ...endereco.lista, arquivada_em: 'x' } } }),
+        conclusao('2026-09-20', { tarefa: null }),
+      ],
+      [
+        avulsa({ conferida_em: '2026-09-23T15:00:00Z' }),
+        avulsa({ id: 't-av2', concluida_em: null }),
+        avulsa({ id: 't-av3', quadro: { nome: 'Velho', arquivado_em: 'x' } }),
+        // Recorrente com concluida_em (resto antigo) não é conferida por aqui.
+        avulsa({ id: 't-av4', dias_semana: [1] }),
+      ],
+    );
+    expect(itens).toEqual([]);
+  });
+
+  it('com quadro escolhido, só os dele', () => {
+    const itens = montarItensDeConferencia([conclusao('2026-09-23')], [avulsa()], 'q1');
+    expect(itens.map((i) => i.tarefa_id)).toEqual(['t-rec']);
+  });
+});
+
+describe('Consultas da v2 (contrato com o banco)', () => {
+  /**
+   * `concluida_por`, `conferida_por` e `enviado_por` apontam para a conta de
+   * acesso (auth.users), não para `profiles`: embutir o cadastro neles faz o
+   * banco recusar a consulta inteira. O dublê de teste não pegaria isso.
+   */
+  it('a tarefa traz horário, conferência e a contagem de anexos', () => {
+    expect(SELECT_TAREFA).toMatch(/\bhorario\b/);
+    expect(SELECT_TAREFA).toMatch(/\bconferida_em\b/);
+    expect(SELECT_TAREFA).toContain('tarefas_anexos(id)');
+  });
+
+  it('nenhuma consulta embute o cadastro em quem fez, conferiu ou enviou', () => {
+    for (const sel of [SELECT_TAREFA, SELECT_CONCLUSAO_PENDENTE, SELECT_AVULSA_PENDENTE]) {
+      expect(sel).not.toMatch(/(concluida_por|conferida_por|enviado_por)\s*[:(]/);
+      expect(sel).not.toMatch(/profiles!\w*(concluida_por|conferida_por|enviado_por)/);
+    }
+  });
+
+  it('a conferência não usa catalogos sem dizer o caminho (tarefas chega lá por dois)', () => {
+    expect(SELECT_CONCLUSAO_PENDENTE).not.toContain('catalogos(');
+    expect(SELECT_AVULSA_PENDENTE).not.toContain('catalogos(');
   });
 });

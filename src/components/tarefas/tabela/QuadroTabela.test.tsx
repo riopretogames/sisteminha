@@ -84,6 +84,9 @@ function tarefa(parcial: Partial<Tarefa> & Pick<Tarefa, 'id' | 'lista_id' | 'tit
     checklist_feitos: 0,
     comentarios_total: 0,
     feita_hoje: false,
+    horario: null,
+    conferencia: 'nenhuma',
+    anexos_total: 0,
     ...parcial,
   };
 }
@@ -381,6 +384,80 @@ describe('Tabela do quadro', () => {
     expect(screen.queryByText(/Escreva a primeira/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Limpar filtros' }));
     expect(onLimparFiltros).toHaveBeenCalled();
+  });
+
+  it('v2: a célula de período mostra a hora antes do turno, e só a hora quando não há turno', () => {
+    abrirTabela({
+      periodos: [{ id: 'p-manha', descricao: 'Manhã (7 às 11)', ativo: true }],
+      tarefas: [
+        tarefa({
+          id: 't9',
+          lista_id: 'l1',
+          titulo: 'Ligar os telefones',
+          horario: '07:30',
+          periodo_id: 'p-manha',
+          periodo: { id: 'p-manha', descricao: 'Manhã (7 às 11)' },
+        }),
+        tarefa({ id: 't8', lista_id: 'l2', titulo: 'Responder a OLX', horario: '10:00' }),
+        tarefa({ id: 't7', lista_id: 'l2', titulo: 'Varrer a loja', ordem: 2048 }),
+      ],
+    });
+
+    const telefones = within(linha('Ligar os telefones'));
+    expect(telefones.getByText('07:30')).toBeInTheDocument();
+    expect(telefones.getByText('Manhã (7 às 11)')).toBeInTheDocument();
+    // Clicar continua escolhendo o turno; o title avisa que a hora é na ficha.
+    expect(telefones.getByTitle(/Às 07:30 · Manhã \(7 às 11\) — clique para mudar o turno \(a hora se muda na ficha\)/)).toBeInTheDocument();
+
+    const olx = within(linha('Responder a OLX'));
+    expect(olx.getByText('10:00')).toBeInTheDocument();
+    // Tem hora: "Sem período" ali seria ruído (e parecia "sem horário").
+    expect(olx.queryByText('Sem período')).not.toBeInTheDocument();
+
+    expect(within(linha('Varrer a loja')).getByText('Sem período')).toBeInTheDocument();
+  });
+
+  it('v2: feito conferido pelo gerente trava a bolinha na linha', () => {
+    abrirTabela({
+      tarefas: [
+        tarefa({
+          id: 't9',
+          lista_id: 'l1',
+          titulo: 'Conferir o caixa',
+          dias_semana: [0, 1, 2, 3, 4, 5, 6],
+          feita_hoje: true,
+          conferencia: 'conferida',
+        }),
+      ],
+    });
+
+    const bolinha = within(linha('Conferir o caixa')).getByRole('button', {
+      name: 'Conferida pelo gerente. Só ele pode devolver.',
+    });
+    expect(bolinha).toBeDisabled();
+  });
+
+  it('v2: conferida trava também a célula de status, e a linha mostra o selo e o clipe', () => {
+    abrirTabela({
+      tarefas: [
+        tarefa({
+          id: 't9',
+          lista_id: 'l1',
+          titulo: 'Conferir o caixa',
+          dias_semana: [0, 1, 2, 3, 4, 5, 6],
+          feita_hoje: true,
+          conferencia: 'conferida',
+          anexos_total: 2,
+        }),
+      ],
+    });
+
+    const daLinha = within(linha('Conferir o caixa'));
+    // Tirar o "Feito" desfaria a conferência: a célula vira só leitura.
+    expect(daLinha.queryByRole('button', { name: 'Feito' })).toBeNull();
+    expect(daLinha.getByTitle(/Só quem confere pode devolver/)).toHaveTextContent('Feito');
+    expect(daLinha.getByTitle('Conferida pelo gerente')).toHaveTextContent('Conferida');
+    expect(daLinha.getByTitle('2 anexos')).toHaveTextContent('2');
   });
 });
 

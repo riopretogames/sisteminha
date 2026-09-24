@@ -181,6 +181,7 @@ export const MENU: MenuRoot[] = [
     children: [
       { kind: 'link', id: 'tarefas-minhas', label: 'Minhas Tarefas', path: '/tarefas/minhas', element: 'MinhasTarefas', permission: PERMISSIONS.TASKS_VIEW, icon: 'check', hint: 'O que é seu para hoje, para marcar como feito' },
       { kind: 'link', id: 'tarefas-quadros', label: 'Quadros', path: '/tarefas', element: 'TarefasQuadros', permission: PERMISSIONS.TASKS_VIEW, icon: 'kanban', hint: 'Os quadros da equipe: loja, assistência e o que você criar' },
+      { kind: 'link', id: 'tarefas-conferencia', label: 'Conferência', path: '/tarefas/conferencia', element: 'TarefasConferencia', permission: PERMISSIONS.TASKS_REVIEW, icon: 'review', hint: 'O que a equipe marcou como feito, para aprovar ou devolver' },
     ],
   },
 
